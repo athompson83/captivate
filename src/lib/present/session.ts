@@ -1,0 +1,422 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { createStore, useStore, type StoreApi } from "zustand";
+import type { Scene } from "@/lib/schema/presentation";
+import { buildStepCount } from "./motion";
+import {
+  PresentChannel,
+  emptyAnnotations,
+  type PresentMessage,
+  type PresenterTool,
+  type SceneAnnotations,
+} from "./protocol";
+
+/**
+ * Presentation session.
+ *
+ * The session lives in a store *outside* React, created once per presentation
+ * window. That matters for two reasons:
+ *
+ *  1. The BroadcastChannel and the running clock are long-lived side effects
+ *     that must not be torn down and rebuilt on re-render — losing a message
+ *     mid-presentation is not an acceptable failure mode.
+ *  2. Commands arriving from the other window are applied by plain functions,
+ *     not by React callbacks, so there is no dependency graph to get wrong.
+ *
+ * React subscribes to the store and renders. It never owns session state.
+ *
+ * Roles: `stage` is authoritative for position and broadcasts it; `console`
+ * mirrors that state and sends commands.
+ */
+
+export type SessionRole = "stage" | "console";
+
+export interface SessionState {
+  sceneIndex: number;
+  step: number;
+  stepsInScene: number;
+  totalScenes: number;
+  startedAt: number | null;
+  sceneEnteredAt: number;
+  paused: boolean;
+  /** Audience sees black; used to take attention off the screen. */
+  blanked: boolean;
+
+  annotationsByScene: Record<number, SceneAnnotations>;
+  pointer: { x: number; y: number } | null;
+  pointerColor: string;
+  peerConnected: boolean;
+  /**
+   * Wall clock, refreshed once a second and on every command. Held in the
+   * store rather than read during render so elapsed times stay a pure
+   * function of state.
+   */
+  nowMs: number;
+}
+
+export type SessionCommand =
+  "next" | "prev" | "goto" | "first" | "last" | "toggle-pause" | "reset-timer" | "blank";
+
+function initialState(scenes: Scene[], stepCounts: number[]): SessionState {
+  return {
+    sceneIndex: 0,
+    step: 0,
+    stepsInScene: stepCounts[0] ?? 1,
+    totalScenes: scenes.length,
+    startedAt: null,
+    sceneEnteredAt: Date.now(),
+    paused: false,
+    blanked: false,
+    annotationsByScene: {},
+    pointer: null,
+    pointerColor: "#F0B858",
+    peerConnected: false,
+    nowMs: Date.now(),
+  };
+}
+
+export interface SessionApi {
+  store: StoreApi<SessionState>;
+  channel: PresentChannel;
+  /** Starts the channel and the clock; returns a teardown function. */
+  attach: () => () => void;
+  send: (command: SessionCommand, index?: number) => void;
+  setAnnotations: (sceneIndex: number, annotations: SceneAnnotations) => void;
+  clearScene: () => void;
+  clearAll: () => void;
+  broadcastPointer: (
+    point: { x: number; y: number } | null,
+    tool: PresenterTool,
+    color: string,
+  ) => void;
+}
+
+export function createSession({
+  presentationId,
+  scenes,
+  role,
+}: {
+  presentationId: string;
+  scenes: Scene[];
+  role: SessionRole;
+}): SessionApi {
+  const stepCounts = scenes.map((s) => buildStepCount(s.content.elements));
+  const store = createStore<SessionState>(() => initialState(scenes, stepCounts));
+  const channel = new PresentChannel(presentationId);
+
+  const isFullscreen = () => typeof document !== "undefined" && Boolean(document.fullscreenElement);
+
+  const broadcastState = (state: SessionState) => {
+    if (role !== "stage") return;
+    channel.post({
+      type: "state",
+      sceneIndex: state.sceneIndex,
+      step: state.step,
+      stepsInScene: state.stepsInScene,
+      totalScenes: state.totalScenes,
+      startedAt: state.startedAt,
+      sceneEnteredAt: state.sceneEnteredAt,
+      paused: state.paused,
+      fullscreen: isFullscreen(),
+    });
+  };
+
+  const update = (updater: (current: SessionState) => Partial<SessionState>) => {
+    store.setState((current) => {
+      const patch = { ...updater(current), nowMs: Date.now() };
+      const next = { ...current, ...patch };
+      broadcastState(next);
+      return patch;
+    });
+  };
+
+  const goTo = (sceneIndex: number, step = 0) =>
+    update((current) => {
+      const clamped = Math.max(0, Math.min(scenes.length - 1, sceneIndex));
+      return {
+        sceneIndex: clamped,
+        step: Math.max(0, Math.min((stepCounts[clamped] ?? 1) - 1, step)),
+        stepsInScene: stepCounts[clamped] ?? 1,
+        totalScenes: scenes.length,
+        startedAt: current.startedAt ?? Date.now(),
+        sceneEnteredAt: clamped === current.sceneIndex ? current.sceneEnteredAt : Date.now(),
+        blanked: false,
+      };
+    });
+
+  const next = () =>
+    update((current) => {
+      const steps = stepCounts[current.sceneIndex] ?? 1;
+      // Walk the builds within a scene before moving on to the next scene.
+      if (current.step < steps - 1) {
+        return {
+          step: current.step + 1,
+          startedAt: current.startedAt ?? Date.now(),
+          blanked: false,
+        };
+      }
+      if (current.sceneIndex >= scenes.length - 1) return { blanked: false };
+
+      const nextIndex = current.sceneIndex + 1;
+      return {
+        sceneIndex: nextIndex,
+        step: 0,
+        stepsInScene: stepCounts[nextIndex] ?? 1,
+        sceneEnteredAt: Date.now(),
+        startedAt: current.startedAt ?? Date.now(),
+        blanked: false,
+      };
+    });
+
+  const prev = () =>
+    update((current) => {
+      if (current.step > 0) return { step: current.step - 1, blanked: false };
+      if (current.sceneIndex === 0) return { blanked: false };
+
+      const prevIndex = current.sceneIndex - 1;
+      const steps = stepCounts[prevIndex] ?? 1;
+      return {
+        sceneIndex: prevIndex,
+        // Returning to a scene shows it fully built, not rewound.
+        step: steps - 1,
+        stepsInScene: steps,
+        sceneEnteredAt: Date.now(),
+        blanked: false,
+      };
+    });
+
+  const apply = (command: SessionCommand, index?: number) => {
+    switch (command) {
+      case "next":
+        next();
+        break;
+      case "prev":
+        prev();
+        break;
+      case "goto":
+        if (typeof index === "number") goTo(index);
+        break;
+      case "first":
+        goTo(0);
+        break;
+      case "last":
+        goTo(scenes.length - 1);
+        break;
+      case "toggle-pause":
+        update((c) => ({ paused: !c.paused }));
+        break;
+      case "reset-timer":
+        update(() => ({ startedAt: Date.now(), sceneEnteredAt: Date.now() }));
+        break;
+      case "blank":
+        update((c) => ({ blanked: !c.blanked }));
+        break;
+      default:
+        break;
+    }
+  };
+
+  /** Stage acts locally; console asks the stage to act. */
+  const send = (command: SessionCommand, index?: number) => {
+    if (role === "stage") apply(command, index);
+    else channel.post({ type: "command", action: command, index });
+  };
+
+  const setAnnotations = (sceneIndex: number, annotations: SceneAnnotations) => {
+    store.setState((current) => ({
+      annotationsByScene: { ...current.annotationsByScene, [sceneIndex]: annotations },
+    }));
+    channel.post({ type: "annotations", sceneIndex, annotations });
+  };
+
+  const clearScene = () => setAnnotations(store.getState().sceneIndex, emptyAnnotations());
+
+  const clearAll = () => {
+    store.setState({ annotationsByScene: {} });
+    for (let i = 0; i < scenes.length; i += 1) {
+      channel.post({ type: "annotations", sceneIndex: i, annotations: emptyAnnotations() });
+    }
+  };
+
+  const broadcastPointer = (
+    point: { x: number; y: number } | null,
+    tool: PresenterTool,
+    color: string,
+  ) => {
+    store.setState({ pointer: point, pointerColor: color });
+    channel.post({ type: "pointer", point, tool, color });
+  };
+
+  const onMessage = (message: PresentMessage) => {
+    switch (message.type) {
+      case "hello":
+        if (message.role === role) return;
+        store.setState({ peerConnected: true });
+        // A peer that has just opened needs the current position immediately.
+        if (role === "stage") broadcastState(store.getState());
+        else channel.post({ type: "hello", role });
+        break;
+
+      case "bye":
+        if (message.role !== role) store.setState({ peerConnected: false });
+        break;
+
+      case "state":
+        if (role !== "console") return;
+        store.setState({
+          peerConnected: true,
+          sceneIndex: message.sceneIndex,
+          step: message.step,
+          stepsInScene: message.stepsInScene,
+          totalScenes: message.totalScenes,
+          startedAt: message.startedAt,
+          sceneEnteredAt: message.sceneEnteredAt,
+          paused: message.paused,
+        });
+        break;
+
+      case "command":
+        if (role === "stage") apply(message.action, message.index);
+        break;
+
+      case "pointer":
+        if (role === "stage")
+          store.setState({ pointer: message.point, pointerColor: message.color });
+        break;
+
+      case "annotations":
+        store.setState((current) => ({
+          annotationsByScene: {
+            ...current.annotationsByScene,
+            [message.sceneIndex]: message.annotations,
+          },
+        }));
+        break;
+
+      default:
+        break;
+    }
+  };
+
+  const attach = () => {
+    const unsubscribe = channel.on(onMessage);
+    channel.post({ type: "hello", role });
+
+    const sayGoodbye = () => channel.post({ type: "bye", role });
+    window.addEventListener("pagehide", sayGoodbye);
+
+    // One second is enough resolution for a presenter clock and costs nothing.
+    const interval = setInterval(() => {
+      if (!store.getState().paused) store.setState({ nowMs: Date.now() });
+    }, 1000);
+
+    return () => {
+      sayGoodbye();
+      window.removeEventListener("pagehide", sayGoodbye);
+      clearInterval(interval);
+      unsubscribe();
+      channel.close();
+    };
+  };
+
+  return { store, channel, attach, send, setAnnotations, clearScene, clearAll, broadcastPointer };
+}
+
+/* -------------------------------------------------------------------------- */
+/* React binding                                                               */
+/* -------------------------------------------------------------------------- */
+
+export interface PresentSession extends Omit<SessionState, "annotationsByScene" | "nowMs"> {
+  scene: Scene | null;
+  nextScene: Scene | null;
+  channelAvailable: boolean;
+
+  next: () => void;
+  prev: () => void;
+  goto: (index: number) => void;
+  first: () => void;
+  last: () => void;
+  togglePause: () => void;
+  resetTimer: () => void;
+  toggleBlank: () => void;
+
+  totalElapsedMs: number;
+  sceneElapsedMs: number;
+
+  annotations: SceneAnnotations;
+  setAnnotations: (sceneIndex: number, annotations: SceneAnnotations) => void;
+  clearScene: () => void;
+  clearAll: () => void;
+
+  broadcastPointer: (
+    point: { x: number; y: number } | null,
+    tool: PresenterTool,
+    color: string,
+  ) => void;
+
+  channel: PresentChannel;
+}
+
+export function usePresentSession({
+  presentationId,
+  scenes,
+  role,
+}: {
+  presentationId: string;
+  scenes: Scene[];
+  role: SessionRole;
+}): PresentSession {
+  // Created once. The scene list is fixed for the life of a presentation.
+  const [api] = useState(() => createSession({ presentationId, scenes, role }));
+  const state = useStore(api.store);
+
+  useEffect(() => api.attach(), [api]);
+
+  return useMemo(() => {
+    const now = state.nowMs;
+    return {
+      sceneIndex: state.sceneIndex,
+      step: state.step,
+      stepsInScene: state.stepsInScene,
+      totalScenes: state.totalScenes,
+      startedAt: state.startedAt,
+      sceneEnteredAt: state.sceneEnteredAt,
+      paused: state.paused,
+      blanked: state.blanked,
+      pointer: state.pointer,
+      pointerColor: state.pointerColor,
+      peerConnected: state.peerConnected,
+
+      scene: scenes[state.sceneIndex] ?? null,
+      nextScene: scenes[state.sceneIndex + 1] ?? null,
+      channelAvailable: api.channel.available,
+
+      next: () => api.send("next"),
+      prev: () => api.send("prev"),
+      goto: (index: number) => api.send("goto", index),
+      first: () => api.send("first"),
+      last: () => api.send("last"),
+      togglePause: () => api.send("toggle-pause"),
+      resetTimer: () => api.send("reset-timer"),
+      toggleBlank: () => api.send("blank"),
+
+      totalElapsedMs: state.startedAt ? Math.max(0, now - state.startedAt) : 0,
+      sceneElapsedMs: Math.max(0, now - state.sceneEnteredAt),
+
+      annotations: state.annotationsByScene[state.sceneIndex] ?? emptyAnnotations(),
+      setAnnotations: api.setAnnotations,
+      clearScene: api.clearScene,
+      clearAll: api.clearAll,
+      broadcastPointer: api.broadcastPointer,
+
+      channel: api.channel,
+    };
+  }, [api, scenes, state]);
+}
+
+/** Total rehearsal target across the deck, in seconds, if any scene sets one. */
+export function plannedDuration(scenes: Scene[]): number | null {
+  const total = scenes.reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0);
+  return total > 0 ? total : null;
+}
