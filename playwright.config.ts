@@ -1,0 +1,74 @@
+import { existsSync } from "node:fs";
+import { defineConfig, devices } from "@playwright/test";
+
+/**
+ * End-to-end configuration.
+ *
+ * Tests are split into two projects:
+ *   - `smoke` runs against any deployment, configured or not, and covers the
+ *     paths that do not need an account.
+ *   - `authenticated` covers the real user journeys and is skipped unless
+ *     CAPTIVATE_E2E_EMAIL / CAPTIVATE_E2E_PASSWORD are set, so the suite never
+ *     fails misleadingly on a machine without credentials.
+ */
+const baseURL = process.env.CAPTIVATE_E2E_URL ?? "http://127.0.0.1:3100";
+
+/**
+ * Some environments provision Chromium at a fixed path that does not match the
+ * build this Playwright version would download. Point at it when it exists,
+ * and fall back to Playwright's own browser everywhere else.
+ */
+const PROVISIONED_CHROMIUM = "/opt/pw-browsers/chromium";
+const executablePath = existsSync(PROVISIONED_CHROMIUM) ? PROVISIONED_CHROMIUM : undefined;
+
+export default defineConfig({
+  testDir: "./tests/e2e",
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
+  fullyParallel: true,
+  forbidOnly: Boolean(process.env.CI),
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 2 : undefined,
+  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
+
+  use: {
+    baseURL,
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    // Camera, microphone and screen capture are all permission-gated; the
+    // recording tests grant what they can and assert the fallback otherwise.
+    permissions: [],
+  },
+
+  projects: [
+    {
+      name: "smoke",
+      testMatch: /smoke\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], launchOptions: { executablePath } },
+    },
+    {
+      name: "authenticated",
+      testMatch: /journey\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: {
+          executablePath,
+          args: [
+            "--use-fake-ui-for-media-stream",
+            "--use-fake-device-for-media-stream",
+            "--auto-accept-this-tab-capture",
+          ],
+        },
+      },
+    },
+  ],
+
+  webServer: process.env.CAPTIVATE_E2E_URL
+    ? undefined
+    : {
+        command: "npm run start -- -p 3100",
+        url: "http://127.0.0.1:3100",
+        reuseExistingServer: true,
+        timeout: 120_000,
+      },
+});
