@@ -255,7 +255,11 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
     });
   }
 
-  const headingText = layout === "quote" ? content.quote : content.heading;
+  // Heading and quote are the same slot wearing different clothes. Falling back
+  // between them is what lets a scene switch to (and away from) the quote
+  // layout without silently dropping its text.
+  const headingText =
+    layout === "quote" ? (content.quote ?? content.heading) : (content.heading ?? content.quote);
   if (headingText && slots.heading) {
     const isQuote = layout === "quote";
     const big = layout === "title" || layout === "statement" || isQuote;

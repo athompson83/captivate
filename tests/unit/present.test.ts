@@ -1,0 +1,253 @@
+import { describe, expect, it } from "vitest";
+import {
+  PresentMessage,
+  SceneAnnotations,
+  emptyAnnotations,
+  channelName,
+} from "@/lib/present/protocol";
+import { buildStepCount, entranceFrom, entranceTo, transitionVariants } from "@/lib/present/motion";
+import { fitScale, pointerToStage, stageSize, stageRem } from "@/lib/present/stage";
+import { plannedDuration } from "@/lib/present/session";
+import { composeScene } from "@/lib/editor/layouts";
+import type { Scene, SceneElement } from "@/lib/schema/presentation";
+
+describe("present message protocol", () => {
+  it("accepts a well-formed state message", () => {
+    const message = {
+      type: "state",
+      sceneIndex: 3,
+      step: 1,
+      stepsInScene: 4,
+      totalScenes: 12,
+      startedAt: 1_700_000_000_000,
+      sceneEnteredAt: 1_700_000_100_000,
+      paused: false,
+      fullscreen: true,
+    };
+    expect(PresentMessage.safeParse(message).success).toBe(true);
+  });
+
+  it("rejects a message from an older or unknown protocol", () => {
+    // A stale tab running an old build must not be able to drive a live
+    // presentation with a half-understood message.
+    expect(PresentMessage.safeParse({ type: "teleport", to: 4 }).success).toBe(false);
+    expect(PresentMessage.safeParse({ type: "state", sceneIndex: -1 }).success).toBe(false);
+    expect(PresentMessage.safeParse(null).success).toBe(false);
+    expect(PresentMessage.safeParse("next").success).toBe(false);
+  });
+
+  it("rejects an out-of-range scene index", () => {
+    expect(
+      PresentMessage.safeParse({ type: "command", action: "goto", index: 100000 }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an unknown command", () => {
+    expect(PresentMessage.safeParse({ type: "command", action: "rm -rf" }).success).toBe(false);
+  });
+
+  it("clamps pointer coordinates to a sane range", () => {
+    expect(
+      PresentMessage.safeParse({
+        type: "pointer",
+        point: { x: 0.5, y: 0.5 },
+        tool: "laser",
+        color: "#fff",
+      }).success,
+    ).toBe(true);
+
+    expect(
+      PresentMessage.safeParse({
+        type: "pointer",
+        point: { x: 500, y: 0.5 },
+        tool: "laser",
+        color: "#fff",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("caps stroke and annotation volume", () => {
+    const hugeStroke = {
+      id: "s",
+      color: "#fff",
+      width: 1,
+      points: Array.from({ length: 4001 }, () => ({ x: 0.5, y: 0.5 })),
+    };
+    expect(SceneAnnotations.safeParse({ strokes: [hugeStroke], highlights: [] }).success).toBe(
+      false,
+    );
+
+    const tooManyStrokes = Array.from({ length: 401 }, (_, i) => ({
+      id: `s${i}`,
+      color: "#fff",
+      width: 1,
+      points: [{ x: 0, y: 0 }],
+    }));
+    expect(SceneAnnotations.safeParse({ strokes: tooManyStrokes, highlights: [] }).success).toBe(
+      false,
+    );
+  });
+
+  it("starts with no annotations", () => {
+    expect(emptyAnnotations()).toEqual({ strokes: [], highlights: [] });
+  });
+
+  it("scopes the channel name to one presentation", () => {
+    expect(channelName("abc")).not.toBe(channelName("def"));
+    expect(channelName("abc")).toContain("abc");
+  });
+});
+
+describe("advance steps", () => {
+  const element = (over: Partial<SceneElement> = {}): SceneElement =>
+    ({
+      id: "e",
+      type: "text",
+      frame: { x: 0, y: 0, w: 10, h: 10, rotation: 0 },
+      content: [{ text: "x" }],
+      hidden: false,
+      locked: false,
+      opacity: 1,
+      animation: { entrance: "fade", delay: 0, duration: 0.5, emphasis: "none", onAdvance: false },
+      style: {
+        size: 1,
+        weight: 400,
+        align: "left",
+        valign: "top",
+        italic: false,
+        underline: false,
+        uppercase: false,
+        lineHeight: 1.4,
+        letterSpacing: 0,
+      },
+      ...over,
+    }) as SceneElement;
+
+  it("is one step for a plain scene", () => {
+    expect(buildStepCount([element(), element()])).toBe(1);
+  });
+
+  it("adds a step for each build-on-advance element", () => {
+    expect(
+      buildStepCount([
+        element(),
+        element({
+          animation: {
+            entrance: "fade",
+            delay: 0,
+            duration: 0.5,
+            emphasis: "none",
+            onAdvance: true,
+          },
+        }),
+      ]),
+    ).toBe(2);
+  });
+
+  it("adds a step per extra item in a staggered list", () => {
+    const content = composeScene("bullets", { heading: "H", bullets: ["a", "b", "c", "d"] });
+    // Four items reveal over four steps: the first is visible immediately.
+    expect(buildStepCount(content.elements)).toBe(4);
+  });
+
+  it("does not add steps for a list that is not staggered", () => {
+    const content = composeScene("bullets", { heading: "H", bullets: ["a", "b"] });
+    const list = content.elements.find((e) => e.type === "list");
+    if (list?.type === "list") expect(list.staggered).toBe(false);
+    expect(buildStepCount(content.elements)).toBe(1);
+  });
+});
+
+describe("motion presets", () => {
+  it("has a from and to state for every entrance", () => {
+    const presets = [
+      "none",
+      "fade",
+      "rise",
+      "settle",
+      "slide-left",
+      "slide-right",
+      "scale",
+      "reveal",
+      "blur",
+    ] as const;
+    for (const preset of presets) {
+      expect(entranceFrom(preset), preset).toBeTypeOf("object");
+      expect(entranceTo(preset).opacity, preset).toBe(1);
+    }
+  });
+
+  it("collapses transitions to near-instant under reduced motion", () => {
+    const variants = transitionVariants({ type: "zoom", duration: 1.2, direction: "left" }, true);
+    expect(variants.duration).toBeLessThan(0.01);
+  });
+
+  it("honours the authored duration when motion is allowed", () => {
+    const variants = transitionVariants({ type: "push", duration: 0.8, direction: "left" }, false);
+    expect(variants.duration).toBe(0.8);
+  });
+
+  it("pushes in the opposite direction on exit", () => {
+    const variants = transitionVariants({ type: "push", duration: 0.6, direction: "left" }, false);
+    expect(variants.initial).toHaveProperty("x", "100%");
+    expect(variants.exit).toHaveProperty("x", "-100%");
+  });
+});
+
+describe("stage geometry", () => {
+  it("derives the right pixel size per aspect ratio", () => {
+    expect(stageSize("16:9")).toEqual({ width: 1600, height: 900 });
+    expect(stageSize("4:3")).toEqual({ width: 1600, height: 1200 });
+    expect(stageSize("16:10")).toEqual({ width: 1600, height: 1000 });
+  });
+
+  it("scales type with the stage so layouts hold at any size", () => {
+    expect(stageRem(1600)).toBe(16);
+    expect(stageRem(3200)).toBe(32);
+  });
+
+  it("fits by the constraining axis", () => {
+    // Wide container, short: height is the limit.
+    expect(fitScale({ width: 3200, height: 450 }, { width: 1600, height: 900 })).toBe(0.5);
+    // Tall container, narrow: width is the limit.
+    expect(fitScale({ width: 800, height: 2000 }, { width: 1600, height: 900 })).toBe(0.5);
+  });
+
+  it("never divides by zero", () => {
+    expect(fitScale({ width: 100, height: 100 }, { width: 0, height: 0 })).toBe(1);
+  });
+
+  it("converts a pointer position into normalised stage coordinates", () => {
+    const rect = { left: 100, top: 50, width: 800, height: 450 } as DOMRect;
+    expect(pointerToStage({ clientX: 500, clientY: 275 }, rect)).toEqual({ x: 0.5, y: 0.5 });
+  });
+
+  it("clamps a pointer outside the stage", () => {
+    const rect = { left: 0, top: 0, width: 100, height: 100 } as DOMRect;
+    expect(pointerToStage({ clientX: -50, clientY: 500 }, rect)).toEqual({ x: 0, y: 1 });
+  });
+});
+
+describe("plannedDuration", () => {
+  const scene = (durationSeconds: number | null): Scene =>
+    ({
+      id: "s",
+      presentationId: "p",
+      sectionId: null,
+      position: 0,
+      title: "",
+      content: composeScene("title", { heading: "x" }),
+      speakerNotes: "",
+      durationSeconds,
+      createdAt: "",
+      updatedAt: "",
+    }) as Scene;
+
+  it("sums rehearsal targets", () => {
+    expect(plannedDuration([scene(60), scene(120), scene(null)])).toBe(180);
+  });
+
+  it("returns null when no scene has a target", () => {
+    expect(plannedDuration([scene(null), scene(null)])).toBeNull();
+  });
+});

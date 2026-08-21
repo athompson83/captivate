@@ -24,6 +24,48 @@ export const STAGE_HEIGHT = 100;
 /** Content should not run to the very edge of a projector's visible area. */
 export const SAFE_MARGIN = 6;
 
+/**
+ * A URL that is safe to put in an `href` or an iframe `src`.
+ *
+ * `z.url()` alone is not enough: it happily accepts `javascript:alert(1)`,
+ * which would execute when a link on a scene is clicked. Only http and https
+ * are ever navigable from stored content.
+ */
+export const NavigableUrl = z
+  .string()
+  .max(2048)
+  .refine(
+    (value) => {
+      try {
+        return ["http:", "https:"].includes(new URL(value).protocol);
+      } catch {
+        return false;
+      }
+    },
+    { message: "Links must be http:// or https://" },
+  );
+
+/**
+ * A media source. Allows the app's own signed-asset route and blob/data URLs
+ * alongside remote https, but never a script-bearing scheme.
+ */
+export const MediaSource = z
+  .string()
+  .max(4096)
+  .refine(
+    (value) => {
+      if (value === "") return true;
+      if (value.startsWith("/")) return !value.startsWith("//");
+      if (value.startsWith("data:image/") || value.startsWith("blob:")) return true;
+      try {
+        return ["http:", "https:"].includes(new URL(value).protocol);
+      } catch {
+        return false;
+      }
+    },
+    { message: "That media source isn't allowed" },
+  );
+
 export const AspectRatio = z.enum(["16:9", "16:10", "4:3"]);
 export type AspectRatio = z.infer<typeof AspectRatio>;
 
@@ -154,7 +196,7 @@ export const TextRun = z.object({
   italic: z.boolean().optional(),
   underline: z.boolean().optional(),
   code: z.boolean().optional(),
-  href: z.string().url().max(2048).optional(),
+  href: NavigableUrl.optional(),
   color: ColorValue.optional(),
 });
 export type TextRun = z.infer<typeof TextRun>;
@@ -201,7 +243,7 @@ export const ImageElement = z.object({
   ...elementBase,
   type: z.literal("image"),
   assetId: z.string().max(64).nullable().default(null),
-  url: z.string().max(4096),
+  url: MediaSource,
   alt: z.string().max(600).default(""),
   fit: ImageFit.default("cover"),
   /** Normalised focal point used when cropping with `cover`. */
@@ -216,8 +258,8 @@ export const VideoElement = z.object({
   ...elementBase,
   type: z.literal("video"),
   assetId: z.string().max(64).nullable().default(null),
-  url: z.string().max(4096),
-  poster: z.string().max(4096).default(""),
+  url: MediaSource,
+  poster: MediaSource.default(""),
   autoplay: z.boolean().default(false),
   loop: z.boolean().default(false),
   muted: z.boolean().default(true),
@@ -230,7 +272,7 @@ export const AudioElement = z.object({
   ...elementBase,
   type: z.literal("audio"),
   assetId: z.string().max(64).nullable().default(null),
-  url: z.string().max(4096),
+  url: MediaSource,
   title: z.string().max(240).default(""),
   autoplay: z.boolean().default(false),
 });
@@ -300,8 +342,8 @@ export const ChartElement = z.object({
 export const EmbedElement = z.object({
   ...elementBase,
   type: z.literal("embed"),
-  /** Validated server-side against an allowlist before it is ever rendered. */
-  url: z.string().url().max(2048),
+  /** http/https only; the iframe that renders it is also sandboxed. */
+  url: NavigableUrl,
   provider: z.enum(["youtube", "vimeo", "loom", "figma", "generic"]).default("generic"),
   title: z.string().max(240).default(""),
   radius: z.number().min(0).max(50).default(0),
@@ -358,7 +400,7 @@ export const SceneBackground = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("image"),
-    url: z.string().max(4096),
+    url: MediaSource,
     assetId: z.string().max(64).nullable().default(null),
     /** Scrim keeps foreground text legible over photography. */
     scrim: z.number().min(0).max(1).default(0.45),
