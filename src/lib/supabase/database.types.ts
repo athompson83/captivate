@@ -11,23 +11,23 @@ export type Json = string | number | boolean | null | { [k: string]: Json | unde
 
 type Timestamps = { created_at: string; updated_at: string };
 
-export interface ProfileRow extends Timestamps {
+export type ProfileRow = Timestamps & {
   id: string;
   display_name: string;
   avatar_url: string | null;
   theme_pref: "system" | "light" | "dark";
   onboarded_at: string | null;
-}
+};
 
-export interface FolderRow extends Timestamps {
+export type FolderRow = Timestamps & {
   id: string;
   owner_id: string;
   name: string;
   color: "neutral" | "gold" | "orchid" | "teal" | "rose" | "blue" | "green";
   position: number;
-}
+};
 
-export interface PresentationRow extends Timestamps {
+export type PresentationRow = Timestamps & {
   id: string;
   owner_id: string;
   folder_id: string | null;
@@ -42,16 +42,16 @@ export interface PresentationRow extends Timestamps {
   schema_version: number;
   last_opened_at: string | null;
   deleted_at: string | null;
-}
+};
 
-export interface SectionRow extends Timestamps {
+export type SectionRow = Timestamps & {
   id: string;
   presentation_id: string;
   title: string;
   position: number;
-}
+};
 
-export interface SceneRow extends Timestamps {
+export type SceneRow = Timestamps & {
   id: string;
   presentation_id: string;
   section_id: string | null;
@@ -61,9 +61,9 @@ export interface SceneRow extends Timestamps {
   speaker_notes: string;
   duration_seconds: number | null;
   schema_version: number;
-}
+};
 
-export interface LectureNoteRow extends Timestamps {
+export type LectureNoteRow = Timestamps & {
   id: string;
   owner_id: string;
   presentation_id: string | null;
@@ -72,9 +72,9 @@ export interface LectureNoteRow extends Timestamps {
   title: string;
   body: string;
   position: number;
-}
+};
 
-export interface AssetRow {
+export type AssetRow = {
   id: string;
   owner_id: string;
   presentation_id: string | null;
@@ -88,9 +88,9 @@ export interface AssetRow {
   alt_text: string;
   original_filename: string;
   created_at: string;
-}
+};
 
-export interface RecordingRow extends Timestamps {
+export type RecordingRow = Timestamps & {
   id: string;
   owner_id: string;
   presentation_id: string | null;
@@ -104,9 +104,9 @@ export interface RecordingRow extends Timestamps {
   has_microphone: boolean;
   scene_timeline: Json;
   error_message: string | null;
-}
+};
 
-export interface AiGenerationRow {
+export type AiGenerationRow = {
   id: string;
   owner_id: string;
   presentation_id: string | null;
@@ -119,7 +119,7 @@ export interface AiGenerationRow {
   error_message: string | null;
   created_at: string;
   completed_at: string | null;
-}
+};
 
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
@@ -128,7 +128,7 @@ type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Relationships: [];
 };
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       profiles: Table<ProfileRow>;
@@ -151,4 +151,4 @@ export interface Database {
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;
   };
-}
+};

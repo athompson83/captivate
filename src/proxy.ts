@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 
 /**
  * Refreshes the Supabase auth session on every navigation and gates the
- * authenticated area.
+ * authenticated area. (Next 16 proxy convention, formerly `middleware`.)
  *
  * Auth cookies are httpOnly and rotated here rather than in page code, so a
  * long editing session never silently expires mid-edit.
@@ -16,7 +16,7 @@ function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-export async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
