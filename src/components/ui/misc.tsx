@@ -1,0 +1,312 @@
+"use client";
+
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils/cn";
+
+/* -------------------------------------------------------------------------- */
+/* Tooltip                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Hover/focus tooltip. Purely supplementary: every control it wraps must also
+ * carry its own accessible name, so losing the tooltip never loses meaning.
+ */
+export function Tooltip({
+  label,
+  shortcut,
+  side = "bottom",
+  children,
+}: {
+  label: string;
+  shortcut?: string;
+  side?: "top" | "bottom" | "left" | "right";
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const show = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setOpen(true), 420);
+  };
+  const hide = () => {
+    clearTimeout(timer.current);
+    setOpen(false);
+  };
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const pos = {
+    top: "bottom-full left-1/2 -translate-x-1/2 mb-2",
+    bottom: "top-full left-1/2 -translate-x-1/2 mt-2",
+    left: "right-full top-1/2 -translate-y-1/2 mr-2",
+    right: "left-full top-1/2 -translate-y-1/2 ml-2",
+  }[side];
+
+  return (
+    <span
+      className="relative inline-flex"
+      onPointerEnter={show}
+      onPointerLeave={hide}
+      onFocusCapture={() => setOpen(true)}
+      onBlurCapture={hide}
+    >
+      {children}
+      <AnimatePresence>
+        {open && (
+          <motion.span
+            role="tooltip"
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.12 }}
+            className={cn(
+              "pointer-events-none absolute z-[80] flex items-center gap-2 whitespace-nowrap",
+              "rounded-[var(--radius-sm)] border border-line bg-overlay px-2 py-1 text-xs text-ink shadow-[var(--shadow-md)]",
+              pos,
+            )}
+          >
+            {label}
+            {shortcut && (
+              <kbd className="rounded border border-line-subtle bg-[var(--surface-inset)] px-1 font-sans text-[10px] text-ink-3">
+                {shortcut}
+              </kbd>
+            )}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Popover                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export function Popover({
+  open,
+  onClose,
+  anchor = "bottom-start",
+  className,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  anchor?: "bottom-start" | "bottom-end" | "top-start" | "top-end";
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    // Deferred so the click that opened the popover does not immediately close it.
+    const t = setTimeout(() => document.addEventListener("pointerdown", onDown), 0);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  const pos = {
+    "bottom-start": "top-full left-0 mt-2 origin-top-left",
+    "bottom-end": "top-full right-0 mt-2 origin-top-right",
+    "top-start": "bottom-full left-0 mb-2 origin-bottom-left",
+    "top-end": "bottom-full right-0 mb-2 origin-bottom-right",
+  }[anchor];
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          ref={ref}
+          initial={{ opacity: 0, scale: 0.96, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.97, y: -2 }}
+          transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          className={cn(
+            "absolute z-[70] rounded-[var(--radius-lg)] border border-line bg-overlay p-1.5 shadow-[var(--shadow-lg)]",
+            pos,
+            className,
+          )}
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+export function MenuItem({
+  icon: Icon,
+  label,
+  shortcut,
+  onClick,
+  tone = "default",
+  disabled,
+}: {
+  icon?: React.ComponentType<{ className?: string }>;
+  label: string;
+  shortcut?: string;
+  onClick?: () => void;
+  tone?: "default" | "danger";
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      role="menuitem"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-[13px]",
+        "transition-colors duration-[var(--duration-instant)] disabled:pointer-events-none disabled:opacity-40",
+        tone === "danger"
+          ? "text-danger hover:bg-[var(--danger-soft)]"
+          : "text-ink-2 hover:bg-[var(--surface-inset)] hover:text-ink",
+      )}
+    >
+      {Icon && <Icon className="size-3.5 shrink-0" />}
+      <span className="flex-1 truncate">{label}</span>
+      {shortcut && <kbd className="font-sans text-[10px] text-ink-3">{shortcut}</kbd>}
+    </button>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Small display components                                                    */
+/* -------------------------------------------------------------------------- */
+
+export function Badge({
+  tone = "neutral",
+  children,
+  className,
+}: {
+  tone?: "neutral" | "accent" | "ai" | "success" | "record" | "warning";
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const tones = {
+    neutral: "bg-[var(--surface-inset)] text-ink-3 border-line-subtle",
+    accent: "bg-[var(--accent-soft)] text-accent-text border-transparent",
+    ai: "bg-[var(--ai-soft)] text-ai-text border-transparent",
+    success: "bg-[var(--success-soft)] text-success border-transparent",
+    record: "bg-[var(--record-soft)] text-record border-transparent",
+    warning: "bg-[var(--accent-soft)] text-warning border-transparent",
+  }[tone];
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+        tones,
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function Spinner({ className }: { className?: string }) {
+  return (
+    <span
+      role="status"
+      aria-label="Loading"
+      className={cn(
+        "inline-block size-4 animate-spin rounded-full border-2 border-line-strong border-t-accent",
+        className,
+      )}
+    />
+  );
+}
+
+export function Skeleton({ className }: { className?: string }) {
+  return <div aria-hidden className={cn("skeleton rounded-[var(--radius-md)]", className)} />;
+}
+
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+  className,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-col items-center justify-center px-6 py-16 text-center", className)}>
+      <div className="mb-4 flex size-12 items-center justify-center rounded-[var(--radius-lg)] border border-line-subtle bg-[var(--surface-inset)]">
+        <Icon className="size-5 text-ink-3" />
+      </div>
+      <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
+      <p className="mt-1.5 max-w-sm text-[13px] leading-relaxed text-ink-3">{description}</p>
+      {action && <div className="mt-5">{action}</div>}
+    </div>
+  );
+}
+
+/** Segmented control — used instead of dropdowns for 2–4 mutually exclusive options. */
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+  size = "md",
+  label,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string; icon?: React.ComponentType<{ className?: string }> }[];
+  size?: "sm" | "md";
+  label?: string;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-[var(--radius-md)] border border-line-subtle bg-[var(--surface-inset)] p-0.5",
+      )}
+    >
+      {options.map((opt) => {
+        const active = opt.value === value;
+        const Icon = opt.icon;
+        return (
+          <button
+            key={opt.value}
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "relative inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] font-medium transition-colors duration-[var(--duration-fast)]",
+              size === "sm" ? "px-2 py-1 text-[11px]" : "px-2.5 py-1.5 text-[12px]",
+              active ? "text-ink" : "text-ink-3 hover:text-ink-2",
+            )}
+          >
+            {active && (
+              <motion.span
+                layoutId={`seg-${label ?? "group"}`}
+                className="absolute inset-0 rounded-[var(--radius-sm)] bg-raised shadow-[var(--shadow-xs)]"
+                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              />
+            )}
+            {Icon && <Icon className="relative size-3.5" />}
+            <span className="relative">{opt.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
