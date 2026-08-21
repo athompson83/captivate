@@ -7,7 +7,7 @@ import {
 } from "@/lib/present/protocol";
 import { buildStepCount, entranceFrom, entranceTo, transitionVariants } from "@/lib/present/motion";
 import { fitScale, pointerToStage, stageSize, stageRem } from "@/lib/present/stage";
-import { plannedDuration } from "@/lib/present/session";
+import { createSession, plannedDuration } from "@/lib/present/session";
 import { composeScene } from "@/lib/editor/layouts";
 import type { Scene, SceneElement } from "@/lib/schema/presentation";
 
@@ -249,5 +249,101 @@ describe("plannedDuration", () => {
 
   it("returns null when no scene has a target", () => {
     expect(plannedDuration([scene(null), scene(null)])).toBeNull();
+  });
+});
+
+describe("session command routing", () => {
+  const scene = (id: string, title: string): Scene =>
+    ({
+      id,
+      presentationId: "p",
+      sectionId: null,
+      position: 0,
+      title,
+      content: composeScene("bullets", { heading: title, bullets: ["a", "b"] }),
+      speakerNotes: "",
+      durationSeconds: null,
+      createdAt: "",
+      updatedAt: "",
+    }) as Scene;
+
+  const scenes = [scene("s1", "One"), scene("s2", "Two"), scene("s3", "Three")];
+
+  it("advances the stage locally", () => {
+    const api = createSession({ presentationId: "p", scenes, role: "stage" });
+    expect(api.store.getState().sceneIndex).toBe(0);
+
+    api.send("next");
+    expect(api.store.getState().sceneIndex).toBe(1);
+
+    api.send("prev");
+    expect(api.store.getState().sceneIndex).toBe(0);
+
+    api.send("last");
+    expect(api.store.getState().sceneIndex).toBe(2);
+  });
+
+  it("lets a console with no stage connected rehearse on its own", () => {
+    const api = createSession({ presentationId: "p2", scenes, role: "console" });
+    expect(api.store.getState().peerConnected).toBe(false);
+
+    api.send("next");
+    expect(api.store.getState().sceneIndex).toBe(1);
+  });
+
+  it("defers to the stage once one is connected", () => {
+    const api = createSession({ presentationId: "p3", scenes, role: "console" });
+    api.store.setState({ peerConnected: true });
+
+    // The command goes over the channel; the console must not also move itself,
+    // or the two windows would drift apart by one scene per press.
+    api.send("next");
+    expect(api.store.getState().sceneIndex).toBe(0);
+  });
+
+  it("clamps navigation to the deck", () => {
+    const api = createSession({ presentationId: "p4", scenes, role: "stage" });
+    api.send("prev");
+    expect(api.store.getState().sceneIndex).toBe(0);
+
+    api.send("goto", 99);
+    expect(api.store.getState().sceneIndex).toBe(scenes.length - 1);
+
+    api.send("next");
+    expect(api.store.getState().sceneIndex).toBe(scenes.length - 1);
+  });
+
+  it("starts the clock on the first advance, not on load", () => {
+    const api = createSession({ presentationId: "p5", scenes, role: "stage" });
+    expect(api.store.getState().startedAt).toBeNull();
+
+    api.send("next");
+    expect(api.store.getState().startedAt).not.toBeNull();
+  });
+
+  it("blanks and restores the audience view", () => {
+    const api = createSession({ presentationId: "p6", scenes, role: "stage" });
+    api.send("blank");
+    expect(api.store.getState().blanked).toBe(true);
+
+    // Advancing always restores the screen; a blanked deck must never be
+    // left dark because the presenter moved on and forgot.
+    api.send("next");
+    expect(api.store.getState().blanked).toBe(false);
+  });
+
+  it("clears annotations for a scene without touching the others", () => {
+    const api = createSession({ presentationId: "p7", scenes, role: "stage" });
+    const stroke = { id: "a", color: "#fff", width: 1, points: [{ x: 0.1, y: 0.1 }] };
+
+    api.setAnnotations(0, { strokes: [stroke], highlights: [] });
+    api.setAnnotations(1, { strokes: [stroke], highlights: [] });
+
+    api.clearScene();
+    expect(api.store.getState().annotationsByScene[0].strokes).toHaveLength(0);
+    expect(api.store.getState().annotationsByScene[1].strokes).toHaveLength(1);
+
+    api.clearAll();
+    expect(Object.keys(api.store.getState().annotationsByScene)).toHaveLength(0);
   });
 });

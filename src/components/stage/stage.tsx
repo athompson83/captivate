@@ -12,6 +12,7 @@ import {
 import { STAGE_BASE_WIDTH, fitScale, stageSize } from "@/lib/present/stage";
 import { STAGE_EASE, entranceFrom, entranceTo } from "@/lib/present/motion";
 import { ElementView } from "./element-view";
+import { cn } from "@/lib/utils/cn";
 
 /**
  * The stage.
@@ -88,10 +89,11 @@ export const Stage = memo(function Stage({
   return (
     <div
       ref={measureRef}
-      className={className}
+      // Position comes from a class, not an inline style, so a caller passing
+      // `absolute inset-0` actually wins — an inline `position` would silently
+      // override it and collapse this box to zero height.
+      className={cn("relative overflow-hidden", className)}
       style={{
-        position: "relative",
-        overflow: "hidden",
         // Zero until measured, so the stage is never briefly visible at 1:1.
         ["--stage-scale" as string]: fixedScale ?? 0,
       }}
@@ -336,7 +338,13 @@ export const StageThumbnail = memo(function StageThumbnail({
           height: size.height,
         }}
       >
-        <Stage content={content} theme={theme} aspect={aspect} fixedScale={1} />
+        <Stage
+          content={content}
+          theme={theme}
+          aspect={aspect}
+          fixedScale={1}
+          className="size-full"
+        />
       </div>
     </div>
   );

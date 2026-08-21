@@ -196,7 +196,7 @@ export function PresenterConsole({
       <div className="grid min-h-0 grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         {/* Left: the control pad and the next-scene preview. */}
         <div className="flex min-h-0 flex-col gap-3">
-          <section aria-label="Current scene" className="min-h-0 flex-1">
+          <section aria-label="Current scene" className="shrink-0">
             <div className="border-line relative aspect-video w-full overflow-hidden rounded-[var(--radius-lg)] border bg-black">
               {session.scene && (
                 <Stage
@@ -253,6 +253,15 @@ export function PresenterConsole({
               onOpenJumper={() => setJumperOpen(true)}
             />
           </section>
+
+          <SceneFilmstrip
+            scenes={scenes}
+            sections={sections}
+            theme={theme}
+            aspect={presentation.aspectRatio}
+            currentIndex={session.sceneIndex}
+            onSelect={session.goto}
+          />
 
           <section aria-label="Navigation" className="flex shrink-0 items-center gap-3">
             <button
@@ -424,6 +433,93 @@ export function PresenterConsole({
 }
 
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Horizontal strip of every scene.
+ *
+ * This is the answer to the two questions a presenter actually has mid-talk:
+ * where am I, and what is coming. It also makes "can you go back to the slide
+ * with the algorithm" a single click rather than a scrub through the deck.
+ */
+function SceneFilmstrip({
+  scenes,
+  sections,
+  theme,
+  aspect,
+  currentIndex,
+  onSelect,
+}: {
+  scenes: Scene[];
+  sections: Section[];
+  theme: ReturnType<typeof getTheme>;
+  aspect: PresentationRecord["aspectRatio"];
+  currentIndex: number;
+  onSelect: (index: number) => void;
+}) {
+  const stripRef = useRef<HTMLDivElement>(null);
+
+  // Keep the active scene in view as the presentation advances.
+  useEffect(() => {
+    const active = stripRef.current?.querySelector<HTMLElement>('[data-active="true"]');
+    active?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [currentIndex]);
+
+  if (scenes.length < 2) return null;
+
+  return (
+    <section
+      aria-label="All scenes"
+      className="border-line-subtle bg-base min-h-0 flex-1 overflow-hidden rounded-[var(--radius-lg)] border"
+    >
+      <div ref={stripRef} className="no-scrollbar h-full overflow-x-auto overflow-y-hidden p-2">
+        <ol className="flex h-full items-start gap-2">
+          {scenes.map((scene, index) => {
+            const section = sections.find((s) => s.id === scene.sectionId);
+            const active = index === currentIndex;
+            return (
+              <li key={scene.id} className="shrink-0">
+                <button
+                  data-active={active}
+                  onClick={() => onSelect(index)}
+                  aria-current={active ? "true" : undefined}
+                  aria-label={`Go to scene ${index + 1}${scene.title ? `: ${scene.title}` : ""}`}
+                  className={cn(
+                    "block overflow-hidden rounded-[var(--radius-md)] border-2 text-left transition-colors",
+                    active
+                      ? "border-accent"
+                      : index < currentIndex
+                        ? "border-line-subtle opacity-55 hover:opacity-90"
+                        : "border-line-subtle hover:border-line-strong",
+                  )}
+                >
+                  <StageThumbnail
+                    content={scene.content}
+                    theme={theme}
+                    aspect={aspect}
+                    width={132}
+                  />
+                  <span className="flex items-baseline gap-1.5 px-1.5 py-1">
+                    <span
+                      className={cn(
+                        "text-[10px] tabular-nums",
+                        active ? "text-accent-text" : "text-ink-3",
+                      )}
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="text-ink-2 max-w-[104px] truncate text-[10.5px]">
+                      {scene.title || section?.title || "Untitled"}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </section>
+  );
+}
 
 function ConnectionBadge({
   connected,

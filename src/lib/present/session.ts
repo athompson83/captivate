@@ -217,10 +217,22 @@ export function createSession({
     }
   };
 
-  /** Stage acts locally; console asks the stage to act. */
+  /**
+   * The stage acts locally; the console asks the stage to act.
+   *
+   * With no stage connected the console also acts on itself, so a presenter can
+   * rehearse — notes, timers and pacing — from the console alone. As soon as a
+   * stage window appears it announces itself and broadcasts its position, and
+   * the console snaps to it, so there is never a moment where the two disagree
+   * about what the audience is seeing.
+   */
   const send = (command: SessionCommand, index?: number) => {
-    if (role === "stage") apply(command, index);
-    else channel.post({ type: "command", action: command, index });
+    if (role === "stage") {
+      apply(command, index);
+      return;
+    }
+    channel.post({ type: "command", action: command, index });
+    if (!store.getState().peerConnected) apply(command, index);
   };
 
   const setAnnotations = (sceneIndex: number, annotations: SceneAnnotations) => {
