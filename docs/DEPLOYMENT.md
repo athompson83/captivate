@@ -162,3 +162,22 @@ Before pushing:
 ```bash
 npm run verify     # typecheck, lint, unit tests, build
 ```
+
+---
+
+## Deployment protection
+
+Preview deployments on this project have Vercel's deployment protection turned
+on, so opening a preview URL redirects to a Vercel login and only members of the
+owning account get through. That is a sensible default for an unreleased
+product, and it is worth knowing before sending a preview link to anyone: they
+will see a login page, not the app.
+
+Two ways to share one:
+
+- **Vercel dashboard → Project → Settings → Deployment Protection**, set preview
+  protection to off (or to password), which makes the URL publicly reachable;
+- **Protection Bypass for Automation**, which issues a token to append to the
+  URL and leaves the protection in place for everyone else.
+
+Neither is a code change, and neither affects production behaviour.

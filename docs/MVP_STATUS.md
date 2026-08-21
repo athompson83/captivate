@@ -1,7 +1,8 @@
 # MVP status
 
 **Verdict: functionally complete, verified against the live database, and
-deploying to a hosted preview on every push.**
+building a hosted preview on every push — one that currently requires a Vercel
+login to open.**
 
 Everything below was checked by running it, not by reading the code.
 
@@ -125,11 +126,16 @@ Recorded because "it builds" is not the same as "it works":
 
 ## Remaining work
 
-**Hosted deployment.** Resolved. The repository is connected to a Vercel
-project and every push to the branch builds a preview deployment. The `403
-forbidden` recorded here earlier was on _creating_ the project through the API;
-the project itself exists and deploys. Steps and environment variables are in
-[DEPLOYMENT.md](DEPLOYMENT.md).
+**Hosted deployment.** Mostly resolved. The repository is connected to a Vercel
+project and every push builds a preview. The `403 forbidden` recorded here
+earlier was on _creating_ the project through the API; the project exists and
+deploys.
+
+One caveat, stated plainly: the preview has Vercel's deployment protection
+enabled, so opening it requires a Vercel session on the owning account. It is
+not a link that can be handed to someone else. Turning that off — or adding a
+bypass token — is a project setting in the Vercel dashboard, not a code change.
+Steps and environment variables are in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 **Email configuration.** Supabase's built-in SMTP is rate limited to roughly
 three messages an hour, which is unusable for real onboarding. Either configure
