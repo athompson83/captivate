@@ -25,7 +25,7 @@ export const Input = forwardRef<
   return (
     <div className="w-full">
       {label && (
-        <label htmlFor={fieldId} className="mb-1.5 block text-[13px] font-medium text-ink-2">
+        <label htmlFor={fieldId} className="text-ink-2 mb-1.5 block text-[13px] font-medium">
           {label}
         </label>
       )}
@@ -39,11 +39,11 @@ export const Input = forwardRef<
       />
       {error ? (
         // role="alert" so the message is announced, not just coloured red.
-        <p id={`${fieldId}-error`} role="alert" className="mt-1.5 text-xs text-danger">
+        <p id={`${fieldId}-error`} role="alert" className="text-danger mt-1.5 text-xs">
           {error}
         </p>
       ) : hint ? (
-        <p id={`${fieldId}-hint`} className="mt-1.5 text-xs text-ink-3">
+        <p id={`${fieldId}-hint`} className="text-ink-3 mt-1.5 text-xs">
           {hint}
         </p>
       ) : null}
@@ -62,7 +62,7 @@ export const Textarea = forwardRef<
   return (
     <div className="w-full">
       {label && (
-        <label htmlFor={fieldId} className="mb-1.5 block text-[13px] font-medium text-ink-2">
+        <label htmlFor={fieldId} className="text-ink-2 mb-1.5 block text-[13px] font-medium">
           {label}
         </label>
       )}
@@ -75,11 +75,11 @@ export const Textarea = forwardRef<
         {...props}
       />
       {error ? (
-        <p id={`${fieldId}-error`} role="alert" className="mt-1.5 text-xs text-danger">
+        <p id={`${fieldId}-error`} role="alert" className="text-danger mt-1.5 text-xs">
           {error}
         </p>
       ) : hint ? (
-        <p id={`${fieldId}-hint`} className="mt-1.5 text-xs text-ink-3">
+        <p id={`${fieldId}-hint`} className="text-ink-3 mt-1.5 text-xs">
           {hint}
         </p>
       ) : null}

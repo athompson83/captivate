@@ -48,12 +48,11 @@ export async function GET(request: NextRequest) {
       id: n.id,
       title: n.title,
       kind: "note" as const,
-      href: n.presentation_id ? `/notes?presentation=${n.presentation_id}&note=${n.id}` : `/notes?note=${n.id}`,
+      href: n.presentation_id
+        ? `/notes?presentation=${n.presentation_id}&note=${n.id}`
+        : `/notes?note=${n.id}`,
     })),
   ];
 
-  return NextResponse.json(
-    { results },
-    { headers: { "Cache-Control": "private, no-store" } },
-  );
+  return NextResponse.json({ results }, { headers: { "Cache-Control": "private, no-store" } });
 }

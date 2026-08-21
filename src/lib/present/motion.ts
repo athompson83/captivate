@@ -1,4 +1,8 @@
-import type { ElementAnimation, EntranceAnimation, SceneTransition } from "@/lib/schema/presentation";
+import type {
+  ElementAnimation,
+  EntranceAnimation,
+  SceneTransition,
+} from "@/lib/schema/presentation";
 
 /**
  * Motion presets.
@@ -110,7 +114,9 @@ export const STAGE_EASE = [0.22, 1, 0.36, 1] as const;
  * plus one for each element that waits for an explicit advance and each item of
  * a staggered list. Presenter navigation walks these before moving on.
  */
-export function buildStepCount(elements: { animation: ElementAnimation; type: string; items?: unknown[]; staggered?: boolean }[]): number {
+export function buildStepCount(
+  elements: { animation: ElementAnimation; type: string; items?: unknown[]; staggered?: boolean }[],
+): number {
   let steps = 1;
   for (const el of elements) {
     if (el.animation.onAdvance) steps += 1;

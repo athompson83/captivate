@@ -28,14 +28,14 @@ export function UserMenu({
         aria-expanded={open}
         className="flex w-full items-center gap-2.5 rounded-[var(--radius-md)] px-2 py-1.5 text-left transition-colors hover:bg-[var(--surface-inset)]"
       >
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[11px] font-semibold text-accent-text">
+        <span className="text-accent-text flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[11px] font-semibold">
           {initials || <User className="size-3.5" aria-hidden />}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[12.5px] font-medium text-ink">
+          <span className="text-ink block truncate text-[12.5px] font-medium">
             {user.displayName}
           </span>
-          <span className="block truncate text-[11px] text-ink-3">{user.email}</span>
+          <span className="text-ink-3 block truncate text-[11px]">{user.email}</span>
         </span>
       </button>
 
@@ -45,8 +45,8 @@ export function UserMenu({
             <MenuItem icon={User} label="Account settings" />
           </Link>
 
-          <div className="my-1.5 border-t border-line-subtle" />
-          <p className="px-2.5 pb-1 text-[10px] font-medium uppercase tracking-wider text-ink-3">
+          <div className="border-line-subtle my-1.5 border-t" />
+          <p className="text-ink-3 px-2.5 pb-1 text-[10px] font-medium tracking-wider uppercase">
             Appearance
           </p>
           {(
@@ -61,20 +61,20 @@ export function UserMenu({
               role="menuitemradio"
               aria-checked={pref === value}
               onClick={() => setPref(value)}
-              className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:bg-[var(--surface-inset)] hover:text-ink"
+              className="text-ink-2 hover:text-ink flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] transition-colors hover:bg-[var(--surface-inset)]"
             >
               <Icon className="size-3.5" aria-hidden />
               <span className="flex-1 text-left">{label}</span>
-              {pref === value && <span className="size-1.5 rounded-full bg-accent" aria-hidden />}
+              {pref === value && <span className="bg-accent size-1.5 rounded-full" aria-hidden />}
             </button>
           ))}
 
-          <div className="my-1.5 border-t border-line-subtle" />
+          <div className="border-line-subtle my-1.5 border-t" />
           <form action="/auth/sign-out" method="post">
             <button
               type="submit"
               role="menuitem"
-              className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-[13px] text-ink-2 transition-colors hover:bg-[var(--surface-inset)] hover:text-ink"
+              className="text-ink-2 hover:text-ink flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-[var(--surface-inset)]"
             >
               <LogOut className="size-3.5" aria-hidden />
               Sign out

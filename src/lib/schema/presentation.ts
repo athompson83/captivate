@@ -54,15 +54,22 @@ export type Frame = z.infer<typeof Frame>;
  */
 export const ColorValue = z.union([
   z.object({ kind: z.literal("token"), token: z.string().max(48) }),
-  z.object({ kind: z.literal("hex"), hex: z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/) }),
+  z.object({
+    kind: z.literal("hex"),
+    hex: z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/),
+  }),
 ]);
 export type ColorValue = z.infer<typeof ColorValue>;
 
 export const TextAlign = z.enum(["left", "center", "right"]);
 export const VerticalAlign = z.enum(["top", "middle", "bottom"]);
 export const FontWeight = z.union([
-  z.literal(300), z.literal(400), z.literal(500),
-  z.literal(600), z.literal(700), z.literal(800),
+  z.literal(300),
+  z.literal(400),
+  z.literal(500),
+  z.literal(600),
+  z.literal(700),
+  z.literal(800),
 ]);
 
 export const TextStyle = z.object({
@@ -93,13 +100,13 @@ export type TextStyle = z.infer<typeof TextStyle>;
 export const EntranceAnimation = z.enum([
   "none",
   "fade",
-  "rise",       // fade + translate up
-  "settle",     // fade + translate down
+  "rise", // fade + translate up
+  "settle", // fade + translate down
   "slide-left",
   "slide-right",
-  "scale",      // fade + subtle scale from 0.94
-  "reveal",     // clip-path wipe
-  "blur",       // fade + blur out of focus
+  "scale", // fade + subtle scale from 0.94
+  "reveal", // clip-path wipe
+  "blur", // fade + blur out of focus
 ]);
 export type EntranceAnimation = z.infer<typeof EntranceAnimation>;
 
@@ -320,8 +327,20 @@ export type SceneElement = z.infer<typeof SceneElement>;
 export type SceneElementType = SceneElement["type"];
 
 export const SCENE_ELEMENT_TYPES = [
-  "heading", "text", "quote", "list", "image", "video", "audio",
-  "shape", "divider", "icon", "callout", "code", "chart", "embed",
+  "heading",
+  "text",
+  "quote",
+  "list",
+  "image",
+  "video",
+  "audio",
+  "shape",
+  "divider",
+  "icon",
+  "callout",
+  "code",
+  "chart",
+  "embed",
 ] as const satisfies readonly SceneElementType[];
 
 /* -------------------------------------------------------------------------- */
@@ -361,19 +380,19 @@ export type SceneBackground = z.infer<typeof SceneBackground>;
  */
 export const SceneLayout = z.enum([
   "custom",
-  "title",          // large centred title + optional subtitle
-  "section",        // section divider / chapter marker
-  "statement",      // one big idea, nothing else
-  "bullets",        // heading + list
-  "split-left",     // media left, text right
-  "split-right",    // text left, media right
-  "media-full",     // edge-to-edge media with optional caption
-  "quote",          // pull quote + attribution
-  "two-column",     // two text columns
-  "three-up",       // three cards / points
-  "chart",          // heading + data
-  "code",           // heading + code block
-  "closing",        // wrap-up / thank you
+  "title", // large centred title + optional subtitle
+  "section", // section divider / chapter marker
+  "statement", // one big idea, nothing else
+  "bullets", // heading + list
+  "split-left", // media left, text right
+  "split-right", // text left, media right
+  "media-full", // edge-to-edge media with optional caption
+  "quote", // pull quote + attribution
+  "two-column", // two text columns
+  "three-up", // three cards / points
+  "chart", // heading + data
+  "code", // heading + code block
+  "closing", // wrap-up / thank you
 ]);
 export type SceneLayout = z.infer<typeof SceneLayout>;
 

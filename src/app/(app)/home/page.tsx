@@ -27,7 +27,11 @@ export default async function HomePage() {
       .eq("status", "ready")
       .order("created_at", { ascending: false })
       .limit(3),
-    supabase.from("profiles").select("display_name").eq("id", user?.id ?? "").maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user?.id ?? "")
+      .maybeSingle(),
   ]);
 
   const firstName = (profile.data?.display_name ?? "").split(/\s+/)[0] || "there";
@@ -36,10 +40,10 @@ export default async function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
       <header className="mb-8">
-        <h1 className="text-[26px] font-semibold tracking-tight text-ink">
+        <h1 className="text-ink text-[26px] font-semibold tracking-tight">
           {greeting()}, {firstName}
         </h1>
-        <p className="mt-1.5 text-[14px] text-ink-3">
+        <p className="text-ink-3 mt-1.5 text-[14px]">
           {recent.length === 0
             ? "Let's build your first presentation."
             : continueDeck
@@ -52,61 +56,77 @@ export default async function HomePage() {
       <div className="mb-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           href="/new?mode=ai"
-          className="group relative overflow-hidden rounded-[var(--radius-lg)] border border-line-subtle bg-raised p-5 transition-[border-color,transform,box-shadow] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:border-line hover:shadow-[var(--shadow-md)]"
+          className="group border-line-subtle bg-raised hover:border-line relative overflow-hidden rounded-[var(--radius-lg)] border p-5 transition-[border-color,transform,box-shadow] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
         >
           <span
             aria-hidden
-            className="absolute -right-8 -top-8 size-24 rounded-full opacity-[0.14] transition-opacity group-hover:opacity-25"
+            className="absolute -top-8 -right-8 size-24 rounded-full opacity-[0.14] transition-opacity group-hover:opacity-25"
             style={{ background: "var(--ai)" }}
           />
-          <Sparkles className="size-4 text-ai" aria-hidden />
-          <h2 className="mt-3 text-[14px] font-semibold text-ink">Create with AI</h2>
-          <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">
+          <Sparkles className="text-ai size-4" aria-hidden />
+          <h2 className="text-ink mt-3 text-[14px] font-semibold">Create with AI</h2>
+          <p className="text-ink-3 mt-1 text-[12.5px] leading-relaxed">
             Describe your topic. Review the outline before anything is created.
           </p>
-          <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-ai-text">
-            Start <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
+          <span className="text-ai-text mt-3 inline-flex items-center gap-1 text-[12px] font-medium">
+            Start{" "}
+            <ArrowRight
+              className="size-3 transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
           </span>
         </Link>
 
         <Link
           href="/new"
-          className="group rounded-[var(--radius-lg)] border border-line-subtle bg-raised p-5 transition-[border-color,transform,box-shadow] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:border-line hover:shadow-[var(--shadow-md)]"
+          className="group border-line-subtle bg-raised hover:border-line rounded-[var(--radius-lg)] border p-5 transition-[border-color,transform,box-shadow] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
         >
-          <Plus className="size-4 text-accent" aria-hidden />
-          <h2 className="mt-3 text-[14px] font-semibold text-ink">New presentation</h2>
-          <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">
+          <Plus className="text-accent size-4" aria-hidden />
+          <h2 className="text-ink mt-3 text-[14px] font-semibold">New presentation</h2>
+          <p className="text-ink-3 mt-1 text-[12.5px] leading-relaxed">
             Start from a clear stage, or from one of {TEMPLATES.length - 1} structures.
           </p>
-          <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-accent-text">
-            Create <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
+          <span className="text-accent-text mt-3 inline-flex items-center gap-1 text-[12px] font-medium">
+            Create{" "}
+            <ArrowRight
+              className="size-3 transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
           </span>
         </Link>
 
         {continueDeck ? (
           <Link
             href={`/edit/${continueDeck.id}`}
-            className="group rounded-[var(--radius-lg)] border border-line-subtle bg-raised p-5 transition-[border-color,transform,box-shadow] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:border-line hover:shadow-[var(--shadow-md)]"
+            className="group border-line-subtle bg-raised hover:border-line rounded-[var(--radius-lg)] border p-5 transition-[border-color,transform,box-shadow] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
           >
-            <FileText className="size-4 text-ink-2" aria-hidden />
-            <h2 className="mt-3 truncate text-[14px] font-semibold text-ink">Continue editing</h2>
-            <p className="mt-1 truncate text-[12.5px] text-ink-3">{continueDeck.title}</p>
-            <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-ink-2">
-              Open <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
+            <FileText className="text-ink-2 size-4" aria-hidden />
+            <h2 className="text-ink mt-3 truncate text-[14px] font-semibold">Continue editing</h2>
+            <p className="text-ink-3 mt-1 truncate text-[12.5px]">{continueDeck.title}</p>
+            <span className="text-ink-2 mt-3 inline-flex items-center gap-1 text-[12px] font-medium">
+              Open{" "}
+              <ArrowRight
+                className="size-3 transition-transform group-hover:translate-x-0.5"
+                aria-hidden
+              />
             </span>
           </Link>
         ) : (
           <Link
             href="/templates"
-            className="group rounded-[var(--radius-lg)] border border-line-subtle bg-raised p-5 transition-[border-color,transform,box-shadow] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:border-line hover:shadow-[var(--shadow-md)]"
+            className="group border-line-subtle bg-raised hover:border-line rounded-[var(--radius-lg)] border p-5 transition-[border-color,transform,box-shadow] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
           >
-            <FileText className="size-4 text-ink-2" aria-hidden />
-            <h2 className="mt-3 text-[14px] font-semibold text-ink">Browse templates</h2>
-            <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">
+            <FileText className="text-ink-2 size-4" aria-hidden />
+            <h2 className="text-ink mt-3 text-[14px] font-semibold">Browse templates</h2>
+            <p className="text-ink-3 mt-1 text-[12.5px] leading-relaxed">
               Lecture, pitch, case study, workshop and report structures.
             </p>
-            <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-ink-2">
-              Browse <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
+            <span className="text-ink-2 mt-3 inline-flex items-center gap-1 text-[12px] font-medium">
+              Browse{" "}
+              <ArrowRight
+                className="size-3 transition-transform group-hover:translate-x-0.5"
+                aria-hidden
+              />
             </span>
           </Link>
         )}
@@ -114,18 +134,18 @@ export default async function HomePage() {
 
       <section aria-labelledby="recent-heading">
         <div className="mb-3.5 flex items-baseline justify-between">
-          <h2 id="recent-heading" className="text-[14px] font-semibold text-ink">
+          <h2 id="recent-heading" className="text-ink text-[14px] font-semibold">
             Recent
           </h2>
           {recent.length > 0 && (
-            <Link href="/presentations" className="text-[12.5px] text-ink-3 hover:text-ink-2">
+            <Link href="/presentations" className="text-ink-3 hover:text-ink-2 text-[12.5px]">
               All presentations
             </Link>
           )}
         </div>
 
         {recent.length === 0 ? (
-          <div className="rounded-[var(--radius-lg)] border border-dashed border-line bg-raised/40">
+          <div className="border-line bg-raised/40 rounded-[var(--radius-lg)] border border-dashed">
             <EmptyState
               icon={FileText}
               title="No presentations yet"
@@ -134,13 +154,13 @@ export default async function HomePage() {
                 <div className="flex flex-wrap justify-center gap-2">
                   <Link
                     href="/new?mode=ai"
-                    className="rounded-[var(--radius-md)] bg-ai px-4 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                    className="bg-ai rounded-[var(--radius-md)] px-4 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
                   >
                     Create with AI
                   </Link>
                   <Link
                     href="/new"
-                    className="rounded-[var(--radius-md)] border border-line px-4 py-2 text-[13px] font-medium text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+                    className="border-line text-ink-2 hover:border-line-strong hover:text-ink rounded-[var(--radius-md)] border px-4 py-2 text-[13px] font-medium transition-colors"
                   >
                     Start blank
                   </Link>
@@ -162,10 +182,10 @@ export default async function HomePage() {
       {(recordings.data?.length ?? 0) > 0 && (
         <section aria-labelledby="recordings-heading" className="mt-10">
           <div className="mb-3.5 flex items-baseline justify-between">
-            <h2 id="recordings-heading" className="text-[14px] font-semibold text-ink">
+            <h2 id="recordings-heading" className="text-ink text-[14px] font-semibold">
               Recent recordings
             </h2>
-            <Link href="/recordings" className="text-[12.5px] text-ink-3 hover:text-ink-2">
+            <Link href="/recordings" className="text-ink-3 hover:text-ink-2 text-[12.5px]">
               All recordings
             </Link>
           </div>
@@ -174,14 +194,16 @@ export default async function HomePage() {
               <li key={r.id}>
                 <Link
                   href={`/recordings?open=${r.id}`}
-                  className="flex items-center gap-3 rounded-[var(--radius-lg)] border border-line-subtle bg-raised p-3.5 transition-colors hover:border-line"
+                  className="border-line-subtle bg-raised hover:border-line flex items-center gap-3 rounded-[var(--radius-lg)] border p-3.5 transition-colors"
                 >
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--record-soft)]">
-                    <Video className="size-4 text-record" aria-hidden />
+                    <Video className="text-record size-4" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium text-ink">{r.title}</span>
-                    <span className="block text-[11.5px] text-ink-3">
+                    <span className="text-ink block truncate text-[13px] font-medium">
+                      {r.title}
+                    </span>
+                    <span className="text-ink-3 block text-[11.5px]">
                       {formatDuration(Number(r.duration_seconds))} · {relativeTime(r.created_at)}
                     </span>
                   </span>

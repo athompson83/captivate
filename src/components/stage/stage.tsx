@@ -1,9 +1,14 @@
 "use client";
 
-import { memo, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import type { AspectRatio, SceneContent, SceneElement } from "@/lib/schema/presentation";
-import { resolveColor, stageBackgroundCss, themeCssVars, type PresentationTheme } from "@/lib/schema/theme";
+import {
+  resolveColor,
+  stageBackgroundCss,
+  themeCssVars,
+  type PresentationTheme,
+} from "@/lib/schema/theme";
 import { STAGE_BASE_WIDTH, fitScale, stageSize } from "@/lib/present/stage";
 import { STAGE_EASE, entranceFrom, entranceTo } from "@/lib/present/motion";
 import { ElementView } from "./element-view";
@@ -46,36 +51,52 @@ export const Stage = memo(function Stage({
   fixedScale,
 }: StageProps) {
   const size = stageSize(aspect);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(fixedScale ?? 0);
   const reduced = useReducedMotion();
 
-  useLayoutEffect(() => {
-    if (fixedScale !== undefined) {
-      setScale(fixedScale);
-      return;
-    }
-    const el = containerRef.current;
-    if (!el) return;
+  /**
+   * Fit-to-container scaling is written straight to a CSS custom property from
+   * a ResizeObserver rather than held in React state. Resizing a window then
+   * costs one style write instead of re-rendering every element on the stage,
+   * and there is no measurement round-trip through the render cycle.
+   */
+  const measureRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node) return;
+      if (fixedScale !== undefined) {
+        node.style.setProperty("--stage-scale", String(fixedScale));
+        return;
+      }
 
-    const measure = () => {
-      const rect = el.getBoundingClientRect();
-      setScale(fitScale({ width: rect.width, height: rect.height }, size));
-    };
-    measure();
+      const apply = () => {
+        const rect = node.getBoundingClientRect();
+        node.style.setProperty(
+          "--stage-scale",
+          String(fitScale({ width: rect.width, height: rect.height }, size)),
+        );
+      };
+      apply();
 
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [size.width, size.height, fixedScale, size]);
+      const observer = new ResizeObserver(apply);
+      observer.observe(node);
+      return () => observer.disconnect();
+    },
+    [fixedScale, size],
+  );
 
   const background = resolveSceneBackground(content, theme);
 
   return (
     <div
-      ref={containerRef}
+      ref={measureRef}
       className={className}
-      style={{ position: "relative", display: "grid", placeItems: "center", overflow: "hidden" }}
+      style={{
+        position: "relative",
+        display: "grid",
+        placeItems: "center",
+        overflow: "hidden",
+        // Zero until measured, so the stage is never briefly visible at 1:1.
+        ["--stage-scale" as string]: fixedScale ?? 0,
+      }}
       onPointerDownCapture={onPointerDownCapture}
     >
       <div
@@ -84,13 +105,11 @@ export const Stage = memo(function Stage({
           ...themeCssVars(theme),
           width: size.width,
           height: size.height,
-          transform: `scale(${scale})`,
+          transform: "scale(var(--stage-scale, 0))",
           transformOrigin: "center center",
           position: "relative",
           overflow: "hidden",
           flexShrink: 0,
-          // Hidden until measured so the stage never flashes at 1:1 scale.
-          visibility: scale > 0 ? "visible" : "hidden",
           ...background,
         }}
       >
@@ -112,7 +131,11 @@ export const Stage = memo(function Stage({
             {content.background.scrim > 0 && (
               <div
                 aria-hidden
-                style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${content.background.scrim})` }}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: `rgba(0,0,0,${content.background.scrim})`,
+                }}
               />
             )}
           </>
@@ -140,7 +163,10 @@ export const Stage = memo(function Stage({
   );
 });
 
-function resolveSceneBackground(content: SceneContent, theme: PresentationTheme): React.CSSProperties {
+function resolveSceneBackground(
+  content: SceneContent,
+  theme: PresentationTheme,
+): React.CSSProperties {
   const bg = content.background;
   switch (bg.kind) {
     case "solid":
@@ -208,7 +234,10 @@ function ElementLayer({
       ? {
           pulse: { scale: [1, 1.03, 1], transition: { duration: 2.2, repeat: Infinity, delay: 1 } },
           lift: { y: [0, -6, 0], transition: { duration: 3, repeat: Infinity, delay: 1 } },
-          glow: { filter: ["brightness(1)", "brightness(1.15)", "brightness(1)"], transition: { duration: 2.6, repeat: Infinity, delay: 1 } },
+          glow: {
+            filter: ["brightness(1)", "brightness(1.15)", "brightness(1)"],
+            transition: { duration: 2.6, repeat: Infinity, delay: 1 },
+          },
         }[element.animation.emphasis]
       : undefined;
 
@@ -227,7 +256,13 @@ function ElementLayer({
         ease: STAGE_EASE,
       }}
     >
-      <StaggeredElement element={element} theme={theme} stageWidth={stageWidth} step={step} play={play} />
+      <StaggeredElement
+        element={element}
+        theme={theme}
+        stageWidth={stageWidth}
+        step={step}
+        play={play}
+      />
     </motion.div>
   );
 }
@@ -291,7 +326,14 @@ export const StageThumbnail = memo(function StageThumbnail({
         flexShrink: 0,
       }}
     >
-      <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: size.width, height: size.height }}>
+      <div
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+          width: size.width,
+          height: size.height,
+        }}
+      >
         <Stage content={content} theme={theme} aspect={aspect} fixedScale={1} />
       </div>
     </div>

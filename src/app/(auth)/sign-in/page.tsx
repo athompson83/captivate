@@ -13,14 +13,14 @@ export default async function SignInPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Welcome back</h1>
-      <p className="mt-2 text-sm text-ink-3">Sign in to pick up where you left off.</p>
+      <h1 className="text-ink text-2xl font-semibold tracking-tight">Welcome back</h1>
+      <p className="text-ink-3 mt-2 text-sm">Sign in to pick up where you left off.</p>
 
       <SignInForm next={next} />
 
-      <p className="mt-6 text-[13px] text-ink-3">
+      <p className="text-ink-3 mt-6 text-[13px]">
         New to Captivate?{" "}
-        <Link href="/sign-up" className="font-medium text-accent-text hover:underline">
+        <Link href="/sign-up" className="text-accent-text font-medium hover:underline">
           Create an account
         </Link>
       </p>

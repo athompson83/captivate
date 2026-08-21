@@ -35,7 +35,7 @@ export function SignInForm({ next }: { next?: string }) {
           error={fieldError(state, "password")}
         />
         <div className="mt-2 text-right">
-          <Link href="/reset-password" className="text-xs text-ink-3 hover:text-ink-2">
+          <Link href="/reset-password" className="text-ink-3 hover:text-ink-2 text-xs">
             Forgot your password?
           </Link>
         </div>

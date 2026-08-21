@@ -15,8 +15,7 @@ import { supabaseServer } from "@/lib/supabase/server";
  */
 
 export type ActionResult =
-  | { ok: true; message?: string }
-  | { ok: false; error: string; field?: string };
+  { ok: true; message?: string } | { ok: false; error: string; field?: string };
 
 const Email = z.string().trim().toLowerCase().email("Enter a valid email address").max(320);
 const Password = z
@@ -40,7 +39,10 @@ async function origin(): Promise<string> {
   return `${proto}://${host}`;
 }
 
-export async function signIn(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+export async function signIn(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
   const parsed = z
     .object({ email: Email, password: z.string().min(1, "Enter your password") })
     .safeParse({ email: formData.get("email"), password: formData.get("password") });
@@ -63,7 +65,10 @@ export async function signIn(_prev: ActionResult | null, formData: FormData): Pr
   redirect(safeNext(formData.get("next")));
 }
 
-export async function signUp(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+export async function signUp(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
   const parsed = z
     .object({
       email: Email,

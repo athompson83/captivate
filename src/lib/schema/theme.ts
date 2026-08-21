@@ -129,7 +129,11 @@ export const THEMES: PresentationTheme[] = [
       onAccent: "#04241A",
       line: "#28313A",
     },
-    fonts: { display: "var(--font-grotesk)", sans: "var(--font-grotesk)", mono: "var(--font-mono)" },
+    fonts: {
+      display: "var(--font-grotesk)",
+      sans: "var(--font-grotesk)",
+      mono: "var(--font-mono)",
+    },
     scale: { ...scale, h1: 6.0 },
     backgroundStyle: "gradient",
     gradientTo: "#161D24",

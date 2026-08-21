@@ -9,16 +9,16 @@ export function SetupRequired() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6 py-16">
       <div className="w-full max-w-lg">
-        <div className="mb-5 flex size-11 items-center justify-center rounded-[var(--radius-lg)] border border-line bg-[var(--surface-inset)]">
-          <Database className="size-5 text-ink-3" aria-hidden />
+        <div className="border-line mb-5 flex size-11 items-center justify-center rounded-[var(--radius-lg)] border bg-[var(--surface-inset)]">
+          <Database className="text-ink-3 size-5" aria-hidden />
         </div>
 
-        <h1 className="text-xl font-semibold tracking-tight text-ink">
+        <h1 className="text-ink text-xl font-semibold tracking-tight">
           Captivate isn&apos;t connected to a database yet
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-ink-3">
-          The app is deployed, but it needs Supabase credentials before anyone can sign in or
-          save work. Set these two environment variables and redeploy.
+        <p className="text-ink-3 mt-2 text-sm leading-relaxed">
+          The app is deployed, but it needs Supabase credentials before anyone can sign in or save
+          work. Set these two environment variables and redeploy.
         </p>
 
         <dl className="mt-6 space-y-3">
@@ -28,17 +28,17 @@ export function SetupRequired() {
           ].map(([name, value]) => (
             <div
               key={name}
-              className="rounded-[var(--radius-md)] border border-line-subtle bg-[var(--surface-inset)] px-3.5 py-3"
+              className="border-line-subtle rounded-[var(--radius-md)] border bg-[var(--surface-inset)] px-3.5 py-3"
             >
-              <dt className="font-mono text-[12px] font-medium text-ink">{name}</dt>
-              <dd className="mt-1 text-[12px] text-ink-3">{value}</dd>
+              <dt className="text-ink font-mono text-[12px] font-medium">{name}</dt>
+              <dd className="text-ink-3 mt-1 text-[12px]">{value}</dd>
             </div>
           ))}
         </dl>
 
-        <p className="mt-6 text-[13px] text-ink-3">
+        <p className="text-ink-3 mt-6 text-[13px]">
           Full instructions, including the database migrations, are in{" "}
-          <code className="rounded bg-[var(--surface-inset)] px-1 py-0.5 font-mono text-[12px] text-ink-2">
+          <code className="text-ink-2 rounded bg-[var(--surface-inset)] px-1 py-0.5 font-mono text-[12px]">
             docs/DEPLOYMENT.md
           </code>
           .
@@ -48,7 +48,7 @@ export function SetupRequired() {
           href="https://supabase.com/dashboard/project/_/settings/api"
           target="_blank"
           rel="noreferrer noopener"
-          className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-accent-text hover:underline"
+          className="text-accent-text mt-5 inline-flex items-center gap-1.5 text-[13px] font-medium hover:underline"
         >
           Find your Supabase keys
           <ExternalLink className="size-3.5" aria-hidden />

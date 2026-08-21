@@ -24,8 +24,8 @@ export function FormMessage({ state }: { state: ActionResult | null }) {
         role="status"
         className="flex items-start gap-2.5 rounded-[var(--radius-md)] border border-transparent bg-[var(--success-soft)] px-3 py-2.5"
       >
-        <CheckCircle2 className="mt-px size-4 shrink-0 text-success" aria-hidden />
-        <p className="text-[13px] leading-relaxed text-success">{state.message}</p>
+        <CheckCircle2 className="text-success mt-px size-4 shrink-0" aria-hidden />
+        <p className="text-success text-[13px] leading-relaxed">{state.message}</p>
       </div>
     );
   }
@@ -36,8 +36,8 @@ export function FormMessage({ state }: { state: ActionResult | null }) {
         role="alert"
         className="flex items-start gap-2.5 rounded-[var(--radius-md)] border border-transparent bg-[var(--danger-soft)] px-3 py-2.5"
       >
-        <AlertCircle className="mt-px size-4 shrink-0 text-danger" aria-hidden />
-        <p className="text-[13px] leading-relaxed text-danger">{state.error}</p>
+        <AlertCircle className="text-danger mt-px size-4 shrink-0" aria-hidden />
+        <p className="text-danger text-[13px] leading-relaxed">{state.error}</p>
       </div>
     );
   }

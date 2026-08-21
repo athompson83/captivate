@@ -43,8 +43,7 @@ export const TEMPLATES: Template[] = [
           heading: "{{TITLE}}",
           subheading: "Add the course, date, or your name here.",
         },
-        speakerNotes:
-          "Welcome the room. Say what you'll cover and why it matters to them today.",
+        speakerNotes: "Welcome the room. Say what you'll cover and why it matters to them today.",
       },
       {
         title: "Learning objectives",
@@ -91,9 +90,21 @@ export const TEMPLATES: Template[] = [
         content: {
           heading: "Three things people get wrong",
           cards: [
-            { title: "Mistake one", body: "Why it happens and what it costs.", icon: "alert-triangle" },
-            { title: "Mistake two", body: "The tempting shortcut that fails.", icon: "alert-triangle" },
-            { title: "Mistake three", body: "The detail that gets skipped.", icon: "alert-triangle" },
+            {
+              title: "Mistake one",
+              body: "Why it happens and what it costs.",
+              icon: "alert-triangle",
+            },
+            {
+              title: "Mistake two",
+              body: "The tempting shortcut that fails.",
+              icon: "alert-triangle",
+            },
+            {
+              title: "Mistake three",
+              body: "The detail that gets skipped.",
+              icon: "alert-triangle",
+            },
           ],
         },
         speakerNotes: "These are the exam and real-world failure points.",
@@ -247,7 +258,11 @@ export const TEMPLATES: Template[] = [
       {
         title: "Title",
         layout: "title",
-        content: { eyebrow: "Workshop", heading: "{{TITLE}}", subheading: "Duration and what to bring." },
+        content: {
+          eyebrow: "Workshop",
+          heading: "{{TITLE}}",
+          subheading: "Duration and what to bring.",
+        },
         speakerNotes: "Housekeeping: breaks, materials, expectations.",
       },
       {
@@ -267,7 +282,11 @@ export const TEMPLATES: Template[] = [
       {
         title: "Demonstration",
         layout: "media-full",
-        content: { heading: "Watch first", caption: "Then you'll do it.", media: { url: "", alt: "" } },
+        content: {
+          heading: "Watch first",
+          caption: "Then you'll do it.",
+          media: { url: "", alt: "" },
+        },
         speakerNotes: "Narrate what you're doing and why, not just the steps.",
       },
       {

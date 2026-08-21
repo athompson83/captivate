@@ -10,22 +10,20 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
       <div className="flex flex-col px-6 py-8 sm:px-10 lg:px-16">
         <Link href="/" className="inline-flex w-fit items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-[var(--radius-md)] bg-accent">
+          <span className="bg-accent flex size-8 items-center justify-center rounded-[var(--radius-md)]">
             <Sparkles className="size-4 text-[var(--accent-contrast)]" aria-hidden />
           </span>
-          <span className="text-[15px] font-semibold tracking-tight text-ink">Captivate</span>
+          <span className="text-ink text-[15px] font-semibold tracking-tight">Captivate</span>
         </Link>
 
         <div className="flex flex-1 items-center py-12">
           <div className="w-full max-w-sm">{children}</div>
         </div>
 
-        <p className="text-xs text-ink-3">
-          Captivate — presentations that hold a room.
-        </p>
+        <p className="text-ink-3 text-xs">Captivate — presentations that hold a room.</p>
       </div>
 
-      <div className="relative hidden overflow-hidden bg-sunken lg:block">
+      <div className="bg-sunken relative hidden overflow-hidden lg:block">
         <StageMotif />
       </div>
     </div>
@@ -46,11 +44,11 @@ function StageMotif() {
       />
       <div className="relative w-full max-w-xl">
         <div
-          className="aspect-video w-full overflow-hidden rounded-[var(--radius-2xl)] border border-line shadow-[var(--shadow-xl)]"
+          className="border-line aspect-video w-full overflow-hidden rounded-[var(--radius-2xl)] border shadow-[var(--shadow-xl)]"
           style={{ background: "radial-gradient(120% 90% at 50% 0%, #191C26 0%, #0F1117 62%)" }}
         >
           <div className="flex h-full flex-col justify-end p-10">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#F0B858]">
+            <p className="text-[11px] font-medium tracking-[0.18em] text-[#F0B858] uppercase">
               Chapter 02
             </p>
             <h2
@@ -73,10 +71,10 @@ function StageMotif() {
           ].map(([title, body]) => (
             <div
               key={title}
-              className="rounded-[var(--radius-lg)] border border-line-subtle bg-raised/60 p-3.5"
+              className="border-line-subtle bg-raised/60 rounded-[var(--radius-lg)] border p-3.5"
             >
-              <p className="text-[12px] font-semibold text-ink">{title}</p>
-              <p className="mt-1 text-[11px] leading-snug text-ink-3">{body}</p>
+              <p className="text-ink text-[12px] font-semibold">{title}</p>
+              <p className="text-ink-3 mt-1 text-[11px] leading-snug">{body}</p>
             </div>
           ))}
         </div>

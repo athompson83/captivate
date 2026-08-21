@@ -99,7 +99,7 @@ export function Dialog({
             exit={{ opacity: 0, scale: 0.98, y: 6 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             className={cn(
-              "relative w-full rounded-[var(--radius-xl)] border border-line bg-overlay shadow-[var(--shadow-xl)]",
+              "border-line bg-overlay relative w-full rounded-[var(--radius-xl)] border shadow-[var(--shadow-xl)]",
               size === "sm" && "max-w-sm",
               size === "md" && "max-w-md",
               size === "lg" && "max-w-2xl",
@@ -107,9 +107,9 @@ export function Dialog({
           >
             <div className="flex items-start justify-between gap-4 px-6 pt-5">
               <div className="min-w-0">
-                <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
+                <h2 className="text-ink text-[15px] font-semibold">{title}</h2>
                 {description && (
-                  <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{description}</p>
+                  <p className="text-ink-3 mt-1 text-[13px] leading-relaxed">{description}</p>
                 )}
               </div>
               <Button
@@ -118,14 +118,14 @@ export function Dialog({
                 iconOnly
                 onClick={onClose}
                 aria-label="Close dialog"
-                className="-mr-2 -mt-1"
+                className="-mt-1 -mr-2"
               >
                 <X className="size-4" aria-hidden />
               </Button>
             </div>
             {children && <div className="px-6 py-4">{children}</div>}
             {footer && (
-              <div className="flex justify-end gap-2 border-t border-line-subtle px-6 py-4">
+              <div className="border-line-subtle flex justify-end gap-2 border-t px-6 py-4">
                 {footer}
               </div>
             )}

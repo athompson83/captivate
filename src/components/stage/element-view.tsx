@@ -1,12 +1,8 @@
 "use client";
 
-import { memo } from "react";
+import { createElement, memo } from "react";
 import * as Icons from "lucide-react";
-import type {
-  RichText,
-  SceneElement,
-  TextStyle,
-} from "@/lib/schema/presentation";
+import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
 import { resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
 
@@ -27,7 +23,10 @@ interface Props {
 }
 
 /** Curated icon set — an arbitrary name can never resolve to a random import. */
-const ICONS: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties; strokeWidth?: number }>> = {
+const ICONS: Record<
+  string,
+  React.ComponentType<{ className?: string; style?: React.CSSProperties; strokeWidth?: number }>
+> = {
   circle: Icons.Circle,
   check: Icons.Check,
   "check-circle": Icons.CheckCircle2,
@@ -53,13 +52,42 @@ const ICONS: Record<string, React.ComponentType<{ className?: string; style?: Re
   x: Icons.X,
 };
 
+const VideoIcon = Icons.Video;
+const PlaceholderImageIcon = Icons.ImageIcon;
+
 export function iconFor(name: string) {
   return ICONS[name] ?? Icons.Circle;
 }
 
+/**
+ * Stable wrapper for the curated icon set.
+ *
+ * `createElement` rather than JSX because the component reference is looked up
+ * from the module-level registry at render time. The references themselves are
+ * stable; JSX with a locally-bound capitalised identifier just looks like a
+ * dynamically created component to static analysis.
+ */
+function StageIcon({
+  name,
+  className,
+  style,
+  strokeWidth,
+}: {
+  name: string;
+  className?: string;
+  style?: React.CSSProperties;
+  strokeWidth?: number;
+}) {
+  return createElement(iconFor(name), { className, style, strokeWidth });
+}
+
 export const ICON_NAMES = Object.keys(ICONS);
 
-function fontFamily(style: TextStyle | undefined, theme: PresentationTheme, fallback: "display" | "sans" | "mono" = "sans") {
+function fontFamily(
+  style: TextStyle | undefined,
+  theme: PresentationTheme,
+  fallback: "display" | "sans" | "mono" = "sans",
+) {
   const family = style?.family ?? fallback;
   return theme.fonts[family];
 }
@@ -144,8 +172,9 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
 
   switch (element.type) {
     case "heading": {
-      const base = (element.level === 1 ? scale.h1 : element.level === 2 ? scale.h2 : scale.h3) * rem;
-      const Tag = (`h${element.level}` as const) satisfies "h1" | "h2" | "h3";
+      const base =
+        (element.level === 1 ? scale.h1 : element.level === 2 ? scale.h2 : scale.h3) * rem;
+      const Tag = `h${element.level}` as const satisfies "h1" | "h2" | "h3";
       return (
         <Tag style={textCss(element.style, theme, base, "display")}>
           <span>
@@ -249,11 +278,21 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
 
     case "image":
       return (
-        <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", borderRadius: `${element.radius * rem}px` }}>
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            overflow: "hidden",
+            borderRadius: `${element.radius * rem}px`,
+          }}
+        >
           {element.url ? (
-            // eslint-disable-next-line @next/next/no-img-element -- stage images
-            // are user uploads at arbitrary sizes rendered inside a transformed
-            // stage; next/image's layout system fights the transform.
+            /* Stage images are user uploads at arbitrary sizes rendered inside
+               a CSS-transformed stage; next/image's layout system fights the
+               transform, and the source is a signed private redirect that the
+               optimiser cannot fetch. */
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={element.url}
               alt={element.alt}
@@ -324,14 +363,32 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
           }}
         >
           {element.title && (
-            <p style={{ fontSize: `${scale.caption * rem * 1.2}px`, color: theme.tokens.ink, fontFamily: theme.fonts.sans, margin: 0 }}>
+            <p
+              style={{
+                fontSize: `${scale.caption * rem * 1.2}px`,
+                color: theme.tokens.ink,
+                fontFamily: theme.fonts.sans,
+                margin: 0,
+              }}
+            >
               {element.title}
             </p>
           )}
           {element.url ? (
-            <audio src={element.url} controls autoPlay={element.autoplay} style={{ width: "100%" }} />
+            <audio
+              src={element.url}
+              controls
+              autoPlay={element.autoplay}
+              style={{ width: "100%" }}
+            />
           ) : (
-            <p style={{ fontSize: `${scale.caption * rem}px`, color: theme.tokens.inkMuted, margin: 0 }}>
+            <p
+              style={{
+                fontSize: `${scale.caption * rem}px`,
+                color: theme.tokens.inkMuted,
+                margin: 0,
+              }}
+            >
               No audio selected
             </p>
           )}
@@ -346,15 +403,35 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
       if (element.shape === "line") {
         return (
           <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center" }}>
-            <div style={{ width: "100%", height: `${Math.max(1, strokePx)}px`, background: stroke === "transparent" ? fill : stroke }} />
+            <div
+              style={{
+                width: "100%",
+                height: `${Math.max(1, strokePx)}px`,
+                background: stroke === "transparent" ? fill : stroke,
+              }}
+            />
           </div>
         );
       }
       if (element.shape === "triangle" || element.shape === "arrow") {
-        const path = element.shape === "triangle" ? "50,4 96,96 4,96" : "4,38 62,38 62,10 96,50 62,90 62,62 4,62";
+        const path =
+          element.shape === "triangle"
+            ? "50,4 96,96 4,96"
+            : "4,38 62,38 62,10 96,50 62,90 62,62 4,62";
         return (
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: "100%" }} aria-hidden>
-            <polygon points={path} fill={fill} stroke={stroke} strokeWidth={element.strokeWidth} vectorEffect="non-scaling-stroke" />
+          <svg
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            style={{ width: "100%", height: "100%" }}
+            aria-hidden
+          >
+            <polygon
+              points={path}
+              fill={fill}
+              stroke={stroke}
+              strokeWidth={element.strokeWidth}
+              vectorEffect="non-scaling-stroke"
+            />
           </svg>
         );
       }
@@ -378,22 +455,34 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
             style={{
               width: "100%",
               height: `${Math.max(1, element.thickness * rem * 0.5)}px`,
-              background: element.color ? resolveColor(element.color, theme, "line") : theme.tokens.line,
+              background: element.color
+                ? resolveColor(element.color, theme, "line")
+                : theme.tokens.line,
             }}
           />
         </div>
       );
 
     case "icon": {
-      const Icon = iconFor(element.name);
       return (
-        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <StageIcon
+            name={element.name}
             strokeWidth={element.strokeWidth}
             style={{
               width: "100%",
               height: "100%",
-              color: element.color ? resolveColor(element.color, theme, "accent") : theme.tokens.accent,
+              color: element.color
+                ? resolveColor(element.color, theme, "accent")
+                : theme.tokens.accent,
             }}
           />
         </div>
@@ -401,7 +490,6 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
     }
 
     case "callout": {
-      const Icon = iconFor(element.icon);
       const toneColor =
         element.tone === "accent"
           ? theme.tokens.accent
@@ -427,7 +515,15 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
             borderTop: `${rem * 0.16}px solid ${toneColor}`,
           }}
         >
-          <Icon style={{ width: `${rem * 1.8}px`, height: `${rem * 1.8}px`, color: toneColor, flexShrink: 0 }} />
+          <StageIcon
+            name={element.icon}
+            style={{
+              width: `${rem * 1.8}px`,
+              height: `${rem * 1.8}px`,
+              color: toneColor,
+              flexShrink: 0,
+            }}
+          />
           {element.title && (
             <p
               style={{
@@ -481,7 +577,13 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
             {element.showLineNumbers
               ? element.code.split("\n").map((line, i) => (
                   <span key={i} style={{ display: "block" }}>
-                    <span style={{ color: theme.tokens.inkMuted, userSelect: "none", marginRight: `${rem}px` }}>
+                    <span
+                      style={{
+                        color: theme.tokens.inkMuted,
+                        userSelect: "none",
+                        marginRight: `${rem}px`,
+                      }}
+                    >
                       {String(i + 1).padStart(2, " ")}
                     </span>
                     {line}
@@ -532,7 +634,7 @@ function ImagePlaceholder({
   label: string;
   icon?: "image" | "video";
 }) {
-  const Icon = icon === "video" ? Icons.Video : Icons.ImageIcon;
+  const Icon = icon === "video" ? VideoIcon : PlaceholderImageIcon;
   return (
     <div
       style={{
@@ -572,45 +674,87 @@ function ChartView({
 
   const colorAt = (i: number) => {
     if (element.palette === "accent") return accent;
-    if (element.palette === "sequential") return `color-mix(in oklch, ${accent} ${100 - i * 14}%, ${theme.tokens.surface})`;
+    if (element.palette === "sequential")
+      return `color-mix(in oklch, ${accent} ${100 - i * 14}%, ${theme.tokens.surface})`;
     const hues = [accent, "#5AA9E6", "#7FD1B9", "#E8A34A", "#C77DD6", "#E2726E"];
     return hues[i % hues.length];
   };
 
   if (element.chart === "donut") {
     const total = data.reduce((s, d) => s + Math.abs(d.value), 0) || 1;
-    let offset = 0;
     const r = 38;
     const circumference = 2 * Math.PI * r;
+
+    // Precompute each arc's length and starting offset so the render body has
+    // no accumulating state to mutate.
+    const arcs = data.reduce<{ dash: number; offset: number }[]>((acc, d) => {
+      const dash = (Math.abs(d.value) / total) * circumference;
+      const previous = acc[acc.length - 1];
+      acc.push({ dash, offset: previous ? previous.offset + previous.dash : 0 });
+      return acc;
+    }, []);
     return (
-      <figure style={{ display: "flex", alignItems: "center", gap: `${rem * 2}px`, width: "100%", height: "100%", margin: 0 }}>
-        <svg viewBox="0 0 100 100" style={{ height: "100%", aspectRatio: "1", transform: "rotate(-90deg)" }} role="img" aria-label={element.summary || "Donut chart"}>
-          {data.map((d, i) => {
-            const frac = Math.abs(d.value) / total;
-            const dash = frac * circumference;
-            const el = (
-              <circle
-                key={i}
-                cx="50"
-                cy="50"
-                r={r}
-                fill="none"
-                stroke={colorAt(i)}
-                strokeWidth="16"
-                strokeDasharray={`${dash} ${circumference - dash}`}
-                strokeDashoffset={-offset}
-              />
-            );
-            offset += dash;
-            return el;
-          })}
+      <figure
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: `${rem * 2}px`,
+          width: "100%",
+          height: "100%",
+          margin: 0,
+        }}
+      >
+        <svg
+          viewBox="0 0 100 100"
+          style={{ height: "100%", aspectRatio: "1", transform: "rotate(-90deg)" }}
+          role="img"
+          aria-label={element.summary || "Donut chart"}
+        >
+          {arcs.map((arc, i) => (
+            <circle
+              key={i}
+              cx="50"
+              cy="50"
+              r={r}
+              fill="none"
+              stroke={colorAt(i)}
+              strokeWidth="16"
+              strokeDasharray={`${arc.dash} ${circumference - arc.dash}`}
+              strokeDashoffset={-arc.offset}
+            />
+          ))}
         </svg>
-        <figcaption style={{ display: "flex", flexDirection: "column", gap: `${rem * 0.5}px`, fontFamily: theme.fonts.sans }}>
+        <figcaption
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: `${rem * 0.5}px`,
+            fontFamily: theme.fonts.sans,
+          }}
+        >
           {data.map((d, i) => (
-            <span key={i} style={{ display: "flex", alignItems: "center", gap: `${rem * 0.5}px`, fontSize: `${labelSize}px`, color: theme.tokens.ink }}>
-              <span style={{ width: `${rem * 0.7}px`, height: `${rem * 0.7}px`, borderRadius: "2px", background: colorAt(i) }} />
+            <span
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: `${rem * 0.5}px`,
+                fontSize: `${labelSize}px`,
+                color: theme.tokens.ink,
+              }}
+            >
+              <span
+                style={{
+                  width: `${rem * 0.7}px`,
+                  height: `${rem * 0.7}px`,
+                  borderRadius: "2px",
+                  background: colorAt(i),
+                }}
+              />
               {d.label}
-              {element.showValues && <strong style={{ color: theme.tokens.inkMuted, fontWeight: 500 }}>{d.value}</strong>}
+              {element.showValues && (
+                <strong style={{ color: theme.tokens.inkMuted, fontWeight: 500 }}>{d.value}</strong>
+              )}
             </span>
           ))}
         </figcaption>
@@ -623,14 +767,50 @@ function ChartView({
       .map((d, i) => `${(i / Math.max(1, data.length - 1)) * 100},${100 - (d.value / max) * 92}`)
       .join(" ");
     return (
-      <figure style={{ width: "100%", height: "100%", margin: 0, display: "flex", flexDirection: "column", gap: `${rem * 0.6}px` }} role="img" aria-label={element.summary || "Line chart"}>
+      <figure
+        style={{
+          width: "100%",
+          height: "100%",
+          margin: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: `${rem * 0.6}px`,
+        }}
+        role="img"
+        aria-label={element.summary || "Line chart"}
+      >
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ flex: 1, width: "100%" }}>
           {[0, 25, 50, 75, 100].map((y) => (
-            <line key={y} x1="0" y1={y} x2="100" y2={y} stroke={theme.tokens.line} strokeWidth="0.4" vectorEffect="non-scaling-stroke" />
+            <line
+              key={y}
+              x1="0"
+              y1={y}
+              x2="100"
+              y2={y}
+              stroke={theme.tokens.line}
+              strokeWidth="0.4"
+              vectorEffect="non-scaling-stroke"
+            />
           ))}
-          <polyline points={points} fill="none" stroke={accent} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+          <polyline
+            points={points}
+            fill="none"
+            stroke={accent}
+            strokeWidth="2.5"
+            vectorEffect="non-scaling-stroke"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
         </svg>
-        <div style={{ display: "flex", justifyContent: "space-between", fontFamily: theme.fonts.sans, fontSize: `${labelSize}px`, color: theme.tokens.inkMuted }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontFamily: theme.fonts.sans,
+            fontSize: `${labelSize}px`,
+            color: theme.tokens.inkMuted,
+          }}
+        >
           {data.map((d, i) => (
             <span key={i}>{d.label}</span>
           ))}
@@ -658,18 +838,84 @@ function ChartView({
       {data.map((d, i) => {
         const pct = (Math.abs(d.value) / max) * 100;
         return horizontal ? (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: `${rem * 0.8}px`, flex: 1 }}>
-            <span style={{ width: "22%", fontSize: `${labelSize}px`, color: theme.tokens.inkMuted, textAlign: "right" }}>{d.label}</span>
-            <div style={{ flex: 1, height: "60%", background: theme.tokens.surface, borderRadius: `${rem * 0.2}px`, overflow: "hidden" }}>
-              <div style={{ width: `${pct}%`, height: "100%", background: colorAt(i), borderRadius: `${rem * 0.2}px` }} />
+          <div
+            key={i}
+            style={{ display: "flex", alignItems: "center", gap: `${rem * 0.8}px`, flex: 1 }}
+          >
+            <span
+              style={{
+                width: "22%",
+                fontSize: `${labelSize}px`,
+                color: theme.tokens.inkMuted,
+                textAlign: "right",
+              }}
+            >
+              {d.label}
+            </span>
+            <div
+              style={{
+                flex: 1,
+                height: "60%",
+                background: theme.tokens.surface,
+                borderRadius: `${rem * 0.2}px`,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: `${pct}%`,
+                  height: "100%",
+                  background: colorAt(i),
+                  borderRadius: `${rem * 0.2}px`,
+                }}
+              />
             </div>
-            {element.showValues && <span style={{ fontSize: `${labelSize}px`, color: theme.tokens.ink, minWidth: `${rem * 2.5}px` }}>{d.value}</span>}
+            {element.showValues && (
+              <span
+                style={{
+                  fontSize: `${labelSize}px`,
+                  color: theme.tokens.ink,
+                  minWidth: `${rem * 2.5}px`,
+                }}
+              >
+                {d.value}
+              </span>
+            )}
           </div>
         ) : (
-          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: `${rem * 0.5}px`, height: "100%", justifyContent: "flex-end" }}>
-            {element.showValues && <span style={{ fontSize: `${labelSize}px`, color: theme.tokens.ink }}>{d.value}</span>}
-            <div style={{ width: "100%", height: `${pct}%`, background: colorAt(i), borderRadius: `${rem * 0.25}px ${rem * 0.25}px 0 0`, minHeight: "2px" }} />
-            <span style={{ fontSize: `${labelSize}px`, color: theme.tokens.inkMuted, textAlign: "center" }}>{d.label}</span>
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: `${rem * 0.5}px`,
+              height: "100%",
+              justifyContent: "flex-end",
+            }}
+          >
+            {element.showValues && (
+              <span style={{ fontSize: `${labelSize}px`, color: theme.tokens.ink }}>{d.value}</span>
+            )}
+            <div
+              style={{
+                width: "100%",
+                height: `${pct}%`,
+                background: colorAt(i),
+                borderRadius: `${rem * 0.25}px ${rem * 0.25}px 0 0`,
+                minHeight: "2px",
+              }}
+            />
+            <span
+              style={{
+                fontSize: `${labelSize}px`,
+                color: theme.tokens.inkMuted,
+                textAlign: "center",
+              }}
+            >
+              {d.label}
+            </span>
           </div>
         );
       })}

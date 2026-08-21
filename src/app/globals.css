@@ -42,12 +42,12 @@
 
   --text-primary: oklch(0.22 0.012 265);
   --text-secondary: oklch(0.44 0.012 265);
-  --text-muted: oklch(0.60 0.012 265);
+  --text-muted: oklch(0.6 0.012 265);
   --text-inverse: oklch(0.98 0.003 90);
 
   --border-subtle: oklch(0.91 0.005 265);
   --border-default: oklch(0.86 0.007 265);
-  --border-strong: oklch(0.74 0.010 265);
+  --border-strong: oklch(0.74 0.01 265);
 
   --accent: oklch(0.62 0.14 62);
   --accent-hover: oklch(0.57 0.15 62);
@@ -86,30 +86,30 @@
   --surface-inset: oklch(0.185 0.012 265);
 
   --text-primary: oklch(0.97 0.004 265);
-  --text-secondary: oklch(0.76 0.010 265);
-  --text-muted: oklch(0.60 0.012 265);
+  --text-secondary: oklch(0.76 0.01 265);
+  --text-muted: oklch(0.6 0.012 265);
   --text-inverse: oklch(0.18 0.012 265);
 
   --border-subtle: oklch(0.27 0.013 265);
   --border-default: oklch(0.33 0.014 265);
   --border-strong: oklch(0.45 0.016 265);
 
-  --accent: oklch(0.80 0.145 72);
+  --accent: oklch(0.8 0.145 72);
   --accent-hover: oklch(0.86 0.145 75);
-  --accent-soft: oklch(0.30 0.055 65);
+  --accent-soft: oklch(0.3 0.055 65);
   --accent-text: oklch(0.84 0.14 75);
   --accent-contrast: oklch(0.18 0.03 60);
 
   --ai: oklch(0.74 0.155 300);
   --ai-soft: oklch(0.28 0.06 300);
-  --ai-text: oklch(0.80 0.13 300);
+  --ai-text: oklch(0.8 0.13 300);
 
   --record: oklch(0.66 0.21 25);
   --record-soft: oklch(0.29 0.08 25);
 
   --success: oklch(0.74 0.15 155);
   --success-soft: oklch(0.28 0.06 155);
-  --warning: oklch(0.80 0.14 75);
+  --warning: oklch(0.8 0.14 75);
   --danger: oklch(0.68 0.19 25);
   --danger-soft: oklch(0.29 0.08 25);
 
@@ -231,13 +231,22 @@ body {
 }
 
 @keyframes captivate-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 @keyframes captivate-shimmer {
-  from { background-position: -200% 0; }
-  to { background-position: 200% 0; }
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
 }
 
 @utility skeleton {

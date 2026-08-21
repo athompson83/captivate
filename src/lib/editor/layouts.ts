@@ -203,7 +203,13 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
       hidden: false,
       locked: false,
       opacity: 1,
-      animation: { entrance: "fade", delay: nextDelay(), duration: 0.45, emphasis: "none", onAdvance: false },
+      animation: {
+        entrance: "fade",
+        delay: nextDelay(),
+        duration: 0.45,
+        emphasis: "none",
+        onAdvance: false,
+      },
       style: {
         size: 0.62,
         weight: 600,
@@ -264,7 +270,13 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
             hidden: false,
             locked: false,
             opacity: 1,
-            animation: { entrance: "rise", delay: nextDelay(), duration: 0.6, emphasis: "none", onAdvance: false },
+            animation: {
+              entrance: "rise",
+              delay: nextDelay(),
+              duration: 0.6,
+              emphasis: "none",
+              onAdvance: false,
+            },
             style: {
               size: 1.35,
               weight: 400,
@@ -281,13 +293,26 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
         : {
             id: elementId("heading"),
             type: "heading",
-            level: layout === "bullets" || layout === "chart" || layout === "code" || layout === "two-column" || layout === "three-up" ? 2 : 1,
+            level:
+              layout === "bullets" ||
+              layout === "chart" ||
+              layout === "code" ||
+              layout === "two-column" ||
+              layout === "three-up"
+                ? 2
+                : 1,
             frame: slots.heading,
             content: richText(headingText),
             hidden: false,
             locked: false,
             opacity: 1,
-            animation: { entrance: "rise", delay: nextDelay(), duration: 0.55, emphasis: "none", onAdvance: false },
+            animation: {
+              entrance: "rise",
+              delay: nextDelay(),
+              duration: 0.55,
+              emphasis: "none",
+              onAdvance: false,
+            },
             style: {
               size: big ? 1 : 0.62,
               weight: 600,
@@ -306,10 +331,12 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
   }
 
   if (content.attribution && slots.attribution && layout !== "quote") {
-    elements.push(textElement(content.attribution, slots.attribution, align, nextDelay(), {
-      size: 0.42,
-      muted: true,
-    }));
+    elements.push(
+      textElement(content.attribution, slots.attribution, align, nextDelay(), {
+        size: 0.42,
+        muted: true,
+      }),
+    );
   }
 
   if (content.subheading && slots.subheading) {
@@ -359,7 +386,13 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
       hidden: false,
       locked: false,
       opacity: 1,
-      animation: { entrance: "fade", delay: nextDelay(), duration: 0.5, emphasis: "none", onAdvance: false },
+      animation: {
+        entrance: "fade",
+        delay: nextDelay(),
+        duration: 0.5,
+        emphasis: "none",
+        onAdvance: false,
+      },
       style: {
         size: 0.42,
         weight: 400,
@@ -389,7 +422,13 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
       hidden: false,
       locked: false,
       opacity: 1,
-      animation: { entrance: "rise", delay: nextDelay(), duration: 0.7, emphasis: "none", onAdvance: false },
+      animation: {
+        entrance: "rise",
+        delay: nextDelay(),
+        duration: 0.7,
+        emphasis: "none",
+        onAdvance: false,
+      },
     });
   }
 

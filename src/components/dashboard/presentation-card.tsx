@@ -3,14 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
-import {
-  Copy,
-  MoreHorizontal,
-  Pencil,
-  Play,
-  Star,
-  Trash2,
-} from "lucide-react";
+import { Copy, MoreHorizontal, Pencil, Play, Star, Trash2 } from "lucide-react";
 import type { PresentationSummary } from "@/lib/data/presentations";
 import type { SceneContent } from "@/lib/schema/presentation";
 import { getTheme } from "@/lib/schema/theme";
@@ -18,11 +11,7 @@ import { StageThumbnail } from "@/components/stage/stage";
 import { Popover, MenuItem } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
-import {
-  deletePresentation,
-  duplicatePresentation,
-  updatePresentation,
-} from "@/lib/data/actions";
+import { deletePresentation, duplicatePresentation, updatePresentation } from "@/lib/data/actions";
 import { cn } from "@/lib/utils/cn";
 import { relativeTime } from "@/lib/utils/format";
 
@@ -65,7 +54,11 @@ export function PresentationCard({
     start(async () => {
       const res = await duplicatePresentation(presentation.id);
       if (res.ok) {
-        toast({ tone: "success", title: "Duplicated", description: `“${presentation.title} copy” is ready.` });
+        toast({
+          tone: "success",
+          title: "Duplicated",
+          description: `“${presentation.title} copy” is ready.`,
+        });
         router.refresh();
       } else {
         toast({ tone: "error", title: "Couldn't duplicate", description: res.error });
@@ -91,20 +84,24 @@ export function PresentationCard({
   return (
     <div
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-line-subtle bg-raised",
+        "group border-line-subtle bg-raised relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border",
         "transition-[border-color,box-shadow,transform] duration-[var(--duration-base)]",
-        "hover:-translate-y-0.5 hover:border-line hover:shadow-[var(--shadow-md)]",
+        "hover:border-line hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]",
         pending && "opacity-70",
       )}
     >
       <Link
         href={`/edit/${presentation.id}`}
-        className="relative block aspect-video overflow-hidden bg-sunken"
+        className="bg-sunken relative block aspect-video overflow-hidden"
         aria-label={`Edit ${presentation.title}`}
       >
         {preview ? (
           <div className="pointer-events-none absolute inset-0">
-            <StageThumbnailFill content={preview} themeId={presentation.themeId} aspect={presentation.aspectRatio} />
+            <StageThumbnailFill
+              content={preview}
+              themeId={presentation.themeId}
+              aspect={presentation.aspectRatio}
+            />
           </div>
         ) : (
           <div
@@ -127,11 +124,11 @@ export function PresentationCard({
         <div className="min-w-0 flex-1">
           <Link
             href={`/edit/${presentation.id}`}
-            className="block truncate text-[13.5px] font-medium text-ink hover:text-accent-text"
+            className="text-ink hover:text-accent-text block truncate text-[13.5px] font-medium"
           >
             {presentation.title}
           </Link>
-          <p className="mt-0.5 truncate text-[11.5px] text-ink-3">
+          <p className="text-ink-3 mt-0.5 truncate text-[11.5px]">
             {presentation.sceneCount} {presentation.sceneCount === 1 ? "scene" : "scenes"}
             {" · "}
             {relativeTime(presentation.updatedAt)}
@@ -145,7 +142,9 @@ export function PresentationCard({
           aria-pressed={favorite}
           className={cn(
             "rounded p-1 transition-colors",
-            favorite ? "text-accent" : "text-ink-3 opacity-0 hover:text-ink-2 group-hover:opacity-100 focus-visible:opacity-100",
+            favorite
+              ? "text-accent"
+              : "text-ink-3 hover:text-ink-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
           )}
         >
           <Star className="size-3.5" fill={favorite ? "currentColor" : "none"} aria-hidden />
@@ -157,11 +156,16 @@ export function PresentationCard({
             aria-label={`Actions for ${presentation.title}`}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            className="rounded p-1 text-ink-3 opacity-0 transition-colors hover:text-ink group-hover:opacity-100 focus-visible:opacity-100"
+            className="text-ink-3 hover:text-ink rounded p-1 opacity-0 transition-colors group-hover:opacity-100 focus-visible:opacity-100"
           >
             <MoreHorizontal className="size-3.5" aria-hidden />
           </button>
-          <Popover open={menuOpen} onClose={() => setMenuOpen(false)} anchor="bottom-end" className="w-[188px]">
+          <Popover
+            open={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            anchor="bottom-end"
+            className="w-[188px]"
+          >
             <div role="menu">
               <Link href={`/edit/${presentation.id}`} onClick={() => setMenuOpen(false)}>
                 <MenuItem icon={Pencil} label="Edit" />
@@ -177,7 +181,7 @@ export function PresentationCard({
                   onDuplicate();
                 }}
               />
-              <div className="my-1 border-t border-line-subtle" />
+              <div className="border-line-subtle my-1 border-t" />
               <MenuItem
                 icon={Trash2}
                 label="Delete"

@@ -77,13 +77,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.97 }}
                 transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                className="pointer-events-auto flex items-start gap-3 rounded-[var(--radius-lg)] border border-line bg-overlay px-4 py-3 shadow-[var(--shadow-lg)]"
+                className="border-line bg-overlay pointer-events-auto flex items-start gap-3 rounded-[var(--radius-lg)] border px-4 py-3 shadow-[var(--shadow-lg)]"
               >
                 <Icon className={cn("mt-0.5 size-4 shrink-0", TONE_CLASS[t.tone])} aria-hidden />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-ink">{t.title}</p>
+                  <p className="text-ink text-[13px] font-medium">{t.title}</p>
                   {t.description && (
-                    <p className="mt-0.5 text-xs leading-relaxed text-ink-3">{t.description}</p>
+                    <p className="text-ink-3 mt-0.5 text-xs leading-relaxed">{t.description}</p>
                   )}
                   {t.action && (
                     <button
@@ -91,7 +91,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                         t.action!.onClick();
                         dismiss(t.id);
                       }}
-                      className="mt-2 text-xs font-medium text-accent-text hover:underline"
+                      className="text-accent-text mt-2 text-xs font-medium hover:underline"
                     >
                       {t.action.label}
                     </button>
@@ -100,7 +100,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 <button
                   onClick={() => dismiss(t.id)}
                   aria-label="Dismiss notification"
-                  className="-mr-1 rounded p-1 text-ink-3 transition-colors hover:text-ink"
+                  className="text-ink-3 hover:text-ink -mr-1 rounded p-1 transition-colors"
                 >
                   <X className="size-3.5" aria-hidden />
                 </button>

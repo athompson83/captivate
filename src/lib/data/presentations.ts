@@ -94,13 +94,17 @@ export async function listPresentations(opts: ListOptions = {}): Promise<Present
   if (opts.search?.trim()) {
     // Escape PostgREST's `or` filter separators so a comma or paren in the
     // search box cannot alter the filter expression.
-    const term = opts.search.trim().replace(/[,()\\]/g, " ").slice(0, 120);
+    const term = opts.search
+      .trim()
+      .replace(/[,()\\]/g, " ")
+      .slice(0, 120);
     if (term.trim()) {
       query = query.or(`title.ilike.%${term}%,description.ilike.%${term}%`);
     }
   }
   if (opts.folderId !== undefined) {
-    query = opts.folderId === null ? query.is("folder_id", null) : query.eq("folder_id", opts.folderId);
+    query =
+      opts.folderId === null ? query.is("folder_id", null) : query.eq("folder_id", opts.folderId);
   }
   if (opts.favoritesOnly) query = query.eq("is_favorite", true);
   if (opts.tag) query = query.contains("tags", [opts.tag]);

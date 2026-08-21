@@ -63,13 +63,13 @@ export function Tooltip({
             transition={{ duration: 0.12 }}
             className={cn(
               "pointer-events-none absolute z-[80] flex items-center gap-2 whitespace-nowrap",
-              "rounded-[var(--radius-sm)] border border-line bg-overlay px-2 py-1 text-xs text-ink shadow-[var(--shadow-md)]",
+              "border-line bg-overlay text-ink rounded-[var(--radius-sm)] border px-2 py-1 text-xs shadow-[var(--shadow-md)]",
               pos,
             )}
           >
             {label}
             {shortcut && (
-              <kbd className="rounded border border-line-subtle bg-[var(--surface-inset)] px-1 font-sans text-[10px] text-ink-3">
+              <kbd className="border-line-subtle text-ink-3 rounded border bg-[var(--surface-inset)] px-1 font-sans text-[10px]">
                 {shortcut}
               </kbd>
             )}
@@ -134,7 +134,7 @@ export function Popover({
           exit={{ opacity: 0, scale: 0.97, y: -2 }}
           transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
           className={cn(
-            "absolute z-[70] rounded-[var(--radius-lg)] border border-line bg-overlay p-1.5 shadow-[var(--shadow-lg)]",
+            "border-line bg-overlay absolute z-[70] rounded-[var(--radius-lg)] border p-1.5 shadow-[var(--shadow-lg)]",
             pos,
             className,
           )}
@@ -171,12 +171,12 @@ export function MenuItem({
         "transition-colors duration-[var(--duration-instant)] disabled:pointer-events-none disabled:opacity-40",
         tone === "danger"
           ? "text-danger hover:bg-[var(--danger-soft)]"
-          : "text-ink-2 hover:bg-[var(--surface-inset)] hover:text-ink",
+          : "text-ink-2 hover:text-ink hover:bg-[var(--surface-inset)]",
       )}
     >
       {Icon && <Icon className="size-3.5 shrink-0" />}
       <span className="flex-1 truncate">{label}</span>
-      {shortcut && <kbd className="font-sans text-[10px] text-ink-3">{shortcut}</kbd>}
+      {shortcut && <kbd className="text-ink-3 font-sans text-[10px]">{shortcut}</kbd>}
     </button>
   );
 }
@@ -222,7 +222,7 @@ export function Spinner({ className }: { className?: string }) {
       role="status"
       aria-label="Loading"
       className={cn(
-        "inline-block size-4 animate-spin rounded-full border-2 border-line-strong border-t-accent",
+        "border-line-strong border-t-accent inline-block size-4 animate-spin rounded-full border-2",
         className,
       )}
     />
@@ -247,12 +247,14 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col items-center justify-center px-6 py-16 text-center", className)}>
-      <div className="mb-4 flex size-12 items-center justify-center rounded-[var(--radius-lg)] border border-line-subtle bg-[var(--surface-inset)]">
-        <Icon className="size-5 text-ink-3" />
+    <div
+      className={cn("flex flex-col items-center justify-center px-6 py-16 text-center", className)}
+    >
+      <div className="border-line-subtle mb-4 flex size-12 items-center justify-center rounded-[var(--radius-lg)] border bg-[var(--surface-inset)]">
+        <Icon className="text-ink-3 size-5" />
       </div>
-      <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
-      <p className="mt-1.5 max-w-sm text-[13px] leading-relaxed text-ink-3">{description}</p>
+      <h3 className="text-ink text-[15px] font-semibold">{title}</h3>
+      <p className="text-ink-3 mt-1.5 max-w-sm text-[13px] leading-relaxed">{description}</p>
       {action && <div className="mt-5">{action}</div>}
     </div>
   );
@@ -277,7 +279,7 @@ export function Segmented<T extends string>({
       role="radiogroup"
       aria-label={label}
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-[var(--radius-md)] border border-line-subtle bg-[var(--surface-inset)] p-0.5",
+        "border-line-subtle inline-flex items-center gap-0.5 rounded-[var(--radius-md)] border bg-[var(--surface-inset)] p-0.5",
       )}
     >
       {options.map((opt) => {
@@ -298,7 +300,7 @@ export function Segmented<T extends string>({
             {active && (
               <motion.span
                 layoutId={`seg-${label ?? "group"}`}
-                className="absolute inset-0 rounded-[var(--radius-sm)] bg-raised shadow-[var(--shadow-xs)]"
+                className="bg-raised absolute inset-0 rounded-[var(--radius-sm)] shadow-[var(--shadow-xs)]"
                 transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
               />
             )}

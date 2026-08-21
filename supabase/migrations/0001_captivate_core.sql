@@ -441,7 +441,11 @@ create policy "recordings_delete_own" on public.recordings
   for delete to authenticated using (owner_id = auth.uid());
 
 -- ai_generations ------------------------------------------------------------
--- Rows are written by the server on the user's behalf; the client may read its
--- own history but never fabricate or alter records.
+-- Rows are written by server code running as the signed-in user. Inserts are
+-- allowed but are pinned to the caller's own id, so the audit trail cannot be
+-- attributed to anyone else. There is deliberately no UPDATE or DELETE policy:
+-- once written, a generation record is immutable from the client.
 create policy "ai_generations_select_own" on public.ai_generations
   for select to authenticated using (owner_id = auth.uid());
+create policy "ai_generations_insert_own" on public.ai_generations
+  for insert to authenticated with check (owner_id = auth.uid());

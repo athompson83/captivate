@@ -26,7 +26,7 @@ import type { FolderRow, PresentationRow, SceneRow } from "@/lib/supabase/databa
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string };
 
-const ok = <T,>(data: T): Result<T> => ({ ok: true, data });
+const ok = <T>(data: T): Result<T> => ({ ok: true, data });
 const fail = (error: string): Result<never> => ({ ok: false, error });
 
 const Uuid = z.string().uuid();
@@ -170,10 +170,7 @@ export async function deletePresentation(id: string): Promise<Result<void>> {
 export async function restorePresentation(id: string): Promise<Result<void>> {
   if (!Uuid.safeParse(id).success) return fail("Invalid id.");
   const supabase = await client();
-  const { error } = await supabase
-    .from("presentations")
-    .update({ deleted_at: null })
-    .eq("id", id);
+  const { error } = await supabase.from("presentations").update({ deleted_at: null }).eq("id", id);
   if (error) return fail(error.message);
 
   revalidatePath("/presentations");
@@ -296,7 +293,9 @@ const SaveSceneInput = z.object({
 export async function saveScene(input: unknown): Promise<Result<{ updatedAt: string }>> {
   const parsed = SaveSceneInput.safeParse(input);
   if (!parsed.success) {
-    return fail("This scene contains content Captivate can't store. Your last saved version is intact.");
+    return fail(
+      "This scene contains content Captivate can't store. Your last saved version is intact.",
+    );
   }
 
   const { id, presentationId, ...rest } = parsed.data;
@@ -384,9 +383,7 @@ export async function addScene(input: unknown): Promise<Result<{ id: string; pos
   const shifted = scenes.slice(insertAt).map((s, i) => ({ id: s.id, position: insertAt + i + 1 }));
   if (shifted.length) {
     await Promise.all(
-      shifted.map((s) =>
-        supabase.from("scenes").update({ position: s.position }).eq("id", s.id),
-      ),
+      shifted.map((s) => supabase.from("scenes").update({ position: s.position }).eq("id", s.id)),
     );
   }
 
@@ -470,7 +467,10 @@ export async function reorderScenes(input: unknown): Promise<Result<void>> {
   if (readErr) return fail(readErr.message);
 
   const known = new Set((existing ?? []).map((s) => s.id));
-  if (known.size !== parsed.data.sceneIds.length || parsed.data.sceneIds.some((id) => !known.has(id))) {
+  if (
+    known.size !== parsed.data.sceneIds.length ||
+    parsed.data.sceneIds.some((id) => !known.has(id))
+  ) {
     return fail("The scene order is out of date. Reload the presentation and try again.");
   }
 
@@ -541,9 +541,7 @@ export async function addSection(input: unknown): Promise<Result<{ id: string }>
 }
 
 export async function renameSection(input: unknown): Promise<Result<void>> {
-  const parsed = z
-    .object({ id: Uuid, title: z.string().trim().min(1).max(240) })
-    .safeParse(input);
+  const parsed = z.object({ id: Uuid, title: z.string().trim().min(1).max(240) }).safeParse(input);
   if (!parsed.success) return fail("Section names can't be empty.");
 
   const supabase = await client();
