@@ -91,8 +91,6 @@ export const Stage = memo(function Stage({
       className={className}
       style={{
         position: "relative",
-        display: "grid",
-        placeItems: "center",
         overflow: "hidden",
         // Zero until measured, so the stage is never briefly visible at 1:1.
         ["--stage-scale" as string]: fixedScale ?? 0,
@@ -105,11 +103,15 @@ export const Stage = memo(function Stage({
           ...themeCssVars(theme),
           width: size.width,
           height: size.height,
-          transform: "scale(var(--stage-scale, 0))",
+          // Centred by translation rather than by grid alignment: the stage is
+          // deliberately larger than its container before scaling, and an
+          // overflowing grid item is not centred consistently across engines.
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%) scale(var(--stage-scale, 0))",
           transformOrigin: "center center",
-          position: "relative",
           overflow: "hidden",
-          flexShrink: 0,
           ...background,
         }}
       >

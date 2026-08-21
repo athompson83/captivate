@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ExternalLink, Notebook, Plus, Search, Trash2 } from "lucide-react";
 import type { LectureNote } from "@/lib/data/notes";
 import { createNote, deleteNote, updateNote } from "@/lib/data/notes";
+import { useDebouncedSave } from "@/lib/data/use-debounced-save";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/dialog";
@@ -36,27 +37,33 @@ export function NotesWorkspace({
     initialNoteId ?? initialNotes[0]?.id ?? null,
   );
   const [query, setQuery] = useState("");
-  const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<LectureNote | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => () => clearTimeout(saveTimer.current), []);
 
   const active = notes.find((n) => n.id === activeId) ?? null;
 
-  const persist = useCallback(
-    (id: string, patch: { title?: string; body?: string; presentationId?: string | null }) => {
-      clearTimeout(saveTimer.current);
-      setSaving(true);
-      saveTimer.current = setTimeout(async () => {
-        const result = await updateNote({ id, ...patch });
-        setSaving(false);
+  const saver = useDebouncedSave(
+    useCallback(
+      async (payload: {
+        id: string;
+        title?: string;
+        body?: string;
+        presentationId?: string | null;
+      }) => {
+        const result = await updateNote(payload);
         if (!result.ok) {
           toast({ tone: "error", title: "Note not saved", description: result.error });
         }
-      }, 700);
+        return result;
+      },
+      [toast],
+    ),
+  );
+
+  const persist = useCallback(
+    (id: string, patch: { title?: string; body?: string; presentationId?: string | null }) => {
+      saver.schedule({ id, ...patch });
     },
-    [toast],
+    [saver],
   );
 
   const patchLocal = (id: string, patch: Partial<LectureNote>) =>
@@ -228,8 +235,12 @@ export function NotesWorkspace({
 
           <div className="border-line-subtle text-ink-3 flex items-center justify-between border-t px-5 py-2 text-[11px] sm:px-8">
             <span>{wordCount.toLocaleString()} words</span>
-            <span aria-live="polite">
-              {saving ? "Saving…" : `Saved ${relativeTime(active.updatedAt)}`}
+            <span role="status" aria-live="polite">
+              {saver.status === "saving" || saver.status === "pending"
+                ? "Saving…"
+                : saver.status === "error"
+                  ? (saver.error ?? "Not saved")
+                  : `Saved ${relativeTime(active.updatedAt)}`}
             </span>
           </div>
         </div>

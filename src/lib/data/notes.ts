@@ -71,10 +71,10 @@ export async function createNote(input: unknown): Promise<NoteResult<LectureNote
   if (!parsed.success) return { ok: false, error: "Could not create that note." };
 
   const supabase = await supabaseServer();
-  const { count } = await supabase
-    .from("lecture_notes")
-    .select("id", { count: "exact", head: true })
-    .eq("presentation_id", parsed.data.presentationId ?? "");
+  const countQuery = supabase.from("lecture_notes").select("id", { count: "exact", head: true });
+  const { count } = await (parsed.data.presentationId
+    ? countQuery.eq("presentation_id", parsed.data.presentationId)
+    : countQuery.is("presentation_id", null));
 
   const { data, error } = await supabase
     .from("lecture_notes")

@@ -23,11 +23,37 @@ const MAX_WAIT_MS = 5000;
 const inFlight = new Set<string>();
 const queued = new Set<string>();
 
-export async function flushEditor(presentationId: string): Promise<void> {
+/**
+ * Consecutive failures per presentation, used to back off.
+ *
+ * Without this a persistently failing save retries every debounce tick for as
+ * long as the editor is open, which turns one broken request into a sustained
+ * load on the server and a UI that flickers between "Saving" and "Couldn't
+ * save". The work is never abandoned — the interval just widens.
+ */
+const failureCount = new Map<string, number>();
+const retryAfter = new Map<string, number>();
+
+const BACKOFF_BASE_MS = 2000;
+const BACKOFF_MAX_MS = 60_000;
+
+function backoffDelay(failures: number): number {
+  return Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (failures - 1));
+}
+
+export async function flushEditor(
+  presentationId: string,
+  options: { force?: boolean } = {},
+): Promise<void> {
   if (inFlight.has(presentationId)) {
     queued.add(presentationId);
     return;
   }
+
+  // Respect the backoff window unless the caller is an explicit user action
+  // ("Save now", closing the tab), which should always try immediately.
+  const notBefore = retryAfter.get(presentationId) ?? 0;
+  if (!options.force && Date.now() < notBefore) return;
 
   const state = useEditor.getState();
   const dirtyScenes = [...state.dirtyScenes];
@@ -96,14 +122,21 @@ export async function flushEditor(presentationId: string): Promise<void> {
 
     const after = useEditor.getState();
     if (errors.length) {
+      recordFailure(presentationId);
       after.setSaveState("error", errors[0]);
-    } else if (after.dirtyScenes.size || after.dirtyOrder || after.dirtyPresentation) {
-      // More edits arrived mid-flight; stay dirty and let the next tick run.
-      after.setSaveState("dirty");
     } else {
-      after.setSaveState("saved");
+      failureCount.delete(presentationId);
+      retryAfter.delete(presentationId);
+
+      if (after.dirtyScenes.size || after.dirtyOrder || after.dirtyPresentation) {
+        // More edits arrived mid-flight; stay dirty and let the next tick run.
+        after.setSaveState("dirty");
+      } else {
+        after.setSaveState("saved");
+      }
     }
   } catch (error) {
+    recordFailure(presentationId);
     useEditor
       .getState()
       .setSaveState("error", error instanceof Error ? error.message : "Couldn't reach the server.");
@@ -115,11 +148,29 @@ export async function flushEditor(presentationId: string): Promise<void> {
   }
 }
 
+function recordFailure(presentationId: string): void {
+  const failures = (failureCount.get(presentationId) ?? 0) + 1;
+  failureCount.set(presentationId, failures);
+  retryAfter.set(presentationId, Date.now() + backoffDelay(failures));
+}
+
+/** Clears the backoff window, e.g. when the editor is opened afresh. */
+export function resetAutosaveBackoff(presentationId: string): void {
+  failureCount.delete(presentationId);
+  retryAfter.delete(presentationId);
+}
+
 export function useAutosave(presentationId: string) {
-  const flush = useCallback(() => void flushEditor(presentationId), [presentationId]);
+  // An explicit save bypasses the backoff window: the user asked.
+  const flush = useCallback(
+    () => void flushEditor(presentationId, { force: true }),
+    [presentationId],
+  );
 
   // Debounced scheduler driven by the store's dirty state.
   useEffect(() => {
+    resetAutosaveBackoff(presentationId);
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     let firstDirtyAt: number | null = null;
 
@@ -135,7 +186,11 @@ export function useAutosave(presentationId: string) {
 
       firstDirtyAt ??= Date.now();
       const waited = Date.now() - firstDirtyAt;
-      const delay = waited >= MAX_WAIT_MS ? 0 : Math.min(DEBOUNCE_MS, MAX_WAIT_MS - waited);
+      const base = waited >= MAX_WAIT_MS ? 0 : Math.min(DEBOUNCE_MS, MAX_WAIT_MS - waited);
+      // After a failure, wait out the backoff window instead of retrying on
+      // every keystroke.
+      const notBefore = retryAfter.get(presentationId) ?? 0;
+      const delay = Math.max(base, notBefore - Date.now());
 
       clearTimeout(timer);
       timer = setTimeout(() => void flushEditor(presentationId), delay);
@@ -153,9 +208,9 @@ export function useAutosave(presentationId: string) {
   // reliably delivered when a mobile browser backgrounds the tab.
   useEffect(() => {
     const onHide = () => {
-      if (document.visibilityState === "hidden") void flushEditor(presentationId);
+      if (document.visibilityState === "hidden") void flushEditor(presentationId, { force: true });
     };
-    const onPageHide = () => void flushEditor(presentationId);
+    const onPageHide = () => void flushEditor(presentationId, { force: true });
 
     document.addEventListener("visibilitychange", onHide);
     window.addEventListener("pagehide", onPageHide);

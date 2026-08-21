@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { STORAGE_BUCKETS } from "@/lib/supabase/config";
+import { ALLOWED_MIME, MAX_UPLOAD_BYTES } from "./upload-limits";
 
 /**
  * Asset registration and deletion.
@@ -21,25 +22,6 @@ const KIND_BY_PREFIX: Record<string, "image" | "video" | "audio"> = {
   video: "video",
   audio: "audio",
 };
-
-export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
-
-export const ALLOWED_MIME = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "image/avif",
-  "image/svg+xml",
-  "audio/mpeg",
-  "audio/mp4",
-  "audio/ogg",
-  "audio/wav",
-  "audio/webm",
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-]);
 
 const RegisterInput = z.object({
   storagePath: z.string().min(1).max(400),
@@ -153,10 +135,6 @@ export async function deleteAsset(id: string): Promise<AssetResult<void>> {
  * expire and a deck must still render a year later. The route behind it checks
  * ownership and redirects to a freshly signed URL on every request.
  */
-export async function assetUrlFor(id: string): Promise<string> {
-  return assetUrl(id);
-}
-
 function assetUrl(id: string): string {
   return `/api/assets/${id}/content`;
 }

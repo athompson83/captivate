@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { BookOpen, ChevronDown, Loader2, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import type { LectureNote } from "@/lib/data/notes";
 import { createNote, deleteNote, listNotes, updateNote } from "@/lib/data/notes";
+import { useDebouncedSave } from "@/lib/data/use-debounced-save";
 import { updateSceneMeta, useCurrentScene, useEditor } from "@/lib/editor/store";
 import { Textarea } from "@/components/ui/input";
 import { Segmented, Spinner } from "@/components/ui/misc";
@@ -222,8 +223,6 @@ function LectureNotesPane({ presentationId }: { presentationId: string }) {
   const [notes, setNotes] = useState<LectureNote[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [saving, setSaving] = useState(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     void listNotes(presentationId).then((loaded) => {
@@ -234,18 +233,23 @@ function LectureNotesPane({ presentationId }: { presentationId: string }) {
 
   const active = notes?.find((n) => n.id === activeId) ?? null;
 
-  const persist = useCallback(
-    (id: string, patch: { title?: string; body?: string; sceneId?: string | null }) => {
-      clearTimeout(saveTimer.current);
-      setSaving(true);
-      saveTimer.current = setTimeout(async () => {
-        const result = await updateNote({ id, ...patch });
-        setSaving(false);
+  const saver = useDebouncedSave(
+    useCallback(
+      async (payload: { id: string; title?: string; body?: string; sceneId?: string | null }) => {
+        const result = await updateNote(payload);
         if (!result.ok)
           toast({ tone: "error", title: "Note not saved", description: result.error });
-      }, 700);
+        return result;
+      },
+      [toast],
+    ),
+  );
+
+  const persist = useCallback(
+    (id: string, patch: { title?: string; body?: string; sceneId?: string | null }) => {
+      saver.schedule({ id, ...patch });
     },
-    [toast],
+    [saver],
   );
 
   const patchLocal = (id: string, patch: Partial<LectureNote>) =>
@@ -386,8 +390,8 @@ function LectureNotesPane({ presentationId }: { presentationId: string }) {
               />
             </div>
 
-            <span className="text-ink-3 w-14 text-right text-[10.5px]">
-              {saving ? "Saving…" : "Saved"}
+            <span role="status" className="text-ink-3 w-14 text-right text-[10.5px]">
+              {saver.status === "saving" || saver.status === "pending" ? "Saving…" : "Saved"}
             </span>
 
             <button

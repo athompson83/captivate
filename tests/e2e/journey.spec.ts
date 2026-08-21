@@ -58,7 +58,7 @@ test.describe("authoring and presenting", () => {
     editorUrl = await createDeck(page, title);
 
     await expect(page.getByRole("textbox", { name: "Presentation title" })).toHaveValue(title);
-    await expect(page.getByRole("button", { name: /Insert/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Insert", exact: true })).toBeVisible();
     await expect(page.getByText(/scene/i).first()).toBeVisible();
   });
 
@@ -66,14 +66,14 @@ test.describe("authoring and presenting", () => {
     await signIn(page);
     await page.goto(editorUrl);
 
-    await page.getByRole("button", { name: /Insert/ }).click();
+    await page.getByRole("button", { name: "Insert", exact: true }).click();
     await page.getByRole("menuitem", { name: "Heading" }).click();
 
     // The new element is selected, so the inspector must appear.
     await expect(page.getByRole("complementary", { name: "Element inspector" })).toBeVisible();
 
     // Autosave settles to a saved state without a manual save.
-    await expect(page.getByRole("status")).toContainText(/Saved|All changes saved/i, {
+    await expect(page.locator("header [role=status]")).toContainText(/Saved|All changes saved/i, {
       timeout: 20_000,
     });
   });
@@ -131,7 +131,7 @@ test.describe("authoring and presenting", () => {
 
     // No editor surfaces at all on the stage window.
     await expect(page.getByRole("complementary", { name: "Scenes" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Insert/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Insert", exact: true })).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Main" })).toHaveCount(0);
 
     // The presenter bar is present for the presenter, and announces position.
@@ -260,15 +260,23 @@ test.describe("authoring and presenting", () => {
     await signIn(page);
     await page.goto("/notes");
 
+    const marker = `Lecture material ${Date.now()}`;
     await page.getByRole("button", { name: /New/ }).first().click();
-    const body = page.getByRole("textbox", { name: "Note body" });
-    await body.fill("Long-form lecture material that never appears on a slide.");
-    await page.waitForTimeout(1200);
+
+    await page.getByRole("textbox", { name: "Note title" }).fill(marker);
+    await page
+      .getByRole("textbox", { name: "Note body" })
+      .fill(`${marker} — long-form material that never appears on a slide.`);
+
+    // Wait for the save to actually land rather than guessing at a duration.
+    await expect(page.getByRole("status").last()).toContainText(/^Saved/, { timeout: 15_000 });
 
     await page.reload();
-    await expect(page.getByRole("textbox", { name: "Note body" })).toHaveValue(
-      /Long-form lecture material/,
-    );
+    await page
+      .getByRole("button", { name: new RegExp(marker) })
+      .first()
+      .click();
+    await expect(page.getByRole("textbox", { name: "Note body" })).toHaveValue(new RegExp(marker));
   });
 
   test("presentations library filters and restores", async ({ page }) => {
@@ -278,7 +286,7 @@ test.describe("authoring and presenting", () => {
     await expect(page.getByRole("heading", { name: "Presentations" })).toBeVisible();
     await page.getByRole("button", { name: "Deleted" }).click();
     await expect(page).toHaveURL(/view=trash/);
-    await page.getByRole("button", { name: "All" }).click();
+    await page.getByRole("button", { name: "All", exact: true }).click();
   });
 
   test("command palette searches across content", async ({ page }) => {

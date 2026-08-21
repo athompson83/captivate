@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import {
   SceneContent,
   emptySceneContent,
@@ -389,14 +390,24 @@ export function useCurrentScene(): Scene | null {
   });
 }
 
+/**
+ * The currently selected elements.
+ *
+ * `useShallow` is load-bearing, not an optimisation: the selector builds a new
+ * array on every store read, and `useSyncExternalStore` treats a new reference
+ * as a change. Without a shallow comparison this re-renders forever the moment
+ * anything is selected.
+ */
 export function useSelectedElements(): SceneElement[] {
-  return useEditor((s) => {
-    const scene = s.document.scenes.find((sc) => sc.id === s.selection.sceneId);
-    if (!scene) return EMPTY_ELEMENTS;
-    const ids = new Set(s.selection.elementIds);
-    const found = scene.content.elements.filter((e) => ids.has(e.id));
-    return found.length ? found : EMPTY_ELEMENTS;
-  });
+  return useEditor(
+    useShallow((s) => {
+      const scene = s.document.scenes.find((sc) => sc.id === s.selection.sceneId);
+      if (!scene) return EMPTY_ELEMENTS;
+      const ids = new Set(s.selection.elementIds);
+      const found = scene.content.elements.filter((e) => ids.has(e.id));
+      return found.length ? found : EMPTY_ELEMENTS;
+    }),
+  );
 }
 
 const EMPTY_ELEMENTS: SceneElement[] = [];

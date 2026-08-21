@@ -2,7 +2,8 @@
 
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { STORAGE_BUCKETS } from "@/lib/supabase/config";
-import { registerAsset, ALLOWED_MIME, MAX_UPLOAD_BYTES } from "./assets";
+import { registerAsset } from "./assets";
+import { ALLOWED_MIME, MAX_UPLOAD_BYTES } from "./upload-limits";
 
 /**
  * Browser upload.
