@@ -261,6 +261,51 @@ test.describe("authoring and presenting", () => {
     expect(await mapTransform()).not.toBe(before);
   });
 
+  test("shows the room which movement it is in", async ({ page }) => {
+    await signIn(page);
+    const deck = await createLectureDeck(page);
+    await page.goto(deck.replace("/edit/", "/present/"));
+    await page.waitForSelector("[data-stage]");
+
+    // The lecture template carries its own shape, so a deck made from it
+    // arrives with movements rather than needing them authored first.
+    await expect(page.getByText("OPEN", { exact: true })).toBeVisible();
+    await expect(page.getByText("EVIDENCE", { exact: true })).toBeVisible();
+
+    // The signpost names the next movement as the current one ends, and only
+    // then — it says nothing in the middle of a movement.
+    await expect(page.getByText(/Next movement/i)).toHaveCount(0);
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByText(/Next movement/i)).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("keeps a renamed movement after a reload", async ({ page }) => {
+    // Regression: section edits marked nothing dirty, so autosave never wrote
+    // them and the rename was gone on reload.
+    await signIn(page);
+    const deck = await createLectureDeck(page);
+    await page.goto(deck);
+    await page.waitForSelector("[data-stage]");
+    await page.getByRole("radio", { name: /Journey/i }).click();
+
+    const field = page.getByRole("textbox", { name: /Movement label for/i }).first();
+    await expect(field).toBeVisible();
+    await field.fill("PROVOCATION");
+
+    // Save explicitly rather than waiting on the debounce: the indicator
+    // already reads "saved" from before the edit, so waiting for that text
+    // proves nothing and the reload can beat the write.
+    await page.keyboard.press("Control+s");
+    await page.waitForTimeout(1500);
+
+    await page.reload();
+    await page.waitForSelector("[data-stage]");
+    await page.getByRole("radio", { name: /Journey/i }).click();
+    await expect(page.getByRole("textbox", { name: /Movement label for/i }).first()).toHaveValue(
+      "PROVOCATION",
+    );
+  });
+
   test("laser, highlight and drawing tools activate and clear", async ({ page }) => {
     await signIn(page);
     await page.goto(editorUrl.replace("/edit/", "/present/"));

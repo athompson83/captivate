@@ -21,7 +21,7 @@ import {
   moveScene,
   removeScene,
   removeSection,
-  renameSectionLocal,
+  updateSectionLocal,
   useEditor,
 } from "@/lib/editor/store";
 import {
@@ -143,6 +143,7 @@ export function SceneNavigator({
         id: result.data.id,
         presentationId,
         title: "New section",
+        label: "",
         position: sections.length,
         createdAt: now,
         updatedAt: now,
@@ -264,7 +265,7 @@ function SectionHeader({
     <li className="group/section flex items-center gap-1 pt-3 pl-1 first:pt-1">
       <input
         value={title}
-        onChange={(e) => renameSectionLocal(id, e.target.value)}
+        onChange={(e) => updateSectionLocal(id, { title: e.target.value })}
         aria-label="Section name"
         className="text-ink-3 hover:border-line-subtle focus:border-line focus:text-ink-2 min-w-0 flex-1 truncate rounded-[var(--radius-sm)] border border-transparent bg-transparent px-1 py-0.5 text-[10.5px] font-semibold tracking-wider uppercase transition-colors focus:bg-[var(--surface-inset)]"
       />

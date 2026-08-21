@@ -47,6 +47,24 @@ five are fixed with a regression test that was checked to fail without the fix:
 
 Two of those (3 and 4) predate the canvas work and would have shipped.
 
+### Then the argument needed a shape
+
+Sections became **movements**: named stretches of the argument, shown to the
+audience on a rail down the edge of the stage, with the current one lit and a
+signpost naming the next as one ends. Templates now carry their shape as well as
+their scenes, so a new presentation arrives with movements already in place.
+
+Building it surfaced a defect that had nothing to do with the feature: **section
+renames were never saved.** `renameSectionLocal` updated the store and marked
+nothing dirty, so autosave never looked at sections and the server action that
+writes them had never been called by anything. The input looked like it worked
+and the new name was gone on reload. Sections now have their own dirty set and
+their own flush.
+
+A second, smaller one: the movement rail is drawn over the world, and the stage
+theme tokens were defined only _inside_ it — so every colour in the rail
+resolved to nothing and inherited whatever the page was using.
+
 ### Then the cards had to go
 
 The first canvas version still drew each scene as a bounded rectangle with its

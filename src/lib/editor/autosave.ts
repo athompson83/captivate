@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect } from "react";
 import { useEditor } from "./store";
-import { reorderScenes, saveScene, updatePresentation } from "@/lib/data/actions";
+import { reorderScenes, saveScene, updatePresentation, updateSection } from "@/lib/data/actions";
 
 /**
  * Autosave.
@@ -57,10 +57,11 @@ export async function flushEditor(
 
   const state = useEditor.getState();
   const dirtyScenes = [...state.dirtyScenes];
+  const dirtySections = [...state.dirtySections];
   const needsOrder = state.dirtyOrder;
   const needsPresentation = state.dirtyPresentation;
 
-  if (!dirtyScenes.length && !needsOrder && !needsPresentation) return;
+  if (!dirtyScenes.length && !dirtySections.length && !needsOrder && !needsPresentation) return;
 
   inFlight.add(presentationId);
   state.setSaveState("saving");
@@ -93,6 +94,28 @@ export async function flushEditor(
         }
       }),
     );
+
+    if (dirtySections.length) {
+      const doc = useEditor.getState().document;
+      const saved: string[] = [];
+      await Promise.all(
+        dirtySections.map(async (id) => {
+          const section = doc.sections.find((s) => s.id === id);
+          if (!section) {
+            saved.push(id);
+            return;
+          }
+          const result = await updateSection({
+            id,
+            title: section.title,
+            label: section.label,
+          });
+          if (result.ok) saved.push(id);
+          else errors.push(result.error);
+        }),
+      );
+      useEditor.getState().markSectionsSaved(saved);
+    }
 
     if (needsOrder) {
       const doc = useEditor.getState().document;
@@ -130,7 +153,12 @@ export async function flushEditor(
       failureCount.delete(presentationId);
       retryAfter.delete(presentationId);
 
-      if (after.dirtyScenes.size || after.dirtyOrder || after.dirtyPresentation) {
+      if (
+        after.dirtyScenes.size ||
+        after.dirtySections.size ||
+        after.dirtyOrder ||
+        after.dirtyPresentation
+      ) {
         // More edits arrived mid-flight; stay dirty and let the next tick run.
         after.setSaveState("dirty");
       } else {
@@ -177,8 +205,9 @@ export function useAutosave(presentationId: string) {
     let firstDirtyAt: number | null = null;
 
     const schedule = () => {
-      const { dirtyScenes, dirtyOrder, dirtyPresentation } = useEditor.getState();
-      const hasWork = dirtyScenes.size > 0 || dirtyOrder || dirtyPresentation;
+      const { dirtyScenes, dirtySections, dirtyOrder, dirtyPresentation } = useEditor.getState();
+      const hasWork =
+        dirtyScenes.size > 0 || dirtySections.size > 0 || dirtyOrder || dirtyPresentation;
 
       if (!hasWork) {
         firstDirtyAt = null;
@@ -225,8 +254,10 @@ export function useAutosave(presentationId: string) {
   // Guard against losing genuinely unsaved work on navigation away.
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      const { dirtyScenes, dirtyOrder, dirtyPresentation, saveState } = useEditor.getState();
-      const unsaved = dirtyScenes.size > 0 || dirtyOrder || dirtyPresentation;
+      const { dirtyScenes, dirtySections, dirtyOrder, dirtyPresentation, saveState } =
+        useEditor.getState();
+      const unsaved =
+        dirtyScenes.size > 0 || dirtySections.size > 0 || dirtyOrder || dirtyPresentation;
       if (unsaved || saveState === "saving" || saveState === "error") {
         e.preventDefault();
         return "";

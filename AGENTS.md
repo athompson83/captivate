@@ -59,6 +59,18 @@ Callers surface `error` in a toast. Don't throw across the boundary.
 index signatures, and `GenericTable` then infers `Update` as `never`. Patches are typed
 `Partial<PresentationRow>` and friends, never `Record<string, unknown>`.
 
+## Sections are movements, and they persist
+
+A section's `label` is the one-word name for what that stretch of the argument
+does, and it is shown to the audience. Editing a section goes through
+`updateSectionLocal`, which marks `dirtySections` — without that flag autosave
+never looks at sections and the server action that writes them is dead code.
+That is exactly what had happened: renaming a section updated the store, looked
+like it had worked, and was gone on reload.
+
+If you add another kind of editable state to the document, check that autosave
+has a reason to notice it.
+
 ## The world has no rectangles
 
 A scene on the world canvas is a _region_, not a card. It renders with

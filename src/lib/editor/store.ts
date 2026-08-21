@@ -66,6 +66,8 @@ interface MutateOptions {
   dirtyPresentation?: boolean;
   /** Scene ordering or section membership changed. */
   dirtyOrder?: boolean;
+  /** Section ids whose own fields (title, movement label) changed. */
+  dirtySections?: string[];
   /** Skip the history stack entirely (selection-only changes). */
   noHistory?: boolean;
 }
@@ -80,6 +82,7 @@ interface EditorState {
   lastCoalesceAt: number;
 
   dirtyScenes: Set<string>;
+  dirtySections: Set<string>;
   dirtyPresentation: boolean;
   dirtyOrder: boolean;
   sceneRevisions: Map<string, number>;
@@ -102,6 +105,7 @@ interface EditorState {
   setSaveState: (state: SaveState, error?: string | null) => void;
   markSceneSaved: (sceneId: string, revision: number, updatedAt: string) => void;
   markPresentationSaved: () => void;
+  markSectionsSaved: (sectionIds: string[]) => void;
   markOrderSaved: () => void;
   revisionOf: (sceneId: string) => number;
   clearRecovered: () => void;
@@ -154,6 +158,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   lastCoalesceKey: null,
   lastCoalesceAt: 0,
   dirtyScenes: new Set(),
+  dirtySections: new Set(),
   dirtyPresentation: false,
   dirtyOrder: false,
   sceneRevisions: new Map(),
@@ -174,6 +179,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       past: [],
       future: [],
       dirtyScenes: new Set(),
+      dirtySections: new Set(),
       dirtyPresentation: false,
       dirtyOrder: false,
       sceneRevisions: new Map(doc.scenes.map((s) => [s.id, 0])),
@@ -205,6 +211,8 @@ export const useEditor = create<EditorState>((set, get) => ({
       }
 
       const dirtyScenes = new Set(state.dirtyScenes);
+      const dirtySections = new Set(state.dirtySections);
+      for (const id of options.dirtySections ?? []) dirtySections.add(id);
       const sceneRevisions = new Map(state.sceneRevisions);
       for (const id of options.dirty ?? []) {
         dirtyScenes.add(id);
@@ -218,6 +226,7 @@ export const useEditor = create<EditorState>((set, get) => ({
 
       const hasWork =
         dirtyScenes.size > 0 ||
+        dirtySections.size > 0 ||
         state.dirtyPresentation ||
         options.dirtyPresentation ||
         state.dirtyOrder ||
@@ -230,6 +239,7 @@ export const useEditor = create<EditorState>((set, get) => ({
         lastCoalesceKey: options.coalesceKey ?? null,
         lastCoalesceAt: options.coalesceKey ? now : 0,
         dirtyScenes,
+        dirtySections,
         sceneRevisions,
         dirtyPresentation: state.dirtyPresentation || Boolean(options.dirtyPresentation),
         dirtyOrder: state.dirtyOrder || Boolean(options.dirtyOrder),
@@ -333,6 +343,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     }),
 
   markPresentationSaved: () => set({ dirtyPresentation: false }),
+  markSectionsSaved: (sectionIds) =>
+    set((state) => {
+      const dirtySections = new Set(state.dirtySections);
+      for (const id of sectionIds) dirtySections.delete(id);
+      return { dirtySections };
+    }),
   markOrderSaved: () => set({ dirtyOrder: false }),
   revisionOf: (sceneId) => get().sceneRevisions.get(sceneId) ?? 0,
   clearRecovered: () => set({ recoveredScenes: [] }),
@@ -647,13 +663,24 @@ export function insertSection(section: Section) {
   );
 }
 
-export function renameSectionLocal(sectionId: string, title: string) {
+/**
+ * Edits a section's own fields.
+ *
+ * `dirtySections` is the point: without it this only ever changed the store,
+ * autosave never looked at sections, and the server action that writes them was
+ * dead code. Renaming a section looked like it worked and was gone on reload.
+ */
+export function updateSectionLocal(
+  sectionId: string,
+  patch: Partial<Pick<Section, "title" | "label">>,
+  coalesceKey = `section-${sectionId}`,
+) {
   useEditor.getState().mutate(
     (draft) => {
       const section = draft.sections.find((s) => s.id === sectionId);
-      if (section) section.title = title;
+      if (section) Object.assign(section, patch);
     },
-    { label: "Rename section", coalesceKey: `section-title-${sectionId}` },
+    { label: "Rename section", coalesceKey, dirtySections: [sectionId] },
   );
 }
 

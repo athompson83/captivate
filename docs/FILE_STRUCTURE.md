@@ -63,6 +63,7 @@ captivate/
 │  │  │  ├─ arrange.ts             Spatial arrangements of scenes on the world
 │  │  │  ├─ path.ts                The smoothed route drawn between waypoints
 │  │  │  ├─ ambient.ts             Atmosphere: the colour of the air per position
+│  │  ├─ present/movement-rail.tsx The argument's shape, shown to the room
 │  │  │  ├─ fit-text.ts            Deterministic auto-fit
 │  │  │  ├─ stage.ts               Stage geometry helpers
 │  │  │  └─ fullscreen.ts          Fullscreen and wake lock

@@ -12,8 +12,13 @@ import {
   emptySceneContent,
 } from "@/lib/schema/presentation";
 import { DEFAULT_THEME_ID, THEMES } from "@/lib/schema/theme";
-import { buildTemplateScenes, TEMPLATES } from "@/lib/templates/registry";
-import type { FolderRow, PresentationRow, SceneRow } from "@/lib/supabase/database.types";
+import { buildTemplateScenes, templateMovements, TEMPLATES } from "@/lib/templates/registry";
+import type {
+  FolderRow,
+  PresentationRow,
+  SceneRow,
+  SectionRow,
+} from "@/lib/supabase/database.types";
 
 /**
  * Write-side actions.
@@ -81,11 +86,45 @@ export async function createPresentation(input: unknown): Promise<Result<{ id: s
 
   const seedScenes = template
     ? buildTemplateScenes(template, parsed.data.title)
-    : [{ title: "Title", content: emptySceneContent("title"), speakerNotes: "" }];
+    : [{ title: "Title", content: emptySceneContent("title"), speakerNotes: "", movement: "" }];
+
+  /**
+   * Movements first.
+   *
+   * A template carries the shape of its argument, not just its scenes, and the
+   * movement rail is only worth anything if a new presentation arrives with one.
+   * Sections are created before the scenes so each scene can be filed into its
+   * movement in the same insert.
+   */
+  const movements = template ? templateMovements(seedScenes) : [];
+  const sectionIdByScene = new Map<number, string>();
+
+  if (movements.length > 1) {
+    const { data: sectionRows } = await supabase
+      .from("sections")
+      .insert(
+        movements.map((movement, i) => ({
+          presentation_id: data.id,
+          title: movement.label,
+          label: movement.label,
+          position: i,
+        })),
+      )
+      .select("id, position");
+
+    // Sections are a nicety: a deck without them is still a working deck, so a
+    // failure here does not fail the creation.
+    for (const row of sectionRows ?? []) {
+      const movement = movements[row.position];
+      if (!movement) continue;
+      for (let i = movement.start; i < movement.end; i += 1) sectionIdByScene.set(i, row.id);
+    }
+  }
 
   const { error: sceneError } = await supabase.from("scenes").insert(
     seedScenes.map((s, i) => ({
       presentation_id: data.id,
+      section_id: sectionIdByScene.get(i) ?? null,
       position: i,
       title: s.title,
       content: s.content as never,
@@ -579,15 +618,25 @@ export async function addSection(input: unknown): Promise<Result<{ id: string }>
   return ok({ id: data.id });
 }
 
-export async function renameSection(input: unknown): Promise<Result<void>> {
-  const parsed = z.object({ id: Uuid, title: z.string().trim().min(1).max(240) }).safeParse(input);
+const UpdateSectionInput = z.object({
+  id: Uuid,
+  title: z.string().trim().min(1).max(240).optional(),
+  /** The short movement name shown to the audience. May be cleared. */
+  label: z.string().trim().max(24).optional(),
+});
+
+export async function updateSection(input: unknown): Promise<Result<void>> {
+  const parsed = UpdateSectionInput.safeParse(input);
   if (!parsed.success) return fail("Section names can't be empty.");
 
+  const { id, ...rest } = parsed.data;
+  const patch: Partial<SectionRow> = {};
+  if (rest.title !== undefined) patch.title = rest.title;
+  if (rest.label !== undefined) patch.label = rest.label;
+  if (Object.keys(patch).length === 0) return ok(undefined);
+
   const supabase = await client();
-  const { error } = await supabase
-    .from("sections")
-    .update({ title: parsed.data.title })
-    .eq("id", parsed.data.id);
+  const { error } = await supabase.from("sections").update(patch).eq("id", id);
   if (error) return fail(error.message);
   return ok(undefined);
 }

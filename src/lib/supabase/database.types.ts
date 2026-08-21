@@ -49,6 +49,7 @@ export type SectionRow = Timestamps & {
   id: string;
   presentation_id: string;
   title: string;
+  label: string;
   position: number;
 };
 

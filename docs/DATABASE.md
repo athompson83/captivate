@@ -73,6 +73,14 @@ error. It is what makes cost visible, and it is also the rate limiter's counter.
 
 ---
 
+## Movements
+
+Migration `0005_movements.sql` adds `sections.label` — a short movement name,
+shown to the audience during a presentation. Additive and defaulted to the empty
+string, which falls back to the section's own title at render time, so every
+presentation that already has sections gains a working movement rail without
+being migrated.
+
 ## The world canvas
 
 Migration `0003_journey.sql` adds two columns:

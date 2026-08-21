@@ -6,7 +6,12 @@ import type { ArrangePreset } from "@/lib/schema/presentation";
 import { ARRANGEMENTS, arrange } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
 import { setScenePlacements } from "@/lib/data/actions";
-import { applyPlacements, updatePresentationMeta, useEditor } from "@/lib/editor/store";
+import {
+  applyPlacements,
+  updatePresentationMeta,
+  updateSectionLocal,
+  useEditor,
+} from "@/lib/editor/store";
 import { Field, Segmented, Slider, Toggle } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils/cn";
@@ -22,6 +27,7 @@ import { cn } from "@/lib/utils/cn";
 export function JourneyPanel({ presentationId }: { presentationId: string }) {
   const { toast } = useToast();
   const scenes = useEditor((s) => s.document.scenes);
+  const sections = useEditor((s) => s.document.sections);
   const presentation = useEditor((s) => s.document.presentation);
   const journey = presentation.journey;
   const [pending, start] = useTransition();
@@ -110,6 +116,40 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
           </button>
         </section>
 
+        {sections.length > 0 && (
+          <section className="border-line-subtle space-y-2 border-t pt-4">
+            <h3 className="text-ink-3 text-[11px] font-medium tracking-wide uppercase">
+              Movements
+            </h3>
+            <p className="text-ink-3 text-[11px] leading-relaxed">
+              One word for what each part of the argument does. The room sees these, so it always
+              knows where it is.
+            </p>
+            {sections.map((section, index) => {
+              const count = scenes.filter((scene) => scene.sectionId === section.id).length;
+              return (
+                <div key={section.id} className="flex items-center gap-2">
+                  <span className="text-ink-3 w-4 shrink-0 text-[10px] tabular-nums">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <input
+                    value={section.label}
+                    onChange={(e) =>
+                      updateSectionLocal(section.id, { label: e.target.value.slice(0, 24) })
+                    }
+                    placeholder={section.title}
+                    aria-label={`Movement label for ${section.title}`}
+                    className="border-line text-ink placeholder:text-ink-3 focus:border-accent min-w-0 flex-1 rounded-[var(--radius-sm)] border bg-[var(--surface-inset)] px-2 py-1 text-[11.5px] font-medium tracking-wider uppercase outline-none"
+                  />
+                  <span className="text-ink-3 w-8 shrink-0 text-right text-[10px] tabular-nums">
+                    {count}
+                  </span>
+                </div>
+              );
+            })}
+          </section>
+        )}
+
         <section className="border-line-subtle space-y-3 border-t pt-4">
           <h3 className="text-ink-3 text-[11px] font-medium tracking-wide uppercase">Camera</h3>
 
@@ -173,6 +213,30 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
               updatePresentationMeta(
                 { journey: { ...journey, establishSections: v } },
                 { label: "Toggle section establish" },
+              )
+            }
+          />
+
+          <Toggle
+            label="Show movements to the room"
+            hint="A quiet index of the argument down the edge of the stage."
+            checked={journey.showMovements}
+            onChange={(v) =>
+              updatePresentationMeta(
+                { journey: { ...journey, showMovements: v } },
+                { label: "Toggle movement rail" },
+              )
+            }
+          />
+
+          <Toggle
+            label="Name the next movement"
+            hint="Appears as one movement ends, so the argument reads as continuous."
+            checked={journey.signpostNext}
+            onChange={(v) =>
+              updatePresentationMeta(
+                { journey: { ...journey, signpostNext: v } },
+                { label: "Toggle signpost" },
               )
             }
           />

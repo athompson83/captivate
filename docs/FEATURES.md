@@ -149,6 +149,8 @@ transitions first.
 | Camera travel                      | Implemented | Fly, dissolve or cut — set once for the whole presentation        |
 | Spatial arrangements               | Implemented | Flow (default), reel, grid, timeline, spiral, dive, constellation |
 | Continuous surface                 | Implemented | Scenes are regions with no edge, not cards                        |
+| Movements                          | Implemented | Named stretches of the argument, shown to the audience on a rail  |
+| Next-movement signpost             | Implemented | Names what follows as a movement ends                             |
 | Atmosphere                         | Implemented | Background colour blends between regions as the camera travels    |
 | Journey map                        | Implemented | Drag scenes in world space; drop one inside another to nest it    |
 | Overview                           | Implemented | `O` pulls back over the whole world and draws the route           |

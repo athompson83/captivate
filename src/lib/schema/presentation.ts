@@ -515,6 +515,21 @@ export const JourneyConfig = z.object({
   establishSections: z.boolean().default(true),
   /** Draw the route between waypoints when the camera is pulled back. */
   showPath: z.boolean().default(true),
+  /**
+   * Show the movement rail to the room.
+   *
+   * A persistent, quiet index of the argument down the edge of the stage, with
+   * the current movement lit. It costs a sliver of the frame and buys the
+   * audience the one thing slides never give them: knowing where they are.
+   */
+  showMovements: z.boolean().default(true),
+  /**
+   * Name the next movement as one ends.
+   *
+   * Appears only on the last scene of a movement, which is the moment it means
+   * anything. It is a signpost, not a spoiler: it says the argument continues.
+   */
+  signpostNext: z.boolean().default(true),
   /** Backdrop parallax, 0 = flat. */
   depth: z.number().min(0).max(1).default(0.55),
 });
@@ -541,10 +556,21 @@ export const Scene = z.object({
 });
 export type Scene = z.infer<typeof Scene>;
 
+/**
+ * A movement.
+ *
+ * Sections are not filing: they are the shape of the argument. `label` is the
+ * one-word name for what this part of it *does* — OPEN, FRAME, PRESSURE,
+ * DECIDE — and it is shown to the room, so an audience always knows which
+ * movement they are in and how many are left. That is the thing a stack of
+ * slides can never tell them.
+ */
 export const Section = z.object({
   id: z.string().uuid(),
   presentationId: z.string().uuid(),
   title: z.string().max(240),
+  /** Short movement name. Falls back to the title where it is empty. */
+  label: z.string().max(24).default(""),
   position: z.number().int().min(0),
   createdAt: z.string(),
   updatedAt: z.string(),

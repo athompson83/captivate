@@ -65,6 +65,7 @@ export function toSection(row: SectionRow): Section {
     id: row.id,
     presentationId: row.presentation_id,
     title: row.title,
+    label: row.label ?? "",
     position: row.position,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

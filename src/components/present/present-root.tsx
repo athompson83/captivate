@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { PresentationRecord, Scene, Section } from "@/lib/schema/presentation";
-import { getTheme } from "@/lib/schema/theme";
+import { getTheme, themeCssVars } from "@/lib/schema/theme";
 import { usePresentSession } from "@/lib/present/session";
 import { useFullscreen, useWakeLock } from "@/lib/present/fullscreen";
 import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
 import { PRESENTER_COLORS, type PresenterTool } from "@/lib/present/protocol";
 import { World, type Focus } from "@/components/stage/world";
+import { MovementRail, MovementSignpost, movementsOf, nextMovement } from "./movement-rail";
 import { AnnotationLayer } from "./annotation-layer";
 import { PresenterBar } from "./presenter-bar";
 import { RecordingController } from "@/components/record/recording-controller";
@@ -50,6 +51,10 @@ export function PresentRoot({
     role: "stage",
     establishSections: journey.establishSections,
   });
+
+  const movements = useMemo(() => movementsOf(scenes, sections), [scenes, sections]);
+  const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
+  const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
 
   const stage = stageSize(presentation.aspectRatio);
   const placements = useMemo(
@@ -210,6 +215,11 @@ export function PresentRoot({
     <div
       ref={containerRef}
       className="stage-safe relative h-screen w-screen overflow-hidden bg-black"
+      // The stage tokens are defined here, not only inside the world, because
+      // the movement rail and the signpost are presented *over* the world and
+      // would otherwise resolve `--stage-ink` to nothing and inherit whatever
+      // the page happened to be using.
+      style={themeCssVars(theme)}
       onPointerMove={showBar}
       onClick={advanceOnClick}
     >
@@ -229,6 +239,24 @@ export function PresentRoot({
         className="absolute inset-0"
         onSceneSelect={session.overview && !audienceOnly ? session.goto : undefined}
       />
+
+      {/* The argument's shape, shown to the room. Hidden while the camera is
+          pulled back, where the whole world is already the answer. */}
+      {journey.showMovements && !session.overview && (
+        <MovementRail
+          movements={movements}
+          sceneIndex={session.sceneIndex}
+          totalScenes={scenes.length}
+        />
+      )}
+
+      {signpost && !session.overview && !session.blanked && (
+        <MovementSignpost
+          movement={signpost}
+          index={signpostIndex}
+          sceneTitle={scenes[signpost.start]?.title ?? ""}
+        />
+      )}
 
       {/* Annotations sit above the world and below the presenter chrome. */}
       <AnnotationLayer

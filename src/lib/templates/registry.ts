@@ -16,6 +16,13 @@ export interface TemplateScene {
   layout: SceneLayout;
   content: LayoutContent;
   speakerNotes: string;
+  /**
+   * The movement this scene belongs to — one word for what this part of the
+   * argument *does*. Consecutive scenes sharing one become a section, and the
+   * room sees these names on the movement rail while the deck is presented.
+   * A template without them produces a presentation with no shape to show.
+   */
+  movement: string;
 }
 
 export interface Template {
@@ -44,6 +51,7 @@ export const TEMPLATES: Template[] = [
           subheading: "Add the course, date, or your name here.",
         },
         speakerNotes: "Welcome the room. Say what you'll cover and why it matters to them today.",
+        movement: "OPEN",
       },
       {
         title: "Learning objectives",
@@ -57,12 +65,14 @@ export const TEMPLATES: Template[] = [
           ],
         },
         speakerNotes: "Read these aloud. They set the contract for the next 50 minutes.",
+        movement: "OPEN",
       },
       {
         title: "The core idea",
         layout: "statement",
         content: { heading: "State the single most important idea in one sentence." },
         speakerNotes: "Pause after this. Let it land before you explain it.",
+        movement: "FRAME",
       },
       {
         title: "How it works",
@@ -73,6 +83,7 @@ export const TEMPLATES: Template[] = [
           media: { url: "", alt: "" },
         },
         speakerNotes: "Walk the diagram left to right. Don't read the bullets verbatim.",
+        movement: "FRAME",
       },
       {
         title: "Case",
@@ -83,6 +94,7 @@ export const TEMPLATES: Template[] = [
           media: { url: "", alt: "" },
         },
         speakerNotes: "Ask the room what they'd do before you reveal what happened.",
+        movement: "EVIDENCE",
       },
       {
         title: "Common mistakes",
@@ -108,6 +120,7 @@ export const TEMPLATES: Template[] = [
           ],
         },
         speakerNotes: "These are the exam and real-world failure points.",
+        movement: "EVIDENCE",
       },
       {
         title: "Recap",
@@ -117,6 +130,7 @@ export const TEMPLATES: Template[] = [
           subheading: "Three sentences they should still remember next week.",
         },
         speakerNotes: "Close the loop back to the objectives slide.",
+        movement: "CLOSE",
       },
     ],
   },
@@ -132,12 +146,14 @@ export const TEMPLATES: Template[] = [
         layout: "title",
         content: { eyebrow: "2026", heading: "{{TITLE}}", subheading: "One line on what you do." },
         speakerNotes: "Say the one-liner out loud. Don't read the slide.",
+        movement: "OPEN",
       },
       {
         title: "Problem",
         layout: "statement",
         content: { heading: "Name the problem in the customer's own words." },
         speakerNotes: "Make them feel the pain before you offer relief.",
+        movement: "PROBLEM",
       },
       {
         title: "Why now",
@@ -148,6 +164,7 @@ export const TEMPLATES: Template[] = [
           bulletsB: ["What that unlocks", "Why it wasn't possible before"],
         },
         speakerNotes: "Timing is the question every investor asks silently.",
+        movement: "INSIGHT",
       },
       {
         title: "Solution",
@@ -158,6 +175,7 @@ export const TEMPLATES: Template[] = [
           media: { url: "", alt: "" },
         },
         speakerNotes: "Show the product. One screenshot beats three bullets.",
+        movement: "SOLUTION",
       },
       {
         title: "Traction",
@@ -177,12 +195,14 @@ export const TEMPLATES: Template[] = [
           caption: "Replace with your real numbers.",
         },
         speakerNotes: "State the number and the rate. Nothing else.",
+        movement: "PROOF",
       },
       {
         title: "The ask",
         layout: "closing",
         content: { heading: "The ask", subheading: "How much, for what, over what period." },
         speakerNotes: "Be specific. Vagueness here reads as uncertainty.",
+        movement: "ASK",
       },
     ],
   },
@@ -198,6 +218,7 @@ export const TEMPLATES: Template[] = [
         layout: "title",
         content: { eyebrow: "Case", heading: "{{TITLE}}", subheading: "A short framing line." },
         speakerNotes: "Set the scene in one sentence.",
+        movement: "OPEN",
       },
       {
         title: "Presentation",
@@ -208,12 +229,14 @@ export const TEMPLATES: Template[] = [
           media: { url: "", alt: "" },
         },
         speakerNotes: "Give them only what a clinician would have at this moment.",
+        movement: "CONTEXT",
       },
       {
         title: "The turn",
         layout: "statement",
         content: { heading: "The moment the picture changes." },
         speakerNotes: "Pause here. This is the teaching point.",
+        movement: "TURN",
       },
       {
         title: "Decision",
@@ -227,6 +250,7 @@ export const TEMPLATES: Template[] = [
           ],
         },
         speakerNotes: "Poll the room before revealing what was chosen.",
+        movement: "DECISION",
       },
       {
         title: "Outcome",
@@ -236,6 +260,7 @@ export const TEMPLATES: Template[] = [
           bullets: ["The decision made", "The result", "What the follow-up showed"],
         },
         speakerNotes: "Be honest about outcomes, including the uncomfortable ones.",
+        movement: "OUTCOME",
       },
       {
         title: "Lesson",
@@ -245,6 +270,7 @@ export const TEMPLATES: Template[] = [
           attribution: "Take-home point",
         },
         speakerNotes: "End on the transferable principle, not the specifics.",
+        movement: "LESSON",
       },
     ],
   },
@@ -264,6 +290,7 @@ export const TEMPLATES: Template[] = [
           subheading: "Duration and what to bring.",
         },
         speakerNotes: "Housekeeping: breaks, materials, expectations.",
+        movement: "OPEN",
       },
       {
         title: "Agenda",
@@ -278,6 +305,7 @@ export const TEMPLATES: Template[] = [
           ],
         },
         speakerNotes: "Timings visible up front reduce anxiety in the room.",
+        movement: "AGENDA",
       },
       {
         title: "Demonstration",
@@ -288,12 +316,14 @@ export const TEMPLATES: Template[] = [
           media: { url: "", alt: "" },
         },
         speakerNotes: "Narrate what you're doing and why, not just the steps.",
+        movement: "DEMO",
       },
       {
         title: "Your turn",
         layout: "statement",
         content: { heading: "Your turn — 20 minutes, in pairs." },
         speakerNotes: "Circulate. Look for the specific error you predicted.",
+        movement: "PRACTICE",
       },
       {
         title: "Checkpoint",
@@ -307,6 +337,7 @@ export const TEMPLATES: Template[] = [
           ],
         },
         speakerNotes: "Hands up. Don't move on until most of the room is confident.",
+        movement: "CLOSE",
       },
     ],
   },
@@ -322,12 +353,14 @@ export const TEMPLATES: Template[] = [
         layout: "title",
         content: { eyebrow: "Briefing", heading: "{{TITLE}}", subheading: "Prepared for — date." },
         speakerNotes: "State the question this briefing answers.",
+        movement: "OPEN",
       },
       {
         title: "Headline",
         layout: "statement",
         content: { heading: "The finding, stated as a conclusion — not a topic." },
         speakerNotes: "Lead with the answer. Detail follows for those who want it.",
+        movement: "FINDINGS",
       },
       {
         title: "The numbers",
@@ -346,6 +379,7 @@ export const TEMPLATES: Template[] = [
           caption: "Source and period.",
         },
         speakerNotes: "Say what the chart means before describing what it shows.",
+        movement: "EVIDENCE",
       },
       {
         title: "Implications",
@@ -356,12 +390,14 @@ export const TEMPLATES: Template[] = [
           bulletsB: ["Implication for risk", "What we still don't know"],
         },
         speakerNotes: "Be explicit about the limits of the analysis.",
+        movement: "RISK",
       },
       {
         title: "Recommendation",
         layout: "closing",
         content: { heading: "Recommendation", subheading: "What to do, by when, and who owns it." },
         speakerNotes: "One clear recommendation beats three hedged ones.",
+        movement: "NEXT",
       },
     ],
   },
@@ -377,6 +413,7 @@ export const TEMPLATES: Template[] = [
         layout: "title",
         content: { heading: "{{TITLE}}", subheading: "" },
         speakerNotes: "",
+        movement: "OPEN",
       },
     ],
   },
@@ -386,7 +423,7 @@ export const TEMPLATES: Template[] = [
 export function buildTemplateScenes(
   template: Template,
   title: string,
-): { title: string; content: SceneContent; speakerNotes: string }[] {
+): { title: string; content: SceneContent; speakerNotes: string; movement: string }[] {
   const safeTitle = title.trim() || "Untitled presentation";
 
   return template.scenes.map((scene) => {
@@ -396,8 +433,31 @@ export function buildTemplateScenes(
       title: scene.title,
       content: composeScene(scene.layout, content),
       speakerNotes: scene.speakerNotes,
+      movement: scene.movement,
     };
   });
+}
+
+/**
+ * The movements a template's scenes fall into, in order.
+ *
+ * Consecutive scenes sharing a movement form one — so a template can return to
+ * an earlier idea without the two stretches being merged into one section that
+ * spans the middle of the deck.
+ */
+export function templateMovements(
+  scenes: { movement: string }[],
+): { label: string; start: number; end: number }[] {
+  const out: { label: string; start: number; end: number }[] = [];
+  scenes.forEach((scene, index) => {
+    const current = out[out.length - 1];
+    if (current && current.label === scene.movement) {
+      current.end = index + 1;
+      return;
+    }
+    out.push({ label: scene.movement, start: index, end: index + 1 });
+  });
+  return out.filter((movement) => movement.label.length > 0);
 }
 
 export function getTemplate(id: string | null | undefined): Template | undefined {

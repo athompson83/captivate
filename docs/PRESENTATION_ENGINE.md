@@ -43,6 +43,40 @@ Every one of those was a rectangle on the page before it was fixed.
 
 ---
 
+## Movements
+
+A section is not filing. It is a stretch of the argument that does one job —
+open, frame, apply pressure, decide — and its `label` is the one-word name for
+that job.
+
+Movements are shown to the **audience**, on a rail down the edge of the stage,
+with the current one lit and the spine filled to how far through the whole thing
+the room is. It costs a sliver of the frame and buys the one thing a stack of
+slides can never give an audience: knowing where they are, how far in, and how
+much is left. It carries no interaction and is meant to be answerable at a
+glance when someone's attention drifts, not read.
+
+As a movement ends, its last scene names the next one — "Next movement · 02 —
+FRAME" — and says the narrative continues without a break. That signpost appears
+only on the final scene of a movement, which is the only place it means
+anything.
+
+Three rules the grouping follows, each with a test:
+
+- a section with no short label falls back to its own title, so every deck that
+  already has sections gains a working rail without being re-authored;
+- scenes belonging to no section still form a movement, because half-organised
+  is a normal state and hiding them would make the rail lie about the length;
+- two separate stretches of the same section stay separate, because returning to
+  an earlier movement is a real narrative move and merging them would draw one
+  movement spanning the middle of the deck.
+
+Templates carry their shape, not just their scenes: every template scene names
+its movement, and creating a presentation from one creates the sections too. A
+rail is worth nothing if a new presentation arrives without a shape.
+
+---
+
 ## Atmosphere
 
 The background is one continuous field, and its colour depends on where the

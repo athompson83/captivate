@@ -333,6 +333,19 @@ describe("a flight in progress", () => {
   });
 });
 
+describe("stage tokens", () => {
+  it("defines the theme tokens on the world container", () => {
+    // Anything drawn over the world — the movement rail, the signpost —
+    // resolves these. When they were only set inside the world, everything
+    // layered on top silently fell back to whatever the page was using.
+    renderWorld(3);
+    const container = document.querySelector<HTMLElement>("[data-world]")!
+      .parentElement as HTMLElement;
+    expect(container.style.getPropertyValue("--stage-ink")).toBeTruthy();
+    expect(container.style.getPropertyValue("--stage-accent")).toBeTruthy();
+  });
+});
+
 describe("empty state", () => {
   it("takes a rendered icon rather than a component", () => {
     // Regression: passing `icon={FileText}` from a server component throws at
