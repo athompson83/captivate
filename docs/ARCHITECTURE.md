@@ -37,6 +37,12 @@ Three consequences worth knowing before changing anything here:
 - **Scene transitions are gone.** Travel (`fly`, `dissolve`, `cut`) is a
   property of the presentation, not of each scene. The camera move is the
   transition.
+- **A scene has no edge.** On the canvas a scene renders bare — no background,
+  no border, no box. A colour it sets becomes atmosphere in the air around it;
+  only an image is still drawn, feathered. This is the decision that separates
+  "a new medium" from "slides on a wall", and it is worth defending: every
+  rectangle that crept back onto the page — a scene background, an empty image
+  placeholder, a scrim over no photograph — made it read as a deck again.
 - **Placement is nullable.** A scene with no placement is positioned by the
   presentation's arrangement at read time, so nothing had to be migrated and a
   deck nobody has touched spatially still presents.

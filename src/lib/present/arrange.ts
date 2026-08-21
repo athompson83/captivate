@@ -22,8 +22,17 @@ export interface ArrangeInput {
   sectionId: string | null;
 }
 
-/** Gap between neighbouring scenes, as a fraction of a scene's width. */
-const GAP = 0.3;
+/**
+ * Gap between neighbouring regions, as a fraction of a scene's width.
+ *
+ * Tuned down from 0.3 once scenes stopped being cards. Two bordered boxes need
+ * a wide gutter or they look crowded; two areas of one page do not, and content
+ * already keeps a safe margin inside its own frame, so the real distance
+ * between two blocks of text is this plus twice that margin. The tighter the
+ * composition, the more it reads as a single designed surface rather than a row
+ * of slides parked next to each other.
+ */
+const GAP = 0.08;
 
 /**
  * How much smaller each level of a `nested` dive is.
@@ -37,6 +46,20 @@ const GAP = 0.3;
 const NEST_RATIO = 0.34;
 /** Levels before a nest surfaces and starts again; keeps scales sane. */
 const NEST_DEPTH = 3;
+
+/**
+ * Separation that clears a scene whichever direction the next one lies in.
+ *
+ * Two axis-aligned rectangles miss each other only if they are apart on *an*
+ * axis, so the worst case — offset just under a width across and just under a
+ * height down — needs the diagonal. Arrangements that step purely sideways can
+ * use the width; anything that places at an arbitrary angle cannot, and a
+ * spiral built on the width alone overlaps in a narrow band of directions that
+ * is easy to miss by eye and trivial to hit in practice.
+ */
+function clearance(stage: Size): number {
+  return Math.hypot(stage.width, stage.height) * (1 + GAP);
+}
 
 function placement(x: number, y: number, scale = 1, rotation = 0): ScenePlacement {
   return { x, y, scale, rotation };
@@ -87,6 +110,28 @@ function grid(scenes: ArrangeInput[], stage: Size): ScenePlacement[] {
   return out;
 }
 
+function flow(scenes: ArrangeInput[], stage: Size): ScenePlacement[] {
+  // One page, filled.
+  //
+  // A single long line is a ribbon: it leaves most of the canvas empty and the
+  // camera does nothing but track sideways. A serpentine fills a roughly 16:9
+  // world instead, so pulling back shows a composition rather than a strip, and
+  // the reading order still runs continuously — each row reverses, so the
+  // camera never jumps back across the whole page to start the next one.
+  //
+  // Square-ish in *cells* is 16:9 in world units, because a cell is a scene.
+  const columns = Math.max(1, Math.ceil(Math.sqrt(scenes.length)));
+  const stepX = stage.width * (1 + GAP);
+  const stepY = stage.height * (1 + GAP);
+
+  return scenes.map((_, i) => {
+    const row = Math.floor(i / columns);
+    const withinRow = i % columns;
+    const column = row % 2 === 0 ? withinRow : columns - 1 - withinRow;
+    return placement(column * stepX, row * stepY);
+  });
+}
+
 function timeline(scenes: ArrangeInput[], stage: Size): ScenePlacement[] {
   // A spine with scenes alternating above and below it. The eye reads the
   // sequence as a line of argument rather than as a stack of pages, and the
@@ -114,8 +159,8 @@ function spiral(scenes: ArrangeInput[], stage: Size): ScenePlacement[] {
   // covers almost no distance. Solving for the angle that puts the *chord*
   // between neighbours at exactly one scene-width is a few lines of bisection
   // and guarantees no two consecutive scenes ever overlap.
-  const spacing = stage.width * (1 + GAP);
-  const perRadian = (stage.width * 1.45) / (2 * Math.PI);
+  const spacing = clearance(stage);
+  const perRadian = (spacing * 1.28) / (2 * Math.PI);
   const at = (t: number) => ({ x: Math.cos(t) * perRadian * t, y: Math.sin(t) * perRadian * t });
   const chord = (a: number, b: number) => {
     const p = at(a);
@@ -207,7 +252,7 @@ function constellation(scenes: ArrangeInput[], stage: Size): ScenePlacement[] {
     // chord between neighbours on a ring of n is 2r·sin(π/n), so solving that
     // for one scene-width is the smallest radius that works — the naive
     // circumference estimate is too tight for a cluster of two or three.
-    const spacing = stage.width * (1 + GAP);
+    const spacing = clearance(stage);
     const orbit =
       group.length < 2
         ? 0
@@ -232,6 +277,7 @@ function constellation(scenes: ArrangeInput[], stage: Size): ScenePlacement[] {
 }
 
 const PRESETS: Record<ArrangePreset, (scenes: ArrangeInput[], stage: Size) => ScenePlacement[]> = {
+  flow,
   reel,
   grid,
   timeline,
@@ -241,6 +287,11 @@ const PRESETS: Record<ArrangePreset, (scenes: ArrangeInput[], stage: Size) => Sc
 };
 
 export const ARRANGEMENTS: { id: ArrangePreset; label: string; description: string }[] = [
+  {
+    id: "flow",
+    label: "Flow",
+    description: "One page, filled. Reads left to right and back, like a spread.",
+  },
   { id: "reel", label: "Reel", description: "A straight line at one zoom — a conventional deck." },
   { id: "grid", label: "Grid", description: "Sections become rows. Good for reference material." },
   {

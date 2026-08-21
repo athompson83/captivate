@@ -59,6 +59,23 @@ Callers surface `error` in a toast. Don't throw across the boundary.
 index signatures, and `GenericTable` then infers `Update` as `never`. Patches are typed
 `Partial<PresentationRow>` and friends, never `Record<string, unknown>`.
 
+## The world has no rectangles
+
+A scene on the world canvas is a _region_, not a card. It renders with
+`surface="bare"`: no background, no border, no box, no clipping. The rule for
+anything a scene might paint is **a colour is atmosphere, an image is content** —
+a solid or gradient scene background is blended into the air around the region
+rather than drawn, and only an image is still rendered, feathered at the rim.
+
+This keeps regressing, so it is worth naming the shapes that have crept back so
+far: a scene background, an empty image placeholder with a filled surface, and a
+scrim drawn over a photograph that is not there. Each one made the page read as
+slides again. If you are adding something that paints a filled rect the size of a
+scene, it is almost certainly wrong on the canvas.
+
+`Stage` still paints backgrounds in `card` mode — thumbnails, dashboard previews,
+the editor canvas — where a scene really is a discrete object being looked at.
+
 ## The camera
 
 Presenting is a camera moving over one canvas, and a flight is sixty transform

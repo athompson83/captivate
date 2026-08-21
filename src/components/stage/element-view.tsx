@@ -387,7 +387,10 @@ export const ElementView = memo(function ElementView({
           ) : (
             <ImagePlaceholder theme={theme} rem={rem} label={element.alt || "Image"} />
           )}
-          {element.scrim > 0 && (
+          {/* A scrim darkens a photograph so a caption over it stays legible.
+              With no photograph it is a dark rectangle over nothing — which on
+              the world canvas reads as a slide sitting on the page. */}
+          {element.scrim > 0 && element.url && (
             <div
               aria-hidden
               style={{
@@ -722,7 +725,11 @@ function ImagePlaceholder({
         alignItems: "center",
         justifyContent: "center",
         gap: `${rem * 0.6}px`,
-        background: theme.tokens.surface,
+        // No fill. On the world canvas a filled rectangle is the single
+        // strongest "this is a slide" cue there is, and an empty picture frame
+        // is one of the few things every scene starts with. The dashed outline
+        // says "a picture goes here" without putting a block on the surface.
+        background: "transparent",
         border: `${Math.max(1, rem * 0.08)}px dashed ${theme.tokens.line}`,
         borderRadius: `${rem * 0.6}px`,
         color: theme.tokens.inkMuted,

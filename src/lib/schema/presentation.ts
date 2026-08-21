@@ -474,6 +474,7 @@ export type ScenePlacement = z.infer<typeof ScenePlacement>;
 
 /** Spatial arrangements the journey map can apply to a whole presentation. */
 export const ArrangePreset = z.enum([
+  "flow",
   "reel",
   "grid",
   "timeline",
@@ -490,7 +491,15 @@ export type ArrangePreset = z.infer<typeof ArrangePreset>;
  * degenerate case of the same engine, not a separate one.
  */
 export const JourneyConfig = z.object({
-  arrangement: ArrangePreset.default("reel"),
+  /**
+   * `flow` rather than `reel` by default.
+   *
+   * A straight line at one zoom is a slide strip, and a new presentation should
+   * not start out looking like one. `flow` fills a page: pulling back shows a
+   * composition, not a ribbon. `reel` is one click away for anyone who wants
+   * the conventional thing.
+   */
+  arrangement: ArrangePreset.default("flow"),
   /**
    * How the camera gets from one scene to the next.
    *

@@ -37,6 +37,19 @@ export interface StageProps {
   onPointerDownCapture?: (e: React.PointerEvent) => void;
   /** Disables the scaling observer for measured-size-free contexts. */
   fixedScale?: number;
+  /**
+   * Whether this scene owns its background.
+   *
+   * `card` paints the theme background inside the scene's own box — right for a
+   * thumbnail, a dashboard preview or the editor canvas, where a scene really
+   * is a discrete object being looked at.
+   *
+   * `bare` paints nothing. On the world canvas a scene is a *region* of one
+   * continuous surface, not an object sitting on it, and a filled box with an
+   * edge is precisely what makes a presentation read as slides on a wall. The
+   * atmosphere behind it belongs to the world.
+   */
+  surface?: "card" | "bare";
 }
 
 export const Stage = memo(function Stage({
@@ -50,6 +63,7 @@ export const Stage = memo(function Stage({
   chrome,
   onPointerDownCapture,
   fixedScale,
+  surface = "card",
 }: StageProps) {
   const size = stageSize(aspect);
   const reduced = useReducedMotion();
@@ -84,7 +98,8 @@ export const Stage = memo(function Stage({
     [fixedScale, size],
   );
 
-  const background = resolveSceneBackground(content, theme);
+  const bare = surface === "bare";
+  const background = bare ? {} : resolveSceneBackground(content, theme);
 
   return (
     <div
@@ -113,7 +128,9 @@ export const Stage = memo(function Stage({
           top: "50%",
           transform: "translate(-50%, -50%) scale(var(--stage-scale, 0))",
           transformOrigin: "center center",
-          overflow: "hidden",
+          // A bare region must not clip: the whole point is that it has no
+          // edge, and clipping reinstates one the moment anything overflows.
+          overflow: bare ? "visible" : "hidden",
           ...background,
         }}
       >
@@ -130,6 +147,8 @@ export const Stage = memo(function Stage({
                 height: "100%",
                 objectFit: "cover",
                 objectPosition: `${content.background.focalX * 100}% ${content.background.focalY * 100}%`,
+                maskImage: bare ? FEATHER : undefined,
+                WebkitMaskImage: bare ? FEATHER : undefined,
               }}
             />
             {content.background.scrim > 0 && (
@@ -166,6 +185,19 @@ export const Stage = memo(function Stage({
     </div>
   );
 });
+
+/**
+ * A region on the world canvas paints no background of its own. Ever.
+ *
+ * The line: **a colour is atmosphere, an image is content.** A scene's solid or
+ * gradient background is chrome the world already provides — its palette is
+ * blended into the surrounding air by the ambient field, so painting it again
+ * as a rectangle adds nothing except an edge, and an edge is exactly what makes
+ * a presentation read as slides parked on a wall. An image is different: it is
+ * something the author put there, so it still renders, feathered at the rim so
+ * it pools into the surface instead of ending at a border.
+ */
+const FEATHER = "radial-gradient(closest-side, #000 58%, transparent 100%)";
 
 function resolveSceneBackground(
   content: SceneContent,

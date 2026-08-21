@@ -16,6 +16,57 @@ Two components:
 
 ---
 
+## One surface
+
+The thing that decides whether this reads as a new medium or as slides on a
+wall is not the camera. It is whether a scene has an edge.
+
+A scene on the world canvas renders **bare**: no background, no border, no box,
+no clipping. Its elements are painted straight onto the world, and the surface
+underneath belongs to the world rather than to any scene. `Stage` still paints a
+background in `card` mode — for thumbnails, dashboard previews and the editor
+canvas, where a scene genuinely _is_ a discrete object being looked at — but on
+the canvas it never does.
+
+The line for anything a scene might paint: **a colour is atmosphere, an image is
+content.**
+
+- A solid or gradient scene background is not drawn. Its palette is blended into
+  the air around that region instead (below), which is what it was for.
+- An image background _is_ drawn, feathered at the rim so it pools into the
+  surface rather than ending at a border.
+- An image element with no image is an outline, not a filled block, and its
+  scrim — which exists to keep a caption legible over a photograph — is not
+  drawn when there is no photograph.
+
+Every one of those was a rectangle on the page before it was fixed.
+
+---
+
+## Atmosphere
+
+The background is one continuous field, and its colour depends on where the
+camera is. Each region contributes its theme's palette to the air around it;
+the colour at any point is the blend of the nearest few, weighted by inverse
+square distance. Flying from a cold region to a warm one warms the whole room on
+the way, because that is what moving through a place looks like.
+
+Two mechanisms, both in `src/lib/present/ambient.ts`:
+
+- **The room** — a full-viewport wash, recomputed every animation frame and
+  written to custom properties on one element. Never through React.
+- **The field** — pools of each region's accent painted into the surface itself,
+  in world space, so they move and scale with the camera as part of the page.
+
+Blending happens in **OKLab**, not sRGB. Mixing a deep blue with an amber in
+sRGB drags the midpoint through grey, which is exactly the transition a camera
+flying between two regions would show. Only the nearest three regions count:
+averaging every scene pulls every position toward the same mean and makes a
+whole presentation one colour, when the point is that different parts of it
+should feel different.
+
+---
+
 ## The world
 
 Each scene carries a `placement`: `{ x, y, scale, rotation }` in world units,
@@ -34,14 +85,15 @@ authored by dragging one scene inside another on the journey map.
 `src/lib/present/arrange.ts` turns an ordered list of scenes into positions.
 Each preset is a pure function of index, section and count.
 
-| Preset          | Shape                                               |
-| --------------- | --------------------------------------------------- |
-| `reel`          | A straight line at one zoom — a conventional deck.  |
-| `grid`          | Sections become rows.                               |
-| `timeline`      | A spine with scenes alternating above and below it. |
-| `spiral`        | Winds outward; the shape reads as widening scope.   |
-| `nested`        | Each scene inside the last, surfacing every third.  |
-| `constellation` | Sections cluster in their own regions.              |
+| Preset          | Shape                                                         |
+| --------------- | ------------------------------------------------------------- |
+| `flow`          | **Default.** A serpentine filling a page, each row reversing. |
+| `reel`          | A straight line at one zoom — a conventional deck.            |
+| `grid`          | Sections become rows.                                         |
+| `timeline`      | A spine with scenes alternating above and below it.           |
+| `spiral`        | Winds outward; the shape reads as widening scope.             |
+| `nested`        | Each scene inside the last, surfacing every third.            |
+| `constellation` | Sections cluster in their own regions.                        |
 
 Applying an arrangement stamps a placement onto every scene, in one statement
 and one undo step. Dragging a scene afterwards overrides its placement; the rest

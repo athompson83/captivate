@@ -252,3 +252,25 @@ describe("text auto-fit", () => {
     );
   });
 });
+
+describe("an image with no image", () => {
+  it("does not darken the space where a photograph is not", () => {
+    // A scrim exists to keep a caption legible over a photograph. Rendered
+    // over an empty placeholder it is a dark rectangle over nothing, and on
+    // the world canvas that reads as a slide sitting on the page.
+    const content = composeScene("media-full", { caption: "A caption" });
+    const withScrim = {
+      ...content,
+      elements: content.elements.map((element) =>
+        element.type === "image" ? { ...element, url: "", scrim: 0.6 } : element,
+      ),
+    };
+
+    render(<Stage content={withScrim} theme={getTheme("midnight")} aspect="16:9" fixedScale={1} />);
+
+    const scrims = [...document.querySelectorAll<HTMLElement>("div[aria-hidden]")].filter((el) =>
+      el.style.background.includes("linear-gradient(to top"),
+    );
+    expect(scrims).toHaveLength(0);
+  });
+});

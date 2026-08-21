@@ -62,6 +62,7 @@ captivate/
 │  │  │  ├─ camera.ts              Optimal zoom-and-pan flight (Van Wijk & Nuij)
 │  │  │  ├─ arrange.ts             Spatial arrangements of scenes on the world
 │  │  │  ├─ path.ts                The smoothed route drawn between waypoints
+│  │  │  ├─ ambient.ts             Atmosphere: the colour of the air per position
 │  │  │  ├─ fit-text.ts            Deterministic auto-fit
 │  │  │  ├─ stage.ts               Stage geometry helpers
 │  │  │  └─ fullscreen.ts          Fullscreen and wake lock

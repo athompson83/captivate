@@ -133,11 +133,54 @@ describe("the world", () => {
     expect(document.querySelector('[data-scene-index="40"]')).not.toBeNull();
   });
 
-  it("draws distant scenes as numbered markers rather than unreadable text", () => {
-    // Pulled back over fifty scenes, none is more than a few pixels wide.
+  it("draws distant regions as named landmarks rather than unreadable text", () => {
+    // Pulled back over fifty scenes, none is more than a few pixels wide. A
+    // region shows its name and nothing else — no number, no border, no card.
     renderWorld(50, { focus: { kind: "world" } });
     expect(screen.queryByText("Heading number 1")).toBeNull();
-    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("Scene 1")).toBeInTheDocument();
+  });
+
+  it("does not paint a scene's own colour as a rectangle on the world", () => {
+    // A colour is atmosphere, an image is content. A scene that sets a solid
+    // or gradient background gets its palette blended into the surrounding air
+    // by the ambient field; painting it again as a filled box just draws the
+    // slide edge back on.
+    const scenes = makeScenes(2).map((scene) => ({
+      ...scene,
+      content: {
+        ...scene.content,
+        background: { kind: "solid" as const, color: { kind: "hex" as const, hex: "#B02A2A" } },
+      },
+    }));
+    render(
+      <World
+        scenes={scenes}
+        placements={arrange("reel", scenes, STAGE)}
+        theme={theme}
+        aspect="16:9"
+        focus={{ kind: "scene", index: 0 }}
+        activeIndex={0}
+        step={0}
+        travel="cut"
+        pace={1}
+        depth={0}
+      />,
+    );
+    const region = document.querySelector<HTMLElement>('[data-scene-index="0"] [data-stage]');
+    expect(region!.style.background).toBe("");
+  });
+
+  it("gives a region no edge of its own", () => {
+    // The whole point of the world: scenes are regions of one surface, not
+    // cards on it. A border or a filled box here is what made the first
+    // version read as slides on a wall.
+    renderWorld(4, { focus: { kind: "scene", index: 0 } });
+    const region = document.querySelector<HTMLElement>('[data-scene-index="0"] [data-stage]');
+    expect(region).not.toBeNull();
+    expect(region!.style.background).toBe("");
+    expect(region!.style.border).toBe("");
+    expect(region!.style.overflow).toBe("visible");
   });
 
   it("renders scene content when the camera is close enough to read it", () => {

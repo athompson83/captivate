@@ -23,15 +23,23 @@ import {
   type Size,
 } from "@/lib/present/camera";
 import { smoothPath } from "@/lib/present/path";
+import { ambientAt, paletteOf, scenePalettes } from "@/lib/present/ambient";
+import { oklabCss } from "@/lib/utils/color";
 import { Stage } from "./stage";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * The world.
  *
- * Every scene in a presentation exists at once, on one canvas, and presenting
- * is a camera moving between them. This component draws that canvas and flies
- * the camera; it is the counterpart to `Stage`, which draws a single scene.
+ * One page. Every scene exists at once as a *region* of a single continuous
+ * surface — not a card sitting on it — and presenting is a camera moving
+ * between those regions. This component draws that surface and flies the
+ * camera; `Stage` draws the contents of one region.
+ *
+ * Nothing here has an edge. Scenes render bare, the background is one field
+ * that spans the whole canvas, and the atmosphere at any point is blended from
+ * the regions nearest to it, so flying between two parts of a presentation
+ * changes the colour of the room on the way.
  *
  * Two constraints shape the implementation:
  *
@@ -102,9 +110,14 @@ export const World = memo(function World({
   const stage = stageSize(aspect);
   const reduced = useReducedMotion();
 
+  const basePalette = useMemo(() => paletteOf(theme), [theme]);
+  const palettes = useMemo(() => scenePalettes(scenes, theme), [scenes, theme]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+  /** The full-viewport wash whose colour tracks where the camera is. */
+  const ambientRef = useRef<HTMLDivElement>(null);
 
   /** Live camera. Written every frame; never read during render. */
   const cameraRef = useRef<Camera | null>(null);
@@ -184,8 +197,19 @@ export const World = memo(function World({
     const apply = (camera: Camera) => {
       cameraRef.current = camera;
       node.style.transform = worldTransform(camera, viewport);
+
       const backdrop = backdropRef.current;
       if (backdrop) backdrop.style.transform = backdropTransform(camera, viewport, depth);
+
+      // The room's colour follows the camera. Written as custom properties on
+      // one element rather than through React: this runs sixty times a second.
+      const wash = ambientRef.current;
+      if (wash) {
+        const ambient = ambientAt(camera, placements, palettes, stage, basePalette);
+        wash.style.setProperty("--world-canvas", ambient.canvas);
+        wash.style.setProperty("--world-surface", ambient.surface);
+        wash.style.setProperty("--world-glow", ambient.glow);
+      }
     };
 
     const from = cameraRef.current;
@@ -241,11 +265,28 @@ export const World = memo(function World({
       arriveRef.current?.();
     };
     frameRef.current = requestAnimationFrame(tick);
-  }, [target, viewport, travel, pace, depth, reduced, halt]);
+  }, [
+    target,
+    viewport,
+    travel,
+    pace,
+    depth,
+    reduced,
+    halt,
+    placements,
+    palettes,
+    stage,
+    basePalette,
+  ]);
 
   /* ---------------------------------------------------------------------- */
   /* What to render                                                          */
   /* ---------------------------------------------------------------------- */
+
+  const accentFor = useCallback(
+    (index: number) => oklabCss((palettes[index] ?? basePalette).accent, 0.22),
+    [palettes, basePalette],
+  );
 
   const rendered = useMemo(() => {
     if (viewport.width === 0) return [];
@@ -284,6 +325,36 @@ export const World = memo(function World({
   }, [placements, origin, target, viewport, aspectRatio, stage, activeIndex]);
 
   const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
+
+  /**
+   * Pools of colour, one per region, painted into the surface itself.
+   *
+   * Positioned as percentages of the world box so the whole thing is a single
+   * static background image — the camera transform above moves it, which costs
+   * nothing, where re-rendering a gradient per frame would cost everything.
+   */
+  const regionField = useMemo(() => {
+    if (placements.length === 0) return "transparent";
+    const width = worldBounds.width + stage.width * 2;
+    const height = worldBounds.height + stage.height * 2;
+    const originX = worldBounds.x - stage.width;
+    const originY = worldBounds.y - stage.height;
+
+    return placements
+      .map((placement, index) => {
+        const palette = palettes[index] ?? basePalette;
+        const x = ((placement.x - originX) / width) * 100;
+        const y = ((placement.y - originY) / height) * 100;
+        // Sized to the region it belongs to, so a nested detail tints a small
+        // pocket rather than washing over its parent.
+        const spread = ((stage.width * placement.scale * 1.6) / width) * 100;
+        return `radial-gradient(${spread}% ${spread * (width / height)}% at ${x}% ${y}%, ${oklabCss(
+          palette.accent,
+          0.1,
+        )} 0%, transparent 70%)`;
+      })
+      .join(", ");
+  }, [placements, palettes, basePalette, worldBounds, stage]);
   const route = useMemo(
     () => (showPath ? smoothPath(placements.map((p) => ({ x: p.x, y: p.y }))) : ""),
     [showPath, placements],
@@ -295,6 +366,27 @@ export const World = memo(function World({
       className={cn("relative overflow-hidden", className)}
       style={{ ...themeCssVars(theme), background: stageBackgroundCss(theme) }}
     >
+      {/*
+        The room. One wash across the whole viewport whose colour is blended
+        from whichever regions the camera is nearest, so arriving somewhere new
+        changes the light before the content has finished settling.
+      */}
+      <div
+        ref={ambientRef}
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(120% 100% at 50% 12%, var(--world-surface, var(--stage-surface)) 0%, var(--world-canvas, var(--stage-canvas)) 68%)",
+          transition: "background 420ms linear",
+        }}
+      />
+
+      {/*
+        Depth. A slow field that takes a fraction of the camera's movement, so
+        travelling has somewhere to travel *through*. It carries no information
+        and is never read — it exists so the eye can measure motion.
+      */}
       {depth > 0 && (
         <div
           ref={backdropRef}
@@ -303,14 +395,12 @@ export const World = memo(function World({
           style={{
             width: 1,
             height: 1,
-            // A field of faint marks with nothing to read: it exists to give
-            // the eye something to measure the camera's motion against.
             backgroundImage:
-              "radial-gradient(circle, color-mix(in oklch, var(--stage-ink) 22%, transparent) 1px, transparent 1px)",
-            backgroundSize: "48px 48px",
+              "radial-gradient(circle, var(--world-glow, transparent) 1.5px, transparent 1.5px)",
+            backgroundSize: "64px 64px",
             backgroundPosition: "center",
             boxShadow: "0 0 0 100000px transparent",
-            opacity: 0.5,
+            opacity: 0.55,
           }}
         />
       )}
@@ -321,6 +411,24 @@ export const World = memo(function World({
         className="absolute top-0 left-0 origin-top-left"
         style={{ width: 0, height: 0, willChange: "transform" }}
       >
+        {/*
+          The canvas itself. Each region breathes its own colour into the
+          surface around it, in world space, so the colour arrives before the
+          content does and the space between regions belongs to both of them.
+        */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: worldBounds.x - stage.width,
+            top: worldBounds.y - stage.height,
+            width: worldBounds.width + stage.width * 2,
+            height: worldBounds.height + stage.height * 2,
+            background: regionField,
+            pointerEvents: "none",
+          }}
+        />
+
         {showPath && route && (
           <svg
             aria-hidden
@@ -335,14 +443,25 @@ export const World = memo(function World({
             }}
             viewBox={`${worldBounds.x} ${worldBounds.y} ${worldBounds.width} ${worldBounds.height}`}
           >
+            {/* Two strokes: a wide soft one that reads as a trodden path,
+                and a fine dotted one over it that reads as direction. */}
             <path
               d={route}
               fill="none"
               stroke="var(--stage-accent)"
-              strokeWidth={stage.width * 0.012}
+              strokeWidth={stage.width * 0.05}
               strokeLinecap="round"
-              strokeDasharray={`${stage.width * 0.05} ${stage.width * 0.04}`}
-              opacity={0.5}
+              strokeLinejoin="round"
+              opacity={0.06}
+            />
+            <path
+              d={route}
+              fill="none"
+              stroke="var(--stage-accent)"
+              strokeWidth={stage.width * 0.006}
+              strokeLinecap="round"
+              strokeDasharray={`${stage.width * 0.002} ${stage.width * 0.028}`}
+              opacity={0.45}
             />
           </svg>
         )}
@@ -376,6 +495,10 @@ export const World = memo(function World({
                   aspect={aspect}
                   fixedScale={1}
                   className="size-full"
+                  // A region of the world, not an object on it: no background,
+                  // no edge, no box. The surface underneath belongs to the
+                  // world, and this paints its content straight onto it.
+                  surface="bare"
                   play={play && isActive}
                   // Scenes the presenter is not on show every build step, so a
                   // scene the camera is flying towards is not half-empty when
@@ -383,7 +506,7 @@ export const World = memo(function World({
                   step={isActive ? step : Number.MAX_SAFE_INTEGER}
                 />
               ) : (
-                <SceneMarker index={index} title={scene.title} stage={stage} active={isActive} />
+                <SceneLandmark title={scene.title} stage={stage} accent={accentFor(index)} />
               )}
             </div>
           );
@@ -396,44 +519,40 @@ export const World = memo(function World({
 });
 
 /**
- * A scene too small to read.
+ * A region too small to read.
  *
- * Drawn as a card with its number rather than as unreadable body text. Every
- * size here is a fraction of the stage box, so it scales with the camera
- * without needing to know anything about it.
+ * A place on a map, not a thumbnail of a slide: a soft pool of its own colour
+ * with its name over it, and no border, because a border at this size is the
+ * single strongest cue that the thing is a card. Every size is a fraction of
+ * the region's own box, so it scales with the camera without being told
+ * anything about it.
  */
-function SceneMarker({
-  index,
-  title,
-  stage,
-  active,
-}: {
-  index: number;
-  title: string;
-  stage: Size;
-  active: boolean;
-}) {
+function SceneLandmark({ title, stage, accent }: { title: string; stage: Size; accent: string }) {
   return (
     <div
       style={{
         width: "100%",
         height: "100%",
-        borderRadius: stage.width * 0.022,
-        background: "var(--stage-surface)",
-        border: `${stage.width * 0.004}px solid ${
-          active ? "var(--stage-accent)" : "color-mix(in oklch, var(--stage-ink) 18%, transparent)"
-        }`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: "color-mix(in oklch, var(--stage-ink) 55%, transparent)",
-        fontSize: stage.height * 0.34,
-        fontWeight: 600,
-        letterSpacing: "-0.02em",
+        padding: `0 ${stage.width * 0.06}px`,
+        background: `radial-gradient(closest-side, ${accent} 0%, transparent 78%)`,
       }}
-      title={title}
     >
-      {index + 1}
+      <span
+        style={{
+          color: "var(--stage-ink)",
+          fontFamily: "var(--stage-font-display)",
+          fontSize: stage.height * 0.17,
+          lineHeight: 1.15,
+          textAlign: "center",
+          opacity: 0.82,
+          textWrap: "balance",
+        }}
+      >
+        {title}
+      </span>
     </div>
   );
 }

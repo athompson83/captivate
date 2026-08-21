@@ -260,11 +260,35 @@ describe("arrangements", () => {
     }
   });
 
+  it("fills a page rather than a ribbon in flow", () => {
+    // The reason `flow` exists: nine scenes in a line leave the canvas empty
+    // and give the camera nothing to do but track sideways.
+    const placements = arrange("flow", scenes(9), STAGE);
+    const bounds = boundsOf(placements, STAGE);
+    const aspect = bounds.width / bounds.height;
+    expect(aspect).toBeGreaterThan(1);
+    expect(aspect).toBeLessThan(3);
+
+    const ribbon = boundsOf(arrange("reel", scenes(9), STAGE), STAGE);
+    expect(ribbon.width / ribbon.height).toBeGreaterThan(8);
+  });
+
+  it("reverses each row so the reading path never jumps back", () => {
+    // A serpentine, not a raster scan: the camera should walk to the end of a
+    // row and drop to the next, not fly the whole width back to start again.
+    const placements = arrange("flow", scenes(9), STAGE);
+    const hops = placements
+      .slice(1)
+      .map((p, i) => Math.hypot(p.x - placements[i].x, p.y - placements[i].y));
+    const widest = Math.max(...hops);
+    expect(widest).toBeLessThan(STAGE.width * 2);
+  });
+
   it("lays a reel out in a straight line at one zoom", () => {
     const placements = arrange("reel", scenes(4), STAGE);
     expect(placements.every((p) => p.y === 0 && p.scale === 1)).toBe(true);
     const gaps = placements.slice(1).map((p, i) => p.x - placements[i].x);
-    expect(new Set(gaps).size).toBe(1);
+    for (const gap of gaps) expect(gap).toBeCloseTo(gaps[0], 6);
   });
 
   it("never leaves two consecutive scenes half on top of each other", () => {
@@ -287,6 +311,23 @@ describe("arrangements", () => {
           const clean = !rectsIntersect(a, b) || contains(a, b) || contains(b, a);
           expect(clean, `${id} overlaps at ${i} of ${count}`).toBe(true);
         }
+      }
+    }
+  });
+
+  it("clears a scene in whichever direction the next one lies", () => {
+    // The near miss this guards: a separation that clears the *width* still
+    // overlaps when the offset is mostly diagonal, because two rectangles miss
+    // each other only by being apart on an axis. A spiral hits that band.
+    const diagonal = Math.hypot(STAGE.width, STAGE.height);
+    for (const preset of ["spiral", "constellation"] as const) {
+      const placements = arrange(preset, scenes(8), STAGE);
+      for (let i = 1; i < placements.length; i += 1) {
+        const gap = Math.hypot(
+          placements[i].x - placements[i - 1].x,
+          placements[i].y - placements[i - 1].y,
+        );
+        expect(gap, `${preset} at ${i}`).toBeGreaterThanOrEqual(diagonal);
       }
     }
   });

@@ -148,3 +148,18 @@ reverted, and both were verified to do so:
 - a flight keeps going when something unrelated re-renders the tree;
 - `EmptyState` takes a rendered icon rather than a component, because a function
   cannot cross the server/client boundary.
+
+## Atmosphere
+
+`tests/unit/ambient.test.ts` pins the colour maths and the blending, including
+the property the whole thing exists for: a blend from a dark blue to an amber
+keeps real chroma at the midpoint rather than passing through grey.
+
+Two properties are stated carefully because they are easy to assert wrongly:
+
+- the region the camera is over **dominates** the blend, but does not win
+  outright — distant regions keep a small bounded weight, and that is what stops
+  the colour snapping as the camera crosses an invisible boundary. The test
+  asserts closeness, not equality, and says why;
+- twenty light regions far away must not lift the dark one you are standing on,
+  which is what averaging every scene would do.

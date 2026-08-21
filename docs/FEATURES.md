@@ -103,8 +103,16 @@ re-theming never rewrites element content. Fourteen named layouts own their
 geometry, which is what keeps generated and hand-edited scenes composed.
 
 Text auto-fit shrinks over-long text so it cannot spill onto the element below.
-Scene-level background overrides are implemented; full per-scene theme overrides
-are **partial** (the field exists and is stored; no UI exposes it yet).
+
+Scene-level background overrides are implemented, and behave differently in the
+two places a scene is drawn. On the editor canvas or in a thumbnail — where a
+scene is a discrete object — the background is painted. On the world canvas a
+colour becomes **atmosphere**: its palette is blended into the air around that
+region rather than drawn as a panel, because a panel is an edge and an edge is a
+slide. An image background is still drawn there, feathered at the rim.
+
+Full per-scene theme overrides are **partial**: the field exists, is stored, and
+already drives the region's atmosphere, but no UI exposes it yet.
 
 ---
 
@@ -132,20 +140,22 @@ transitions first.
 
 ## Presenting
 
-| Feature                            | Status      | Notes                                                          |
-| ---------------------------------- | ----------- | -------------------------------------------------------------- |
-| Full-screen stage                  | Implemented | Fullscreen API, with an honest message when refused            |
-| No editor chrome                   | Implemented | A separate route, asserted by a test                           |
-| Keyboard and click navigation      | Implemented | Arrows, space, page keys, digits; click right/left thirds      |
-| Element builds and staggered lists | Implemented | Advance walks builds before changing scene                     |
-| Camera travel                      | Implemented | Fly, dissolve or cut — set once for the whole presentation     |
-| Spatial arrangements               | Implemented | Reel, grid, timeline, spiral, dive, constellation              |
-| Journey map                        | Implemented | Drag scenes in world space; drop one inside another to nest it |
-| Overview                           | Implemented | `O` pulls back over the whole world and draws the route        |
-| Scene jumper                       | Implemented | Searches titles _and_ on-scene text                            |
-| Blank the screen                   | Implemented | `B`; any advance restores it                                   |
-| Wake lock                          | Implemented | Where the browser supports it                                  |
-| Progress indicator                 | Implemented | A hairline the audience reads as pacing                        |
+| Feature                            | Status      | Notes                                                             |
+| ---------------------------------- | ----------- | ----------------------------------------------------------------- |
+| Full-screen stage                  | Implemented | Fullscreen API, with an honest message when refused               |
+| No editor chrome                   | Implemented | A separate route, asserted by a test                              |
+| Keyboard and click navigation      | Implemented | Arrows, space, page keys, digits; click right/left thirds         |
+| Element builds and staggered lists | Implemented | Advance walks builds before changing scene                        |
+| Camera travel                      | Implemented | Fly, dissolve or cut — set once for the whole presentation        |
+| Spatial arrangements               | Implemented | Flow (default), reel, grid, timeline, spiral, dive, constellation |
+| Continuous surface                 | Implemented | Scenes are regions with no edge, not cards                        |
+| Atmosphere                         | Implemented | Background colour blends between regions as the camera travels    |
+| Journey map                        | Implemented | Drag scenes in world space; drop one inside another to nest it    |
+| Overview                           | Implemented | `O` pulls back over the whole world and draws the route           |
+| Scene jumper                       | Implemented | Searches titles _and_ on-scene text                               |
+| Blank the screen                   | Implemented | `B`; any advance restores it                                      |
+| Wake lock                          | Implemented | Where the browser supports it                                     |
+| Progress indicator                 | Implemented | A hairline the audience reads as pacing                           |
 
 ### Presenter console
 

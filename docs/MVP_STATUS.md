@@ -47,6 +47,28 @@ five are fixed with a regression test that was checked to fail without the fix:
 
 Two of those (3 and 4) predate the canvas work and would have shipped.
 
+### Then the cards had to go
+
+The first canvas version still drew each scene as a bounded rectangle with its
+own background — Prezi's mistake, which is slides on a wall rather than a page.
+A second pass made every scene a region of one continuous surface:
+
+- scenes render with no background, no border and no clipping;
+- a scene's own solid or gradient background became **atmosphere** — its palette
+  is blended into the air around the region instead of painted as a panel;
+- three more rectangles were tracked down and removed: an empty image
+  placeholder's filled surface, a caption scrim drawn over a photograph that was
+  not there, and the numbered marker used for distant scenes, now a named
+  landmark with no box;
+- the default arrangement became `flow`, a serpentine that fills a page, because
+  a straight line at one zoom is a slide strip;
+- gutters were retuned from 0.3 to 0.08 of a scene width, since the wide gutter
+  existed to stop two bordered boxes looking crowded and there are no boxes.
+
+Colour blending is in OKLab, because mixing a deep blue with an amber in sRGB
+passes through grey, and that grey is precisely the transition the camera would
+show while travelling between two regions.
+
 ---
 
 ## The MVP definition, point by point
