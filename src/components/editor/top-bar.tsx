@@ -29,6 +29,9 @@ import { relativeTime } from "@/lib/utils/format";
  * Global editor controls. Deliberately thin: title, save state, history,
  * the panels, and Present. Everything else is contextual.
  */
+/** Which half of the job the editor is showing. */
+export type EditorView = "scene" | "journey";
+
 export function EditorTopBar({
   presentationId,
   navOpen,
@@ -38,6 +41,8 @@ export function EditorTopBar({
   aiOpen,
   onToggleAi,
   onSave,
+  view,
+  onViewChange,
 }: {
   presentationId: string;
   navOpen: boolean;
@@ -47,6 +52,8 @@ export function EditorTopBar({
   aiOpen: boolean;
   onToggleAi: () => void;
   onSave: () => void;
+  view: EditorView;
+  onViewChange: (view: EditorView) => void;
 }) {
   const title = useEditor((s) => s.document.presentation.title);
   const themeId = useEditor((s) => s.document.presentation.themeId);
@@ -86,6 +93,19 @@ export function EditorTopBar({
       </Tooltip>
 
       <TitleField title={title} />
+
+      {/* Scene or world. Authoring one scene and authoring the route between
+          scenes are different jobs, and they get different surfaces. */}
+      <Segmented<EditorView>
+        label="Editing view"
+        size="sm"
+        value={view}
+        onChange={onViewChange}
+        options={[
+          { value: "scene", label: "Scene" },
+          { value: "journey", label: "Journey" },
+        ]}
+      />
 
       <SaveIndicator />
 

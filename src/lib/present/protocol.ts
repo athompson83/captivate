@@ -86,6 +86,18 @@ export const PresentMessage = z.discriminatedUnion("type", [
     sceneEnteredAt: z.number(),
     paused: z.boolean(),
     fullscreen: z.boolean(),
+    /**
+     * Camera pulled back to show the whole world rather than one scene.
+     *
+     * Defaulted rather than required, along with `establishing` below. Fields
+     * that describe the camera are additive, and a presenter who deploys a new
+     * build while a stage window from the old one is open must not have the two
+     * windows stop talking mid-talk. Anything load-bearing — indices, counts,
+     * timing — stays strict.
+     */
+    overview: z.boolean().default(false),
+    /** Section being established before the camera dives into it, if any. */
+    establishing: z.string().max(64).nullable().default(null),
   }),
 
   /** Console → stage. */
@@ -100,6 +112,7 @@ export const PresentMessage = z.discriminatedUnion("type", [
       "toggle-pause",
       "reset-timer",
       "blank",
+      "overview",
     ]),
     index: z.number().int().min(0).max(999).optional(),
   }),
@@ -143,25 +156,43 @@ export function channelName(presentationId: string): string {
 export class PresentChannel {
   private channel: BroadcastChannel | null = null;
   private handlers = new Set<(message: PresentMessage) => void>();
+  private readonly name: string;
+  private readonly supported: boolean;
 
   constructor(presentationId: string) {
-    if (typeof BroadcastChannel === "undefined") return;
+    this.name = channelName(presentationId);
+    this.supported = typeof BroadcastChannel !== "undefined";
+    this.open();
+  }
+
+  /**
+   * Opens the channel, reopening it if it was closed.
+   *
+   * Reopenable on purpose. A component that mounts, unmounts and mounts again —
+   * which React does to every component in development, and does for real
+   * whenever a route is revisited — used to be left holding a permanently dead
+   * channel, so the presenter console could no longer see the stage window.
+   */
+  open(): void {
+    if (!this.supported || this.channel) return;
     try {
-      this.channel = new BroadcastChannel(channelName(presentationId));
-      this.channel.onmessage = (event) => {
+      const channel = new BroadcastChannel(this.name);
+      channel.onmessage = (event) => {
         const parsed = PresentMessage.safeParse(event.data);
         // Drop anything that does not match the current protocol rather than
         // acting on a half-understood message mid-presentation.
         if (!parsed.success) return;
         for (const handler of this.handlers) handler(parsed.data);
       };
+      this.channel = channel;
     } catch {
       this.channel = null;
     }
   }
 
+  /** Whether this environment supports cross-window presenting at all. */
   get available(): boolean {
-    return this.channel !== null;
+    return this.supported;
   }
 
   post(message: PresentMessage): void {
@@ -185,6 +216,11 @@ export class PresentChannel {
       // Already closed.
     }
     this.channel = null;
+  }
+
+  /** Test seam: whether a channel is currently open. */
+  get connected(): boolean {
+    return this.channel !== null;
   }
 }
 

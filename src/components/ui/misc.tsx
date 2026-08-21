@@ -233,14 +233,22 @@ export function Skeleton({ className }: { className?: string }) {
   return <div aria-hidden className={cn("skeleton rounded-[var(--radius-md)]", className)} />;
 }
 
+/**
+ * `icon` is a rendered node, not a component type.
+ *
+ * A server component cannot hand a function across the client boundary, and
+ * passing `icon={FileText}` from one throws at request time — which showed up
+ * as a blank dashboard for exactly the users who had no presentations yet. An
+ * element serialises, so both server and client callers can use this.
+ */
 export function EmptyState({
-  icon: Icon,
+  icon,
   title,
   description,
   action,
   className,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ReactNode;
   title: string;
   description: string;
   action?: React.ReactNode;
@@ -250,8 +258,8 @@ export function EmptyState({
     <div
       className={cn("flex flex-col items-center justify-center px-6 py-16 text-center", className)}
     >
-      <div className="border-line-subtle mb-4 flex size-12 items-center justify-center rounded-[var(--radius-lg)] border bg-[var(--surface-inset)]">
-        <Icon className="text-ink-3 size-5" />
+      <div className="border-line-subtle text-ink-3 mb-4 flex size-12 items-center justify-center rounded-[var(--radius-lg)] border bg-[var(--surface-inset)] [&>svg]:size-5">
+        {icon}
       </div>
       <h3 className="text-ink text-[15px] font-semibold">{title}</h3>
       <p className="text-ink-3 mt-1.5 max-w-sm text-[13px] leading-relaxed">{description}</p>
@@ -310,5 +318,89 @@ export function Segmented<T extends string>({
         );
       })}
     </div>
+  );
+}
+
+export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-ink-3 mb-1.5 text-[10px] font-medium tracking-wider uppercase">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+export function Slider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  format,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  format: (v: number) => string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between">
+        <span className="text-ink-3 text-[10px] font-medium tracking-wider uppercase">{label}</span>
+        <span className="text-ink-3 text-[11px] tabular-nums">{format(value)}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        aria-label={label}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--surface-inset)] accent-[var(--accent)]"
+      />
+    </div>
+  );
+}
+
+export function Toggle({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2.5">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          "mt-0.5 h-4 w-7 shrink-0 rounded-full p-0.5 transition-colors",
+          checked ? "bg-accent" : "bg-[var(--border-default)]",
+        )}
+      >
+        <span
+          className={cn(
+            "block size-3 rounded-full bg-white transition-transform",
+            checked && "translate-x-3",
+          )}
+        />
+      </button>
+      <span className="min-w-0">
+        <span className="text-ink block text-[12px]">{label}</span>
+        {hint && <span className="text-ink-3 mt-0.5 block text-[11px] leading-snug">{hint}</span>}
+      </span>
+    </label>
   );
 }

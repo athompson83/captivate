@@ -1,9 +1,57 @@
 # Presentation engine
 
-One component, `Stage`, renders every context: the editor canvas, present mode,
-navigator thumbnails, the console's control pad, the scene jumper, and dashboard
-card previews. There is no second renderer to keep in step, which is why a
-thumbnail is never a stale approximation of the slide.
+Captivate has no slide reel. A presentation is a single unbounded canvas — the
+**world** — with every scene placed somewhere on it, and presenting is a camera
+travelling between those places. A conventional deck is the degenerate case: the
+same engine, with the scenes in a row at one zoom.
+
+Two components:
+
+- `Stage` renders one scene. It serves the editor canvas, navigator thumbnails,
+  the console's control pad, the scene jumper and dashboard previews. There is
+  no second renderer to keep in step, which is why a thumbnail is never a stale
+  approximation of the scene.
+- `World` composes many `Stage`s onto the canvas and moves the camera. It is
+  what the audience sees.
+
+---
+
+## The world
+
+Each scene carries a `placement`: `{ x, y, scale, rotation }` in world units,
+where one unit is one stage pixel at `scale: 1`. A scene with no placement is
+positioned by the presentation's arrangement at read time, so a deck nobody has
+touched spatially still presents.
+
+`scale` has a wide range on purpose. A scene placed at `0.02` inside another
+scene's bounds _is_ a detail of that scene, and the camera dives into it when
+the presenter advances. Nesting is not a separate feature with its own concept
+and its own command — it falls out of free placement plus a camera, and it is
+authored by dragging one scene inside another on the journey map.
+
+### Arrangements
+
+`src/lib/present/arrange.ts` turns an ordered list of scenes into positions.
+Each preset is a pure function of index, section and count.
+
+| Preset          | Shape                                               |
+| --------------- | --------------------------------------------------- |
+| `reel`          | A straight line at one zoom — a conventional deck.  |
+| `grid`          | Sections become rows.                               |
+| `timeline`      | A spine with scenes alternating above and below it. |
+| `spiral`        | Winds outward; the shape reads as widening scope.   |
+| `nested`        | Each scene inside the last, surfacing every third.  |
+| `constellation` | Sections cluster in their own regions.              |
+
+Applying an arrangement stamps a placement onto every scene, in one statement
+and one undo step. Dragging a scene afterwards overrides its placement; the rest
+keep following the preset. A scene added to a world that has already been
+arranged by hand lands beside the one before it at the same scale, rather than
+jumping back to where the preset would have put that index.
+
+Every arrangement holds one invariant, which is tested: two consecutive scenes
+are either clearly apart or one sits wholly inside the other. A partial overlap
+is just a mess.
 
 ---
 
@@ -42,8 +90,8 @@ container before scaling.
 
 ## Layouts
 
-Fourteen named compositions in `lib/editor/layouts.ts`. A layout owns *geometry*;
-the caller supplies *content*.
+Fourteen named compositions in `lib/editor/layouts.ts`. A layout owns _geometry_;
+the caller supplies _content_.
 
 ```
 title · section · statement · bullets · split-left · split-right · media-full
@@ -94,10 +142,77 @@ helps nobody.
 
 ---
 
+## The camera
+
+Presenting moves a camera, so how it moves _is_ the product. Two things had to
+be right.
+
+**The path.** A linear tween between two framings looks wrong in a way people
+feel but cannot name: zoom is multiplicative, so interpolating it linearly
+rushes the start and crawls the end, and crossing a long distance at close range
+is a nauseating blur. `src/lib/present/camera.ts` implements the optimal
+zoom-and-pan path from Van Wijk & Nuij, _Smooth and efficient zooming and
+panning_ (InfoVis 2003), which solves for the shortest smooth path in
+(pan, zoom) space. Two properties fall out of it:
+
+- the camera pulls back, travels, and pushes in, without anyone specifying an
+  arc — rising above the ground is simply the cheapest way to cross it;
+- path length is measured in perceptual units, so a journey across the world
+  takes a little longer than a hop next door rather than fifty times as long.
+
+Rotation is not in the paper's model and is carried along the same parameter,
+taking the short way round.
+
+**The cost.** A flight is sixty transform writes a second and none of them may
+pass through React. The camera lives in a ref; the animation loop writes
+`style.transform` on one promoted layer. React only re-renders when the _set of
+visible scenes_ changes — once per waypoint, never mid-flight.
+
+That constraint shapes culling too. Which scenes exist, and whether each is
+drawn in full or as a numbered marker, is decided from the flight's _endpoints_
+rather than the live camera, taking the greater detail of the two so nothing
+pops into or out of simplification while the camera is moving.
+
+The animation is deliberately not torn down by its own effect's cleanup. The
+effect re-runs on every render — its target is a fresh object each time — and a
+cleanup that cancelled the frame would kill a flight the moment anything else
+re-rendered. Something always does; the session clock ticks once a second.
+
+### Travel
+
+Set once for the whole presentation, not per scene:
+
+| Travel     | Behaviour                                 |
+| ---------- | ----------------------------------------- |
+| `fly`      | The camera travels. The default.          |
+| `dissolve` | The world swaps under a short cross-fade. |
+| `cut`      | Instant. A conventional slideshow.        |
+
+There is no per-scene transition picker. In a spatial presentation the camera
+move is the transition, and choosing a different wipe for scene seven is the
+habit this tool exists to replace.
+
+### Establishing a section
+
+Crossing into a new section, the camera first pulls back far enough to show the
+whole section, holds for a beat, then dives to its first scene. That pause is
+the difference between "here is the next slide" and "here is where we are going
+next". It lives in the session store rather than in a component, because it is a
+timed transition of session state that the console needs to know about too.
+
+### Overview
+
+`O` or `Tab` pulls the camera back over the whole world and draws the route
+between waypoints; clicking a scene flies to it. It is a camera position, not a
+mode: the presentation is still live, the current scene is still current, and
+advancing from there flies back down to it.
+
+---
+
 ## Motion
 
 Nine entrance presets — fade, rise, settle, slide-left, slide-right, scale,
-reveal, blur, none — and six scene transitions. Deliberately a small,
+reveal, blur, none. Deliberately a small,
 opinionated set: no spins, no bounces, no typewriters. These read as intentional
 staging rather than clip art.
 
@@ -113,7 +228,7 @@ suppresses entrance animation entirely.
 the scene itself, plus one per element marked `onAdvance`, plus one per extra
 item in a staggered list.
 
-Advancing walks those steps before moving to the next scene. Going *back* to a
+Advancing walks those steps before moving to the next scene. Going _back_ to a
 scene shows it fully built rather than rewound, because a presenter returning to
 a slide wants to see it, not replay it.
 

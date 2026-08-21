@@ -11,11 +11,11 @@ Postgres 17). Live and in use.
 
 Used for three things:
 
-| Service | Client | Notes |
-| --- | --- | --- |
-| Postgres | `@supabase/ssr` | Every query runs as the signed-in user, so RLS applies |
-| Auth | `@supabase/ssr` | Email and password; session refreshed in the proxy layer |
-| Storage | `@supabase/supabase-js` | Three private buckets; browser uploads directly |
+| Service  | Client                  | Notes                                                    |
+| -------- | ----------------------- | -------------------------------------------------------- |
+| Postgres | `@supabase/ssr`         | Every query runs as the signed-in user, so RLS applies   |
+| Auth     | `@supabase/ssr`         | Email and password; session refreshed in the proxy layer |
+| Storage  | `@supabase/supabase-js` | Three private buckets; browser uploads directly          |
 
 Three client modules, deliberately separate:
 
@@ -67,16 +67,16 @@ per user per hour.
 Captivate relies on the platform rather than shipping libraries that duplicate
 it. Each has a fallback.
 
-| API | Used for | If unavailable |
-| --- | --- | --- |
-| `BroadcastChannel` | Stage ↔ console sync | Single-window presenting still works |
-| Fullscreen | True full-screen stage | Message explaining it, stage fills the window |
-| `getDisplayMedia` | Recording the stage | Recording marked unavailable, with the reason |
-| `getUserMedia` | Microphone and camera | Declined mic aborts; declined camera downgrades to screen + mic |
-| `MediaRecorder` | Encoding | Recording marked unavailable, with the reason |
-| `canvas.captureStream` | Camera compositing | Only needed when the camera is on |
-| Screen Wake Lock | Stops the display sleeping | Screen may dim; not fatal |
-| `ResizeObserver` | Fit-to-container scaling | Required; universally available |
+| API                    | Used for                   | If unavailable                                                  |
+| ---------------------- | -------------------------- | --------------------------------------------------------------- |
+| `BroadcastChannel`     | Stage ↔ console sync       | Single-window presenting still works                            |
+| Fullscreen             | True full-screen stage     | Message explaining it, stage fills the window                   |
+| `getDisplayMedia`      | Recording the stage        | Recording marked unavailable, with the reason                   |
+| `getUserMedia`         | Microphone and camera      | Declined mic aborts; declined camera downgrades to screen + mic |
+| `MediaRecorder`        | Encoding                   | Recording marked unavailable, with the reason                   |
+| `canvas.captureStream` | Camera compositing         | Only needed when the camera is on                               |
+| Screen Wake Lock       | Stops the display sleeping | Screen may dim; not fatal                                       |
+| `ResizeObserver`       | Fit-to-container scaling   | Required; universally available                                 |
 
 ---
 

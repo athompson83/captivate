@@ -3,23 +3,17 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, Wand2 } from "lucide-react";
-import type {
-  EntranceAnimation,
-  SceneElement,
-  SceneTransition,
-  TextStyle,
-} from "@/lib/schema/presentation";
+import type { EntranceAnimation, SceneElement, TextStyle } from "@/lib/schema/presentation";
 import type { PresentationTheme } from "@/lib/schema/theme";
 import {
   editElement,
-  editSceneContent,
   updateSceneMeta,
   useCurrentScene,
   useEditor,
   useSelectedElements,
 } from "@/lib/editor/store";
 import { Input, Textarea } from "@/components/ui/input";
-import { Segmented, Tooltip } from "@/components/ui/misc";
+import { Field, Segmented, Slider, Toggle, Tooltip } from "@/components/ui/misc";
 import { AssetPicker } from "./asset-picker";
 import { cn } from "@/lib/utils/cn";
 
@@ -78,11 +72,7 @@ export function Inspector({ theme }: { theme: PresentationTheme }) {
                   </p>
                 )
               ) : (
-                <MotionControls
-                  elements={selected}
-                  sceneId={sceneId}
-                  transition={scene.content.transition}
-                />
+                <MotionControls elements={selected} sceneId={sceneId} />
               )}
             </div>
           </div>
@@ -113,15 +103,6 @@ function labelFor(element: SceneElement): string {
 }
 
 /* -------------------------------------------------------------------------- */
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-ink-3 mb-1.5 text-[10px] font-medium tracking-wider uppercase">{label}</p>
-      {children}
-    </div>
-  );
-}
 
 function StyleControls({
   element,
@@ -520,15 +501,7 @@ function TextStyleControls({
   );
 }
 
-function MotionControls({
-  elements,
-  sceneId,
-  transition,
-}: {
-  elements: SceneElement[];
-  sceneId: string;
-  transition: SceneTransition;
-}) {
+function MotionControls({ elements, sceneId }: { elements: SceneElement[]; sceneId: string }) {
   const setPreviewStep = useEditor((s) => s.setPreviewStep);
   const first = elements[0];
 
@@ -626,51 +599,6 @@ function MotionControls({
         <Wand2 className="size-3.5" aria-hidden />
         Preview on the stage
       </button>
-
-      <div className="border-line-subtle border-t pt-4">
-        <Field label="Scene transition">
-          <Segmented
-            label="Scene transition"
-            size="sm"
-            value={transition.type}
-            onChange={(v) =>
-              editSceneContent(
-                sceneId,
-                (c) => ({ ...c, transition: { ...c.transition, type: v } }),
-                {
-                  label: "Change transition",
-                },
-              )
-            }
-            options={[
-              { value: "fade", label: "Fade" },
-              { value: "push", label: "Push" },
-              { value: "dissolve", label: "Dissolve" },
-              { value: "zoom", label: "Zoom" },
-            ]}
-          />
-        </Field>
-        <div className="mt-3">
-          <Slider
-            label="Transition length"
-            value={transition.duration}
-            min={0}
-            max={1.6}
-            step={0.05}
-            format={(v) => `${v.toFixed(2)}s`}
-            onChange={(v) =>
-              editSceneContent(
-                sceneId,
-                (c) => ({ ...c, transition: { ...c.transition, duration: v } }),
-                {
-                  label: "Change transition length",
-                  coalesceKey: "transition-duration",
-                },
-              )
-            }
-          />
-        </div>
-      </div>
     </>
   );
 }
@@ -865,81 +793,6 @@ function ChartControls({
 /* -------------------------------------------------------------------------- */
 /* Small controls                                                              */
 /* -------------------------------------------------------------------------- */
-
-function Slider({
-  label,
-  value,
-  min,
-  max,
-  step,
-  format,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  format: (v: number) => string;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div>
-      <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-ink-3 text-[10px] font-medium tracking-wider uppercase">{label}</span>
-        <span className="text-ink-3 text-[11px] tabular-nums">{format(value)}</span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        aria-label={label}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--surface-inset)] accent-[var(--accent)]"
-      />
-    </div>
-  );
-}
-
-function Toggle({
-  label,
-  hint,
-  checked,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex cursor-pointer items-start gap-2.5">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          "mt-0.5 h-4 w-7 shrink-0 rounded-full p-0.5 transition-colors",
-          checked ? "bg-accent" : "bg-[var(--border-default)]",
-        )}
-      >
-        <span
-          className={cn(
-            "block size-3 rounded-full bg-white transition-transform",
-            checked && "translate-x-3",
-          )}
-        />
-      </button>
-      <span className="min-w-0">
-        <span className="text-ink block text-[12px]">{label}</span>
-        {hint && <span className="text-ink-3 mt-0.5 block text-[11px] leading-snug">{hint}</span>}
-      </span>
-    </label>
-  );
-}
 
 function ToggleIcon({
   label,

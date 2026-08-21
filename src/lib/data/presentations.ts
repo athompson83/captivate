@@ -2,7 +2,9 @@ import "server-only";
 
 import { supabaseServer } from "@/lib/supabase/server";
 import {
+  JourneyConfig,
   PRESENTATION_SCHEMA_VERSION,
+  ScenePlacement,
   parseSceneContent,
   type PresentationDocument,
   type PresentationRecord,
@@ -19,6 +21,24 @@ import type { PresentationRow, SceneRow, SectionRow } from "@/lib/supabase/datab
  * caller — supplying one would be exactly the IDOR shape RLS exists to stop.
  */
 
+/**
+ * Journey config and scene placement are validated like any other stored
+ * content: a row written by an older build, or by hand, must not be able to
+ * hand the camera a NaN and freeze a presentation mid-flight. Both fall back
+ * rather than throw, because losing the geometry is recoverable and losing the
+ * whole deck is not.
+ */
+function parseJourney(raw: unknown) {
+  const parsed = JourneyConfig.safeParse(raw ?? {});
+  return parsed.success ? parsed.data : JourneyConfig.parse({});
+}
+
+function parsePlacement(raw: unknown) {
+  if (raw === null || raw === undefined) return null;
+  const parsed = ScenePlacement.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
 export function toPresentationRecord(row: PresentationRow): PresentationRecord {
   return {
     id: row.id,
@@ -29,6 +49,7 @@ export function toPresentationRecord(row: PresentationRow): PresentationRecord {
     themeId: row.theme_id,
     themeOverrides: (row.theme_overrides as Record<string, unknown> | null) ?? null,
     aspectRatio: row.aspect_ratio,
+    journey: parseJourney(row.journey),
     tags: row.tags ?? [],
     isFavorite: row.is_favorite,
     thumbnailUrl: row.thumbnail_url,
@@ -60,6 +81,7 @@ export function toScene(row: SceneRow): { scene: Scene; recovered: boolean } {
       position: row.position,
       title: row.title,
       content,
+      placement: parsePlacement(row.placement),
       speakerNotes: row.speaker_notes,
       durationSeconds: row.duration_seconds,
       createdAt: row.created_at,

@@ -7,15 +7,18 @@ Postgres, on Supabase. Nine tables in `public`, all with row-level security.
 ## Tables
 
 ### `profiles`
+
 One row per auth user, created automatically by a trigger on `auth.users` so the
 rest of the app can assume it exists. Holds display name, avatar and an
 interface theme preference (which has no security meaning).
 
 ### `folders`
+
 Owner-scoped grouping for presentations. Deleting a folder never deletes its
 contents — `presentations.folder_id` is `ON DELETE SET NULL`.
 
 ### `presentations`
+
 The deck header: title, description, theme id, aspect ratio, tags, favourite
 flag, `schema_version`, and `deleted_at` for soft delete.
 
@@ -25,21 +28,24 @@ deleted rows, a partial index for favourites, a GIN index on `tags`, and a GIN
 full-text index on `title || description`.
 
 ### `sections`
+
 Ordered grouping of scenes within a deck. Deleting a section keeps its scenes —
 they simply become unsectioned (`ON DELETE SET NULL`).
 
 ### `scenes`
+
 Position, title, `content` (JSONB), `speaker_notes`, `duration_seconds` and
 `schema_version`.
 
 `content` holds the validated scene body: layout, background, elements,
-transition. See [ARCHITECTURE.md](ARCHITECTURE.md#why-scenes-are-jsonb) for why
+camera behaviour. See [ARCHITECTURE.md](ARCHITECTURE.md#why-scenes-are-jsonb) for why
 this is JSONB rather than a `scene_elements` table.
 
 A trigger touches the parent presentation's `updated_at` on any scene or section
 change, so "Recent" reflects real editing rather than only title renames.
 
 ### `lecture_notes`
+
 Deliberately separate from `scenes.speaker_notes`. Speaker notes are the short
 prompts a presenter glances at mid-sentence; lecture notes are the long-form
 research and teaching material behind a deck, and they outlive any particular
@@ -47,11 +53,13 @@ scene. A note may attach to a presentation, a section, a scene, or nothing.
 Bodies allow up to 500,000 characters and are full-text indexed.
 
 ### `assets`
+
 Metadata for uploaded media. The file itself lives in the `assets` storage
 bucket; `storage_path` is unique. Records dimensions and duration so the editor
 can place media at the right aspect ratio rather than guessing.
 
 ### `recordings`
+
 Metadata for captures. `status` distinguishes `uploading`, `ready`, `failed` and
 `local_only` — the last is a recording that exists only on the device that made
 it, which the library says plainly rather than showing an entry that plays
@@ -59,10 +67,35 @@ nothing. `scene_timeline` is `[{ sceneId, sceneIndex, atMs }]` and becomes
 chapter markers during playback.
 
 ### `ai_generations`
+
 An audit row per model call: kind, prompt, status, model, token counts and any
 error. It is what makes cost visible, and it is also the rate limiter's counter.
 
 ---
+
+## The world canvas
+
+Migration `0003_journey.sql` adds two columns:
+
+- `scenes.placement` — nullable `jsonb` holding `{x, y, scale, rotation}` in
+  stage units. Null means "derive from the presentation's arrangement", which is
+  what keeps every deck created before the column existed working unchanged.
+- `presentations.journey` — `jsonb`, not null, defaulted. Arrangement, travel
+  style, pace, and whether sections are established before the camera dives in.
+
+Both live on tables that already carry owner-scoped policies covering all four
+verbs, and no column-level grants are used, so they inherit that protection.
+
+Applying an arrangement rewrites every scene in a deck, so it goes through
+`captivate_set_scene_placements(uuid, jsonb)` — one statement rather than sixty
+round trips, and atomic, because a half-applied layout leaves a presentation
+scattered between two arrangements.
+
+That function is **`SECURITY INVOKER`**, unlike the ownership helpers. The
+owner-scoped RLS policy on `public.scenes` is exactly the check it needs, so it
+runs as the caller and inherits it. A `SECURITY DEFINER` function here would
+have to re-implement that check by hand, and would become a privilege-escalation
+bug the first time somebody got the re-implementation wrong.
 
 ## Row-level security
 
@@ -86,11 +119,11 @@ case needs no client input at all.
 
 ## Storage
 
-| Bucket | Public | Limit | Types |
-| --- | --- | --- | --- |
-| `assets` | No | 50 MB | Images, audio, video |
-| `recordings` | No | 2 GB | WebM, MP4, Matroska |
-| `thumbnails` | No | 2 MB | PNG, JPEG, WebP |
+| Bucket       | Public | Limit | Types                |
+| ------------ | ------ | ----- | -------------------- |
+| `assets`     | No     | 50 MB | Images, audio, video |
+| `recordings` | No     | 2 GB  | WebM, MP4, Matroska  |
+| `thumbnails` | No     | 2 MB  | PNG, JPEG, WebP      |
 
 Object keys are always `<user_id>/<uuid>.<ext>`. Policies compare
 `(storage.foldername(name))[1]` to `auth.uid()`, so the leading path segment is
@@ -102,10 +135,10 @@ the authoritative owner and a client cannot write into someone else's prefix.
 
 Append-only, applied in filename order.
 
-| File | Contents |
-| --- | --- |
+| File                      | Contents                                  |
+| ------------------------- | ----------------------------------------- |
 | `0001_captivate_core.sql` | Tables, indexes, triggers, functions, RLS |
-| `0002_storage.sql` | Buckets and object policies |
+| `0002_storage.sql`        | Buckets and object policies               |
 
 Everything is idempotent (`create table if not exists`, `drop policy if
 exists`), so re-running is safe.

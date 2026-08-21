@@ -186,6 +186,7 @@ export const AnnotationLayer = memo(function AnnotationLayer({
     >
       <svg
         ref={svgRef}
+        data-annotations
         viewBox="0 0 1 1"
         preserveAspectRatio="none"
         className="absolute inset-0 size-full"

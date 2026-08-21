@@ -89,12 +89,12 @@ export function SceneNavigator({
         sectionId: anchor?.sectionId ?? null,
         position: result.data.position,
         title: "",
+        placement: null,
         content: {
           version: 1,
           layout: "custom",
           background: { kind: "theme" },
           elements: [],
-          transition: { type: "fade", duration: 0.6, direction: "left" },
           themeOverride: null,
         },
         speakerNotes: "",

@@ -57,7 +57,7 @@ export function RecordingsLibrary({
       {recordings.length === 0 ? (
         <div className="border-line bg-raised/40 rounded-[var(--radius-lg)] border border-dashed">
           <EmptyState
-            icon={Video}
+            icon={<Video />}
             title="No recordings yet"
             description="Open a presentation, press Present, then Record. Captivate captures the stage with your narration and, optionally, your camera."
             action={

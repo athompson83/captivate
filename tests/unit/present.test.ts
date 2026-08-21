@@ -5,7 +5,7 @@ import {
   emptyAnnotations,
   channelName,
 } from "@/lib/present/protocol";
-import { buildStepCount, entranceFrom, entranceTo, transitionVariants } from "@/lib/present/motion";
+import { buildStepCount, entranceFrom, entranceTo } from "@/lib/present/motion";
 import { fitScale, pointerToStage, stageSize, stageRem } from "@/lib/present/stage";
 import { createSession, plannedDuration } from "@/lib/present/session";
 import { composeScene } from "@/lib/editor/layouts";
@@ -23,8 +23,31 @@ describe("present message protocol", () => {
       sceneEnteredAt: 1_700_000_100_000,
       paused: false,
       fullscreen: true,
+      overview: false,
+      establishing: null,
     };
     expect(PresentMessage.safeParse(message).success).toBe(true);
+  });
+
+  it("still accepts a state message from a build that predates the camera", () => {
+    // Deploying mid-presentation must not silently desync the two windows, so
+    // additive camera fields default instead of rejecting the whole message.
+    const parsed = PresentMessage.safeParse({
+      type: "state",
+      sceneIndex: 0,
+      step: 0,
+      stepsInScene: 1,
+      totalScenes: 3,
+      startedAt: null,
+      sceneEnteredAt: 1_700_000_000_000,
+      paused: false,
+      fullscreen: false,
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success && parsed.data.type === "state") {
+      expect(parsed.data.overview).toBe(false);
+      expect(parsed.data.establishing).toBeNull();
+    }
   });
 
   it("rejects a message from an older or unknown protocol", () => {
@@ -176,21 +199,41 @@ describe("motion presets", () => {
       expect(entranceTo(preset).opacity, preset).toBe(1);
     }
   });
+});
 
-  it("collapses transitions to near-instant under reduced motion", () => {
-    const variants = transitionVariants({ type: "zoom", duration: 1.2, direction: "left" }, true);
-    expect(variants.duration).toBeLessThan(0.01);
+describe("the cross-window channel", () => {
+  it("can be attached, torn down and attached again", () => {
+    // React mounts, unmounts and mounts again — in development for every
+    // component, and for real whenever a presenter revisits the route. A
+    // channel that could only be opened once left the stage broadcasting into
+    // a closed pipe, and the console reported "no stage" for the rest of the
+    // presentation.
+    const session = createSession({
+      presentationId: "00000000-0000-4000-8000-000000000abc",
+      scenes: [],
+      role: "stage",
+    });
+
+    const first = session.attach();
+    expect(session.channel.connected).toBe(true);
+    first();
+    expect(session.channel.connected).toBe(false);
+
+    const second = session.attach();
+    expect(session.channel.connected).toBe(true);
+    second();
   });
 
-  it("honours the authored duration when motion is allowed", () => {
-    const variants = transitionVariants({ type: "push", duration: 0.8, direction: "left" }, false);
-    expect(variants.duration).toBe(0.8);
-  });
-
-  it("pushes in the opposite direction on exit", () => {
-    const variants = transitionVariants({ type: "push", duration: 0.6, direction: "left" }, false);
-    expect(variants.initial).toHaveProperty("x", "100%");
-    expect(variants.exit).toHaveProperty("x", "-100%");
+  it("keeps reporting support after being closed", () => {
+    const session = createSession({
+      presentationId: "00000000-0000-4000-8000-000000000abd",
+      scenes: [],
+      role: "console",
+    });
+    const detach = session.attach();
+    detach();
+    // Support is a property of the browser, not of the current connection.
+    expect(session.channel.available).toBe(true);
   });
 });
 

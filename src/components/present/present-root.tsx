@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import type { PresentationRecord, Scene, Section } from "@/lib/schema/presentation";
 import { getTheme } from "@/lib/schema/theme";
-import { transitionVariants, STAGE_EASE } from "@/lib/present/motion";
 import { usePresentSession } from "@/lib/present/session";
 import { useFullscreen, useWakeLock } from "@/lib/present/fullscreen";
+import { resolvePlacements } from "@/lib/present/arrange";
+import { stageSize } from "@/lib/present/stage";
 import { PRESENTER_COLORS, type PresenterTool } from "@/lib/present/protocol";
-import { Stage } from "@/components/stage/stage";
+import { World, type Focus } from "@/components/stage/world";
 import { AnnotationLayer } from "./annotation-layer";
 import { PresenterBar } from "./presenter-bar";
 import { RecordingController } from "@/components/record/recording-controller";
@@ -20,6 +21,10 @@ import { RecordingController } from "@/components/record/recording-controller";
  * to speaker notes, no navigator, no timers — those exist only in the console,
  * which is a different route. Presenter-only material therefore cannot leak
  * onto a projector through a state bug, because it was never loaded here.
+ *
+ * What the audience sees is a camera over the whole presentation, not a slide.
+ * Every scene is on the canvas at once and the camera travels between them, so
+ * the room can see where an idea sits in relation to everything around it.
  *
  * When presenting on one screen, a thin auto-hiding bar appears for the
  * presenter's own controls; it is suppressed entirely in audience mode.
@@ -36,14 +41,21 @@ export function PresentRoot({
   audienceOnly: boolean;
 }) {
   const theme = getTheme(presentation.themeId);
-  const reduced = useReducedMotion();
   const containerRef = useRef<HTMLDivElement>(null);
+  const journey = presentation.journey;
 
   const session = usePresentSession({
     presentationId: presentation.id,
     scenes,
     role: "stage",
+    establishSections: journey.establishSections,
   });
+
+  const stage = stageSize(presentation.aspectRatio);
+  const placements = useMemo(
+    () => resolvePlacements(scenes, journey, stage),
+    [scenes, journey, stage],
+  );
 
   const fullscreen = useFullscreen(containerRef);
   useWakeLock(true);
@@ -54,6 +66,19 @@ export function PresentRoot({
   const [barVisible, setBarVisible] = useState(!audienceOnly);
   /** Bumped on any presenter activity to restart the auto-hide countdown. */
   const [activity, setActivity] = useState(0);
+
+  /**
+   * Where the camera should be.
+   *
+   * Pulled back over everything, held on the section the presentation has just
+   * entered, or square on the current scene. The session owns which of those is
+   * true; this only turns it into a framing.
+   */
+  const focus: Focus = session.overview
+    ? { kind: "world" }
+    : session.establishing
+      ? { kind: "section", sectionId: session.establishing }
+      : { kind: "scene", index: session.sceneIndex };
 
   /**
    * The presenter bar is the presenter's, not the audience's: it appears on
@@ -104,6 +129,12 @@ export function PresentRoot({
           e.preventDefault();
           session.last();
           break;
+        case "Tab":
+        case "o":
+        case "O":
+          e.preventDefault();
+          session.toggleOverview();
+          break;
         case "f":
         case "F":
           e.preventDefault();
@@ -141,7 +172,10 @@ export function PresentRoot({
           session.clearScene();
           break;
         case "Escape":
-          if (tool !== "none") {
+          if (session.overview) {
+            e.preventDefault();
+            session.toggleOverview();
+          } else if (tool !== "none") {
             e.preventDefault();
             setTool("none");
           }
@@ -163,11 +197,6 @@ export function PresentRoot({
     return () => window.removeEventListener("keydown", onKey);
   }, [audienceOnly, fullscreen, scenes.length, session, tool]);
 
-  const variants = transitionVariants(
-    session.scene?.content.transition ?? { type: "fade", duration: 0.6, direction: "left" },
-    Boolean(reduced),
-  );
-
   const advanceOnClick = (e: React.MouseEvent) => {
     if (tool !== "none" || audienceOnly) return;
     // Click on the right two-thirds advances, left third goes back — the same
@@ -184,29 +213,24 @@ export function PresentRoot({
       onPointerMove={showBar}
       onClick={advanceOnClick}
     >
-      <AnimatePresence mode="sync" initial={false}>
-        <motion.div
-          key={session.sceneIndex}
-          initial={variants.initial}
-          animate={variants.animate}
-          exit={variants.exit}
-          transition={{ duration: variants.duration, ease: STAGE_EASE }}
-          className="absolute inset-0"
-        >
-          {session.scene && (
-            <Stage
-              content={session.scene.content}
-              theme={theme}
-              aspect={presentation.aspectRatio}
-              play
-              step={session.step}
-              className="size-full"
-            />
-          )}
-        </motion.div>
-      </AnimatePresence>
+      <World
+        scenes={scenes}
+        placements={placements}
+        theme={theme}
+        aspect={presentation.aspectRatio}
+        focus={focus}
+        activeIndex={session.sceneIndex}
+        step={session.step}
+        play
+        travel={journey.travel}
+        pace={journey.pace}
+        depth={journey.depth}
+        showPath={journey.showPath && session.overview}
+        className="absolute inset-0"
+        onSceneSelect={session.overview && !audienceOnly ? session.goto : undefined}
+      />
 
-      {/* Annotations sit above the scene and below the presenter chrome. */}
+      {/* Annotations sit above the world and below the presenter chrome. */}
       <AnnotationLayer
         annotations={session.annotations}
         tool={audienceOnly ? "none" : tool}

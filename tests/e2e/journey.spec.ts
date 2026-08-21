@@ -29,6 +29,23 @@ async function signIn(page: Page) {
   await page.waitForURL(/\/home/, { timeout: 30_000 });
 }
 
+/**
+ * Creates a multi-scene deck from the lecture template.
+ *
+ * The camera tests need somewhere to fly to, and the blank deck is one scene.
+ */
+async function createLectureDeck(page: Page): Promise<string> {
+  await page.goto("/templates");
+  await page
+    .getByRole("button", { name: /Use this/i })
+    .first()
+    .click();
+  // Choosing a template opens a dialog to name the deck before it is created.
+  await page.getByRole("button", { name: /Create presentation/i }).click();
+  await page.waitForURL(/\/edit\//, { timeout: 30_000 });
+  return page.url();
+}
+
 /** Creates a deck from the blank template and returns its editor URL. */
 async function createDeck(page: Page, title: string): Promise<string> {
   await page.goto("/new");
@@ -156,6 +173,94 @@ test.describe("authoring and presenting", () => {
     expect(initial).toBeTruthy();
   });
 
+  test("flies the camera between scenes rather than cutting", async ({ page }) => {
+    await signIn(page);
+    const deck = await createLectureDeck(page);
+    await page.goto(deck.replace("/edit/", "/present/"));
+    // The world layer is a zero-size origin box, so it is attached, not visible.
+    await page.waitForSelector("[data-world]", { state: "attached" });
+    await page.waitForSelector("[data-stage]");
+
+    const worldTransform = () =>
+      page.locator("[data-world]").evaluate((node) => (node as HTMLElement).style.transform);
+
+    const before = await worldTransform();
+    await page.keyboard.press("ArrowRight");
+
+    // Sampled while the flight should still be in the air. If the camera cut
+    // straight there, or froze on the first frame, these would match.
+    await page.waitForTimeout(220);
+    const during = await worldTransform();
+
+    await page.waitForTimeout(2500);
+    const after = await worldTransform();
+
+    expect(during).not.toBe(before);
+    expect(after).not.toBe(during);
+    expect(after).toContain("translate(");
+  });
+
+  test("pulls the camera back over the whole journey", async ({ page }) => {
+    await signIn(page);
+    const deck = await createLectureDeck(page);
+    await page.goto(deck.replace("/edit/", "/present/"));
+    await page.waitForSelector("[data-world]", { state: "attached" });
+    await page.waitForSelector("[data-stage]");
+
+    const scale = async () => {
+      const transform = await page
+        .locator("[data-world]")
+        .evaluate((node) => (node as HTMLElement).style.transform);
+      return Number(transform.match(/scale\(([\d.eE-]+)\)/)?.[1] ?? "0");
+    };
+
+    const close = await scale();
+    await page.keyboard.press("o");
+    await page.waitForTimeout(3000);
+    const pulledBack = await scale();
+
+    // Pulled back means fewer screen pixels per world unit.
+    expect(pulledBack).toBeLessThan(close);
+
+    // The presenter bar auto-hides; a pointer move brings it back so its state
+    // can be read. That it hides at all is the point of it.
+    await page.mouse.move(700, 400);
+    await expect(page.getByRole("button", { name: /See the whole journey/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    // And it comes back down again.
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(3000);
+    expect(await scale()).toBeGreaterThan(pulledBack);
+  });
+
+  test("arranges the world from the journey map", async ({ page }) => {
+    await signIn(page);
+    const deck = await createLectureDeck(page);
+    await page.goto(deck);
+    await page.waitForSelector("[data-stage]");
+
+    await page.getByRole("radio", { name: /Journey/i }).click();
+    await expect(page.getByRole("button", { name: /^Spiral/ })).toBeVisible();
+
+    const mapTransform = () =>
+      page
+        .locator("[data-map-scene]")
+        .first()
+        .evaluate((node) => {
+          const box = (node as HTMLElement).getBoundingClientRect();
+          return `${Math.round(box.x)},${Math.round(box.y)}`;
+        });
+
+    const before = await mapTransform();
+    await page.getByRole("button", { name: /^Spiral/ }).click();
+    await page.waitForTimeout(1500);
+
+    expect(await mapTransform()).not.toBe(before);
+  });
+
   test("laser, highlight and drawing tools activate and clear", async ({ page }) => {
     await signIn(page);
     await page.goto(editorUrl.replace("/edit/", "/present/"));
@@ -184,10 +289,13 @@ test.describe("authoring and presenting", () => {
     await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.6, { steps: 12 });
     await page.mouse.up();
 
-    await expect(page.locator("svg path[stroke]")).toHaveCount(1, { timeout: 5000 });
+    // Scoped to the annotation layer: the world has other scenes on it, and
+    // their icons are strokes too.
+    const ink = page.locator("[data-annotations] path[stroke]");
+    await expect(ink).toHaveCount(1, { timeout: 5000 });
 
     await page.keyboard.press("c");
-    await expect(page.locator("svg path[stroke]")).toHaveCount(0);
+    await expect(ink).toHaveCount(0);
   });
 
   test("blanking the screen hides the content", async ({ page }) => {

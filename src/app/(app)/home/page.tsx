@@ -147,7 +147,7 @@ export default async function HomePage() {
         {recent.length === 0 ? (
           <div className="border-line bg-raised/40 rounded-[var(--radius-lg)] border border-dashed">
             <EmptyState
-              icon={FileText}
+              icon={<FileText />}
               title="No presentations yet"
               description="Create one from a prompt, start from a template, or open a blank stage. Everything you make lives here."
               action={

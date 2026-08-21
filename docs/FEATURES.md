@@ -8,14 +8,14 @@ a test. **Partial** means usable but narrower than the label suggests.
 
 ## Accounts
 
-| Feature | Status | Notes |
-| --- | --- | --- |
-| Sign up, sign in, sign out | Implemented | Email and password |
-| Password recovery | Implemented | Email link → `/update-password` |
-| Session persistence | Implemented | Refreshed in the proxy layer on every navigation |
-| Profile and display name | Implemented | Created automatically by a database trigger |
-| Interface theme preference | Implemented | System, light or dark |
-| OAuth providers | Deferred | Email is enough for an MVP |
+| Feature                    | Status      | Notes                                            |
+| -------------------------- | ----------- | ------------------------------------------------ |
+| Sign up, sign in, sign out | Implemented | Email and password                               |
+| Password recovery          | Implemented | Email link → `/update-password`                  |
+| Session persistence        | Implemented | Refreshed in the proxy layer on every navigation |
+| Profile and display name   | Implemented | Created automatically by a database trigger      |
+| Interface theme preference | Implemented | System, light or dark                            |
+| OAuth providers            | Deferred    | Email is enough for an MVP                       |
 
 Sign-in errors are deliberately generic: distinguishing "no such user" from
 "wrong password" would let anyone enumerate registered addresses.
@@ -24,50 +24,50 @@ Sign-in errors are deliberately generic: distinguishing "no such user" from
 
 ## Presentations
 
-| Feature | Status | Notes |
-| --- | --- | --- |
-| Create, rename, duplicate | Implemented | Duplicate copies sections and scenes with remapped ids |
-| Delete and restore | Implemented | Soft delete; "Recently deleted" with permanent purge |
-| Autosave with visible state | Implemented | Saving / Saved / Couldn't save, with last-saved time |
-| Open, reopen, survive restart | Implemented | Covered by an end-to-end test |
-| Live thumbnails | Implemented | Rendered by the real stage engine, so never stale |
-| Search | Implemented | Titles, descriptions and note bodies |
-| Folders, tags, favourites | Implemented | Filters live in the URL, so a view is shareable |
-| Sort | Implemented | Last edited, last opened, created, title |
+| Feature                       | Status      | Notes                                                  |
+| ----------------------------- | ----------- | ------------------------------------------------------ |
+| Create, rename, duplicate     | Implemented | Duplicate copies sections and scenes with remapped ids |
+| Delete and restore            | Implemented | Soft delete; "Recently deleted" with permanent purge   |
+| Autosave with visible state   | Implemented | Saving / Saved / Couldn't save, with last-saved time   |
+| Open, reopen, survive restart | Implemented | Covered by an end-to-end test                          |
+| Live thumbnails               | Implemented | Rendered by the real stage engine, so never stale      |
+| Search                        | Implemented | Titles, descriptions and note bodies                   |
+| Folders, tags, favourites     | Implemented | Filters live in the URL, so a view is shareable        |
+| Sort                          | Implemented | Last edited, last opened, created, title               |
 
 ---
 
 ## Creating
 
-| Path | Status | Notes |
-| --- | --- | --- |
-| From a template | Implemented | Six curated structures |
-| Blank | Implemented | One title scene, not an empty void |
-| With AI | Implemented | Prompt → editable outline → generated deck |
-| From an existing deck | Implemented | Duplicate |
-| Import PowerPoint or Keynote | Deferred | |
+| Path                         | Status      | Notes                                      |
+| ---------------------------- | ----------- | ------------------------------------------ |
+| From a template              | Implemented | Six curated structures                     |
+| Blank                        | Implemented | One title scene, not an empty void         |
+| With AI                      | Implemented | Prompt → editable outline → generated deck |
+| From an existing deck        | Implemented | Duplicate                                  |
+| Import PowerPoint or Keynote | Deferred    |                                            |
 
 ---
 
 ## Editor
 
-| Feature | Status | Notes |
-| --- | --- | --- |
-| Add, delete, duplicate, reorder scenes | Implemented | Drag to reorder |
-| Insert between scenes | Implemented | Hover affordance in the gap, plus a scene menu |
-| Sections | Implemented | Add, rename, delete, reorder; deleting keeps the scenes |
-| Undo and redo | Implemented | Typing coalesces into one entry per burst |
-| Copy, cut, paste, duplicate | Implemented | In-memory clipboard, no permission prompt |
-| Multi-select | Implemented | Shift-click and marquee |
-| Drag and resize | Implemented | Eight handles; shift preserves aspect |
-| Snapping and guides | Implemented | Safe area, stage centre, other elements' edges; Alt suspends |
-| Align and distribute | Implemented | A single selection aligns to the safe area |
-| Z-order, lock, hide | Implemented | |
-| Inline text editing | Implemented | Plain-text only, so pasted markup cannot enter the document |
-| Contextual inspector | Implemented | Appears only with a selection |
-| Layout picker | Implemented | Re-flows content into a designed composition, keeping the text |
-| Keyboard shortcuts | Implemented | Listed in Settings and in the editor |
-| Real-time collaboration | Deferred | The schema does not preclude it |
+| Feature                                | Status      | Notes                                                          |
+| -------------------------------------- | ----------- | -------------------------------------------------------------- |
+| Add, delete, duplicate, reorder scenes | Implemented | Drag to reorder                                                |
+| Insert between scenes                  | Implemented | Hover affordance in the gap, plus a scene menu                 |
+| Sections                               | Implemented | Add, rename, delete, reorder; deleting keeps the scenes        |
+| Undo and redo                          | Implemented | Typing coalesces into one entry per burst                      |
+| Copy, cut, paste, duplicate            | Implemented | In-memory clipboard, no permission prompt                      |
+| Multi-select                           | Implemented | Shift-click and marquee                                        |
+| Drag and resize                        | Implemented | Eight handles; shift preserves aspect                          |
+| Snapping and guides                    | Implemented | Safe area, stage centre, other elements' edges; Alt suspends   |
+| Align and distribute                   | Implemented | A single selection aligns to the safe area                     |
+| Z-order, lock, hide                    | Implemented |                                                                |
+| Inline text editing                    | Implemented | Plain-text only, so pasted markup cannot enter the document    |
+| Contextual inspector                   | Implemented | Appears only with a selection                                  |
+| Layout picker                          | Implemented | Re-flows content into a designed composition, keeping the text |
+| Keyboard shortcuts                     | Implemented | Listed in Settings and in the editor                           |
+| Real-time collaboration                | Deferred    | The schema does not preclude it                                |
 
 ### Elements
 
@@ -82,17 +82,17 @@ restricted to http and https.
 
 ## Media
 
-| Feature | Status | Notes |
-| --- | --- | --- |
-| Upload images, audio, video | Implemented | Direct to storage, so no function body limit |
-| Drag and drop | Implemented | Anywhere on the assets page, or into the picker |
-| MIME and size validation | Implemented | Client and server, plus a bucket-level allowlist |
-| Media library and reuse | Implemented | Filter by type; reuse across presentations |
-| Alt text | Implemented | Prominent, with a count of images still missing it |
-| Fit, focal point, scrim, radius | Implemented | Drag the focal point directly |
-| Replace media | Implemented | Upload, library or URL |
-| Cropping beyond focal point | Partial | Focal point and fit only; no free crop |
-| AI image generation | Deferred | Captivate suggests what a picture should show; generating one costs money and never happens automatically |
+| Feature                         | Status      | Notes                                                                                                     |
+| ------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------- |
+| Upload images, audio, video     | Implemented | Direct to storage, so no function body limit                                                              |
+| Drag and drop                   | Implemented | Anywhere on the assets page, or into the picker                                                           |
+| MIME and size validation        | Implemented | Client and server, plus a bucket-level allowlist                                                          |
+| Media library and reuse         | Implemented | Filter by type; reuse across presentations                                                                |
+| Alt text                        | Implemented | Prominent, with a count of images still missing it                                                        |
+| Fit, focal point, scrim, radius | Implemented | Drag the focal point directly                                                                             |
+| Replace media                   | Implemented | Upload, library or URL                                                                                    |
+| Cropping beyond focal point     | Partial     | Focal point and fit only; no free crop                                                                    |
+| AI image generation             | Deferred    | Captivate suggests what a picture should show; generating one costs money and never happens automatically |
 
 ---
 
@@ -110,7 +110,7 @@ are **partial** (the field exists and is stored; no UI exposes it yet).
 
 ## Motion
 
-Nine entrance presets, four emphasis options, six scene transitions, per-element
+Nine entrance presets, four emphasis options, per-element
 delay and duration, build-on-advance, and staggered lists. All respect
 `prefers-reduced-motion`. A full timeline editor is **deferred** — reliable
 transitions first.
@@ -119,30 +119,33 @@ transitions first.
 
 ## Notes
 
-| Feature | Status | Notes |
-| --- | --- | --- |
-| Per-scene speaker notes | Implemented | Private; shown in the console only |
-| AI-drafted speaker notes | Implemented | Reads the scene from the database, not from the request |
-| Lecture notes | Implemented | Separate table, full-page workspace, up to 500,000 characters |
-| Attach a note to a scene | Implemented | Surfaces in the console on that scene |
-| Search notes | Implemented | In the workspace and in the command palette |
-| Rehearsal timing per scene | Implemented | Drives the console's pacing indicator |
+| Feature                    | Status      | Notes                                                         |
+| -------------------------- | ----------- | ------------------------------------------------------------- |
+| Per-scene speaker notes    | Implemented | Private; shown in the console only                            |
+| AI-drafted speaker notes   | Implemented | Reads the scene from the database, not from the request       |
+| Lecture notes              | Implemented | Separate table, full-page workspace, up to 500,000 characters |
+| Attach a note to a scene   | Implemented | Surfaces in the console on that scene                         |
+| Search notes               | Implemented | In the workspace and in the command palette                   |
+| Rehearsal timing per scene | Implemented | Drives the console's pacing indicator                         |
 
 ---
 
 ## Presenting
 
-| Feature | Status | Notes |
-| --- | --- | --- |
-| Full-screen stage | Implemented | Fullscreen API, with an honest message when refused |
-| No editor chrome | Implemented | A separate route, asserted by a test |
-| Keyboard and click navigation | Implemented | Arrows, space, page keys, digits; click right/left thirds |
-| Element builds and staggered lists | Implemented | Advance walks builds before changing scene |
-| Scene transitions | Implemented | Fade, push, slide, dissolve, zoom |
-| Scene jumper | Implemented | Searches titles *and* on-scene text |
-| Blank the screen | Implemented | `B`; any advance restores it |
-| Wake lock | Implemented | Where the browser supports it |
-| Progress indicator | Implemented | A hairline the audience reads as pacing |
+| Feature                            | Status      | Notes                                                          |
+| ---------------------------------- | ----------- | -------------------------------------------------------------- |
+| Full-screen stage                  | Implemented | Fullscreen API, with an honest message when refused            |
+| No editor chrome                   | Implemented | A separate route, asserted by a test                           |
+| Keyboard and click navigation      | Implemented | Arrows, space, page keys, digits; click right/left thirds      |
+| Element builds and staggered lists | Implemented | Advance walks builds before changing scene                     |
+| Camera travel                      | Implemented | Fly, dissolve or cut — set once for the whole presentation     |
+| Spatial arrangements               | Implemented | Reel, grid, timeline, spiral, dive, constellation              |
+| Journey map                        | Implemented | Drag scenes in world space; drop one inside another to nest it |
+| Overview                           | Implemented | `O` pulls back over the whole world and draws the route        |
+| Scene jumper                       | Implemented | Searches titles _and_ on-scene text                            |
+| Blank the screen                   | Implemented | `B`; any advance restores it                                   |
+| Wake lock                          | Implemented | Where the browser supports it                                  |
+| Progress indicator                 | Implemented | A hairline the audience reads as pacing                        |
 
 ### Presenter console
 
@@ -174,22 +177,22 @@ window to the projector — one instruction, no experimental API.
 
 ## Recording
 
-| Feature | Status | Notes |
-| --- | --- | --- |
-| Screen capture | Implemented | `getDisplayMedia`; the user picks the tab |
-| Microphone with device selection | Implemented | Echo cancellation and noise suppression on |
-| Camera picture-in-picture | Implemented | Composited onto a canvas, so it is *in* the file |
-| Camera corner, size, shape | Implemented | Four corners, three sizes, circle or rounded |
-| Pause and resume | Implemented | Where `MediaRecorder.pause` exists |
-| Scene timeline | Implemented | Becomes chapter markers in playback |
-| Local download | Implemented | Offered the instant recording stops, before any upload |
-| Upload to library | Implemented | Private bucket; playback through a signed URL |
-| Honest failure | Implemented | A failed upload is marked `local_only` and says so |
-| Format | Implemented | Negotiated against the browser: MP4 on Safari, WebM on Chromium |
-| Server-side transcoding | Deferred | Would need a paid worker; the download is the practical path |
-| Trimming and editing | Deferred | |
+| Feature                          | Status      | Notes                                                           |
+| -------------------------------- | ----------- | --------------------------------------------------------------- |
+| Screen capture                   | Implemented | `getDisplayMedia`; the user picks the tab                       |
+| Microphone with device selection | Implemented | Echo cancellation and noise suppression on                      |
+| Camera picture-in-picture        | Implemented | Composited onto a canvas, so it is _in_ the file                |
+| Camera corner, size, shape       | Implemented | Four corners, three sizes, circle or rounded                    |
+| Pause and resume                 | Implemented | Where `MediaRecorder.pause` exists                              |
+| Scene timeline                   | Implemented | Becomes chapter markers in playback                             |
+| Local download                   | Implemented | Offered the instant recording stops, before any upload          |
+| Upload to library                | Implemented | Private bucket; playback through a signed URL                   |
+| Honest failure                   | Implemented | A failed upload is marked `local_only` and says so              |
+| Format                           | Implemented | Negotiated against the browser: MP4 on Safari, WebM on Chromium |
+| Server-side transcoding          | Deferred    | Would need a paid worker; the download is the practical path    |
+| Trimming and editing             | Deferred    |                                                                 |
 
-Annotations, transitions and video all appear in the recording, because the
+Annotations, camera flights and video all appear in the recording, because the
 capture is of the rendered tab.
 
 See [RECORDING.md](RECORDING.md) for what browsers genuinely cannot do.
@@ -198,16 +201,16 @@ See [RECORDING.md](RECORDING.md) for what browsers genuinely cannot do.
 
 ## AI
 
-| Capability | Status |
-| --- | --- |
-| Prompt → outline | Implemented |
-| Outline → full presentation | Implemented |
-| Generate a single scene | Implemented |
-| Speaker notes: draft and improve | Implemented |
-| Rewrite, shorten, expand, simplify, change tone, alternatives | Implemented |
-| Suggest visuals | Implemented |
-| Improve flow, suggest transitions | Partial — schema and prompts exist; no UI surfaces them yet |
-| Generate images | Deferred — cost |
+| Capability                                                    | Status                                                      |
+| ------------------------------------------------------------- | ----------------------------------------------------------- |
+| Prompt → outline                                              | Implemented                                                 |
+| Outline → full presentation                                   | Implemented                                                 |
+| Generate a single scene                                       | Implemented                                                 |
+| Speaker notes: draft and improve                              | Implemented                                                 |
+| Rewrite, shorten, expand, simplify, change tone, alternatives | Implemented                                                 |
+| Suggest visuals                                               | Implemented                                                 |
+| Improve flow, suggest transitions                             | Partial — schema and prompts exist; no UI surfaces them yet |
+| Generate images                                               | Deferred — cost                                             |
 
 Without an API key, AI routes report "not configured" and a deterministic
 generator produces an editable structural draft, labelled as exactly that.

@@ -42,6 +42,22 @@ export interface SessionState {
   paused: boolean;
   /** Audience sees black; used to take attention off the screen. */
   blanked: boolean;
+  /**
+   * The camera is pulled back over the whole world.
+   *
+   * This is a camera position, not a different mode: the presentation is still
+   * live, the current scene is still current, and advancing from here flies
+   * back down to it.
+   */
+  overview: boolean;
+  /**
+   * The section the camera is holding on before diving into its first scene.
+   *
+   * Crossing into a new part of the argument, the camera pulls back far enough
+   * to show the whole section and waits a beat. That pause is the difference
+   * between "here is the next slide" and "here is where we are going next".
+   */
+  establishing: string | null;
 
   annotationsByScene: Record<number, SceneAnnotations>;
   pointer: { x: number; y: number } | null;
@@ -56,7 +72,15 @@ export interface SessionState {
 }
 
 export type SessionCommand =
-  "next" | "prev" | "goto" | "first" | "last" | "toggle-pause" | "reset-timer" | "blank";
+  | "next"
+  | "prev"
+  | "goto"
+  | "first"
+  | "last"
+  | "toggle-pause"
+  | "reset-timer"
+  | "blank"
+  | "overview";
 
 function initialState(scenes: Scene[], stepCounts: number[]): SessionState {
   return {
@@ -68,6 +92,8 @@ function initialState(scenes: Scene[], stepCounts: number[]): SessionState {
     sceneEnteredAt: Date.now(),
     paused: false,
     blanked: false,
+    overview: false,
+    establishing: null,
     annotationsByScene: {},
     pointer: null,
     pointerColor: "#F0B858",
@@ -92,14 +118,19 @@ export interface SessionApi {
   ) => void;
 }
 
+/** How long the camera holds on a section before diving into it. */
+const ESTABLISH_MS = 1400;
+
 export function createSession({
   presentationId,
   scenes,
   role,
+  establishSections = true,
 }: {
   presentationId: string;
   scenes: Scene[];
   role: SessionRole;
+  establishSections?: boolean;
 }): SessionApi {
   const stepCounts = scenes.map((s) => buildStepCount(s.content.elements));
   const store = createStore<SessionState>(() => initialState(scenes, stepCounts));
@@ -119,6 +150,8 @@ export function createSession({
       sceneEnteredAt: state.sceneEnteredAt,
       paused: state.paused,
       fullscreen: isFullscreen(),
+      overview: state.overview,
+      establishing: state.establishing,
     });
   };
 
@@ -142,6 +175,7 @@ export function createSession({
         startedAt: current.startedAt ?? Date.now(),
         sceneEnteredAt: clamped === current.sceneIndex ? current.sceneEnteredAt : Date.now(),
         blanked: false,
+        overview: false,
       };
     });
 
@@ -154,9 +188,10 @@ export function createSession({
           step: current.step + 1,
           startedAt: current.startedAt ?? Date.now(),
           blanked: false,
+          overview: false,
         };
       }
-      if (current.sceneIndex >= scenes.length - 1) return { blanked: false };
+      if (current.sceneIndex >= scenes.length - 1) return { blanked: false, overview: false };
 
       const nextIndex = current.sceneIndex + 1;
       return {
@@ -166,13 +201,14 @@ export function createSession({
         sceneEnteredAt: Date.now(),
         startedAt: current.startedAt ?? Date.now(),
         blanked: false,
+        overview: false,
       };
     });
 
   const prev = () =>
     update((current) => {
-      if (current.step > 0) return { step: current.step - 1, blanked: false };
-      if (current.sceneIndex === 0) return { blanked: false };
+      if (current.step > 0) return { step: current.step - 1, blanked: false, overview: false };
+      if (current.sceneIndex === 0) return { blanked: false, overview: false };
 
       const prevIndex = current.sceneIndex - 1;
       const steps = stepCounts[prevIndex] ?? 1;
@@ -183,25 +219,55 @@ export function createSession({
         stepsInScene: steps,
         sceneEnteredAt: Date.now(),
         blanked: false,
+        overview: false,
       };
     });
+
+  let establishTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Hold on a section when the presentation crosses into it.
+   *
+   * Lives here rather than in a component because it is a timed transition of
+   * session state, and because the console needs to know about it too — it is
+   * broadcast with everything else rather than recomputed on the other side.
+   */
+  const maybeEstablish = (before: number, after: number) => {
+    if (!establishSections || before === after) return;
+    const section = scenes[after]?.sectionId ?? null;
+    if (!section || section === (scenes[before]?.sectionId ?? null)) return;
+
+    if (establishTimer) clearTimeout(establishTimer);
+    update(() => ({ establishing: section }));
+    establishTimer = setTimeout(() => {
+      establishTimer = null;
+      update(() => ({ establishing: null }));
+    }, ESTABLISH_MS);
+  };
+
+  /** Runs a move, then decides whether it crossed into new territory. */
+  const navigate = (run: () => void) => {
+    const before = store.getState().sceneIndex;
+    run();
+    maybeEstablish(before, store.getState().sceneIndex);
+  };
 
   const apply = (command: SessionCommand, index?: number) => {
     switch (command) {
       case "next":
-        next();
+        navigate(next);
         break;
       case "prev":
-        prev();
+        navigate(prev);
         break;
       case "goto":
-        if (typeof index === "number") goTo(index);
+        if (typeof index === "number") navigate(() => goTo(index));
         break;
       case "first":
-        goTo(0);
+        navigate(() => goTo(0));
         break;
       case "last":
-        goTo(scenes.length - 1);
+        navigate(() => goTo(scenes.length - 1));
         break;
       case "toggle-pause":
         update((c) => ({ paused: !c.paused }));
@@ -211,6 +277,13 @@ export function createSession({
         break;
       case "blank":
         update((c) => ({ blanked: !c.blanked }));
+        break;
+      case "overview":
+        if (establishTimer) {
+          clearTimeout(establishTimer);
+          establishTimer = null;
+        }
+        update((c) => ({ overview: !c.overview, establishing: null }));
         break;
       default:
         break;
@@ -285,6 +358,8 @@ export function createSession({
           startedAt: message.startedAt,
           sceneEnteredAt: message.sceneEnteredAt,
           paused: message.paused,
+          overview: message.overview,
+          establishing: message.establishing,
         });
         break;
 
@@ -312,6 +387,10 @@ export function createSession({
   };
 
   const attach = () => {
+    // Re-attaching after a teardown has to work: React mounts, unmounts and
+    // mounts again, and a session that could only be attached once left the
+    // stage broadcasting into a closed channel.
+    channel.open();
     const unsubscribe = channel.on(onMessage);
     channel.post({ type: "hello", role });
 
@@ -327,6 +406,7 @@ export function createSession({
       sayGoodbye();
       window.removeEventListener("pagehide", sayGoodbye);
       clearInterval(interval);
+      if (establishTimer) clearTimeout(establishTimer);
       unsubscribe();
       channel.close();
     };
@@ -352,6 +432,8 @@ export interface PresentSession extends Omit<SessionState, "annotationsByScene" 
   togglePause: () => void;
   resetTimer: () => void;
   toggleBlank: () => void;
+  /** Pull the camera back over the whole world, or return to the scene. */
+  toggleOverview: () => void;
 
   totalElapsedMs: number;
   sceneElapsedMs: number;
@@ -374,13 +456,15 @@ export function usePresentSession({
   presentationId,
   scenes,
   role,
+  establishSections = true,
 }: {
   presentationId: string;
   scenes: Scene[];
   role: SessionRole;
+  establishSections?: boolean;
 }): PresentSession {
   // Created once. The scene list is fixed for the life of a presentation.
-  const [api] = useState(() => createSession({ presentationId, scenes, role }));
+  const [api] = useState(() => createSession({ presentationId, scenes, role, establishSections }));
   const state = useStore(api.store);
 
   useEffect(() => api.attach(), [api]);
@@ -396,6 +480,8 @@ export function usePresentSession({
       sceneEnteredAt: state.sceneEnteredAt,
       paused: state.paused,
       blanked: state.blanked,
+      overview: state.overview,
+      establishing: state.establishing,
       pointer: state.pointer,
       pointerColor: state.pointerColor,
       peerConnected: state.peerConnected,
@@ -412,6 +498,7 @@ export function usePresentSession({
       togglePause: () => api.send("toggle-pause"),
       resetTimer: () => api.send("reset-timer"),
       toggleBlank: () => api.send("blank"),
+      toggleOverview: () => api.send("overview"),
 
       totalElapsedMs: state.startedAt ? Math.max(0, now - state.startedAt) : 0,
       sceneElapsedMs: Math.max(0, now - state.sceneEnteredAt),

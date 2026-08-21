@@ -71,6 +71,36 @@ export interface SupportInfo {
   reason?: string;
 }
 
+/**
+ * Support, as stable snapshots for `useSyncExternalStore`.
+ *
+ * Calling `detectSupport()` during render gives one answer on the server and
+ * another in the browser, which is a hydration mismatch — the server rendered
+ * "recording isn't available" and the client rendered the record button. The
+ * capability never changes once the page is running, so the subscribe function
+ * is a no-op and the snapshots are cached; `getSnapshot` returning a fresh
+ * object each call would spin React forever.
+ */
+const SERVER_SUPPORT: SupportInfo = {
+  supported: false,
+  displayCapture: false,
+  mimeType: null,
+  extension: "webm",
+};
+
+let cachedSupport: SupportInfo | null = null;
+
+export const subscribeToSupport = () => () => {};
+
+export function supportSnapshot(): SupportInfo {
+  cachedSupport ??= detectSupport();
+  return cachedSupport;
+}
+
+export function serverSupportSnapshot(): SupportInfo {
+  return SERVER_SUPPORT;
+}
+
 export function detectSupport(): SupportInfo {
   if (typeof window === "undefined") {
     return { supported: false, displayCapture: false, mimeType: null, extension: "webm" };

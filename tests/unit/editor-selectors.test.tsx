@@ -9,7 +9,7 @@ import {
 } from "@/lib/editor/store";
 import { createElement } from "@/lib/editor/element-factory";
 import { composeScene } from "@/lib/editor/layouts";
-import type { PresentationDocument } from "@/lib/schema/presentation";
+import { JOURNEY_DEFAULTS, type PresentationDocument } from "@/lib/schema/presentation";
 
 /**
  * Regression tests for the React bindings.
@@ -34,6 +34,7 @@ function makeDocument(): PresentationDocument {
       themeId: "midnight",
       themeOverrides: null,
       aspectRatio: "16:9",
+      journey: JOURNEY_DEFAULTS,
       tags: [],
       isFavorite: false,
       thumbnailUrl: null,
@@ -48,6 +49,7 @@ function makeDocument(): PresentationDocument {
         id: "scene-0",
         presentationId: PRESENTATION_ID,
         sectionId: null,
+        placement: null,
         position: 0,
         title: "One",
         content: composeScene("bullets", { heading: "Heading", bullets: ["a", "b"] }),

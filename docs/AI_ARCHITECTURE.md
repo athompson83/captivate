@@ -2,7 +2,7 @@
 
 ## The rule
 
-**The model never returns presentation state.** It returns *content*, in a
+**The model never returns presentation state.** It returns _content_, in a
 schema with tight limits, which the application then pours into the layout
 engine.
 
@@ -12,7 +12,7 @@ Composition quality stays under the application's control. A model asked to
 produce coordinates produces plausible-looking coordinates that overlap.
 
 And the schema limits — 120-character headings, at most six bullets of 140
-characters — *structurally* prevent the dense scenes generated decks are
+characters — _structurally_ prevent the dense scenes generated decks are
 notorious for. The model cannot produce a wall of text because the schema will
 not hold one. This is enforcement, not prompting.
 
@@ -37,15 +37,15 @@ Swapping providers means reimplementing that one function.
 
 ## Capabilities
 
-| Route | Schema | Notes |
-| --- | --- | --- |
-| `/api/ai/outline` | `PresentationOutline` | Structure only. Nothing is created yet |
-| `/api/ai/generate` | `GeneratedScenes` | Writes an approved outline into a real deck |
-| `/api/ai/scene` | `GeneratedScene` | One scene, inserted where the user chooses |
-| `/api/ai/rewrite` | `RewriteResult` | Rewrite, shorten, expand, simplify, tone, alternatives |
-| `/api/ai/notes` | `SpeakerNotesResult` | Reads the scene from the database, not the request |
-| `/api/ai/visuals` | `VisualSuggestion` | Describes what a picture should show |
-| `/api/ai/status` | — | Whether a model is configured, so the UI can be honest |
+| Route              | Schema                | Notes                                                  |
+| ------------------ | --------------------- | ------------------------------------------------------ |
+| `/api/ai/outline`  | `PresentationOutline` | Structure only. Nothing is created yet                 |
+| `/api/ai/generate` | `GeneratedScenes`     | Writes an approved outline into a real deck            |
+| `/api/ai/scene`    | `GeneratedScene`      | One scene, inserted where the user chooses             |
+| `/api/ai/rewrite`  | `RewriteResult`       | Rewrite, shorten, expand, simplify, tone, alternatives |
+| `/api/ai/notes`    | `SpeakerNotesResult`  | Reads the scene from the database, not the request     |
+| `/api/ai/visuals`  | `VisualSuggestion`    | Describes what a picture should show                   |
+| `/api/ai/status`   | —                     | Whether a model is configured, so the UI can be honest |
 
 ---
 
@@ -100,14 +100,14 @@ correct; the user only has to drop a picture in.
 
 Nothing is destroyed when generation fails. Failures are typed:
 
-| Reason | Behaviour |
-| --- | --- |
+| Reason           | Behaviour                                          |
+| ---------------- | -------------------------------------------------- |
 | `not_configured` | UI says so; the deterministic generator takes over |
-| `invalid_output` | Retried once; then reported, nothing applied |
-| `overloaded` | "Try again in a moment — nothing was changed" |
-| `provider_error` | Reported with the underlying message |
+| `invalid_output` | Retried once; then reported, nothing applied       |
+| `overloaded`     | "Try again in a moment — nothing was changed"      |
+| `provider_error` | Reported with the underlying message               |
 
-Text tools present results as *proposals*. The user picks one, and undo reverses
+Text tools present results as _proposals_. The user picks one, and undo reverses
 it like any other edit. AI that silently rewrites your slide creates cleanup;
 AI that offers three options saves work.
 
@@ -121,8 +121,8 @@ built a structural draft instead."
 
 It derives a real title (stripping framing verbs, format phrases and the article
 that belonged to them, so "A 50-minute lecture on recognising shock" yields
-"Recognising shock") and uses a narrative skeleton — *Why this matters*, *What
-to look for*, *Common mistakes* — rather than keywords lifted from the prompt,
+"Recognising shock") and uses a narrative skeleton — _Why this matters_, _What
+to look for_, _Common mistakes_ — rather than keywords lifted from the prompt,
 which produced fragments like "Appear".
 
 Every scene is a real composed scene that satisfies the same schema, so the

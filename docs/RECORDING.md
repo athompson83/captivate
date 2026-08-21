@@ -8,7 +8,7 @@ looks finished and produces black video.
 **There is no API that records a DOM subtree.** Not `html2canvas`, not
 `MediaRecorder` on an element, not anything. The only way to capture what the
 audience really sees — including live annotations, video elements, CSS
-transitions and web fonts — is `getDisplayMedia`, where the *user* picks what to
+transitions and web fonts — is `getDisplayMedia`, where the _user_ picks what to
 share.
 
 So that is what Captivate does, and the UI says so: "Captivate records the stage
@@ -76,16 +76,16 @@ a second of footage rather than the whole session.
 
 ## Failure modes
 
-| Situation | Behaviour |
-| --- | --- |
-| Screen share declined | Nothing starts; a message says why |
-| Microphone declined | Nothing starts — a recording with no narration is not useful |
-| Camera declined or missing | Downgrades to screen + microphone, and says so |
-| "Stop sharing" pressed in the browser bar | Finishes cleanly, exactly as if Stop had been pressed |
-| Recorder errors mid-session | Whatever was captured is still offered |
-| `MediaRecorder` unavailable | Recording marked unavailable with a specific reason |
-| Screen capture unavailable (iOS) | Same, naming the platform limitation |
-| Upload fails | `local_only`, with a download prompt |
+| Situation                                 | Behaviour                                                    |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| Screen share declined                     | Nothing starts; a message says why                           |
+| Microphone declined                       | Nothing starts — a recording with no narration is not useful |
+| Camera declined or missing                | Downgrades to screen + microphone, and says so               |
+| "Stop sharing" pressed in the browser bar | Finishes cleanly, exactly as if Stop had been pressed        |
+| Recorder errors mid-session               | Whatever was captured is still offered                       |
+| `MediaRecorder` unavailable               | Recording marked unavailable with a specific reason          |
+| Screen capture unavailable (iOS)          | Same, naming the platform limitation                         |
+| Upload fails                              | `local_only`, with a download prompt                         |
 
 ---
 

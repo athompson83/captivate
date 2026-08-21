@@ -168,13 +168,6 @@ export const ElementAnimation = z.object({
 });
 export type ElementAnimation = z.infer<typeof ElementAnimation>;
 
-export const SceneTransition = z.object({
-  type: z.enum(["none", "fade", "push", "slide", "dissolve", "zoom"]).default("fade"),
-  duration: z.number().min(0).max(3).default(0.6),
-  direction: z.enum(["left", "right", "up", "down"]).default("left"),
-});
-export type SceneTransition = z.infer<typeof SceneTransition>;
-
 /* -------------------------------------------------------------------------- */
 /* Elements                                                                    */
 /* -------------------------------------------------------------------------- */
@@ -444,11 +437,82 @@ export const SceneContent = z.object({
   layout: SceneLayout.default("custom"),
   background: SceneBackground.default({ kind: "theme" }),
   elements: z.array(SceneElement).max(60).default([]),
-  transition: SceneTransition.prefault({}),
   /** Optional per-scene theme override; falls back to the deck theme. */
   themeOverride: z.string().max(64).nullable().default(null),
 });
 export type SceneContent = z.infer<typeof SceneContent>;
+
+/* -------------------------------------------------------------------------- */
+/* The world                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Where a scene sits in the presentation's world.
+ *
+ * Captivate has no slide reel. A presentation is a single unbounded canvas, and
+ * every scene occupies a rectangle somewhere on it; presenting is a camera
+ * flying between those rectangles. World units are stage pixels at `scale: 1`,
+ * so a scene at scale 1 is `STAGE_BASE_WIDTH` units wide.
+ *
+ * Because `scale` is unbounded in practice, nesting is free: a scene placed at
+ * scale 0.02 inside the bounds of another scene is a detail that lives *within*
+ * it, and the camera dives into it. That is the whole trick — no separate
+ * "portal" concept is needed, only free placement and a camera.
+ *
+ * `null` placement means "not placed yet"; the journey arrangement derives one
+ * from the scene's position so a deck that has never been touched spatially
+ * still presents.
+ */
+export const ScenePlacement = z.object({
+  x: z.number().min(-4_000_000).max(4_000_000),
+  y: z.number().min(-4_000_000).max(4_000_000),
+  /** 1 = stage-native size. Smaller means the scene is a detail of something. */
+  scale: z.number().min(0.001).max(1000).default(1),
+  rotation: z.number().min(-180).max(180).default(0),
+});
+export type ScenePlacement = z.infer<typeof ScenePlacement>;
+
+/** Spatial arrangements the journey map can apply to a whole presentation. */
+export const ArrangePreset = z.enum([
+  "reel",
+  "grid",
+  "timeline",
+  "spiral",
+  "nested",
+  "constellation",
+]);
+export type ArrangePreset = z.infer<typeof ArrangePreset>;
+
+/**
+ * How the camera behaves for this presentation.
+ *
+ * `travel: "cut"` reproduces a conventional slideshow exactly — it is the
+ * degenerate case of the same engine, not a separate one.
+ */
+export const JourneyConfig = z.object({
+  arrangement: ArrangePreset.default("reel"),
+  /**
+   * How the camera gets from one scene to the next.
+   *
+   * There is no per-scene transition picker: in a spatial presentation the
+   * camera move *is* the transition, and choosing a different wipe for slide 7
+   * is the habit this tool exists to break. `cut` and `dissolve` remain for
+   * people who genuinely want a still deck.
+   */
+  travel: z.enum(["fly", "cut", "dissolve"]).default("fly"),
+  /** Seconds for a flight of average length; long hops scale up sub-linearly. */
+  pace: z.number().min(0.2).max(6).default(1.1),
+  /** Pull back to frame a whole section before diving into its first scene. */
+  establishSections: z.boolean().default(true),
+  /** Draw the route between waypoints when the camera is pulled back. */
+  showPath: z.boolean().default(true),
+  /** Backdrop parallax, 0 = flat. */
+  depth: z.number().min(0).max(1).default(0.55),
+});
+export type JourneyConfig = z.infer<typeof JourneyConfig>;
+
+/** The default camera behaviour, resolved once rather than at every call site. */
+export const JOURNEY_DEFAULTS: JourneyConfig = JourneyConfig.parse({});
 
 export const Scene = z.object({
   id: z.string().uuid(),
@@ -457,6 +521,8 @@ export const Scene = z.object({
   position: z.number().int().min(0),
   title: z.string().max(240),
   content: SceneContent,
+  /** Where this scene sits on the world canvas; null until it is placed. */
+  placement: ScenePlacement.nullable().default(null),
   /** Presenter-only. Never rendered to the audience surface. */
   speakerNotes: z.string().max(20000),
   /** Rehearsal target in seconds; drives the presenter pacing indicator. */
@@ -489,6 +555,7 @@ export const PresentationRecord = z.object({
   themeId: z.string().max(64),
   themeOverrides: z.record(z.string(), z.unknown()).nullable(),
   aspectRatio: AspectRatio,
+  journey: JourneyConfig.prefault({}),
   tags: z.array(z.string().max(48)).max(24),
   isFavorite: z.boolean(),
   thumbnailUrl: z.string().max(4096).nullable(),

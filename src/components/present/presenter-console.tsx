@@ -17,6 +17,7 @@ import {
   Pointer,
   RotateCcw,
   Square,
+  Telescope,
   Timer,
   X,
 } from "lucide-react";
@@ -112,6 +113,12 @@ export function PresenterConsole({
         case "B":
           e.preventDefault();
           session.toggleBlank();
+          break;
+        case "Tab":
+        case "o":
+        case "O":
+          e.preventDefault();
+          session.toggleOverview();
           break;
         case "c":
         case "C":
@@ -250,6 +257,8 @@ export function PresenterConsole({
               onClearAll={session.clearAll}
               blanked={session.blanked}
               onToggleBlank={session.toggleBlank}
+              overview={session.overview}
+              onToggleOverview={session.toggleOverview}
               onOpenJumper={() => setJumperOpen(true)}
             />
           </section>
@@ -652,6 +661,8 @@ function ToolBar({
   onClearAll,
   blanked,
   onToggleBlank,
+  overview,
+  onToggleOverview,
   onOpenJumper,
 }: {
   tool: PresenterTool;
@@ -665,6 +676,8 @@ function ToolBar({
   onClearAll: () => void;
   blanked: boolean;
   onToggleBlank: () => void;
+  overview: boolean;
+  onToggleOverview: () => void;
   onOpenJumper: () => void;
 }) {
   const TOOLS = [
@@ -774,6 +787,22 @@ function ToolBar({
           )}
         >
           <Square className="size-4" aria-hidden />
+        </button>
+      </Tooltip>
+
+      <Tooltip label="See the whole journey" side="top">
+        <button
+          onClick={onToggleOverview}
+          aria-label="See the whole journey"
+          aria-pressed={overview}
+          className={cn(
+            "flex size-8 items-center justify-center rounded-[var(--radius-sm)] transition-colors",
+            overview
+              ? "bg-ink text-ink-inverse"
+              : "text-ink-3 hover:text-ink hover:bg-[var(--surface-inset)]",
+          )}
+        >
+          <Telescope className="size-4" aria-hidden />
         </button>
       </Tooltip>
 

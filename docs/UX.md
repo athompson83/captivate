@@ -157,3 +157,29 @@ templated text off as AI output.
 
 Every one of these could have been papered over. Papering over is how a user
 discovers the truth mid-lecture.
+
+---
+
+## Moving through a presentation
+
+The camera is the main interaction, so it is worth saying what it is for.
+
+**Movement carries meaning.** A short hop reads as "and also"; a long flight out
+and back in reads as "now somewhere else entirely"; a dive into a scene reads as
+"and inside that". None of that has to be explained to an audience, because it
+is how looking at things works. It is also why travel is a property of the
+presentation rather than of each scene — varying it per scene would make the
+grammar meaningless.
+
+**Pulling back is a move, not a menu.** `O` frames the whole world and draws the
+route. The presentation is still live and the current scene is still current, so
+a presenter can say "here is where we have got to" without stopping. Clicking a
+scene flies there.
+
+**Establishing a section** pulls back to frame it, holds for about a second, and
+dives to its first scene. One beat, at the one moment where showing the shape of
+the thing is worth more than showing its content.
+
+**Nothing moves that the room did not ask for.** The camera only moves on an
+advance, a jump, or an explicit pull-back — never on a timer, and never to
+decorate. `prefers-reduced-motion` turns every flight into a cut.

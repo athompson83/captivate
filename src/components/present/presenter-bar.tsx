@@ -15,6 +15,7 @@ import {
   Pen,
   Pointer,
   Square,
+  Telescope,
   X,
 } from "lucide-react";
 import type { Scene, Section } from "@/lib/schema/presentation";
@@ -203,6 +204,15 @@ export function PresenterBar({
               onClick={session.toggleBlank}
             >
               <Square className="size-4" aria-hidden />
+            </BarButton>
+
+            <BarButton
+              label="See the whole journey"
+              shortcut="O"
+              active={session.overview}
+              onClick={session.toggleOverview}
+            >
+              <Telescope className="size-4" aria-hidden />
             </BarButton>
 
             <BarButton label="All scenes" onClick={() => setJumperOpen(true)}>

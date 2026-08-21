@@ -247,7 +247,7 @@ export function NotesWorkspace({
       ) : (
         <div className="flex items-center justify-center">
           <EmptyState
-            icon={Notebook}
+            icon={<Notebook />}
             title="Lecture notes"
             description="Long-form material that belongs with a presentation but never on a slide. Notes attached to a scene appear in your presenter console while you speak."
             action={

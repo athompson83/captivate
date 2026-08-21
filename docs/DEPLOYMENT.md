@@ -2,14 +2,14 @@
 
 ## Environment variables
 
-| Variable | Required | Reaches the browser | Purpose |
-| --- | --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Yes | Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Yes | Publishable key |
-| `ANTHROPIC_API_KEY` | No | **No** | Enables AI authoring |
-| `CAPTIVATE_AI_MODEL` | No | No | Overrides the model id |
-| `NEXT_PUBLIC_SITE_URL` | Recommended | Yes | Absolute origin for email links |
-| `SUPABASE_SERVICE_ROLE_KEY` | No | **No** | Not needed by any current route |
+| Variable                        | Required    | Reaches the browser | Purpose                         |
+| ------------------------------- | ----------- | ------------------- | ------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Yes         | Yes                 | Project URL                     |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes         | Yes                 | Publishable key                 |
+| `ANTHROPIC_API_KEY`             | No          | **No**              | Enables AI authoring            |
+| `CAPTIVATE_AI_MODEL`            | No          | No                  | Overrides the model id          |
+| `NEXT_PUBLIC_SITE_URL`          | Recommended | Yes                 | Absolute origin for email links |
+| `SUPABASE_SERVICE_ROLE_KEY`     | No          | **No**              | Not needed by any current route |
 
 The two `NEXT_PUBLIC_` values are public by design: row-level security is the
 authorisation boundary, not key secrecy. The other two are read only from
@@ -31,10 +31,10 @@ supabase link --project-ref <ref>
 supabase db push
 ```
 
-| Migration | Contents |
-| --- | --- |
-| `0001_captivate_core.sql` | Tables, indexes, triggers, and RLS on all nine tables |
-| `0002_storage.sql` | Three private buckets and their per-user object policies |
+| Migration                 | Contents                                                 |
+| ------------------------- | -------------------------------------------------------- |
+| `0001_captivate_core.sql` | Tables, indexes, triggers, and RLS on all nine tables    |
+| `0002_storage.sql`        | Three private buckets and their per-user object policies |
 
 A third hardening step is applied on top in the live project and is folded into
 `0001`: `search_path` pinned on every function, and EXECUTE revoked from `anon`

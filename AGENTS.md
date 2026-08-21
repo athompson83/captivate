@@ -59,6 +59,22 @@ Callers surface `error` in a toast. Don't throw across the boundary.
 index signatures, and `GenericTable` then infers `Update` as `never`. Patches are typed
 `Partial<PresentationRow>` and friends, never `Record<string, unknown>`.
 
+## The camera
+
+Presenting is a camera moving over one canvas, and a flight is sixty transform
+writes a second. None of them may go through React:
+
+- the live camera is a ref, written to `style.transform` on one promoted layer;
+- culling and level-of-detail key off the flight's _endpoints_, so React renders
+  once per waypoint and never mid-flight;
+- the animation is **not** torn down by its own effect's cleanup. That effect
+  re-runs on every render — its target is a fresh object each time — and a
+  cleanup that cancelled the frame killed every flight the moment anything else
+  re-rendered. The session clock ticks once a second, so something always did.
+
+There is no per-scene transition. Travel is set once per presentation
+(`fly`, `dissolve`, `cut`); the camera move is the transition.
+
 ## Presenter-material safety
 
 The stage route (`/present/[id]`) never loads speaker notes, lecture notes, timers or

@@ -153,12 +153,10 @@ describe("relayoutScene", () => {
     const original = {
       ...composeScene("bullets", { heading: "H", bullets: ["a"] }),
       background: { kind: "solid" as const, color: { kind: "hex" as const, hex: "#123456" } },
-      transition: { type: "zoom" as const, duration: 1.2, direction: "up" as const },
     };
 
     const relaid = relayoutScene(original, "statement");
     expect(relaid.background).toEqual(original.background);
-    expect(relaid.transition).toEqual(original.transition);
   });
 
   it("survives a round trip through every named layout without losing the heading", () => {

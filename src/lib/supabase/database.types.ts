@@ -36,6 +36,7 @@ export type PresentationRow = Timestamps & {
   theme_id: string;
   theme_overrides: Json | null;
   aspect_ratio: "16:9" | "16:10" | "4:3";
+  journey: Json;
   tags: string[];
   is_favorite: boolean;
   thumbnail_url: string | null;
@@ -58,6 +59,7 @@ export type SceneRow = Timestamps & {
   position: number;
   title: string;
   content: Json;
+  placement: Json | null;
   speaker_notes: string;
   duration_seconds: number | null;
   schema_version: number;
@@ -146,6 +148,10 @@ export type Database = {
       captivate_owns_presentation: {
         Args: { p_id: string };
         Returns: boolean;
+      };
+      captivate_set_scene_placements: {
+        Args: { p_presentation_id: string; p_placements: Json };
+        Returns: number;
       };
     };
     Enums: Record<never, never>;

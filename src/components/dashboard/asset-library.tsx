@@ -159,7 +159,7 @@ export function AssetLibrary({ assets }: { assets: Asset[] }) {
       {shown.length === 0 ? (
         <div className="border-line bg-raised/40 rounded-[var(--radius-lg)] border border-dashed">
           <EmptyState
-            icon={Images}
+            icon={<Images />}
             title={assets.length === 0 ? "No assets yet" : "Nothing of that type"}
             description="Images, video and audio you upload here can be reused across any presentation. Drop files anywhere on this page."
             action={

@@ -482,7 +482,6 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
     layout,
     background,
     elements,
-    transition: { type: "fade", duration: 0.6, direction: "left" },
     themeOverride: null,
   };
 }
@@ -566,7 +565,6 @@ export function relayoutScene(content: SceneContent, layout: SceneLayout): Scene
   return {
     ...next,
     background: content.background,
-    transition: content.transition,
     themeOverride: content.themeOverride,
   };
 }

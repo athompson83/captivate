@@ -19,20 +19,20 @@ and rendering something broken in front of a room.
 
 ### Unit
 
-| File | Covers |
-| --- | --- |
-| `presentation-schema` | Defaults, unknown element rejection, corrupt-content recovery, URL scheme safety |
-| `geometry` | Snapping, resize anchoring, aspect lock, clamping, align and distribute, marquee |
-| `layouts` | All 14 layouts stay on stage and inside the safe area; relayout preserves text |
-| `editor-store` | Dirty tracking, the autosave revision guard, undo/redo with coalescing, element and scene operations |
-| `editor-selectors` | The React bindings — specifically that a selector cannot re-render forever |
-| `debounced-save` | Debounce, per-record merging, in-flight queueing, flush on unmount and tab hide |
-| `ai-schemas` | Output caps, layout restrictions, fallback quality, title derivation |
-| `present` | Cross-window message validation, build step counting, motion presets, session command routing |
-| `stage-render` | Real rendering: text as text, alt text, chart descriptions, sandboxing, builds, auto-fit |
-| `fit-text` | Auto-fit maths, including that a thumbnail and the stage agree |
-| `theme-and-recorder` | Theme integrity, template validity, recorder capability detection |
-| `format` | Duration, bytes, relative time, including nonsense input |
+| File                  | Covers                                                                                               |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| `presentation-schema` | Defaults, unknown element rejection, corrupt-content recovery, URL scheme safety                     |
+| `geometry`            | Snapping, resize anchoring, aspect lock, clamping, align and distribute, marquee                     |
+| `layouts`             | All 14 layouts stay on stage and inside the safe area; relayout preserves text                       |
+| `editor-store`        | Dirty tracking, the autosave revision guard, undo/redo with coalescing, element and scene operations |
+| `editor-selectors`    | The React bindings — specifically that a selector cannot re-render forever                           |
+| `debounced-save`      | Debounce, per-record merging, in-flight queueing, flush on unmount and tab hide                      |
+| `ai-schemas`          | Output caps, layout restrictions, fallback quality, title derivation                                 |
+| `present`             | Cross-window message validation, build step counting, motion presets, session command routing        |
+| `stage-render`        | Real rendering: text as text, alt text, chart descriptions, sandboxing, builds, auto-fit             |
+| `fit-text`            | Auto-fit maths, including that a thumbnail and the stage agree                                       |
+| `theme-and-recorder`  | Theme integrity, template validity, recorder capability detection                                    |
+| `format`              | Duration, bytes, relative time, including nonsense input                                             |
 
 ### End-to-end
 
@@ -119,3 +119,32 @@ would break in the product if it regressed.
 Where a test needed a browser API jsdom lacks, the shim lives in
 `tests/setup.ts` and is labelled as an environment shim rather than behaviour
 under test.
+
+---
+
+## The camera
+
+`tests/unit/camera.test.ts` covers the flight path, the arrangements and the
+route. The properties worth stating, because they are the ones that would fail
+silently rather than loudly:
+
+- a flight starts exactly where it began and ends exactly where it was sent;
+- it pulls back over a long distance and does not over a short one;
+- pan progress is monotone, and zoom interpolates geometrically;
+- a spin takes the short way round;
+- path length grows sub-linearly with distance, so a trip across the world is
+  not fifty times slower than a hop next door;
+- **no arrangement ever half-overlaps two consecutive scenes** — they are either
+  clearly apart or one sits wholly inside the other.
+
+`tests/unit/world-render.test.tsx` drives `requestAnimationFrame` by hand so a
+flight can be stepped frame by frame. Its `cancelAnimationFrame` really drops
+the callback: an earlier version only pretended to, and a mock that cannot
+cancel makes the whole file unable to see the bug it exists for.
+
+Two regression tests there are worth keeping honest. Both fail if their fix is
+reverted, and both were verified to do so:
+
+- a flight keeps going when something unrelated re-renders the tree;
+- `EmptyState` takes a rendered icon rather than a component, because a function
+  cannot cross the server/client boundary.

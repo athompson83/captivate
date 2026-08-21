@@ -233,7 +233,7 @@ export function PresentationsLibrary({
           {items.length === 0 ? (
             <div className="border-line bg-raised/40 rounded-[var(--radius-lg)] border border-dashed">
               <EmptyState
-                icon={inTrash ? Trash2 : FileText}
+                icon={inTrash ? <Trash2 /> : <FileText />}
                 title={
                   inTrash
                     ? "Nothing in Recently deleted"

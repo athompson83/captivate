@@ -327,6 +327,7 @@ function SceneTools({
         position: added.data.position,
         title: generated.title,
         content: generated.content,
+        placement: null,
         speakerNotes: generated.speakerNotes,
         durationSeconds: null,
         createdAt: now,

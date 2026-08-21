@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import {
+  JOURNEY_DEFAULTS,
+  type ScenePlacement,
   SceneContent,
   emptySceneContent,
   type PresentationDocument,
@@ -130,6 +132,7 @@ const emptyDocument: EditorDocument = {
     description: "",
     themeId: "midnight",
     themeOverrides: null,
+    journey: JOURNEY_DEFAULTS,
     aspectRatio: "16:9",
     tags: [],
     isFavorite: false,
@@ -531,7 +534,9 @@ export function reorderElement(
 
 export function updateSceneMeta(
   sceneId: string,
-  patch: Partial<Pick<Scene, "title" | "speakerNotes" | "durationSeconds" | "sectionId">>,
+  patch: Partial<
+    Pick<Scene, "title" | "speakerNotes" | "durationSeconds" | "sectionId" | "placement">
+  >,
   options: { label: string; coalesceKey?: string },
 ) {
   useEditor.getState().mutate(
@@ -544,8 +549,32 @@ export function updateSceneMeta(
   );
 }
 
+/**
+ * Stamps a placement onto every scene at once.
+ *
+ * Applying an arrangement is a single edit, not one per scene: it has to be one
+ * undo step, and a half-applied layout is worse than either whole one.
+ */
+export function applyPlacements(
+  entries: { id: string; placement: ScenePlacement }[],
+  label = "Arrange journey",
+) {
+  const byId = new Map(entries.map((e) => [e.id, e.placement]));
+  useEditor.getState().mutate(
+    (draft) => {
+      for (const scene of draft.scenes) {
+        const next = byId.get(scene.id);
+        if (next) scene.placement = next;
+      }
+    },
+    { label, dirty: entries.map((e) => e.id) },
+  );
+}
+
 export function updatePresentationMeta(
-  patch: Partial<Pick<PresentationRecord, "title" | "description" | "themeId" | "aspectRatio">>,
+  patch: Partial<
+    Pick<PresentationRecord, "title" | "description" | "themeId" | "aspectRatio" | "journey">
+  >,
   options: { label: string; coalesceKey?: string },
 ) {
   useEditor.getState().mutate(

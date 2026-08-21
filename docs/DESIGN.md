@@ -9,7 +9,7 @@ is used in lecture theatres and meeting rooms, often with the lights down. The
 interface is dark by default because it sits next to a dark projection; the
 accent is warm gold because that is what a stage light looks like.
 
-It also settles what Captivate is *not*. It does not look like PowerPoint,
+It also settles what Captivate is _not_. It does not look like PowerPoint,
 Google Slides, Keynote, Canva or Gamma, because none of those start from "you
 are about to stand up in front of people".
 
@@ -20,14 +20,14 @@ are about to stand up in front of people".
 Everything is OKLCH, so lightness is perceptually even and a token can be
 adjusted without hue drift.
 
-| Role | Purpose |
-| --- | --- |
-| `surface-base` / `sunken` / `raised` / `overlay` | Four elevations, no more |
-| `text-primary` / `secondary` / `muted` | Three text weights, no more |
-| `accent` | Warm gold. Primary actions, selection, focus |
-| `ai` | Orchid. **Only** AI affordances |
-| `record` | Crimson. **Only** recording |
-| `success` / `warning` / `danger` | Status |
+| Role                                             | Purpose                                      |
+| ------------------------------------------------ | -------------------------------------------- |
+| `surface-base` / `sunken` / `raised` / `overlay` | Four elevations, no more                     |
+| `text-primary` / `secondary` / `muted`           | Three text weights, no more                  |
+| `accent`                                         | Warm gold. Primary actions, selection, focus |
+| `ai`                                             | Orchid. **Only** AI affordances              |
+| `record`                                         | Crimson. **Only** recording                  |
+| `success` / `warning` / `danger`                 | Status                                       |
 
 The semantic separation is load-bearing. Orchid means "a model is involved" and
 nothing else; crimson means "you are being recorded" and nothing else. A user
@@ -66,13 +66,13 @@ it does not decorate them.
 
 ## Motion
 
-| Duration | Used for |
-| --- | --- |
-| 90ms | Hover, immediate feedback |
-| 150ms | Micro-interactions |
-| 220ms | Panels, dialogs |
-| 380ms | Larger transitions |
-| 620ms | Stage transitions |
+| Duration | Used for                  |
+| -------- | ------------------------- |
+| 90ms     | Hover, immediate feedback |
+| 150ms    | Micro-interactions        |
+| 220ms    | Panels, dialogs           |
+| 380ms    | Larger transitions        |
+| 620ms    | Camera flights            |
 
 `cubic-bezier(0.22, 1, 0.36, 1)` almost everywhere — fast out, gentle in, no
 overshoot.

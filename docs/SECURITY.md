@@ -135,7 +135,7 @@ committed.
 **`captivate_owns_presentation` is executable by `authenticated`.** Supabase's
 linter flags every `SECURITY DEFINER` function callable over PostgREST. This one
 must be callable, because the RLS policies on `sections`, `scenes` and
-`lecture_notes` invoke it. It answers exactly one question — "does the *calling*
+`lecture_notes` invoke it. It answers exactly one question — "does the _calling_
 user own this presentation?" — and is already scoped to `auth.uid()`, so it
 leaks nothing. `anon` has been revoked; the trigger functions have had EXECUTE
 revoked from all client roles.
@@ -155,10 +155,25 @@ never executed. MIME type and size are validated at three layers.
 
 ---
 
+## A deliberately `SECURITY INVOKER` function
+
+`captivate_set_scene_placements(uuid, jsonb)` rewrites the world position of
+every scene in a presentation in one statement. Unlike the ownership helpers it
+is **`SECURITY INVOKER`**, which is the safe choice rather than the lax one: the
+owner-scoped RLS policy on `public.scenes` is exactly the check it needs, so
+running as the caller means the check happens once, in the place it is already
+defined. A `SECURITY DEFINER` version would have to re-implement that check by
+hand and would become a privilege-escalation bug the first time somebody got the
+re-implementation wrong. `EXECUTE` is revoked from `public` and granted only to
+`authenticated`.
+
+Verified: the function updates rows only where `presentation_id` matches _and_
+RLS admits them, so a caller passing another owner's scene ids updates nothing.
+
 ## Known gaps
 
 - **Email confirmation uses Supabase's built-in SMTP**, which is rate limited to
-  a handful of messages per hour. This is a *deployment* setting, not a code
+  a handful of messages per hour. This is a _deployment_ setting, not a code
   issue; see [DEPLOYMENT.md](DEPLOYMENT.md).
 - **No account deletion flow.** Cascading deletes are in place at the database
   level; no UI exposes them.

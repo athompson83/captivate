@@ -5,7 +5,9 @@ import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase/server";
 import {
   AspectRatio,
+  JourneyConfig,
   SceneContent,
+  ScenePlacement,
   SCENE_SCHEMA_VERSION,
   emptySceneContent,
 } from "@/lib/schema/presentation";
@@ -112,6 +114,7 @@ const UpdateInput = z.object({
   folderId: Uuid.nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(48)).max(24).optional(),
   isFavorite: z.boolean().optional(),
+  journey: JourneyConfig.optional(),
 });
 
 export async function updatePresentation(input: unknown): Promise<Result<void>> {
@@ -129,6 +132,8 @@ export async function updatePresentation(input: unknown): Promise<Result<void>> 
   if (rest.folderId !== undefined) patch.folder_id = rest.folderId;
   if (rest.tags !== undefined) patch.tags = [...new Set(rest.tags)];
   if (rest.isFavorite !== undefined) patch.is_favorite = rest.isFavorite;
+  if (rest.journey !== undefined)
+    patch.journey = rest.journey as unknown as PresentationRow["journey"];
 
   if (Object.keys(patch).length === 0) return ok(undefined);
 
@@ -284,6 +289,7 @@ const SaveSceneInput = z.object({
   speakerNotes: z.string().max(20000).optional(),
   durationSeconds: z.number().int().min(0).max(7200).nullable().optional(),
   sectionId: Uuid.nullable().optional(),
+  placement: ScenePlacement.nullable().optional(),
 });
 
 /**
@@ -308,6 +314,9 @@ export async function saveScene(input: unknown): Promise<Result<{ updatedAt: str
   if (rest.speakerNotes !== undefined) patch.speaker_notes = rest.speakerNotes;
   if (rest.durationSeconds !== undefined) patch.duration_seconds = rest.durationSeconds;
   if (rest.sectionId !== undefined) patch.section_id = rest.sectionId;
+  if (rest.placement !== undefined) {
+    patch.placement = rest.placement as unknown as SceneRow["placement"];
+  }
 
   if (Object.keys(patch).length === 0) {
     return ok({ updatedAt: new Date().toISOString() });
@@ -326,6 +335,36 @@ export async function saveScene(input: unknown): Promise<Result<{ updatedAt: str
   if (!data) return fail("That scene no longer exists. It may have been deleted in another tab.");
 
   return ok({ updatedAt: data.updated_at });
+}
+
+/**
+ * Rewrites the world placement of every scene in a presentation.
+ *
+ * Applying an arrangement is one statement, not one write per scene: a partial
+ * apply would leave a deck scattered between two layouts, which is worse than
+ * either. The RPC runs as the caller, so the same RLS policy that guards a
+ * single-scene save guards this.
+ */
+const SetPlacementsInput = z.object({
+  presentationId: Uuid,
+  placements: z.array(z.object({ id: Uuid, placement: ScenePlacement.nullable() })).max(400),
+});
+
+export async function setScenePlacements(input: unknown): Promise<Result<{ updated: number }>> {
+  const parsed = SetPlacementsInput.safeParse(input);
+  if (!parsed.success) return fail("Those positions aren't valid.");
+
+  const { presentationId, placements } = parsed.data;
+  if (placements.length === 0) return ok({ updated: 0 });
+
+  const supabase = await client();
+  const { data, error } = await supabase.rpc("captivate_set_scene_placements", {
+    p_presentation_id: presentationId,
+    p_placements: placements as unknown as never,
+  });
+
+  if (error) return fail(error.message);
+  return ok({ updated: data ?? 0 });
 }
 
 const AddSceneInput = z.object({

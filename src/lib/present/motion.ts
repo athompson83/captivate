@@ -1,8 +1,4 @@
-import type {
-  ElementAnimation,
-  EntranceAnimation,
-  SceneTransition,
-} from "@/lib/schema/presentation";
+import type { ElementAnimation, EntranceAnimation } from "@/lib/schema/presentation";
 
 /**
  * Motion presets.
@@ -54,59 +50,6 @@ export function entranceTo(preset: EntranceAnimation): MotionState {
 }
 
 /** Scene-level transition, expressed as enter/exit variants. */
-export function transitionVariants(t: SceneTransition, reduced: boolean) {
-  if (reduced || t.type === "none") {
-    return {
-      initial: { opacity: 1 },
-      animate: { opacity: 1 },
-      exit: { opacity: 0 },
-      duration: 0.001,
-    };
-  }
-
-  const dir = t.direction;
-  const axis = dir === "left" || dir === "right" ? "x" : "y";
-  const sign = dir === "left" || dir === "up" ? 1 : -1;
-
-  switch (t.type) {
-    case "push":
-      return {
-        initial: { [axis]: `${sign * 100}%`, opacity: 1 },
-        animate: { [axis]: "0%", opacity: 1 },
-        exit: { [axis]: `${-sign * 100}%`, opacity: 1 },
-        duration: t.duration,
-      };
-    case "slide":
-      return {
-        initial: { [axis]: `${sign * 40}%`, opacity: 0 },
-        animate: { [axis]: "0%", opacity: 1 },
-        exit: { [axis]: `${-sign * 18}%`, opacity: 0 },
-        duration: t.duration,
-      };
-    case "dissolve":
-      return {
-        initial: { opacity: 0, scale: 1.02 },
-        animate: { opacity: 1, scale: 1 },
-        exit: { opacity: 0, scale: 0.99 },
-        duration: t.duration,
-      };
-    case "zoom":
-      return {
-        initial: { opacity: 0, scale: 1.12 },
-        animate: { opacity: 1, scale: 1 },
-        exit: { opacity: 0, scale: 0.94 },
-        duration: t.duration,
-      };
-    default:
-      return {
-        initial: { opacity: 0 },
-        animate: { opacity: 1 },
-        exit: { opacity: 0 },
-        duration: t.duration,
-      };
-  }
-}
-
 export const STAGE_EASE = [0.22, 1, 0.36, 1] as const;
 
 /**

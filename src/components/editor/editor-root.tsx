@@ -12,6 +12,9 @@ import { Canvas } from "./canvas";
 import { Inspector } from "./inspector";
 import { NotesDock } from "./notes-dock";
 import { AiDock } from "./ai-dock";
+import { JourneyMap } from "./journey-map";
+import { JourneyPanel } from "./journey-panel";
+import type { EditorView } from "./top-bar";
 import { RecoveryNotice } from "./recovery-notice";
 
 /**
@@ -33,6 +36,7 @@ export function EditorRoot({
   const [navOpen, setNavOpen] = useState(true);
   const [notesOpen, setNotesOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [view, setView] = useState<EditorView>("scene");
 
   // The store is the source of truth for readiness: it holds this document once
   // `init` has run, which is also what every child selector depends on.
@@ -64,6 +68,8 @@ export function EditorRoot({
         aiOpen={aiOpen}
         onToggleAi={() => setAiOpen((v) => !v)}
         onSave={flush}
+        view={view}
+        onViewChange={setView}
       />
 
       <RecoveryNotice />
@@ -72,13 +78,17 @@ export function EditorRoot({
         <SceneNavigator open={navOpen} presentationId={presentationId} theme={theme} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <Canvas theme={theme} />
+          {view === "scene" ? <Canvas theme={theme} /> : <JourneyMap className="min-h-0 flex-1" />}
           {notesOpen && (
             <NotesDock presentationId={presentationId} onClose={() => setNotesOpen(false)} />
           )}
         </div>
 
-        <Inspector theme={theme} />
+        {view === "scene" ? (
+          <Inspector theme={theme} />
+        ) : (
+          <JourneyPanel presentationId={presentationId} />
+        )}
         {aiOpen && <AiDock presentationId={presentationId} onClose={() => setAiOpen(false)} />}
       </div>
     </div>

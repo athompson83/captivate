@@ -21,7 +21,6 @@ describe("scene content schema", () => {
     expect(content.version).toBe(SCENE_SCHEMA_VERSION);
     expect(content.layout).toBe("custom");
     expect(content.background).toEqual({ kind: "theme" });
-    expect(content.transition.type).toBe("fade");
   });
 
   it("applies element defaults so partial elements are still valid", () => {

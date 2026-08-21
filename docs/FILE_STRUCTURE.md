@@ -30,7 +30,10 @@ captivate/
 │  ├─ components/
 │  │  ├─ ui/                       Primitives: button, input, dialog, toast,
 │  │  │                            popover, tooltip, segmented, empty state
-│  │  ├─ stage/                    The renderer — stage.tsx, element-view.tsx
+│  │  ├─ editor/journey-map.tsx    Direct manipulation of the world canvas
+│  │  ├─ editor/journey-panel.tsx  Arrangement and camera settings
+│  │  ├─ stage/                    The renderers — stage.tsx (one scene),
+│  │  │                            world.tsx (the canvas and the camera)
 │  │  ├─ editor/                   Canvas, navigator, inspector, docks, toolbars
 │  │  ├─ present/                  Stage root, presenter bar, console,
 │  │  │                            annotation layer, scene jumper
@@ -55,7 +58,10 @@ captivate/
 │  │  ├─ present/
 │  │  │  ├─ session.ts             Session store + React binding
 │  │  │  ├─ protocol.ts            Cross-window messages, Zod-validated
-│  │  │  ├─ motion.ts              Entrance and transition presets
+│  │  │  ├─ motion.ts              Entrance and emphasis presets
+│  │  │  ├─ camera.ts              Optimal zoom-and-pan flight (Van Wijk & Nuij)
+│  │  │  ├─ arrange.ts             Spatial arrangements of scenes on the world
+│  │  │  ├─ path.ts                The smoothed route drawn between waypoints
 │  │  │  ├─ fit-text.ts            Deterministic auto-fit
 │  │  │  ├─ stage.ts               Stage geometry helpers
 │  │  │  └─ fullscreen.ts          Fullscreen and wake lock
@@ -102,8 +108,10 @@ captivate/
 1. `src/lib/schema/presentation.ts` — the content model. Everything else is
    downstream of it.
 2. `src/components/stage/stage.tsx` — how a scene becomes pixels.
-3. `src/lib/editor/store.ts` — how edits are tracked and saved.
-4. `src/lib/present/session.ts` — how two windows stay in step.
+3. `src/components/stage/world.tsx` — how scenes become a place, and how the
+   camera moves between them.
+4. `src/lib/editor/store.ts` — how edits are tracked and saved.
+5. `src/lib/present/session.ts` — how two windows stay in step.
 
 ---
 

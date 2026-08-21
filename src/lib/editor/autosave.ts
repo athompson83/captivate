@@ -83,6 +83,7 @@ export async function flushEditor(
           speakerNotes: scene.speakerNotes,
           durationSeconds: scene.durationSeconds,
           sectionId: scene.sectionId,
+          placement: scene.placement,
         });
 
         if (result.ok) {
@@ -115,6 +116,7 @@ export async function flushEditor(
         description: p.description,
         themeId: p.themeId,
         aspectRatio: p.aspectRatio,
+        journey: p.journey,
       });
       if (result.ok) useEditor.getState().markPresentationSaved();
       else errors.push(result.error);

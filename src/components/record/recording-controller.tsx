@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AlertTriangle,
@@ -18,7 +18,9 @@ import {
 import {
   PermissionError,
   PresentationRecorder,
-  detectSupport,
+  serverSupportSnapshot,
+  subscribeToSupport,
+  supportSnapshot,
   downloadRecording,
   listDevices,
   sanitiseFilename,
@@ -61,7 +63,7 @@ export function RecordingController({
 }) {
   const { toast } = useToast();
   const recorderRef = useRef<PresentationRecorder | null>(null);
-  const [support] = useState(() => detectSupport());
+  const support = useSyncExternalStore(subscribeToSupport, supportSnapshot, serverSupportSnapshot);
   const [phase, setPhase] = useState<RecorderPhase>("idle");
   const [setupOpen, setSetupOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);

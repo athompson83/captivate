@@ -15,7 +15,7 @@ import {
 } from "@/lib/editor/store";
 import { createElement } from "@/lib/editor/element-factory";
 import { composeScene } from "@/lib/editor/layouts";
-import type { PresentationDocument, Scene } from "@/lib/schema/presentation";
+import { JOURNEY_DEFAULTS, type PresentationDocument, type Scene } from "@/lib/schema/presentation";
 
 const PRESENTATION_ID = "00000000-0000-4000-8000-00000000aaaa";
 
@@ -24,6 +24,7 @@ function makeScene(id: string, position: number, title = `Scene ${position + 1}`
     id,
     presentationId: PRESENTATION_ID,
     sectionId: null,
+    placement: null,
     position,
     title,
     content: composeScene("bullets", { heading: title, bullets: ["a", "b"] }),
@@ -45,6 +46,7 @@ function makeDocument(sceneCount = 3): PresentationDocument {
       themeId: "midnight",
       themeOverrides: null,
       aspectRatio: "16:9",
+      journey: JOURNEY_DEFAULTS,
       tags: [],
       isFavorite: false,
       thumbnailUrl: null,
