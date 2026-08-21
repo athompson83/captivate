@@ -190,3 +190,51 @@ describe("deterministic fallback", () => {
     expect(PresentationOutline.safeParse(outline).success).toBe(true);
   });
 });
+
+describe("fallback title derivation", () => {
+  it.each([
+    [
+      "Create a presentation about recognising compensated shock in paediatric patients",
+      /recognising compensated shock/i,
+    ],
+    [
+      "A 50-minute lecture on recognising and managing compensated shock for second-year paramedic students",
+      /recognising and managing compensated shock/i,
+    ],
+    ["Make me a deck on capnography waveforms", /capnography waveforms/i],
+    ["I need slides covering the sepsis six", /sepsis six/i],
+  ])("extracts the subject from %j", (prompt, expected) => {
+    const { title } = fallbackOutline(prompt, 10);
+    expect(title).toMatch(expected);
+    // The framing words are not the subject.
+    expect(title.toLowerCase()).not.toMatch(/^(create|make|a \d+-minute|i need)/);
+    expect(title.toLowerCase()).not.toContain("presentation about");
+    expect(title.toLowerCase()).not.toContain("deck on");
+    // No dangling article left by the removed noun phrase, and no trailing
+    // punctuation from cutting the sentence short.
+    expect(title).not.toMatch(/^(A|An|The)\s+(recognising|managing|covering)/i);
+    expect(title).not.toMatch(/[.,;:]$/);
+  });
+
+  it("gives every scene a title a human would recognise as a scene", () => {
+    const { sections } = fallbackOutline(
+      "A 50-minute lecture on recognising and managing compensated shock",
+      12,
+    );
+    const titles = sections.flatMap((s) => s.scenes.map((sc) => sc.title));
+
+    for (const title of titles) {
+      // Not a stray fragment lifted out of the prompt.
+      expect(title.split(/\s+/).length, title).toBeGreaterThanOrEqual(1);
+      expect(title, title).not.toMatch(/^\d/);
+      expect(title.length, title).toBeGreaterThan(3);
+    }
+    expect(new Set(titles).size).toBe(titles.length);
+  });
+
+  it("never returns an empty title", () => {
+    for (const prompt of ["", "   ", "a", "make me a presentation"]) {
+      expect(fallbackOutline(prompt, 8).title.length).toBeGreaterThan(0);
+    }
+  });
+});

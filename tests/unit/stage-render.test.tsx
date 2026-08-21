@@ -175,3 +175,80 @@ describe("stage rendering", () => {
     expect(container.querySelector("[data-stage]")).not.toBeNull();
   });
 });
+
+describe("text auto-fit", () => {
+  /** Reads back the font size the stage actually applied to an element. */
+  function fontSizeOf(el: Element | null): number {
+    return Number.parseFloat((el as HTMLElement).style.fontSize || "0");
+  }
+
+  it("keeps a short heading at its authored size", () => {
+    const content = composeScene("title", { heading: "Shock" });
+    const { container } = renderStage(content);
+    // 5.4rem at a 16px stage rem, unmodified.
+    expect(fontSizeOf(container.querySelector("h1"))).toBeCloseTo(5.4 * 16, 1);
+  });
+
+  it("shrinks a heading that would overflow its box", () => {
+    const long = composeScene("title", {
+      heading:
+        "Recognising and managing compensated shock for second-year paramedic students in the field",
+    });
+    const { container } = renderStage(long);
+
+    const size = fontSizeOf(container.querySelector("h1"));
+    expect(size).toBeGreaterThan(0);
+    expect(size).toBeLessThan(5.4 * 16);
+  });
+
+  it("shrinks a list that genuinely overflows its box", () => {
+    const short = composeScene("bullets", { heading: "H", bullets: ["One", "Two"] });
+    const long = composeScene("bullets", {
+      heading: "H",
+      bullets: Array.from(
+        { length: 12 },
+        (_, i) => `Point ${i + 1}: a considerably longer line that runs on for a good while`,
+      ),
+    });
+
+    const shortSize = fontSizeOf(
+      render(
+        <Stage content={short} theme={theme} aspect="16:9" fixedScale={1} />,
+      ).container.querySelector("ul"),
+    );
+    const longSize = fontSizeOf(
+      render(
+        <Stage content={long} theme={theme} aspect="16:9" fixedScale={1} />,
+      ).container.querySelector("ul"),
+    );
+
+    expect(longSize).toBeLessThan(shortSize);
+  });
+
+  it("leaves a list that fits at its authored size", () => {
+    // Auto-fit must not quietly shrink content that was already fine.
+    const content = composeScene("bullets", {
+      heading: "H",
+      bullets: ["Tachycardia first", "Narrow pulse pressure", "Delayed capillary refill"],
+    });
+    const { container } = renderStage(content);
+    expect(fontSizeOf(container.querySelector("ul"))).toBeCloseTo(3.4 * 16 * 0.56, 2);
+  });
+
+  it("applies the same fit in a thumbnail as on the stage", () => {
+    // A thumbnail renders the stage at fixedScale 1 inside a CSS transform, so
+    // the computed font size must be identical — otherwise a card preview would
+    // not match what gets projected.
+    const content = composeScene("title", {
+      heading: "Recognising and managing compensated shock for paramedic students",
+    });
+
+    const a = render(<Stage content={content} theme={theme} aspect="16:9" fixedScale={1} />);
+    const b = render(<Stage content={content} theme={theme} aspect="16:9" fixedScale={0.2} />);
+
+    expect(fontSizeOf(a.container.querySelector("h1"))).toBeCloseTo(
+      fontSizeOf(b.container.querySelector("h1")),
+      5,
+    );
+  });
+});

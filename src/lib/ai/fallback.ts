@@ -29,6 +29,7 @@ const STOPWORDS = new Set([
   "into",
   "over",
   "after",
+  "before",
   "is",
   "are",
   "was",
@@ -74,6 +75,19 @@ const STOPWORDS = new Set([
   "create",
   "build",
   "give",
+  "cover",
+  "covering",
+  "include",
+  "including",
+  "using",
+  "use",
+  "appear",
+  "appears",
+  "need",
+  "want",
+  "please",
+  "write",
+  "generate",
   "presentation",
   "deck",
   "slides",
@@ -81,14 +95,27 @@ const STOPWORDS = new Set([
   "talk",
   "lecture",
   "session",
+  "minute",
+  "minutes",
+  "hour",
+  "hours",
+  "students",
+  "student",
+  "audience",
 ]);
+
+/** Leading phrases people habitually put in a prompt that are not the subject. */
+const LEAD_IN =
+  /^(please\s+)?(can you\s+)?(make|create|build|write|generate|draft|prepare|put together|give me|i need|i want|help me (with|write|make))\s+(me\s+)?(a|an|the)?\s*/i;
+const FORMAT_PHRASE =
+  /\b(\d+[-\s]?(minute|min|hour|hr)s?\s+)?(presentation|deck|slide deck|slides?|talk|lecture|session|workshop|briefing|seminar)\b\s*(about|on|for|covering|that covers|explaining)?\s*/i;
 
 function keywords(prompt: string, limit = 6): string[] {
   const words = prompt
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOPWORDS.has(w));
+    .filter((w) => w.length > 3 && !STOPWORDS.has(w));
 
   const counts = new Map<string, number>();
   for (const w of words) counts.set(w, (counts.get(w) ?? 0) + 1);
@@ -99,57 +126,106 @@ function keywords(prompt: string, limit = 6): string[] {
     .map(([w]) => w);
 }
 
-function titleCase(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function sentenceCase(s: string): string {
+  const trimmed = s.trim().replace(/\s+/g, " ");
+  if (!trimmed) return "";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
 function deriveTitle(prompt: string): string {
   const cleaned = prompt.trim().replace(/\s+/g, " ");
-  const firstSentence = cleaned.split(/[.!?\n]/)[0] ?? cleaned;
-  const stripped = firstSentence
-    .replace(
-      /^(please\s+)?(make|create|build|write|generate|give me|i need|i want)\s+(me\s+)?(a|an|the)?\s*/i,
-      "",
-    )
-    .replace(
-      /\b(presentation|deck|slides?|talk|lecture|session)\b\s*(about|on|for|covering)?\s*/i,
-      "",
-    )
-    .trim();
+  if (!cleaned) return "New presentation";
 
-  const candidate = stripped || cleaned;
-  const words = candidate.split(/\s+/).slice(0, 10).join(" ");
-  return titleCase(words).slice(0, 120) || "New presentation";
+  const firstSentence = cleaned.split(/(?<=[.!?])\s/)[0] ?? cleaned;
+
+  let stripped = firstSentence.replace(LEAD_IN, "").trim();
+  const withoutFormat = stripped.replace(FORMAT_PHRASE, "").trim();
+
+  if (withoutFormat !== stripped) {
+    // The article belonged to the noun phrase just removed — "A 50-minute
+    // lecture on X" leaves a dangling "A" — so it goes with it.
+    stripped = withoutFormat.replace(/^(a|an|the)\s+/i, "").trim();
+  }
+
+  const candidate = stripped || firstSentence;
+
+  // Cut at a natural boundary rather than mid-clause, then drop any trailing
+  // punctuation the cut left behind.
+  const clause = candidate
+    .split(/\s+/)
+    .slice(0, 12)
+    .join(" ")
+    .replace(/[,;:]\s*[^,;:]*$/, "")
+    .replace(/[.,;:!?\s]+$/, "");
+
+  return sentenceCase(clause || candidate).slice(0, 120) || "New presentation";
 }
+
+/**
+ * The narrative skeleton used when no model is available.
+ *
+ * Real section titles beat keyword soup: "What to look for" is a usable prompt
+ * for an author, whereas a title extracted from the prompt's most frequent noun
+ * is usually a fragment. The topic is woven into the purpose line instead,
+ * where a partial phrase reads naturally.
+ */
+const BODY_BEATS: { title: string; purpose: string; layout: GeneratedScene["layout"] }[] = [
+  {
+    title: "Why this matters",
+    purpose: "Establish the stakes before any detail.",
+    layout: "statement",
+  },
+  {
+    title: "The core idea",
+    purpose: "State the central concept in one sentence.",
+    layout: "bullets",
+  },
+  {
+    title: "How it works",
+    purpose: "Walk through the mechanism step by step.",
+    layout: "split-right",
+  },
+  {
+    title: "What to look for",
+    purpose: "The signals that tell you it is happening.",
+    layout: "bullets",
+  },
+  {
+    title: "A worked example",
+    purpose: "Make it concrete with a real situation.",
+    layout: "split-left",
+  },
+  {
+    title: "Compare and contrast",
+    purpose: "Set this against the thing it is confused with.",
+    layout: "two-column",
+  },
+  {
+    title: "Common mistakes",
+    purpose: "The three errors people actually make.",
+    layout: "three-up",
+  },
+  { title: "By the numbers", purpose: "The data that supports the argument.", layout: "chart" },
+  { title: "In practice", purpose: "What to do differently from tomorrow.", layout: "bullets" },
+  { title: "The exception", purpose: "Where the rule breaks down, and why.", layout: "quote" },
+];
 
 export function fallbackOutline(prompt: string, sceneTarget: number): PresentationOutline {
   const title = deriveTitle(prompt);
-  const topics = keywords(prompt);
-  const bodyCount = Math.max(2, Math.min(10, sceneTarget - 3));
+  const topic = keywords(prompt, 1)[0];
+  const bodyCount = Math.max(2, Math.min(BODY_BEATS.length, sceneTarget - 3));
 
-  const bodyScenes = Array.from({ length: bodyCount }, (_, i) => {
-    const topic = topics[i % Math.max(1, topics.length)] ?? `Point ${i + 1}`;
-    // Rotate layouts so the skeleton is not a wall of identical bullet slides.
-    const layouts = [
-      "bullets",
-      "split-right",
-      "statement",
-      "three-up",
-      "split-left",
-      "two-column",
-    ] as const;
-    return {
-      title: titleCase(topic),
-      purpose: `Develop ${topic} and show why it matters to the audience.`,
-      layout: layouts[i % layouts.length],
-    };
-  });
+  const bodyScenes = BODY_BEATS.slice(0, bodyCount).map((beat) => ({
+    title: beat.title,
+    purpose: topic ? `${beat.purpose} Focus on ${topic}.` : beat.purpose,
+    layout: beat.layout,
+  }));
 
   return {
     title,
     subtitle: "",
     approach:
-      "Structural draft generated without a language model. Every scene is a real, editable composition — replace the placeholder wording with your own.",
+      "Structural draft generated without a language model: a narrative skeleton with a designed composition for every scene. Replace the placeholder wording with your own.",
     sections: [
       {
         title: "Opening",

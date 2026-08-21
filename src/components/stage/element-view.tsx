@@ -5,6 +5,7 @@ import * as Icons from "lucide-react";
 import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
 import { resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
+import { fitTextSize, textMetrics } from "@/lib/present/fit-text";
 
 /**
  * Renders one scene element.
@@ -18,8 +19,8 @@ interface Props {
   element: SceneElement;
   theme: PresentationTheme;
   stageWidth: number;
-  /** Used for role-relative type sizes (h1 vs body). */
-  interactive?: boolean;
+  /** Stage height in px, used together with the frame to auto-fit text. */
+  stageHeight?: number;
 }
 
 /** Curated icon set — an arbitrary name can never resolve to a random import. */
@@ -97,9 +98,11 @@ function textCss(
   theme: PresentationTheme,
   basePx: number,
   fallbackFamily: "display" | "sans" | "mono" = "sans",
+  /** Pre-computed size that already accounts for the element's box. */
+  fittedPx?: number,
 ): React.CSSProperties {
   return {
-    fontSize: `${basePx * style.size}px`,
+    fontSize: `${fittedPx ?? basePx * style.size}px`,
     fontWeight: style.weight,
     fontStyle: style.italic ? "italic" : "normal",
     textDecoration: style.underline ? "underline" : "none",
@@ -118,6 +121,10 @@ function textCss(
     overflowWrap: "break-word",
     wordBreak: "break-word",
   };
+}
+
+function plainOf(runs: RichText): string {
+  return runs.map((r) => r.text).join("");
 }
 
 function Runs({ runs, theme }: { runs: RichText; theme: PresentationTheme }) {
@@ -166,17 +173,53 @@ function Runs({ runs, theme }: { runs: RichText; theme: PresentationTheme }) {
   );
 }
 
-export const ElementView = memo(function ElementView({ element, theme, stageWidth }: Props) {
+export const ElementView = memo(function ElementView({
+  element,
+  theme,
+  stageWidth,
+  stageHeight,
+}: Props) {
   const rem = stageRem(stageWidth);
   const scale = theme.scale;
+
+  // The element's box in stage pixels, used to shrink over-long text so it
+  // never spills onto whatever sits below it.
+  const boxWidth = (element.frame.w / 100) * stageWidth;
+  const boxHeight = stageHeight ? (element.frame.h / 100) * stageHeight : 0;
+
+  const fit = (
+    text: string,
+    desired: number,
+    style: TextStyle,
+    family: "display" | "sans" | "mono",
+    lines?: number,
+  ) => {
+    if (!stageHeight) return desired;
+    const metrics = textMetrics(text);
+    return fitTextSize({
+      ...metrics,
+      boxWidth,
+      boxHeight,
+      desiredSize: desired,
+      lineHeight: style.lineHeight,
+      family: style.family ?? family,
+      lines,
+    });
+  };
 
   switch (element.type) {
     case "heading": {
       const base =
         (element.level === 1 ? scale.h1 : element.level === 2 ? scale.h2 : scale.h3) * rem;
       const Tag = `h${element.level}` as const satisfies "h1" | "h2" | "h3";
+      const fitted = fit(
+        plainOf(element.content),
+        base * element.style.size,
+        element.style,
+        "display",
+      );
       return (
-        <Tag style={textCss(element.style, theme, base, "display")}>
+        <Tag style={textCss(element.style, theme, base, "display", fitted)}>
           <span>
             <Runs runs={element.content} theme={theme} />
           </span>
@@ -186,7 +229,20 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
 
     case "text":
       return (
-        <div style={textCss(element.style, theme, scale.h2 * rem, "sans")}>
+        <div
+          style={textCss(
+            element.style,
+            theme,
+            scale.h2 * rem,
+            "sans",
+            fit(
+              plainOf(element.content),
+              scale.h2 * rem * element.style.size,
+              element.style,
+              "sans",
+            ),
+          )}
+        >
           <span>
             <Runs runs={element.content} theme={theme} />
           </span>
@@ -198,7 +254,18 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
         <figure style={{ height: "100%", width: "100%", margin: 0 }}>
           <blockquote
             style={{
-              ...textCss(element.style, theme, scale.h2 * rem, "display"),
+              ...textCss(
+                element.style,
+                theme,
+                scale.h2 * rem,
+                "display",
+                fit(
+                  plainOf(element.content),
+                  scale.h2 * rem * element.style.size,
+                  element.style,
+                  "display",
+                ),
+              ),
               height: element.attribution ? "auto" : "100%",
               margin: 0,
             }}
@@ -227,12 +294,22 @@ export const ElementView = memo(function ElementView({ element, theme, stageWidt
       );
 
     case "list": {
-      const base = scale.h2 * rem * element.style.size;
+      const text = element.items.map((i) => plainOf(i)).join(" ");
+      // A list's height is driven by its item count, and each item may wrap, so
+      // budget one extra line for every two items.
+      const estimatedLines = element.items.length + Math.floor(element.items.length / 2);
+      const base = fit(
+        text,
+        scale.h2 * rem * element.style.size,
+        element.style,
+        "sans",
+        estimatedLines,
+      );
       const Tag = element.ordered ? "ol" : "ul";
       return (
         <Tag
           style={{
-            ...textCss(element.style, theme, scale.h2 * rem, "sans"),
+            ...textCss(element.style, theme, scale.h2 * rem, "sans", base),
             listStyle: "none",
             margin: 0,
             padding: 0,

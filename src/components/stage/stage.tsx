@@ -264,6 +264,7 @@ function ElementLayer({
         element={element}
         theme={theme}
         stageWidth={stageWidth}
+        stageHeight={stageHeight}
         step={step}
         play={play}
       />
@@ -276,12 +277,14 @@ function StaggeredElement({
   element,
   theme,
   stageWidth,
+  stageHeight,
   step,
   play,
 }: {
   element: SceneElement;
   theme: PresentationTheme;
   stageWidth: number;
+  stageHeight: number;
   step: number;
   play: boolean;
 }) {
@@ -292,10 +295,18 @@ function StaggeredElement({
         element={{ ...element, items: element.items.slice(0, visible) }}
         theme={theme}
         stageWidth={stageWidth}
+        stageHeight={stageHeight}
       />
     );
   }
-  return <ElementView element={element} theme={theme} stageWidth={stageWidth} />;
+  return (
+    <ElementView
+      element={element}
+      theme={theme}
+      stageWidth={stageWidth}
+      stageHeight={stageHeight}
+    />
+  );
 }
 
 /**
