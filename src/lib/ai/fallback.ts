@@ -262,6 +262,7 @@ export function fallbackScene(
     title: outlineScene.title,
     layout: outlineScene.layout,
     heading: outlineScene.title,
+    headingAccent: "",
     subheading: "",
     eyebrow: "",
     body: "",
@@ -285,9 +286,19 @@ export function fallbackScene(
         subheading: "Add your name, the date, or the course here.",
       };
     case "closing":
-      return { ...base, heading: "Takeaways", subheading: "The three things worth remembering." };
+      return {
+        ...base,
+        heading: "Takeaways",
+        headingAccent: "",
+        subheading: "The three things worth remembering.",
+      };
     case "statement":
-      return { ...base, heading: `${outlineScene.title} — state the single idea here.` };
+      // The claim turns on its second clause, which carries the accent.
+      return {
+        ...base,
+        heading: `${outlineScene.title} —`,
+        headingAccent: "state the single idea here.",
+      };
     case "quote":
       return { ...base, quote: "A line worth repeating.", attribution: "Source" };
     case "three-up":

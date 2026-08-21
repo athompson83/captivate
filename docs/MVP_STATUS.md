@@ -47,6 +47,26 @@ five are fixed with a regression test that was checked to fail without the fix:
 
 Two of those (3 and 4) predate the canvas work and would have shipped.
 
+### Then it needed to tell the author the truth
+
+Presentation health and a pacing strip, both computed from the document already
+in the store — no request, no waiting, updating as the deck does.
+
+The rule the health score follows is that it is only ever the weighted mean of
+its checks, each of which states what it found and what to do. That constraint
+is what keeps it useful: "2 of 2 images have no alt text" is a fix, and an
+"engagement score of 71" is not, so nothing here reports anything of the kind.
+
+Pacing needed a duration for every scene, and almost nobody sets a rehearsal
+target, so time is estimated from content — words spoken aloud, a beat per
+bullet, a pause on each image and build — with an authored target overriding it.
+Wherever an estimate is shown it says "estimated".
+
+Also: a heading can now carry its emphasis. "State the single most important
+idea / **in one sentence**" — the clause the claim turns on takes the theme's
+accent, as a token so re-theming moves it, and as one run so wrapping and
+auto-fit still see a single block of type.
+
 ### Then the argument needed a shape
 
 Sections became **movements**: named stretches of the argument, shown to the

@@ -54,6 +54,29 @@ export function toOklab(hex: string): Oklab {
   };
 }
 
+/**
+ * WCAG relative luminance, and the contrast ratio between two colours.
+ *
+ * Separate from OKLab on purpose: OKLab lightness is perceptually uniform,
+ * which is what makes it right for *blending*, but accessibility thresholds are
+ * defined against this specific luminance formula and nothing else. Using L as
+ * a proxy would produce a number that looks like a contrast ratio and is not
+ * one, which is worse than not reporting it.
+ */
+export function relativeLuminance(hex: string): number {
+  const { r, g, b } = parseHex(hex);
+  return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b);
+}
+
+/** 1 for identical colours, 21 for black on white. */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  const lighter = Math.max(la, lb);
+  const darker = Math.min(la, lb);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 export function mixOklab(from: Oklab, to: Oklab, t: number): Oklab {
   const clamped = Math.min(1, Math.max(0, t));
   return {

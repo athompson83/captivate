@@ -689,3 +689,45 @@ export function plainText(rt: RichText): string {
 export function richText(text: string): RichText {
   return [{ text }];
 }
+
+/** The token every accented phrase points at, so re-theming carries it. */
+export const ACCENT_TOKEN = "accent";
+
+/**
+ * A heading with an accented clause.
+ *
+ * "When the system pauses, **survival falls.**" — the turn of the sentence
+ * carries the colour. It is the difference between a title and a claim, and it
+ * is one run, not one element: auto-fit, alignment and wrapping all continue to
+ * treat the heading as a single block of type.
+ *
+ * The colour is a token reference rather than a literal, so changing the theme
+ * moves the emphasis with it.
+ */
+export function richTextAccent(text: string, accent: string): RichText {
+  const lead = text.trim();
+  const tail = accent.trim();
+  if (!tail) return richText(lead);
+  if (!lead) return [{ text: tail, color: { kind: "token", token: ACCENT_TOKEN } }];
+  return [{ text: `${lead} ` }, { text: tail, color: { kind: "token", token: ACCENT_TOKEN } }];
+}
+
+/** Splits an accented heading back into its two halves. */
+export function splitAccent(runs: RichText): { text: string; accent: string } {
+  const accented = runs.filter(
+    (run) => run.color?.kind === "token" && run.color.token === ACCENT_TOKEN,
+  );
+  if (accented.length === 0) return { text: runs.map((r) => r.text).join(""), accent: "" };
+
+  const plain = runs.filter((run) => !accented.includes(run));
+  return {
+    text: plain
+      .map((r) => r.text)
+      .join("")
+      .trim(),
+    accent: accented
+      .map((r) => r.text)
+      .join("")
+      .trim(),
+  };
+}

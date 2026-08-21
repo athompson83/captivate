@@ -278,6 +278,7 @@ function materialise(scene: GeneratedScene): {
   const layoutContent: LayoutContent = {
     eyebrow: scene.eyebrow || undefined,
     heading: scene.heading || undefined,
+    headingAccent: scene.headingAccent || undefined,
     subheading: scene.subheading || undefined,
     body: scene.body || undefined,
     bullets: scene.bullets.length ? scene.bullets : undefined,

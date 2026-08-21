@@ -163,3 +163,22 @@ Two properties are stated carefully because they are easy to assert wrongly:
   asserts closeness, not equality, and says why;
 - twenty light regions far away must not lift the dark one you are standing on,
   which is what averaging every scene would do.
+
+## Analysis
+
+`tests/unit/health.test.ts` covers pacing, balance, contrast and the health
+checks. Two properties are load-bearing:
+
+- **the score is the weighted mean of its checks and nothing else**, asserted by
+  recomputing it in the test from the returned checks. If it ever became a
+  secret formula, none of the detail lines would be worth reading;
+- **every non-passing check carries a fix**, across several shapes of document.
+  A finding with no fix is a complaint.
+
+Contrast is pinned to the WCAG reference points — black on white is 21:1, a
+colour against itself is 1:1 — because the whole value of reporting a ratio is
+that it means what everyone else means by it.
+
+An empty presentation is its own case: most checks pass vacuously on one ("no
+scene is a wall of text" is true and meaningless with no scenes), which scored
+an empty deck as Good until it was given an explicit answer.

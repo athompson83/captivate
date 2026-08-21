@@ -13,6 +13,7 @@ import {
   useEditor,
 } from "@/lib/editor/store";
 import { Field, Segmented, Slider, Toggle } from "@/components/ui/misc";
+import { HealthPanel } from "./health-panel";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils/cn";
 
@@ -74,6 +75,8 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-3.5">
+        <HealthPanel />
+
         <section>
           <h3 className="text-ink-3 mb-2 text-[11px] font-medium tracking-wide uppercase">
             Arrangement

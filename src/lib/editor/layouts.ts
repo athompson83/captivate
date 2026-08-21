@@ -3,6 +3,8 @@ import {
   STAGE_HEIGHT,
   STAGE_WIDTH,
   richText,
+  richTextAccent,
+  splitAccent,
   type Frame,
   type RichText,
   type SceneContent,
@@ -156,6 +158,8 @@ export function elementId(prefix = "el"): string {
 export interface LayoutContent {
   eyebrow?: string;
   heading?: string;
+  /** A closing clause of the heading, carried in the theme's accent colour. */
+  headingAccent?: string;
   subheading?: string;
   body?: string;
   bullets?: string[];
@@ -306,7 +310,9 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
                 ? 2
                 : 1,
             frame: slots.heading,
-            content: richText(headingText),
+            content: content.headingAccent
+              ? richTextAccent(headingText, content.headingAccent)
+              : richText(headingText),
             hidden: false,
             locked: false,
             opacity: 1,
@@ -576,9 +582,14 @@ export function extractContent(content: SceneContent): LayoutContent {
 
   for (const el of content.elements) {
     switch (el.type) {
-      case "heading":
-        out.heading ??= el.content.map((r) => r.text).join("");
+      case "heading": {
+        // Split so a re-layout keeps the emphasis rather than flattening the
+        // claim back into one colour.
+        const { text, accent } = splitAccent(el.content);
+        out.heading ??= text;
+        if (accent) out.headingAccent ??= accent;
         break;
+      }
       case "quote":
         out.quote ??= el.content.map((r) => r.text).join("");
         out.attribution ??= el.attribution;

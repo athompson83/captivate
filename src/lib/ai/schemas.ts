@@ -50,6 +50,13 @@ export const GeneratedScene = z.object({
   title: z.string().min(1).max(120),
   layout: GeneratedLayout,
   heading: z.string().max(120).default(""),
+  /**
+   * The clause the claim turns on, carried in the theme's accent colour.
+   *
+   * "When the system pauses, / **survival falls.**" — capped hard, because the
+   * emphasis only works when it is a phrase rather than a second sentence.
+   */
+  headingAccent: z.string().max(60).default(""),
   subheading: z.string().max(220).default(""),
   eyebrow: z.string().max(48).default(""),
   body: z.string().max(320).default(""),

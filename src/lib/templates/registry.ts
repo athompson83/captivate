@@ -70,7 +70,7 @@ export const TEMPLATES: Template[] = [
       {
         title: "The core idea",
         layout: "statement",
-        content: { heading: "State the single most important idea in one sentence." },
+        content: { heading: "State the single most important idea", headingAccent: "in one sentence." },
         speakerNotes: "Pause after this. Let it land before you explain it.",
         movement: "FRAME",
       },
@@ -151,7 +151,7 @@ export const TEMPLATES: Template[] = [
       {
         title: "Problem",
         layout: "statement",
-        content: { heading: "Name the problem in the customer's own words." },
+        content: { heading: "Name the problem", headingAccent: "in the customer's own words." },
         speakerNotes: "Make them feel the pain before you offer relief.",
         movement: "PROBLEM",
       },
@@ -234,7 +234,7 @@ export const TEMPLATES: Template[] = [
       {
         title: "The turn",
         layout: "statement",
-        content: { heading: "The moment the picture changes." },
+        content: { heading: "The moment", headingAccent: "the picture changes." },
         speakerNotes: "Pause here. This is the teaching point.",
         movement: "TURN",
       },

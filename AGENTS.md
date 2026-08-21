@@ -59,6 +59,24 @@ Callers surface `error` in a toast. Don't throw across the boundary.
 index signatures, and `GenericTable` then infers `Update` as `never`. Patches are typed
 `Partial<PresentationRow>` and friends, never `Record<string, unknown>`.
 
+## Analysis says what it measured
+
+`src/lib/analysis/` scores a presentation, and the rule is that the score is
+_only_ the weighted mean of its checks — no secret formula. Every check states
+what it found in concrete terms ("2 of 2 have no alt text") and what to do about
+it. A finding with no fix is a complaint, and there is a test asserting every
+non-passing check carries one.
+
+Two things worth knowing before extending it:
+
+- durations are **estimated** from content where a scene has no rehearsal
+  target, because almost nobody sets one and reporting a forty-minute lecture as
+  two minutes is worse than saying nothing. Anywhere an estimate is shown, it
+  says so;
+- contrast uses WCAG relative luminance, not OKLab lightness. OKLab is right for
+  _blending_ and wrong for a threshold — a number that looks like a contrast
+  ratio and is not one is worse than no number.
+
 ## Sections are movements, and they persist
 
 A section's `label` is the one-word name for what that stretch of the argument

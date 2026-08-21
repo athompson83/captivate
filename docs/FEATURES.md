@@ -151,6 +151,9 @@ transitions first.
 | Continuous surface                 | Implemented | Scenes are regions with no edge, not cards                        |
 | Movements                          | Implemented | Named stretches of the argument, shown to the audience on a rail  |
 | Next-movement signpost             | Implemented | Names what follows as a movement ends                             |
+| Presentation health                | Implemented | Six checks over the real document, with the fix for each          |
+| Pacing strip                       | Implemented | Time per movement, estimated from content where untimed           |
+| Accented claim                     | Implemented | The clause a heading turns on carries the theme accent            |
 | Atmosphere                         | Implemented | Background colour blends between regions as the camera travels    |
 | Journey map                        | Implemented | Drag scenes in world space; drop one inside another to nest it    |
 | Overview                           | Implemented | `O` pulls back over the whole world and draws the route           |

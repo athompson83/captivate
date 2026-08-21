@@ -64,6 +64,8 @@ captivate/
 │  │  │  ├─ path.ts                The smoothed route drawn between waypoints
 │  │  │  ├─ ambient.ts             Atmosphere: the colour of the air per position
 │  │  ├─ present/movement-rail.tsx The argument's shape, shown to the room
+│  │  ├─ analysis/pacing.ts        How long a presentation actually takes
+│  │  ├─ analysis/health.ts        Checks a presenter would change the deck over
 │  │  │  ├─ fit-text.ts            Deterministic auto-fit
 │  │  │  ├─ stage.ts               Stage geometry helpers
 │  │  │  └─ fullscreen.ts          Fullscreen and wake lock

@@ -171,3 +171,44 @@ describe("relayoutScene", () => {
     }
   });
 });
+
+describe("an accented claim", () => {
+  it("carries the emphasis as a token, so re-theming moves it", () => {
+    const content = composeScene("statement", {
+      heading: "When the system pauses,",
+      headingAccent: "survival falls.",
+    });
+    const heading = content.elements.find((e) => e.type === "heading");
+    expect(heading).toBeTruthy();
+    if (heading?.type !== "heading") return;
+
+    expect(heading.content).toHaveLength(2);
+    expect(heading.content[0].color).toBeUndefined();
+    expect(heading.content[1]).toMatchObject({
+      text: "survival falls.",
+      color: { kind: "token", token: "accent" },
+    });
+    // One element, not two: auto-fit and wrapping still see one block of type.
+    expect(content.elements.filter((e) => e.type === "heading")).toHaveLength(1);
+  });
+
+  it("survives a change of layout instead of flattening back to one colour", () => {
+    const original = composeScene("statement", {
+      heading: "When the system pauses,",
+      headingAccent: "survival falls.",
+    });
+    const relaid = relayoutScene(original, "title");
+    const heading = relaid.elements.find((e) => e.type === "heading");
+    if (heading?.type !== "heading") throw new Error("no heading");
+
+    expect(heading.content.some((run) => run.color?.kind === "token")).toBe(true);
+    expect(heading.content.map((r) => r.text).join("")).toContain("survival falls.");
+  });
+
+  it("is just a heading when no accent is given", () => {
+    const content = composeScene("statement", { heading: "One idea" });
+    const heading = content.elements.find((e) => e.type === "heading");
+    if (heading?.type !== "heading") throw new Error("no heading");
+    expect(heading.content).toEqual([{ text: "One idea" }]);
+  });
+});

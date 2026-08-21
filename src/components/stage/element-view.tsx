@@ -3,7 +3,7 @@
 import { createElement, memo } from "react";
 import * as Icons from "lucide-react";
 import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
-import { resolveColor, type PresentationTheme } from "@/lib/schema/theme";
+import { categoricalHues, resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
 import { fitTextSize, textMetrics } from "@/lib/present/fit-text";
 
@@ -760,7 +760,7 @@ function ChartView({
     if (element.palette === "accent") return accent;
     if (element.palette === "sequential")
       return `color-mix(in oklch, ${accent} ${100 - i * 14}%, ${theme.tokens.surface})`;
-    const hues = [accent, "#5AA9E6", "#7FD1B9", "#E8A34A", "#C77DD6", "#E2726E"];
+    const hues = categoricalHues(theme);
     return hues[i % hues.length];
   };
 

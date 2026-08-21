@@ -14,6 +14,7 @@ import { NotesDock } from "./notes-dock";
 import { AiDock } from "./ai-dock";
 import { JourneyMap } from "./journey-map";
 import { JourneyPanel } from "./journey-panel";
+import { PacingStrip } from "./pacing-strip";
 import type { EditorView } from "./top-bar";
 import { RecoveryNotice } from "./recovery-notice";
 
@@ -78,7 +79,14 @@ export function EditorRoot({
         <SceneNavigator open={navOpen} presentationId={presentationId} theme={theme} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {view === "scene" ? <Canvas theme={theme} /> : <JourneyMap className="min-h-0 flex-1" />}
+          {view === "scene" ? (
+            <Canvas theme={theme} />
+          ) : (
+            <>
+              <JourneyMap className="min-h-0 flex-1" />
+              <PacingStrip />
+            </>
+          )}
           {notesOpen && (
             <NotesDock presentationId={presentationId} onClose={() => setNotesOpen(false)} />
           )}

@@ -195,6 +195,17 @@ export function resolveColor(
 }
 
 /** CSS custom properties for a stage rendered with this theme. */
+/**
+ * Categorical hues for anything that has to tell several things apart — chart
+ * series, movements on the pacing strip. Deliberately literal rather than
+ * token-derived: a categorical palette's job is *distinguishability*, and
+ * deriving six colours from one accent produces six colours nobody can tell
+ * apart. The theme's own accent leads, so it still belongs to the deck.
+ */
+export function categoricalHues(theme: PresentationTheme): string[] {
+  return [theme.tokens.accent, "#5AA9E6", "#7FD1B9", "#E8A34A", "#C77DD6", "#E2726E"];
+}
+
 export function themeCssVars(theme: PresentationTheme): Record<string, string> {
   return {
     "--stage-canvas": theme.tokens.canvas,
