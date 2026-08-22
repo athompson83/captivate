@@ -1,12 +1,12 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useReducedMotion } from "motion/react";
 import type { AspectRatio, Scene, ScenePlacement } from "@/lib/schema/presentation";
 import { stageBackgroundCss, themeCssVars, type PresentationTheme } from "@/lib/schema/theme";
 import { stageSize } from "@/lib/present/stage";
 import {
-  backdropTransform,
   boundsOf,
   camerasEqual,
   cameraScale,
@@ -26,7 +26,21 @@ import { smoothPath } from "@/lib/present/path";
 import { ambientAt, paletteOf, scenePalettes } from "@/lib/present/ambient";
 import { oklabCss } from "@/lib/utils/color";
 import { Stage } from "./stage";
+import type { AtmosphereHandle } from "./atmosphere";
 import { cn } from "@/lib/utils/cn";
+
+/**
+ * The atmosphere arrives a beat late, on purpose.
+ *
+ * It is a WebGL layer behind everything, so it carries a renderer's worth of
+ * bytes for something nobody reads. Loading it after the first paint keeps it
+ * out of the critical path, and the CSS wash underneath is a complete
+ * background on its own until it lands — and if it never lands, that wash is
+ * still what the page shows.
+ */
+const Atmosphere = dynamic(() => import("./atmosphere").then((m) => m.Atmosphere), {
+  ssr: false,
+});
 
 /**
  * The world.
@@ -115,9 +129,13 @@ export const World = memo(function World({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
   /** The full-viewport wash whose colour tracks where the camera is. */
   const ambientRef = useRef<HTMLDivElement>(null);
+  /** The per-pixel field drawn over that wash, where WebGL is available. */
+  const atmosphereRef = useRef<AtmosphereHandle | null>(null);
+  const registerAtmosphere = useCallback((handle: AtmosphereHandle | null) => {
+    atmosphereRef.current = handle;
+  }, []);
 
   /** Live camera. Written every frame; never read during render. */
   const cameraRef = useRef<Camera | null>(null);
@@ -198,9 +216,6 @@ export const World = memo(function World({
       cameraRef.current = camera;
       node.style.transform = worldTransform(camera, viewport);
 
-      const backdrop = backdropRef.current;
-      if (backdrop) backdrop.style.transform = backdropTransform(camera, viewport, depth);
-
       // The room's colour follows the camera. Written as custom properties on
       // one element rather than through React: this runs sixty times a second.
       const wash = ambientRef.current;
@@ -210,6 +225,11 @@ export const World = memo(function World({
         wash.style.setProperty("--world-surface", ambient.surface);
         wash.style.setProperty("--world-glow", ambient.glow);
       }
+
+      // The same colour, per pixel, where the GPU can draw it. Deliberately
+      // after the wash rather than instead of it: the wash is what shows if
+      // this never initialises.
+      atmosphereRef.current?.draw(camera);
     };
 
     const from = cameraRef.current;
@@ -383,25 +403,30 @@ export const World = memo(function World({
       />
 
       {/*
-        Depth. A slow field that takes a fraction of the camera's movement, so
-        travelling has somewhere to travel *through*. It carries no information
-        and is never read — it exists so the eye can measure motion.
+        Depth, and the air itself.
+
+        A dot grid used to live here, taking a damped share of the camera's
+        movement so that travelling had something to travel *through*. It did
+        that job and told the wrong story: a grid of dots is the visual
+        language of a design tool, and the moment a presentation looks like a
+        canvas with a grid on it, it is a canvas with a grid on it.
+
+        The field that replaced it is light. Every pixel is turned back into a
+        world position and coloured by the regions around it, so the air is
+        genuinely different on one side of the screen from the other — which is
+        the whole claim the world makes and the one thing a single CSS gradient
+        cannot say.
       */}
-      {depth > 0 && (
-        <div
-          ref={backdropRef}
-          aria-hidden
-          className="pointer-events-none absolute top-0 left-0 origin-top-left"
-          style={{
-            width: 1,
-            height: 1,
-            backgroundImage:
-              "radial-gradient(circle, var(--world-glow, transparent) 1.5px, transparent 1.5px)",
-            backgroundSize: "64px 64px",
-            backgroundPosition: "center",
-            boxShadow: "0 0 0 100000px transparent",
-            opacity: 0.55,
-          }}
+      {viewport.width > 0 && (
+        <Atmosphere
+          onReady={registerAtmosphere}
+          placements={placements}
+          palettes={palettes}
+          base={basePalette}
+          stage={stage}
+          viewport={viewport}
+          depth={depth}
+          still={Boolean(reduced)}
         />
       )}
 

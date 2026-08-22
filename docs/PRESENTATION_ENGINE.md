@@ -85,12 +85,35 @@ the colour at any point is the blend of the nearest few, weighted by inverse
 square distance. Flying from a cold region to a warm one warms the whole room on
 the way, because that is what moving through a place looks like.
 
-Two mechanisms, both in `src/lib/present/ambient.ts`:
+Three mechanisms:
 
-- **The room** — a full-viewport wash, recomputed every animation frame and
-  written to custom properties on one element. Never through React.
-- **The field** — pools of each region's accent painted into the surface itself,
-  in world space, so they move and scale with the camera as part of the page.
+- **The room** (`ambient.ts`) — a full-viewport wash, recomputed every animation
+  frame and written to custom properties on one element. Never through React.
+- **The field** (`ambient.ts`) — pools of each region's accent painted into the
+  surface itself, in world space, so they move and scale with the camera as part
+  of the page.
+- **The air** (`atmosphere.ts` and `components/stage/atmosphere.tsx`) — the same
+  blend, per pixel, on the GPU.
+
+The third exists because the first two are compromises with what CSS can say.
+One gradient means the whole screen is one colour, so standing between a cold
+region and a warm one shows their _average_ rather than cold on the left and
+warm on the right — and the world's entire claim is that different places feel
+different. The shader turns every pixel back into a world position and blends
+the regions around **it**, which is the claim actually rendered.
+
+It also replaced the parallax layer, which was a grid of dots. That grid did its
+job — it gave the eye something to measure motion against — and told the wrong
+story: a canvas with a grid on it is a design tool, and the moment a
+presentation looks like one, it is one. Depth is now two layers of drifting fbm
+in world space, which is light rather than furniture.
+
+The layer is decorative in the strict sense: `aria-hidden`, never read, never a
+control, and lazily loaded so a renderer's worth of bytes stays off the critical
+path. Where WebGL is unavailable — an old driver, a blocklisted GPU, too many
+live contexts — it simply never mounts and the CSS wash underneath is a complete
+background on its own. That is a real fallback, not a claimed one: the wash is
+what every presentation showed before this existed.
 
 Blending happens in **OKLab**, not sRGB. Mixing a deep blue with an amber in
 sRGB drags the midpoint through grey, which is exactly the transition a camera

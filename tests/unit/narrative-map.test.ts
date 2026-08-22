@@ -246,16 +246,17 @@ describe("template narrative shapes", () => {
   it("adds up to the requested running time after distributing twice", () => {
     for (const total of [900, 1000, 1111]) {
       const applied = applyShape(shape, total);
-      const sum = applied
-        .flatMap((m) => m.moments)
-        .reduce((acc, m) => acc + m.estimatedSeconds, 0);
+      const sum = applied.flatMap((m) => m.moments).reduce((acc, m) => acc + m.estimatedSeconds, 0);
       expect(sum).toBe(total);
     }
   });
 
   it("carries the shape's editorial fields through, not just its timings", () => {
     const applied = applyShape(shape, 600);
-    expect(applied[0].moments[0]).toMatchObject({ role: "hook", purpose: "Start where they live." });
+    expect(applied[0].moments[0]).toMatchObject({
+      role: "hook",
+      purpose: "Start where they live.",
+    });
     expect(applied[0].purpose).toBe("Earn attention.");
   });
 
@@ -349,7 +350,12 @@ describe("reordering moments", () => {
     const moved = moveMoment(moments, uuid(2), "m2", 0);
     expect(orderIn(moved, "m2")).toEqual([uuid(2), uuid(4)]);
     expect(orderIn(moved, "m1")).toEqual([uuid(1), uuid(3)]);
-    expect(moved.filter((m) => m.movementId === "m1").map((m) => m.position).sort()).toEqual([0, 1]);
+    expect(
+      moved
+        .filter((m) => m.movementId === "m1")
+        .map((m) => m.position)
+        .sort(),
+    ).toEqual([0, 1]);
   });
 
   it("moves a moment out of every movement", () => {
@@ -382,7 +388,12 @@ describe("tracking what changed", () => {
   const before = [moment({ id: uuid(1), title: "One" }), moment({ id: uuid(2), title: "Two" })];
 
   it("reports nothing for an untouched map", () => {
-    expect(changedMoments(before, before.map((m) => ({ ...m })))).toEqual([]);
+    expect(
+      changedMoments(
+        before,
+        before.map((m) => ({ ...m })),
+      ),
+    ).toEqual([]);
   });
 
   it("reports a moment whose editorial content changed", () => {
@@ -392,7 +403,9 @@ describe("tracking what changed", () => {
 
   it("reports a moment whose evidence changed", () => {
     const after = before.map((m) =>
-      m.id === uuid(1) ? { ...m, evidence: [{ kind: "asset" as const, id: uuid(5), label: "x" }] } : m,
+      m.id === uuid(1)
+        ? { ...m, evidence: [{ kind: "asset" as const, id: uuid(5), label: "x" }] }
+        : m,
     );
     expect(changedMoments(before, after).map((m) => m.id)).toEqual([uuid(1)]);
   });
@@ -605,11 +618,7 @@ describe("briefing scene generation", () => {
   ];
 
   it("flattens the map in presentation order", () => {
-    expect(briefsFor(movements, moments).map((b) => b.title)).toEqual([
-      "First",
-      "Second",
-      "Third",
-    ]);
+    expect(briefsFor(movements, moments).map((b) => b.title)).toEqual(["First", "Second", "Third"]);
   });
 
   it("tells each moment where the room has just been and where it is going", () => {

@@ -265,25 +265,6 @@ export function worldTransform(camera: Camera, viewport: Size): string {
   ].join(" ");
 }
 
-/**
- * The transform for a backdrop that sits behind the world.
- *
- * Parallax is the cheapest depth cue there is, and depth is what stops a
- * camera move reading as a cross-fade between two flat pictures. The backdrop
- * takes a damped share of the camera's translation and a fractional power of
- * its zoom, so it drifts rather than tracks.
- */
-export function backdropTransform(camera: Camera, viewport: Size, depth: number): string {
-  if (depth <= 0) return "none";
-  const scale = Math.pow(cameraScale(camera, viewport), depth);
-  return [
-    `translate(${viewport.width / 2}px, ${viewport.height / 2}px)`,
-    `rotate(${-camera.rotation * depth}deg)`,
-    `scale(${scale})`,
-    `translate(${-camera.x * depth}px, ${-camera.y * depth}px)`,
-  ].join(" ");
-}
-
 export function camerasEqual(a: Camera, b: Camera, epsilon = 1e-4): boolean {
   return (
     Math.abs(a.x - b.x) < epsilon &&

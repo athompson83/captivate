@@ -189,6 +189,17 @@ Two properties are stated carefully because they are easy to assert wrongly:
 - twenty light regions far away must not lift the dark one you are standing on,
   which is what averaging every scene would do.
 
+`tests/unit/atmosphere.test.ts` covers the GPU layer's arithmetic, which is the
+part of a shader a test can reach. The one that matters asserts that screen →
+world genuinely inverts the transform the world applies, by parsing the real
+`worldTransform` string rather than recomputing it — a shader that puts the air
+in the wrong place looks like a shader that is merely ugly, and would be
+debugged as one for a long time. It was checked to fail against a flipped
+rotation sign.
+
+What no test here covers is whether the field _looks_ right. That is a judgement
+about pixels, and it belongs to a person looking at them.
+
 ## Analysis
 
 `tests/unit/health.test.ts` covers pacing, balance, contrast and the health

@@ -36,7 +36,8 @@ captivate/
 │  │  ├─ editor/journey-map.tsx    Direct manipulation of the world canvas
 │  │  ├─ editor/journey-panel.tsx  Arrangement and camera settings
 │  │  ├─ stage/                    The renderers — stage.tsx (one scene),
-│  │  │                            world.tsx (the canvas and the camera)
+│  │  │                            world.tsx (the canvas and the camera),
+│  │  │                            atmosphere.tsx (the air, in WebGL)
 │  │  ├─ editor/                   Canvas, navigator, inspector, docks, toolbars
 │  │  ├─ present/                  Stage root, presenter bar, console,
 │  │  │                            annotation layer, scene jumper
@@ -68,6 +69,7 @@ captivate/
 │  │  │  ├─ arrange.ts             Spatial arrangements of scenes on the world
 │  │  │  ├─ path.ts                The smoothed route drawn between waypoints
 │  │  │  ├─ ambient.ts             Atmosphere: the colour of the air per position
+│  │  │  ├─ atmosphere.ts          The same, per pixel: uniforms for the shader
 │  │  ├─ present/movement-rail.tsx The argument's shape, shown to the room
 │  │  ├─ narrative/
 │  │  │  ├─ map.ts                 Assemble, derive, reorder, diff the map

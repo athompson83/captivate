@@ -36,13 +36,7 @@ function section(id: string, title: string, label: string): Section {
 
 describe("movements", () => {
   const sections = [section("a", "Opening", "OPEN"), section("b", "The evidence", "")];
-  const scenes = [
-    scene(0, "a"),
-    scene(1, "a"),
-    scene(2, "b"),
-    scene(3, "b"),
-    scene(4, "b"),
-  ];
+  const scenes = [scene(0, "a"), scene(1, "a"), scene(2, "b"), scene(3, "b"), scene(4, "b")];
 
   it("groups consecutive scenes into movements", () => {
     const movements = movementsOf(scenes, sections);
@@ -127,11 +121,7 @@ describe("templates carry a shape", () => {
 
   it("merges consecutive scenes sharing a movement", () => {
     expect(
-      templateMovements([
-        { movement: "OPEN" },
-        { movement: "OPEN" },
-        { movement: "CLOSE" },
-      ]),
+      templateMovements([{ movement: "OPEN" }, { movement: "OPEN" }, { movement: "CLOSE" }]),
     ).toEqual([
       { label: "OPEN", start: 0, end: 2 },
       { label: "CLOSE", start: 2, end: 3 },
