@@ -131,7 +131,8 @@ interface RecognitionLike {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
-  start(): void;
+  /** Chromium ≥135 accepts a MediaStreamTrack; older engines ignore the argument. */
+  start(audioTrack?: MediaStreamTrack): void;
   stop(): void;
   abort(): void;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
@@ -174,12 +175,17 @@ export class LiveTranscriber {
   private lastFinalAt = 0;
   private running = false;
   private clock: () => number = () => 0;
+  private audioTrack: MediaStreamTrack | null = null;
 
-  start(clock: () => number, lang?: string): boolean {
+  start(
+    clock: () => number,
+    options?: { lang?: string; audioTrack?: MediaStreamTrack | null },
+  ): boolean {
     const Ctor = recognitionCtor();
     if (!Ctor) return false;
 
     this.clock = clock;
+    this.audioTrack = options?.audioTrack ?? null;
     this.cues = [];
     this.interim = "";
     this.lastFinalAt = 0;
@@ -188,7 +194,8 @@ export class LiveTranscriber {
     const recognition = new Ctor();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = lang ?? (typeof navigator !== "undefined" ? navigator.language : "en-US");
+    recognition.lang =
+      options?.lang ?? (typeof navigator !== "undefined" ? navigator.language : "en-US");
 
     recognition.onresult = (event) => {
       let interim = "";
@@ -215,7 +222,7 @@ export class LiveTranscriber {
       this.interim = "";
       if (this.running) {
         try {
-          recognition.start();
+          this.begin(recognition);
         } catch {
           this.running = false;
         }
@@ -224,13 +231,33 @@ export class LiveTranscriber {
 
     this.recognition = recognition;
     try {
-      recognition.start();
+      this.begin(recognition);
       return true;
     } catch {
       this.recognition = null;
       this.running = false;
       return false;
     }
+  }
+
+  /**
+   * Starts recognition on the recorder's own microphone track where the
+   * engine supports it (Chromium ≥135), so captions transcribe the mic the
+   * presenter chose rather than the system default. Engines that predate the
+   * argument ignore it; a track the engine refuses (ended, wrong kind) falls
+   * back to the default microphone rather than costing the transcript.
+   */
+  private begin(recognition: RecognitionLike): void {
+    if (this.audioTrack && this.audioTrack.readyState === "live") {
+      try {
+        recognition.start(this.audioTrack);
+        return;
+      } catch {
+        // InvalidStateError from an engine that validates the track; retry
+        // below on the default microphone.
+      }
+    }
+    recognition.start();
   }
 
   /** Pause with the recording so hallway chatter doesn't enter the transcript. */
@@ -248,7 +275,7 @@ export class LiveTranscriber {
     if (this.running || !this.recognition) return;
     this.running = true;
     try {
-      this.recognition.start();
+      this.begin(this.recognition);
     } catch {
       // onend restart will pick it up if the engine objects to the timing.
     }

@@ -58,11 +58,16 @@ const CreateInput = z.object({
     .default([]),
   transcript: z
     .array(
-      z.object({
-        startMs: z.number().min(0),
-        endMs: z.number().min(0),
-        text: z.string().max(600),
-      }),
+      z
+        .object({
+          startMs: z.number().min(0),
+          endMs: z.number().min(0),
+          text: z.string().max(600),
+        })
+        // WebVTT requires an end strictly after the start, and the recorder
+        // never produces anything else; a reversed cue here is a tampered
+        // client, not a formatting choice.
+        .refine((cue) => cue.endMs > cue.startMs, { message: "Cue must have positive duration" }),
     )
     .max(5000)
     .default([]),

@@ -362,7 +362,12 @@ export class PresentationRecorder {
 
     if (this.options.transcribe && transcriptSupported()) {
       this.transcriber = new LiveTranscriber();
-      if (!this.transcriber.start(() => this.elapsedMs)) this.transcriber = null;
+      const started = this.transcriber.start(() => this.elapsedMs, {
+        // The same track the recording captures, so the transcript hears the
+        // microphone the presenter chose, not the system default.
+        audioTrack: this.micStream.getAudioTracks()[0] ?? null,
+      });
+      if (!started) this.transcriber = null;
     }
 
     this.onPhaseChange?.("recording");

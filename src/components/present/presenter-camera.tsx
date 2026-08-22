@@ -209,10 +209,10 @@ export function PresenterCameraFeed({
   };
 
   const endDrag = () => {
-    if (dragState.current) {
-      dragState.current = null;
-      saveCameraFeedSettings(presentationId, settingsRef.current);
-    }
+    // Persistence happens in the parent's onChange on every move; a second
+    // write here read `settingsRef` before its effect had caught up and could
+    // put the pre-drag position back over the one just saved.
+    dragState.current = null;
   };
 
   if (!settings.enabled) return null;

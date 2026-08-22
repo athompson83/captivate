@@ -311,6 +311,24 @@ describe("deterministic fallback", () => {
     }
   });
 
+  it("keeps enriched fallback text inside the schema's caps", () => {
+    const longBrief = {
+      title: "A beat",
+      purpose: "P".repeat(600),
+      takeaway: "T".repeat(600),
+      instructions: "I".repeat(1200),
+      evidence: [{ label: "E".repeat(200) }],
+      movementTitle: "M".repeat(160),
+    };
+    const quote = fallbackScene({ ...longBrief, layout: "quote" }, { title: "Deck", prompt: "" });
+    // Each source field is individually valid, but jointly they overflow the
+    // 1500-character speaker-notes cap — and a 160-character movement title
+    // overflows the 120-character attribution cap.
+    expect(quote.speakerNotes.length).toBeLessThanOrEqual(1500);
+    expect(quote.attribution.length).toBeLessThanOrEqual(120);
+    expect(GeneratedScene.safeParse(quote).success).toBe(true);
+  });
+
   it("falls back to placeholders only when the map gave nothing", () => {
     const scene = fallbackScene(
       { title: "A beat", purpose: "", layout: "split-left" },

@@ -242,12 +242,13 @@ function PlaybackBody({
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
 
-  /** Captions, served to the player as a same-document blob. */
+  /** Captions as a data: URL — a pure computation, so there is no blob to
+      allocate during render and nothing to revoke. Transcripts are a few
+      kilobytes; the browser parses the track the same either way. */
   const vttUrl = useMemo(() => {
     if (recording.transcript.length === 0) return null;
-    return URL.createObjectURL(new Blob([toWebVTT(recording.transcript)], { type: "text/vtt" }));
+    return `data:text/vtt;charset=utf-8,${encodeURIComponent(toWebVTT(recording.transcript))}`;
   }, [recording.transcript]);
-  useEffect(() => () => void (vttUrl && URL.revokeObjectURL(vttUrl)), [vttUrl]);
 
   useEffect(() => {
     let cancelled = false;

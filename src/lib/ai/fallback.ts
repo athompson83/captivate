@@ -222,15 +222,20 @@ export function fallbackScene(
   // wastes the most valuable text in the document. So the takeaway leads, the
   // purpose becomes prose, and the evidence becomes the support — real
   // content, honestly derived, still labelled as written without a model.
-  const speakerNotes = [
-    purpose && `This moment exists to ${lowerFirst(purpose)}`,
-    takeaway && `Land it so the room leaves knowing: ${takeaway}`,
-    evidence.length > 0 && `Ground it in ${listSentence(evidence)}.`,
-    momentBrief.instructions,
-  ]
-    .filter(Boolean)
-    .map((line) => ensureSentence(String(line)))
-    .join(" ");
+  // Each source field is valid on its own, but purpose (600) + takeaway (600)
+  // + instructions (1200) can jointly exceed the schema's 1500 cap.
+  const speakerNotes = clip(
+    [
+      purpose && `This moment exists to ${lowerFirst(purpose)}`,
+      takeaway && `Land it so the room leaves knowing: ${takeaway}`,
+      evidence.length > 0 && `Ground it in ${listSentence(evidence)}.`,
+      momentBrief.instructions,
+    ]
+      .filter(Boolean)
+      .map((line) => ensureSentence(String(line)))
+      .join(" "),
+    1500,
+  );
 
   const base: GeneratedScene = {
     title: momentBrief.title,
@@ -282,7 +287,13 @@ export function fallbackScene(
     }
     case "quote":
       return takeaway
-        ? { ...base, quote: clip(takeaway, 300), attribution: momentBrief.movementTitle ?? "", subheading: "" }
+        ? {
+            ...base,
+            quote: clip(takeaway, 300),
+            // A movement title may run to 160 characters; attribution caps at 120.
+            attribution: clip(momentBrief.movementTitle ?? "", 120),
+            subheading: "",
+          }
         : { ...base, quote: "A line worth repeating.", attribution: "Source" };
     case "three-up": {
       const cards = [

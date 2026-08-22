@@ -271,7 +271,6 @@ body {
 
 /* ------------------------------------------------------------------------- */
 /* Landing: the miniature world                                               */
-/*                                                                            */
 /* The hero shows the product's thesis instead of describing it: scenes       */
 /* placed on one canvas, a camera travelling between them. Pure CSS — the     */
 /* global reduced-motion rule freezes the camera on its first scene.          */
