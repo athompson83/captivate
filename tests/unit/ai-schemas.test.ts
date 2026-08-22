@@ -95,6 +95,13 @@ describe("what the generation route hands back", () => {
     expect(WrittenScenes.safeParse(written()).success).toBe(true);
   });
 
+  it("refuses a response that generated nothing", () => {
+    // The other half of the same defect. A missing `scenes` and an explicitly
+    // empty one both reached a cheerful "0 scenes generated" toast, and the
+    // route requires at least one brief — so neither is a legitimate answer.
+    expect(WrittenScenes.safeParse({ scenes: [] }).success).toBe(false);
+  });
+
   it("refuses a response with no scenes field at all", () => {
     // This is the regression: `body.scenes ?? []` turned a malformed response
     // into a cheerful "0 scenes generated" instead of an error the author

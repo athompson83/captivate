@@ -306,7 +306,7 @@ has sat in front of each row.
 | Target                                                 | Why this row exists                                                                                                           |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | Windows, Chrome and Edge, hardware acceleration **on** | The most common lectern. Also the most common place for a driver blocklist to silently drop the page to software              |
-| macOS Safari                                           | A different WebGL implementation end to end — its own compiler, its own context-loss policy, its own limits                   |
+| macOS Safari                                           | A different WebGL implementation end-to-end — its own compiler, its own context-loss policy, its own limits                   |
 | macOS Chrome                                           | Metal-backed ANGLE, which is a third code path again                                                                          |
 | iPhone and iPad Safari                                 | Real `mediump`, aggressive memory reclamation, and a context lost on backgrounding as ordinary behaviour rather than an error |
 | A device with WebGL disabled                           | `chrome://flags` or an enterprise policy. The probe must decline before three is ever asked for a renderer                    |

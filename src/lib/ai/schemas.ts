@@ -77,18 +77,24 @@ export const GeneratedScenes = z.object({
  * like any other input rather than cast. `SceneContent` is the real schema:
  * content that would not survive a reload has no business being written.
  *
- * `scenes` is required. Defaulting a missing field to `[]` turned a malformed
- * response into a silent success that generated nothing and said it worked.
+ * `scenes` is required and non-empty, which are two separate holes. Defaulting
+ * a missing field to `[]` turned a malformed response into a silent success
+ * that generated nothing and said it worked — and so did an explicitly empty
+ * array, which reached the same "0 scenes generated" toast by another door.
+ * The route requires at least one brief and writes one scene per brief, so an
+ * empty result is never a legitimate answer.
  */
 export const WrittenScenes = z.object({
-  scenes: z.array(
-    z.object({
-      momentId: z.string(),
-      title: z.string(),
-      content: SceneContent,
-      speakerNotes: z.string(),
-    }),
-  ),
+  scenes: z
+    .array(
+      z.object({
+        momentId: z.string(),
+        title: z.string(),
+        content: SceneContent,
+        speakerNotes: z.string(),
+      }),
+    )
+    .min(1),
   source: z.string().optional(),
   notice: z.string().optional(),
 });
