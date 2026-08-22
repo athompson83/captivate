@@ -133,8 +133,26 @@ export const World = memo(function World({
   const ambientRef = useRef<HTMLDivElement>(null);
   /** The per-pixel field drawn over that wash, where WebGL is available. */
   const atmosphereRef = useRef<AtmosphereHandle | null>(null);
+  /**
+   * Whether the field has actually painted a frame.
+   *
+   * Registering a handle is not the same as drawing: a handle exists even
+   * where WebGL does not. The wash below is only redundant once something has
+   * genuinely been rendered over it, and treating registration as proof left a
+   * presentation with neither layer.
+   */
+  const atmospherePaintedRef = useRef(false);
   const registerAtmosphere = useCallback((handle: AtmosphereHandle | null) => {
     atmosphereRef.current = handle;
+    if (!handle) {
+      atmospherePaintedRef.current = false;
+      return;
+    }
+    // The lazy chunk usually arrives after the flight effect has settled on a
+    // destination, and that effect will not run again for an unchanged one —
+    // so the first paint has to be asked for here.
+    const camera = cameraRef.current;
+    if (camera && handle.draw(camera)) atmospherePaintedRef.current = true;
   }, []);
 
   /** Live camera. Written every frame; never read during render. */
@@ -218,7 +236,12 @@ export const World = memo(function World({
 
       // The room's colour follows the camera. Written as custom properties on
       // one element rather than through React: this runs sixty times a second.
-      const wash = ambientRef.current;
+      //
+      // Skipped entirely while the WebGL field is live, because the field is
+      // opaque and sits over it: recomputing a blend and restarting a
+      // full-viewport gradient transition every frame, for something nobody
+      // can see, is the most expensive way to do nothing.
+      const wash = atmospherePaintedRef.current ? null : ambientRef.current;
       if (wash) {
         const ambient = ambientAt(camera, placements, palettes, stage, basePalette);
         wash.style.setProperty("--world-canvas", ambient.canvas);
@@ -229,7 +252,7 @@ export const World = memo(function World({
       // The same colour, per pixel, where the GPU can draw it. Deliberately
       // after the wash rather than instead of it: the wash is what shows if
       // this never initialises.
-      atmosphereRef.current?.draw(camera);
+      if (atmosphereRef.current?.draw(camera)) atmospherePaintedRef.current = true;
     };
 
     const from = cameraRef.current;

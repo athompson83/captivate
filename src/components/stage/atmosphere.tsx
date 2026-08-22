@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import type { ScenePlacement } from "@/lib/schema/presentation";
 import type { Palette } from "@/lib/present/ambient";
@@ -13,6 +13,7 @@ import {
   packRegions,
   regionBuffers,
   viewUniforms,
+  webglAvailable,
 } from "@/lib/present/atmosphere";
 
 /**
@@ -44,8 +45,15 @@ import {
  */
 
 export interface AtmosphereHandle {
-  /** Paint the air for this camera. Called from the flight loop. */
-  draw: (camera: Camera) => void;
+  /**
+   * Paint the air for this camera. Called from the flight loop.
+   *
+   * Returns whether a frame was actually rendered, which is false whenever
+   * there is no renderer — no WebGL, or a context the driver took back. The
+   * caller uses that to decide whether the CSS wash underneath is still doing
+   * the work, so it must be the truth rather than an assumption.
+   */
+  draw: (camera: Camera) => boolean;
 }
 
 export interface AtmosphereProps {
@@ -127,10 +135,17 @@ const FRAGMENT = /* glsl */ `
     return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
   }
 
-  // Value noise. Cheap, and this is a field of light — nothing here has an edge
-  // that would betray the lattice.
+  // Value noise, on a hash with no transcendental in it.
+  //
+  // The usual sin-based hash costs one sin per lattice corner, which is four
+  // per noise sample and thirty-three per pixel once the two fbm calls and the
+  // dither are counted. That is not what a comment calling this "one
+  // full-screen gradient" describes, and it is the difference between a layer
+  // software rendering can afford and one it cannot.
   float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
   }
 
   float noise(vec2 p) {
@@ -144,19 +159,32 @@ const FRAGMENT = /* glsl */ `
     );
   }
 
+  // Three octaves, normalised. The fourth was half a percent of the amplitude
+  // and a quarter of the cost.
   float fbm(vec2 p) {
     float total = 0.0;
     float amplitude = 0.5;
-    for (int i = 0; i < 4; i++) {
+    float sum = 0.0;
+    for (int i = 0; i < 3; i++) {
       total += noise(p) * amplitude;
+      sum += amplitude;
       p *= 2.03;
       amplitude *= 0.5;
     }
-    return total;
+    return total / sum;
   }
 
   void main() {
-    vec2 fragment = vUv * uResolution;
+    // v is flipped on the way in.
+    //
+    // three's PlaneGeometry puts uv.v = 1 at the +Y vertices, which WebGL puts
+    // at the *top* of the viewport, while every screen coordinate this file
+    // deals with — worldTransform, viewUniforms, screenToWorld — has y = 0 at
+    // the top. Reading vUv straight through therefore reflected the whole
+    // field about the camera's horizontal axis: a region above you lit the
+    // bottom of the screen. It looked like weather rather than like a bug,
+    // which is why fragmentFromUv exists and is tested.
+    vec2 fragment = vec2(vUv.x, 1.0 - vUv.y) * uResolution;
 
     // The inverse of the world transform: screen back to world.
     vec2 d = (fragment - uHalf) * uInvScale;
@@ -249,10 +277,23 @@ export function Atmosphere({
   still,
 }: AtmosphereProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  /**
+   * A context the driver took back.
+   *
+   * It happens: a GPU reset, a laptop switching cards, a machine waking. The
+   * canvas is opaque, so leaving it in place after that would paint black over
+   * the world. Standing down restores the CSS wash underneath, which is a
+   * complete background on its own.
+   */
+  const [lost, setLost] = useState(false);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.OrthographicCamera | null>(null);
   const uniformsRef = useRef<Record<string, THREE.IUniform> | null>(null);
+  // Allocated once per component and reused every frame. `useRef` does
+  // evaluate its argument on each render and discard all but the first — three
+  // small arrays, ~768 bytes — which is the price of not writing a ref during
+  // render, and that is the right trade under the React Compiler rules.
   const buffersRef = useRef(regionBuffers());
   const lastCameraRef = useRef<Camera | null>(null);
 
@@ -270,18 +311,21 @@ export function Atmosphere({
     inputsRef.current = { placements, palettes, base, stage, depth, viewport, still };
   });
 
-  const render = useCallback((camera: Camera, timeSeconds: number) => {
+  const render = useCallback((camera: Camera, timeSeconds: number): boolean => {
     const renderer = rendererRef.current;
     const uniforms = uniformsRef.current;
     const scene = sceneRef.current;
     const orthographic = cameraRef.current;
-    if (!renderer || !uniforms || !scene || !orthographic) return;
+    if (!renderer || !uniforms || !scene || !orthographic) return false;
 
     const { placements, palettes, base, stage, depth, viewport } = inputsRef.current;
-    if (viewport.width === 0 || viewport.height === 0) return;
+    if (viewport.width === 0 || viewport.height === 0) return false;
 
     const view = viewUniforms(camera, viewport);
-    const count = packRegions(nearestRegions(camera, placements, palettes), buffersRef.current);
+    const count = packRegions(
+      nearestRegions(camera, placements, palettes),
+      buffersRef.current,
+    );
 
     uniforms.uCamera.value.set(view.cameraX, view.cameraY);
     uniforms.uHalf.value.set(view.halfWidth, view.halfHeight);
@@ -296,18 +340,19 @@ export function Atmosphere({
     uniforms.uBaseAccent.value.set(base.accent.L, base.accent.a, base.accent.b);
 
     renderer.render(scene, orthographic);
+    return true;
   }, []);
 
   useEffect(() => {
-    if (!onReady) return;
+    if (!onReady || lost) return;
     onReady({
       draw: (camera: Camera) => {
         lastCameraRef.current = camera;
-        render(camera, inputsRef.current.still ? 0 : performance.now() / 1000);
+        return render(camera, inputsRef.current.still ? 0 : performance.now() / 1000);
       },
     });
     return () => onReady(null);
-  }, [onReady, render]);
+  }, [onReady, render, lost]);
 
   // Set-up and teardown. Context creation can fail — an old driver, a
   // blocklisted GPU, too many live contexts — and that is a normal outcome
@@ -316,6 +361,7 @@ export function Atmosphere({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (!webglAvailable()) return;
 
     let renderer: THREE.WebGLRenderer;
     try {
@@ -324,13 +370,30 @@ export function Atmosphere({
         antialias: false,
         alpha: false,
         powerPreference: "low-power",
-        failIfMajorPerformanceCaveat: true,
+        // Deliberately NOT failIfMajorPerformanceCaveat. That flag refuses a
+        // software-rendered context, and software rendering is what you get on
+        // a VM, a remote desktop or a blocklisted driver — a lectern PC, which
+        // is this product's whole audience. Refusing it cost the feature
+        // entirely on the machines most likely to be presenting from.
+        //
+        // What makes that affordable is the shader being cheap: a hash with no
+        // transcendental in it, three octaves rather than four, a pixel ratio
+        // capped at 1.5, and twelve frames a second while nobody is flying.
       });
     } catch {
       return;
     }
 
     renderer.setPixelRatio(atmosphereDpr(window.devicePixelRatio));
+
+    const onLost = (event: Event) => {
+      // Without preventDefault the browser will not attempt a restore, but we
+      // do not attempt one either: standing down is the honest response and
+      // the fallback is already correct.
+      event.preventDefault();
+      setLost(true);
+    };
+    canvas.addEventListener("webglcontextlost", onLost);
 
     const uniforms: Record<string, THREE.IUniform> = {
       uResolution: { value: new THREE.Vector2(1, 1) },
@@ -365,17 +428,41 @@ export function Atmosphere({
     cameraRef.current = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     uniformsRef.current = uniforms;
 
+    // Paint immediately if the camera is already known.
+    //
+    // The chunk is lazy, so on a cold load the world's flight effect has often
+    // already run and set its destination by the time this mounts — and it
+    // will not run again for an unchanged destination. Without this the layer
+    // sits unpainted until the presenter first advances, which on an opaque
+    // canvas is a black rectangle over the world and on a transparent one is
+    // no atmosphere at all.
+    const first = inputsRef.current.viewport;
+    renderer.setSize(first.width, first.height, false);
+    if (lastCameraRef.current) {
+      render(lastCameraRef.current, inputsRef.current.still ? 0 : performance.now() / 1000);
+    }
+
     return () => {
+      canvas.removeEventListener("webglcontextlost", onLost);
       material.dispose();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh) object.geometry.dispose();
       });
       renderer.dispose();
+      // `dispose()` releases three's own caches and leaves the GL context
+      // alive on the detached canvas until it is collected. Contexts are a
+      // small, hard limit per document, and this component's own set-up path
+      // names "too many live contexts" as a reason creation fails — so it must
+      // not be a producer of that condition.
+      renderer.forceContextLoss();
       rendererRef.current = null;
       sceneRef.current = null;
+      cameraRef.current = null;
       uniformsRef.current = null;
     };
-  }, []);
+    // `render` is a stable callback with no dependencies of its own; it is
+    // listed so this effect can never quietly close over a stale one.
+  }, [render]);
 
   // Size follows the viewport the world already measured, so both agree by
   // construction rather than by two ResizeObservers racing.
@@ -384,7 +471,12 @@ export function Atmosphere({
     if (!renderer || viewport.width === 0 || viewport.height === 0) return;
 
     renderer.setSize(viewport.width, viewport.height, false);
-    if (lastCameraRef.current) render(lastCameraRef.current, 0);
+    if (lastCameraRef.current) {
+      // Real time, not zero: rendering a resize at t=0 snapped the field back
+      // to where it started, up to twelve times a second, while a window was
+      // being dragged.
+      render(lastCameraRef.current, inputsRef.current.still ? 0 : performance.now() / 1000);
+    }
   }, [viewport.width, viewport.height, render]);
 
   /**
@@ -421,6 +513,7 @@ export function Atmosphere({
       aria-hidden
       data-atmosphere
       className="pointer-events-none absolute inset-0 h-full w-full"
+      style={lost ? { display: "none" } : undefined}
     />
   );
 }

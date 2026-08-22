@@ -72,8 +72,11 @@ export function nearestRegions(
  * Flattens regions into the fixed-length arrays a uniform expects.
  *
  * Slots past `count` are left at zero and the shader ignores them — it reads
- * `count`, not the array length. Writing into a reused buffer keeps a frame
- * allocation-free.
+ * `count`, not the array length. The buffers are reused across frames; the
+ * `Region[]` handed in is not, so a frame still allocates in `nearestRegions`.
+ * Measured at about four microseconds for sixty scenes, which is a fortieth of
+ * a percent of a frame — cheap enough to leave alone, and worth saying plainly
+ * rather than claiming an allocation-free path that does not exist.
  */
 export function packRegions(
   regions: Region[],
@@ -140,6 +143,24 @@ export function viewUniforms(camera: Camera, viewport: Size): ViewUniforms {
 }
 
 /**
+ * A texture coordinate to the screen pixel it covers.
+ *
+ * The one step of the chain that lives only in GLSL, lifted out so it can be
+ * tested. three's `PlaneGeometry` puts `uv.v = 1` at the vertices WebGL draws
+ * at the *top* of the viewport, and every screen coordinate here has `y = 0`
+ * at the top — so v has to be flipped. Getting this wrong reflects the entire
+ * field about the camera's horizontal axis, which reads as an odd-looking
+ * gradient rather than as a fault, and had already survived one round of
+ * review looking exactly like weather.
+ */
+export function fragmentFromUv(
+  uv: { x: number; y: number },
+  resolution: Size,
+): { x: number; y: number } {
+  return { x: uv.x * resolution.width, y: (1 - uv.y) * resolution.height };
+}
+
+/**
  * Screen pixel to world position.
  *
  * The CPU twin of the shader's first three lines. It exists so the mapping can
@@ -185,4 +206,30 @@ export function falloffFor(stage: Size): number {
  */
 export function atmosphereDpr(devicePixelRatio: number): number {
   return Math.max(1, Math.min(1.5, devicePixelRatio || 1));
+}
+
+/**
+ * Whether this browser can give us a WebGL context at all.
+ *
+ * Probed on a throwaway canvas before three is asked for a renderer, because
+ * three reports a failure by logging to the console — and a fallback the
+ * application chose on purpose should not look like an error in a user's
+ * console or a red badge in a developer's. The probe releases its context
+ * immediately: a canvas can only have one, and the real one needs it.
+ */
+export function webglAvailable(
+  createCanvas: () => HTMLCanvasElement = () => document.createElement("canvas"),
+): boolean {
+  try {
+    const canvas = createCanvas();
+    // webgl2 specifically: it is the only context three asks for, so probing
+    // for webgl1 would answer a question nobody is going to ask and report
+    // available on a browser where the renderer still fails.
+    const gl = canvas.getContext("webgl2") as WebGL2RenderingContext | null;
+    if (!gl) return false;
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    return true;
+  } catch {
+    return false;
+  }
 }

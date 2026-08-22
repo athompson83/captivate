@@ -47,6 +47,23 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], launchOptions: { executablePath } },
     },
     {
+      // The shader, compiled and rendered from source. Needs no server and no
+      // account: it draws the committed GLSL on a bare canvas and reads the
+      // pixels back.
+      name: "shader",
+      testMatch: /atmosphere\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: {
+          executablePath,
+          // CI has no GPU. The field is a gradient; software rendering draws
+          // it correctly, which is the whole point of accepting such a context
+          // at runtime too.
+          args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
+        },
+      },
+    },
+    {
       name: "authenticated",
       testMatch: /journey\.spec\.ts/,
       use: {

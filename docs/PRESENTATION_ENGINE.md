@@ -111,16 +111,32 @@ in world space, which is light rather than furniture.
 The layer is decorative in the strict sense: `aria-hidden`, never read, never a
 control, and lazily loaded so a renderer's worth of bytes stays off the critical
 path. Where WebGL is unavailable — an old driver, a blocklisted GPU, too many
-live contexts — it simply never mounts and the CSS wash underneath is a complete
-background on its own. That is a real fallback, not a claimed one: the wash is
-what every presentation showed before this existed.
+live contexts — the component still mounts, but it probes for a context first
+and never asks three for a renderer, so nothing is drawn and the canvas stays
+transparent over the CSS wash. The same happens if the driver takes the context
+back mid-presentation: the canvas stands down rather than leaving an opaque
+rectangle over the world. That is a real fallback, not a claimed one — the wash
+is what every presentation showed before this existed.
+
+A software-rendered context is accepted rather than refused. Refusing one costs
+the feature on a VM, a remote desktop or a blocklisted driver, which describes a
+lectern PC; what makes that affordable is a shader with no transcendental in its
+hash, three octaves of noise rather than four, a pixel ratio capped at 1.5, and
+twelve frames a second while nobody is flying.
 
 Blending happens in **OKLab**, not sRGB. Mixing a deep blue with an amber in
 sRGB drags the midpoint through grey, which is exactly the transition a camera
-flying between two regions would show. Only the nearest three regions count:
-averaging every scene pulls every position toward the same mean and makes a
-whole presentation one colour, when the point is that different parts of it
-should feel different.
+flying between two regions would show.
+
+Both layers weight by inverse-square distance in scene-widths, and both bound
+how much of the canvas can reach any one point — averaging every scene pulls
+every position toward the same mean and makes a whole presentation one colour,
+when the point is that different parts of it should feel different. The wash
+does it by taking only the nearest three regions (`NEIGHBOURS` in
+`ambient.ts`); the shader cannot sort per pixel, so it takes the nearest
+`MAX_REGIONS` to the _camera_ and lets the falloff do the rest. On identical
+input the two agree to within a percent, and a test renders the shader to keep
+it that way.
 
 ---
 

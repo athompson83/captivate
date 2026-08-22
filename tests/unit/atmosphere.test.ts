@@ -3,6 +3,7 @@ import {
   MAX_REGIONS,
   atmosphereDpr,
   falloffFor,
+  fragmentFromUv,
   nearestRegions,
   packRegions,
   regionBuffers,
@@ -110,6 +111,41 @@ describe("a pixel back to a place", () => {
     const edgeFar = screenToWorld(far, VIEWPORT.width, VIEWPORT.height / 2).x;
 
     expect(edgeFar).toBeGreaterThan(edgeClose * 9);
+  });
+});
+
+describe("a texture coordinate to a screen pixel", () => {
+  const resolution = { width: 1440, height: 900 };
+
+  it("flips v, because the two conventions disagree about which way is up", () => {
+    // three's PlaneGeometry puts uv.v = 1 at the vertices WebGL draws at the
+    // top; every screen coordinate here has y = 0 there.
+    expect(fragmentFromUv({ x: 0, y: 1 }, resolution)).toEqual({ x: 0, y: 0 });
+    expect(fragmentFromUv({ x: 1, y: 0 }, resolution)).toEqual({ x: 1440, y: 900 });
+  });
+
+  it("puts the top of the screen above the camera in the world", () => {
+    // The assertion that matters, and the one that was missing: the whole
+    // chain, from the coordinate the shader is handed to the place it decides
+    // to sample. Reading v straight through reflected the field about the
+    // camera's horizontal axis and a region above you lit the bottom.
+    const camera: Camera = { x: 0, y: 0, width: 1600, rotation: 0 };
+    const view = viewUniforms(camera, resolution);
+
+    const top = fragmentFromUv({ x: 0.5, y: 1 }, resolution);
+    const bottom = fragmentFromUv({ x: 0.5, y: 0 }, resolution);
+
+    expect(screenToWorld(view, top.x, top.y).y).toBeLessThan(camera.y);
+    expect(screenToWorld(view, bottom.x, bottom.y).y).toBeGreaterThan(camera.y);
+  });
+
+  it("keeps u alone, because x already agrees", () => {
+    const view = viewUniforms({ x: 0, y: 0, width: 1600, rotation: 0 }, resolution);
+    const left = fragmentFromUv({ x: 0, y: 0.5 }, resolution);
+    const right = fragmentFromUv({ x: 1, y: 0.5 }, resolution);
+
+    expect(screenToWorld(view, left.x, left.y).x).toBeLessThan(0);
+    expect(screenToWorld(view, right.x, right.y).x).toBeGreaterThan(0);
   });
 });
 
