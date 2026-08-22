@@ -197,6 +197,35 @@ in the wrong place looks like a shader that is merely ugly, and would be
 debugged as one for a long time. It was checked to fail against a flipped
 rotation sign.
 
+`tests/unit/atmosphere-lifecycle.test.tsx` covers what the component does around
+that arithmetic — reduced motion, the no-WebGL path, and that every animation
+loop it starts it also stops.
+
+`tests/e2e/atmosphere.spec.ts` (the `shader` Playwright project) covers the part
+no unit test can reach: it compiles the committed GLSL, draws it on a bare
+canvas with regions of known colour at known positions, and reads the pixels
+back. It needs no server and no account.
+
+That spec exists because of a specific failure. For two commits the field's Y
+axis was reflected — three's `PlaneGeometry` puts `uv.v = 1` at the top and
+screen space puts `y = 0` there — so a region above the camera lit the bottom of
+the screen. It survived a code review, an offline render, a browser screenshot
+and a pixel sample of that screenshot, because a reflected gradient still looks
+like a gradient. It took placing one warm region above the camera and measuring
+both halves to see it. The spec now does exactly that, and was checked to fail
+against the old line.
+
+**Known unresolved: the layer does not composite correctly in headless
+Chromium.** Reading the drawing buffer back through three's own context gives
+the right colour — `rgb(12,11,10)` where the theme's canvas is `rgb(16,20,24)` —
+and the same GLSL on a raw WebGL2 context passes every assertion above. But the
+composited page shows a near-white field, and hiding the canvas restores a
+correct page. Output colour space, an explicit alpha buffer and premultiplied
+alpha were each ruled out by testing them. This may be specific to software
+rendering under SwiftShader, which is the only renderer available in the
+environment it was found in; it needs one look on real hardware to settle, and
+until it is settled the layer should not be treated as verified.
+
 What no test here covers is whether the field _looks_ right. That is a judgement
 about pixels, and it belongs to a person looking at them.
 
