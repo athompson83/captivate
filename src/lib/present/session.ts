@@ -415,8 +415,12 @@ export function createSession({
           paused: message.paused,
           pausedAt: message.pausedAt,
           // The stage's clock, not this window's: while paused they must agree
-          // to the millisecond, and the console's own ticker has stopped.
-          ...(message.paused && message.pausedAt !== null ? { nowMs: message.pausedAt } : {}),
+          // to the millisecond, and the console's own ticker has stopped. On
+          // resume the clock has to restart here rather than at the next tick,
+          // because the origins have just jumped forward by the whole break —
+          // a held `now` measured against them reads the break back as a
+          // negative elapsed for up to a second.
+          nowMs: message.paused && message.pausedAt !== null ? message.pausedAt : Date.now(),
           overview: message.overview,
           establishing: message.establishing,
         });

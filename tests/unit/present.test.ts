@@ -416,6 +416,35 @@ describe("session command routing", () => {
     expect(joined.pausedAt).toBe(start);
   });
 
+  it("hands the console a live clock again the moment the stage resumes", async () => {
+    // The console holds its clock at the pause instant and its own ticker is
+    // idle while paused. Resuming pushes the origins forward by the break, so
+    // for the up-to-a-second before the next tick the console was measuring a
+    // frozen `now` against origins in its future — and showed the break back
+    // as a negative elapsed.
+    const stage = createSession({ presentationId: "resume-broadcast", scenes, role: "stage" });
+    const desk = createSession({ presentationId: "resume-broadcast", scenes, role: "console" });
+    const detachStage = stage.attach();
+    const detachDesk = desk.attach();
+    stage.send("next");
+
+    const start = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(start);
+    stage.send("toggle-pause");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    vi.spyOn(Date, "now").mockReturnValue(start + 600_000);
+    stage.send("toggle-pause");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const resumed = desk.store.getState();
+    detachStage();
+    detachDesk();
+
+    expect(resumed.paused).toBe(false);
+    expect(resumed.nowMs - resumed.sceneEnteredAt).toBeGreaterThanOrEqual(0);
+  });
+
   it("advances the stage locally", () => {
     const api = createSession({ presentationId: "p", scenes, role: "stage" });
     expect(api.store.getState().sceneIndex).toBe(0);
