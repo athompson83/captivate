@@ -285,6 +285,60 @@ dead context twelve times a second, forever, behind a canvas nobody could see.
 What no test here covers is whether the field _looks_ right. That is a judgement
 about pixels, and it belongs to a person looking at them.
 
+### What only a real GPU can answer
+
+Everything above ran under **SwiftShader**, Chromium's software rasteriser. It
+is a real WebGL implementation — it compiles the same GLSL, honours the same
+precision qualifiers and reads back the same pixels — which is why it can catch
+a reflected axis or a destroyed context. It cannot tell you anything about a
+driver, because it is not one.
+
+The failures it is structurally blind to are the ones that come from hardware:
+a driver that compiles the shader but blocklists the page, a mobile GPU where
+`mediump` is genuinely 16-bit and the inverse-square falloff bands, a compositor
+that will not promote the canvas, thermal throttling on an integrated part, and
+the whole of Safari's WebGL stack, which is not Chromium's at all. A green
+`shader` run says the arithmetic is right. It does not say the layer works.
+
+So this matrix is manual, and nothing here should be read as done until someone
+has sat in front of each row.
+
+| Target                                                 | Why this row exists                                                                                                           |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Windows, Chrome and Edge, hardware acceleration **on** | The most common lectern. Also the most common place for a driver blocklist to silently drop the page to software              |
+| macOS Safari                                           | A different WebGL implementation end to end — its own compiler, its own context-loss policy, its own limits                   |
+| macOS Chrome                                           | Metal-backed ANGLE, which is a third code path again                                                                          |
+| iPhone and iPad Safari                                 | Real `mediump`, aggressive memory reclamation, and a context lost on backgrounding as ordinary behaviour rather than an error |
+| A device with WebGL disabled                           | `chrome://flags` or an enterprise policy. The probe must decline before three is ever asked for a renderer                    |
+| A low-power or integrated GPU                          | Where twelve frames a second while idle either is or is not affordable                                                        |
+
+On each, in a real presentation rather than a test page:
+
+1. **Nothing blank, nothing flashing.** The field is visible immediately and
+   stays visible. A single frame of white is the sheet regression returning.
+2. **No shader compilation error in the console**, and no WebGL warning at all.
+   A driver that refuses a construct SwiftShader accepts fails here and nowhere
+   else.
+3. **Advancing stays responsive** while the camera flies. The layer draws from
+   the same loop that writes the camera transform, so if it costs too much the
+   symptom is a stuttering flight, not a slow background.
+4. **Idle CPU and GPU settle** once nobody is flying — the drift loop is capped
+   at twelve frames a second precisely so that it can.
+5. **Navigate away and back several times.** No context-loss loop, no
+   accumulating contexts, no "too many active WebGL contexts" warning. This is
+   the hardware version of what the `lifecycle` project asserts.
+6. **Resize the window and enter and leave fullscreen.** The air and the content
+   must agree about where the regions are at every size.
+7. **Force a context loss** where the platform allows it, and confirm the canvas
+   stands down and stays down rather than leaving a sheet over the world.
+8. **Look at it.** Standing between a cold region and a warm one should show
+   cold on one side and warm on the other, not their average, and crossing
+   between them should not snap.
+
+Row 5 and row 7 have automated equivalents under SwiftShader and passing there
+is a precondition, not a substitute: the point of doing them again on hardware
+is that a driver's context-loss behaviour is the driver's, not the spec's.
+
 ## Analysis
 
 `tests/unit/health.test.ts` covers pacing, balance, contrast and the health

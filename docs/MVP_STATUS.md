@@ -175,12 +175,14 @@ clean, no suppressions beyond five documented `next/image` exemptions and one
 documented `exhaustive-deps` exemption. Production
 build: succeeds.
 
-**Unit.** 485 tests across 23 files. All pass.
+**Unit.** 502 tests across 23 files. All pass.
 
-**End-to-end.** 47 Playwright tests in a real Chromium, across four projects —
-37 against a running application, and 10 more (`shader` and `lifecycle`) that
-need no server and no account. All pass against the
-live Supabase project. Includes zero-console-errors, security headers, keyboard
+**End-to-end.** 50 Playwright tests in a real Chromium, across four projects —
+37 against a running application (`smoke` and `authenticated`), and 13 more
+(`shader` and `lifecycle`) that need no server and no account. The 37 were run
+against the live Supabase project during the original verification round; the 13
+are re-run on every change here, most recently green, because they need nothing
+but a browser. Coverage includes zero-console-errors, security headers, keyboard
 focus visibility, narrow-viewport overflow, both colour schemes and reduced
 motion.
 
@@ -276,6 +278,14 @@ them exists:
 - **Image cropping is fit and focal point**, not a free crop.
 - **No load testing at 200 scenes.** The architecture is designed for it; it has
   not been measured there.
+- **The atmosphere has been seen only under software rendering.** SwiftShader is
+  a real WebGL implementation, so it can catch a reflected axis or a destroyed
+  context — and it did, twice. It is not a driver, so it says nothing about a
+  blocklist, a mobile `mediump` precision, Safari's separate WebGL stack, or
+  what twelve frames a second costs an integrated GPU. The manual acceptance
+  matrix that closes this gap is in
+  [TESTING.md](TESTING.md#what-only-a-real-gpu-can-answer), and none of it has
+  been run.
 - **Flow analysis** has schemas and prompts but no UI surface yet. The
   transition-suggestion part of it no longer applies: per-scene transitions do
   not exist.
@@ -289,11 +299,14 @@ them exists:
 ## What would come next
 
 1. Re-run the smoke suite against the hosted preview rather than localhost.
-2. Configure SMTP so signup works for real users.
-3. Add the AI key and validate map quality against real prompts — the one part
+2. Work the physical-GPU acceptance matrix in
+   [TESTING.md](TESTING.md#what-only-a-real-gpu-can-answer). It needs hardware,
+   not code, and it is the only outstanding question about the atmosphere.
+3. Configure SMTP so signup works for real users.
+4. Add the AI key and validate map quality against real prompts — the one part
    of the narrative map that a deterministic fallback cannot stand in for.
-4. Branching playback, then the node-and-edge editor it makes necessary.
-5. Lecture-note anchoring to moments.
-6. Sharing — a read-only link is the most-requested thing this does not do.
-7. Speaker view on a phone, using the same BroadcastChannel protocol over a
+5. Branching playback, then the node-and-edge editor it makes necessary.
+6. Lecture-note anchoring to moments.
+7. Sharing — a read-only link is the most-requested thing this does not do.
+8. Speaker view on a phone, using the same BroadcastChannel protocol over a
    relay.
