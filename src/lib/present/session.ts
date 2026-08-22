@@ -167,9 +167,19 @@ export function createSession({
 
   const update = (updater: (current: SessionState) => Partial<SessionState>) => {
     store.setState((current) => {
-      const patch = { ...updater(current), nowMs: Date.now() };
-      const next = { ...current, ...patch };
-      broadcastState(next);
+      const changes = updater(current);
+      const merged = { ...current, ...changes };
+
+      // The clock is held where the pause began. The 1Hz tick already stops
+      // while paused, but every command refreshed `nowMs` regardless — and
+      // blanking the screen, opening the overview or moving to the next scene
+      // are all things a presenter does during a break. Each one jumped the
+      // elapsed time forward by however long they had been away, and resuming
+      // then jumped it back.
+      const nowMs = merged.paused && merged.pausedAt !== null ? merged.pausedAt : Date.now();
+      const patch = { ...changes, nowMs };
+
+      broadcastState({ ...current, ...patch });
       return patch;
     });
   };

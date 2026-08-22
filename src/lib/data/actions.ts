@@ -331,6 +331,15 @@ export async function duplicatePresentation(id: string): Promise<Result<{ id: st
   ]);
 
   if (src.error || !src.data) return fail("That presentation could not be found.");
+
+  // A failed read leaves `data` null, which is indistinguishable further down
+  // from a presentation that genuinely has no movements, scenes or moments — so
+  // a transient error would have produced a copy quietly missing most of the
+  // original, reported as a success.
+  if (sections.error || scenes.error || moments.error) {
+    return fail("That presentation could not be read in full, so it was not duplicated.");
+  }
+
   const source = src.data;
 
   const { data: created, error } = await supabase

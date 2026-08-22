@@ -345,6 +345,26 @@ describe("session command routing", () => {
     expect(after.nowMs - after.sceneEnteredAt).toBeLessThan(2000);
   });
 
+  it("holds the clock still when a command is issued during a pause", () => {
+    // Blanking the screen, opening the overview or stepping a scene are all
+    // things a presenter does mid-break, and every command refreshed `nowMs`.
+    // The origins do not move until resume, so the elapsed time jumped forward
+    // by the length of the break and then jumped back again.
+    const api = createSession({ presentationId: "paused-cmd", scenes, role: "stage" });
+    api.send("next");
+
+    const start = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(start);
+    api.send("toggle-pause");
+    const frozen = api.store.getState().nowMs;
+
+    vi.spyOn(Date, "now").mockReturnValue(start + 300_000);
+    api.send("blank");
+
+    expect(api.store.getState().nowMs).toBe(frozen);
+    expect(api.store.getState().blanked).toBe(true);
+  });
+
   it("advances the stage locally", () => {
     const api = createSession({ presentationId: "p", scenes, role: "stage" });
     expect(api.store.getState().sceneIndex).toBe(0);
