@@ -428,7 +428,7 @@ export class PresentationRecorder {
     // in the file. The clamp is what guarantees no cue outlives the video:
     // a result stamped during the wait is trimmed to `durationMs`, not kept
     // past it and not thrown away.
-    const transcript = clampCues(this.transcriber?.stop() ?? [], durationMs);
+    const transcript = clampCues((await this.transcriber?.stop()) ?? [], durationMs);
     this.transcriber = null;
 
     const result: RecorderResult = {
@@ -469,7 +469,8 @@ export class PresentationRecorder {
     this.cameraVideo = null;
     this.canvas = null;
     this.recorder = null;
-    this.transcriber?.stop();
+    // Fire-and-forget: cleanup is the abandon path, and the cues are unwanted.
+    void this.transcriber?.stop();
     this.transcriber = null;
   }
 

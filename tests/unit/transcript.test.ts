@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   clampCues,
   cueAt,
@@ -137,9 +137,85 @@ describe("clampCues", () => {
 });
 
 describe("LiveTranscriber without an engine", () => {
-  it("declines to start rather than throwing", () => {
+  it("declines to start rather than throwing", async () => {
     const transcriber = new LiveTranscriber();
     expect(transcriber.start(() => 0)).toBe(false);
-    expect(transcriber.stop()).toEqual([]);
+    await expect(transcriber.stop()).resolves.toEqual([]);
+  });
+});
+
+/**
+ * A SpeechRecognition double faithful to the part of the contract the
+ * transcriber depends on: results arrive via onresult, stop() requests
+ * finalisation and may deliver one last final result before onend.
+ */
+class FakeRecognition {
+  static instances: FakeRecognition[] = [];
+  continuous = false;
+  interimResults = false;
+  lang = "";
+  onresult: ((event: unknown) => void) | null = null;
+  onend: (() => void) | null = null;
+  onerror: ((event: { error?: string }) => void) | null = null;
+  /** Text still in flight when stop() is requested. */
+  pendingFinal: string | null = null;
+  aborted = false;
+
+  constructor() {
+    FakeRecognition.instances.push(this);
+  }
+
+  start(): void {}
+
+  emitFinal(text: string): void {
+    this.onresult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: text } }] });
+  }
+
+  stop(): void {
+    // The engine finalises the in-flight phrase, then ends — asynchronously,
+    // as the real service does.
+    queueMicrotask(() => {
+      if (this.pendingFinal) this.emitFinal(this.pendingFinal);
+      this.onend?.();
+    });
+  }
+
+  abort(): void {
+    this.aborted = true;
+  }
+}
+
+describe("LiveTranscriber with a fake engine", () => {
+  beforeEach(() => {
+    FakeRecognition.instances = [];
+    (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition = FakeRecognition;
+  });
+  afterEach(() => {
+    delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
+  });
+
+  it("keeps a final result the engine delivers after stop() is requested", async () => {
+    let clock = 5_000;
+    const transcriber = new LiveTranscriber();
+    expect(transcriber.start(() => clock)).toBe(true);
+
+    const engine = FakeRecognition.instances[0];
+    engine.emitFinal("spoken mid take");
+    clock = 9_000;
+    // The presenter clicks stop while this phrase is still in flight.
+    engine.pendingFinal = "the very last words";
+
+    const cues = await transcriber.stop();
+    expect(cues.map((cue) => cue.text)).toEqual(["spoken mid take", "the very last words"]);
+  });
+
+  it("stops listening after stop() resolves", async () => {
+    const transcriber = new LiveTranscriber();
+    transcriber.start(() => 1_000);
+    const engine = FakeRecognition.instances[0];
+    const cues = await transcriber.stop();
+    expect(cues).toEqual([]);
+    // The engine was torn down, not left running for the restart loop.
+    expect(engine.aborted).toBe(true);
   });
 });

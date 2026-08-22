@@ -304,13 +304,40 @@ export class LiveTranscriber {
     return "";
   }
 
-  stop(): TranscriptCue[] {
+  /**
+   * Stops gracefully: `recognition.stop()` asks the engine to finalise the
+   * phrase in flight — `abort()` would throw those words away, and the last
+   * sentence of a take is exactly what tends to be in flight when the
+   * presenter clicks stop. The wait is bounded because an engine that has
+   * already gone quiet may never fire another event; on timeout the pending
+   * phrase is forfeited rather than the recording held hostage.
+   */
+  async stop(): Promise<TranscriptCue[]> {
     this.running = false;
     const recognition = this.recognition;
     this.recognition = null;
-    if (recognition) recognition.onend = null;
+    if (!recognition) return this.cues;
+
+    const ended = new Promise<void>((resolve) => {
+      recognition.onend = () => resolve();
+    });
+
     try {
-      recognition?.abort();
+      recognition.stop();
+    } catch {
+      // Engine already stopped; nothing left to finalise.
+      recognition.onend = null;
+      return this.cues;
+    }
+
+    await Promise.race([
+      ended,
+      new Promise<void>((resolve) => setTimeout(resolve, 750)),
+    ]);
+
+    recognition.onend = null;
+    try {
+      recognition.abort();
     } catch {
       // Already gone.
     }
