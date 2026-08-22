@@ -18,6 +18,9 @@
  *    assuming, and reports the real container to the user.
  */
 
+import { sharedPersonSegmenter, type CameraBackground, type PersonSegmenter } from "@/lib/media/segmentation";
+import { LiveTranscriber, transcriptSupported, type TranscriptCue } from "@/lib/record/transcript";
+
 export type RecorderPhase =
   "idle" | "requesting" | "ready" | "recording" | "paused" | "stopping" | "complete" | "error";
 
@@ -25,13 +28,20 @@ export interface CameraPlacement {
   corner: "bottom-right" | "bottom-left" | "top-right" | "top-left";
   /** Fraction of the output width occupied by the camera inset. */
   size: number;
-  shape: "circle" | "rounded";
+  /** `cutout` draws the presenter alone, no frame — background removal only. */
+  shape: "circle" | "rounded" | "cutout";
 }
 
 export interface RecorderOptions {
   microphoneId?: string | null;
   cameraId?: string | null;
   camera: boolean;
+  /** Background treatment for the camera inset; runs entirely on-device. */
+  cameraBackground?: CameraBackground;
+  /** Generate a transcript from the microphone while recording. */
+  transcribe?: boolean;
+  /** Draw live captions into the video itself. Requires `transcribe`. */
+  burnInCaptions?: boolean;
   placement: CameraPlacement;
   /** Longest edge of the recorded video. */
   targetWidth?: number;
@@ -50,6 +60,7 @@ export interface RecorderResult {
   extension: string;
   durationMs: number;
   timeline: SceneMark[];
+  transcript: TranscriptCue[];
   hasCamera: boolean;
   hasMicrophone: boolean;
 }
@@ -189,6 +200,9 @@ export class PresentationRecorder {
   private screenVideo: HTMLVideoElement | null = null;
   private cameraVideo: HTMLVideoElement | null = null;
 
+  private segmenter: PersonSegmenter | null = null;
+  private transcriber: LiveTranscriber | null = null;
+
   private startedAt = 0;
   private pausedTotal = 0;
   private pausedAt: number | null = null;
@@ -292,6 +306,16 @@ export class PresentationRecorder {
           "The camera couldn't be opened, so this will record screen and microphone only.",
         );
       }
+
+      if (this.cameraStream && options.cameraBackground && options.cameraBackground !== "none") {
+        this.segmenter = await sharedPersonSegmenter();
+        if (!this.segmenter) {
+          this.onPhaseChange?.(
+            "ready",
+            "Background removal isn't available in this browser, so the camera records as-is.",
+          );
+        }
+      }
     }
 
     this.onPhaseChange?.("ready");
@@ -302,12 +326,14 @@ export class PresentationRecorder {
       throw new Error("The recorder isn't ready.");
     }
 
-    const stream = this.cameraStream
-      ? await this.buildCompositeStream()
-      : new MediaStream([
-          ...this.screenStream.getVideoTracks(),
-          ...this.micStream.getAudioTracks(),
-        ]);
+    const wantsBurnIn = Boolean(this.options.transcribe && this.options.burnInCaptions);
+    const stream =
+      this.cameraStream || wantsBurnIn
+        ? await this.buildCompositeStream()
+        : new MediaStream([
+            ...this.screenStream.getVideoTracks(),
+            ...this.micStream.getAudioTracks(),
+          ]);
 
     this.recorder = new MediaRecorder(stream, {
       mimeType: this.support.mimeType,
@@ -333,6 +359,12 @@ export class PresentationRecorder {
     this.pausedTotal = 0;
     this.pausedAt = null;
     this.timeline = [];
+
+    if (this.options.transcribe && transcriptSupported()) {
+      this.transcriber = new LiveTranscriber();
+      if (!this.transcriber.start(() => this.elapsedMs)) this.transcriber = null;
+    }
+
     this.onPhaseChange?.("recording");
   }
 
@@ -354,6 +386,7 @@ export class PresentationRecorder {
     if (this.recorder?.state !== "recording" || !this.canPause) return;
     this.recorder.pause();
     this.pausedAt = Date.now();
+    this.transcriber?.suspend();
     this.onPhaseChange?.("paused");
   }
 
@@ -362,6 +395,7 @@ export class PresentationRecorder {
     this.recorder.resume();
     if (this.pausedAt) this.pausedTotal += Date.now() - this.pausedAt;
     this.pausedAt = null;
+    this.transcriber?.resume();
     this.onPhaseChange?.("recording");
   }
 
@@ -379,12 +413,16 @@ export class PresentationRecorder {
       else resolve(new Blob(this.chunks, { type: mimeType }));
     });
 
+    const transcript = this.transcriber?.stop() ?? [];
+    this.transcriber = null;
+
     const result: RecorderResult = {
       blob,
       mimeType,
       extension: this.support.extension,
       durationMs,
       timeline: this.timeline,
+      transcript,
       hasCamera: Boolean(this.cameraStream),
       hasMicrophone: Boolean(this.micStream),
     };
@@ -416,6 +454,8 @@ export class PresentationRecorder {
     this.cameraVideo = null;
     this.canvas = null;
     this.recorder = null;
+    this.transcriber?.stop();
+    this.transcriber = null;
   }
 
   /**
@@ -439,7 +479,7 @@ export class PresentationRecorder {
     if (!context) throw new Error("This browser couldn't create the compositing canvas.");
 
     this.screenVideo = await attachStream(this.screenStream!);
-    this.cameraVideo = await attachStream(this.cameraStream!);
+    this.cameraVideo = this.cameraStream ? await attachStream(this.cameraStream) : null;
 
     const inset = Math.round(width * options.placement.size);
     const margin = Math.round(width * 0.022);
@@ -466,59 +506,17 @@ export class PresentationRecorder {
       lastDrawn = now;
       const screen = this.screenVideo;
       const camera = this.cameraVideo;
-      if (!screen || !camera) return;
+      if (!screen) return;
 
       context.drawImage(screen, 0, 0, canvas.width, canvas.height);
 
-      const camW = inset;
-      const camH = Math.round(inset * (camera.videoHeight / camera.videoWidth || 0.5625));
-      const x = options.placement.corner.endsWith("right") ? canvas.width - camW - margin : margin;
-      const y = options.placement.corner.startsWith("bottom")
-        ? canvas.height - camH - margin
-        : margin;
+      if (camera) this.drawCameraInset(context, canvas, camera, options, inset, margin, width, now);
 
-      context.save();
-      context.beginPath();
-      if (options.placement.shape === "circle") {
-        const radius = Math.min(camW, camH) / 2;
-        context.arc(x + camW / 2, y + camH / 2, radius, 0, Math.PI * 2);
-        context.clip();
-        // Centre-crop the camera frame into the circle so faces are not squashed.
-        const side = Math.min(camera.videoWidth, camera.videoHeight);
-        const sx = (camera.videoWidth - side) / 2;
-        const sy = (camera.videoHeight - side) / 2;
-        context.drawImage(
-          camera,
-          sx,
-          sy,
-          side,
-          side,
-          x + camW / 2 - radius,
-          y + camH / 2 - radius,
-          radius * 2,
-          radius * 2,
-        );
-      } else {
-        const radius = Math.round(camW * 0.06);
-        roundedRect(context, x, y, camW, camH, radius);
-        context.clip();
-        context.drawImage(camera, x, y, camW, camH);
+      // Captions are drawn last so they sit above the camera if the two meet.
+      if (options.transcribe && options.burnInCaptions) {
+        const caption = this.transcriber?.displayText() ?? "";
+        if (caption) drawCaption(context, canvas, caption);
       }
-      context.restore();
-
-      // A hairline keeps the inset legible against a light slide.
-      context.save();
-      context.strokeStyle = "rgba(255,255,255,0.35)";
-      context.lineWidth = Math.max(2, width * 0.0015);
-      if (options.placement.shape === "circle") {
-        context.beginPath();
-        context.arc(x + camW / 2, y + camH / 2, Math.min(camW, camH) / 2, 0, Math.PI * 2);
-        context.stroke();
-      } else {
-        roundedRect(context, x, y, camW, camH, Math.round(camW * 0.06));
-        context.stroke();
-      }
-      context.restore();
     };
 
     this.rafId = requestAnimationFrame(draw);
@@ -527,6 +525,100 @@ export class PresentationRecorder {
     for (const track of this.micStream!.getAudioTracks()) canvasStream.addTrack(track);
     this.compositeStream = canvasStream;
     return canvasStream;
+  }
+
+  /** The camera inset, with its background treated per-frame, on-device. */
+  private drawCameraInset(
+    context: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    camera: HTMLVideoElement,
+    options: RecorderOptions,
+    inset: number,
+    margin: number,
+    width: number,
+    now: number,
+  ): void {
+    {
+      // Background treatment happens per-frame, on-device. When the segmenter
+      // has no answer for a frame (warm-up, a hiccup) the raw camera is drawn —
+      // a flickering feed is worse than one frame of background.
+      const background = options.cameraBackground ?? "none";
+      const treated =
+        background !== "none" && this.segmenter ? this.segmenter.render(camera, now, background) : null;
+      const source: CanvasImageSource = treated ?? camera;
+      const srcW = treated ? treated.width : camera.videoWidth;
+      const srcH = treated ? treated.height : camera.videoHeight;
+      const transparent = background === "remove" && treated !== null;
+
+      const camW = inset;
+      const camH = Math.round(inset * (srcH / srcW || 0.5625));
+      const x = options.placement.corner.endsWith("right") ? canvas.width - camW - margin : margin;
+      const y = options.placement.corner.startsWith("bottom")
+        ? canvas.height - camH - margin
+        : margin;
+
+      const shape = options.placement.shape;
+      if (shape === "cutout") {
+        // The presenter alone, floating over the stage. Without a working
+        // segmenter this falls back to a rounded card rather than stamping a
+        // rectangle of wall over the slide.
+        if (transparent) {
+          context.drawImage(source, x, y, camW, camH);
+        } else {
+          context.save();
+          roundedRect(context, x, y, camW, camH, Math.round(camW * 0.06));
+          context.clip();
+          context.drawImage(source, x, y, camW, camH);
+          context.restore();
+        }
+      } else {
+        context.save();
+        context.beginPath();
+        if (shape === "circle") {
+          const radius = Math.min(camW, camH) / 2;
+          context.arc(x + camW / 2, y + camH / 2, radius, 0, Math.PI * 2);
+          context.clip();
+          // Centre-crop the camera frame into the circle so faces are not squashed.
+          const side = Math.min(srcW, srcH);
+          const sx = (srcW - side) / 2;
+          const sy = (srcH - side) / 2;
+          context.drawImage(
+            source,
+            sx,
+            sy,
+            side,
+            side,
+            x + camW / 2 - radius,
+            y + camH / 2 - radius,
+            radius * 2,
+            radius * 2,
+          );
+        } else {
+          const radius = Math.round(camW * 0.06);
+          roundedRect(context, x, y, camW, camH, radius);
+          context.clip();
+          context.drawImage(source, x, y, camW, camH);
+        }
+        context.restore();
+
+        // A hairline keeps the inset legible against a light slide — except a
+        // transparent cut-out, where it would outline empty air.
+        if (!transparent) {
+          context.save();
+          context.strokeStyle = "rgba(255,255,255,0.35)";
+          context.lineWidth = Math.max(2, width * 0.0015);
+          if (shape === "circle") {
+            context.beginPath();
+            context.arc(x + camW / 2, y + camH / 2, Math.min(camW, camH) / 2, 0, Math.PI * 2);
+            context.stroke();
+          } else {
+            roundedRect(context, x, y, camW, camH, Math.round(camW * 0.06));
+            context.stroke();
+          }
+          context.restore();
+        }
+      }
+    }
   }
 }
 
@@ -561,6 +653,62 @@ function roundedRect(
   context.arcTo(x, y + h, x, y, r);
   context.arcTo(x, y, x + w, y, r);
   context.closePath();
+}
+
+/**
+ * Live captions, drawn into the frame itself.
+ *
+ * Standard subtitle conventions: bottom-centred, at most two lines, white on a
+ * soft dark plate so they read over any slide. The text is what is being said
+ * right now — interim recognition included — because captions that lag the
+ * voice by a sentence are worse than none.
+ */
+function drawCaption(
+  context: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  text: string,
+): void {
+  const fontSize = Math.max(18, Math.round(canvas.height * 0.042));
+  context.save();
+  context.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+
+  // Wrap onto at most two lines that fit inside 80% of the frame.
+  const maxWidth = canvas.width * 0.8;
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (context.measureText(candidate).width <= maxWidth || !line) {
+      line = candidate;
+    } else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  // Keep the newest words: trailing lines are the live ones.
+  const shown = lines.slice(-2);
+
+  const lineHeight = Math.round(fontSize * 1.35);
+  const padX = Math.round(fontSize * 0.7);
+  const padY = Math.round(fontSize * 0.35);
+  const bottom = canvas.height - Math.round(canvas.height * 0.045);
+
+  shown.forEach((entry, i) => {
+    const y = bottom - (shown.length - 1 - i) * lineHeight - lineHeight / 2;
+    const textWidth = context.measureText(entry).width;
+    context.fillStyle = "rgba(10, 10, 12, 0.68)";
+    const w = textWidth + padX * 2;
+    const h = lineHeight + padY * 0.4;
+    roundedRect(context, canvas.width / 2 - w / 2, y - h / 2, w, h, Math.round(h / 4));
+    context.fill();
+    context.fillStyle = "rgba(255,255,255,0.96)";
+    context.fillText(entry, canvas.width / 2, y + fontSize * 0.05);
+  });
+  context.restore();
 }
 
 /** Immediate local download — the recording is safe before any upload runs. */

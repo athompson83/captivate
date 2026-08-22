@@ -46,3 +46,4 @@ yarn-error.log*
 # supabase local
 supabase/.temp
 supabase/.branches
+public/mediapipe/

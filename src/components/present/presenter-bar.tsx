@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  Camera,
   ChevronLeft,
   ChevronRight,
   Eraser,
@@ -14,11 +15,13 @@ import {
   MonitorPlay,
   Pen,
   Pointer,
+  ScanFace,
   Square,
   Telescope,
   X,
 } from "lucide-react";
 import type { Scene, Section } from "@/lib/schema/presentation";
+import type { CameraFeedSettings } from "./presenter-camera";
 import type { PresentSession } from "@/lib/present/session";
 import { PRESENTER_COLORS, type PresenterTool } from "@/lib/present/protocol";
 import { Tooltip } from "@/components/ui/misc";
@@ -45,6 +48,8 @@ export function PresenterBar({
   onColorChange,
   penWidth,
   onPenWidthChange,
+  cameraFeed,
+  onCameraFeedChange,
   fullscreen,
 }: {
   visible: boolean;
@@ -59,6 +64,8 @@ export function PresenterBar({
   onColorChange: (c: string) => void;
   penWidth: number;
   onPenWidthChange: (w: number) => void;
+  cameraFeed: CameraFeedSettings;
+  onCameraFeedChange: (next: CameraFeedSettings) => void;
   fullscreen: {
     active: boolean;
     supported: boolean;
@@ -214,6 +221,45 @@ export function PresenterBar({
             >
               <Telescope className="size-4" aria-hidden />
             </BarButton>
+
+            <BarButton
+              label={cameraFeed.enabled ? "Hide my camera" : "Show my camera on stage"}
+              shortcut="V"
+              active={cameraFeed.enabled}
+              onClick={() => onCameraFeedChange({ ...cameraFeed, enabled: !cameraFeed.enabled })}
+            >
+              <Camera className="size-4" aria-hidden />
+            </BarButton>
+
+            {cameraFeed.enabled && (
+              <BarButton
+                label={
+                  cameraFeed.background === "remove"
+                    ? "Background removed — click for blurred"
+                    : cameraFeed.background === "blur"
+                      ? "Background blurred — click to show it"
+                      : "Background shown — click to remove it"
+                }
+                active={cameraFeed.background !== "none"}
+                onClick={() => {
+                  const background =
+                    cameraFeed.background === "remove"
+                      ? "blur"
+                      : cameraFeed.background === "blur"
+                        ? "none"
+                        : "remove";
+                  onCameraFeedChange({
+                    ...cameraFeed,
+                    background,
+                    // A cut-out only exists when the background is removed;
+                    // anything else needs a frame to live in.
+                    shape: background === "remove" ? "cutout" : "rounded",
+                  });
+                }}
+              >
+                <ScanFace className="size-4" aria-hidden />
+              </BarButton>
+            )}
 
             <BarButton label="All scenes" onClick={() => setJumperOpen(true)}>
               <LayoutGrid className="size-4" aria-hidden />
