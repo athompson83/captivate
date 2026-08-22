@@ -75,6 +75,7 @@ export function requestPresentationFromMap(
     prompt: string;
     map: ProposedMap;
     totalSeconds: number;
+    depth?: "outline" | "full";
     themeId?: string;
     folderId?: string | null;
   } & AudienceContext,

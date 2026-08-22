@@ -107,7 +107,7 @@ export function EditorRoot({
             <NarrativeMapView
               presentationId={presentationId}
               evidenceOptions={evidenceOptions}
-              onGenerate={() => void generate()}
+              onGenerate={(depth) => void generate(depth)}
               generating={generating}
             />
           ) : (

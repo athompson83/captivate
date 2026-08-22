@@ -32,6 +32,7 @@ import { insertSection, removeSection } from "@/lib/editor/store";
 import { addSection } from "@/lib/data/actions";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
+import { Segmented } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { MomentCard } from "./moment-card";
 import { cn } from "@/lib/utils/cn";
@@ -57,7 +58,7 @@ export function NarrativeMapView({
 }: {
   presentationId: string;
   evidenceOptions: EvidenceRef[];
-  onGenerate: () => void;
+  onGenerate: (depth: "outline" | "full") => void;
   generating: boolean;
   className?: string;
 }) {
@@ -302,7 +303,7 @@ export function NarrativeMapView({
         <header className="mb-7">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-ink text-[21px] font-semibold tracking-tight">Narrative map</h1>
+              <h1 className="text-ink text-[21px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Narrative map</h1>
               <p className="text-ink-3 mt-1 max-w-2xl text-[13px] leading-relaxed">
                 What each part of the argument has to accomplish, decided before anything is
                 rendered. Scenes are generated from this.
@@ -324,10 +325,7 @@ export function NarrativeMapView({
                 moments={map.momentCount}
                 targetSeconds={targetSeconds}
               />
-              <Button variant="primary" size="sm" onClick={onGenerate} loading={generating}>
-                <Sparkles className="size-3.5" aria-hidden />
-                Generate scenes
-              </Button>
+              <GenerateControl onGenerate={onGenerate} generating={generating} />
             </div>
           </div>
         </header>
@@ -621,6 +619,39 @@ export function DurationWarning({
       </p>
       <Button variant="secondary" size="xs" onClick={onCompress} loading={busy}>
         Rescale to {formatDuration(targetSeconds)}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Generate, with the one decision that changes what generation means: whether
+ * Captivate writes the talk or only its frame. The choice is remembered for
+ * the session, not buried in a settings page.
+ */
+function GenerateControl({
+  onGenerate,
+  generating,
+}: {
+  onGenerate: (depth: "outline" | "full") => void;
+  generating: boolean;
+}) {
+  const [depth, setDepth] = useState<"outline" | "full">("full");
+  return (
+    <div className="flex items-center gap-2">
+      <Segmented
+        label="How much should be written"
+        size="sm"
+        value={depth}
+        onChange={setDepth}
+        options={[
+          { value: "full", label: "Full content" },
+          { value: "outline", label: "Outline" },
+        ]}
+      />
+      <Button variant="primary" size="sm" onClick={() => onGenerate(depth)} loading={generating}>
+        <Sparkles className="size-3.5" aria-hidden />
+        Generate scenes
       </Button>
     </div>
   );

@@ -224,6 +224,7 @@ function AiPath({ folderId }: { folderId: string | null }) {
   const [audience, setAudience] = useState("");
   const [tone, setTone] = useState("");
   const [minutes, setMinutes] = useState(20);
+  const [depth, setDepth] = useState<"outline" | "full">("full");
   const [themeId, setThemeId] = useState("midnight");
   const [map, setMap] = useState<ProposedMap | null>(null);
   const [available, setAvailable] = useState<AvailableEvidence[]>([]);
@@ -259,6 +260,7 @@ function AiPath({ folderId }: { folderId: string | null }) {
       prompt,
       map,
       totalSeconds,
+      depth,
       themeId,
       folderId,
       audience,
@@ -581,10 +583,29 @@ function AiPath({ folderId }: { folderId: string | null }) {
                 Try a different argument
               </Button>
             </div>
-            <Button variant="ai" size="lg" onClick={() => void generate()}>
-              <Sparkles className="size-4" aria-hidden />
-              Generate {momentCount} scenes
-            </Button>
+            <div className="flex items-center gap-3">
+              <div>
+                <Segmented
+                  label="How much should be written"
+                  size="sm"
+                  value={depth}
+                  onChange={setDepth}
+                  options={[
+                    { value: "full", label: "Write the content" },
+                    { value: "outline", label: "Structure only" },
+                  ]}
+                />
+                <p className="text-ink-3 mt-1 text-[10.5px] leading-snug">
+                  {depth === "full"
+                    ? "Complete scenes, ready to present."
+                    : "Headings and cues; you write the words."}
+                </p>
+              </div>
+              <Button variant="ai" size="lg" onClick={() => void generate()}>
+                <Sparkles className="size-4" aria-hidden />
+                Generate {momentCount} scenes
+              </Button>
+            </div>
           </div>
 
           <p className="text-ink-3 text-[11.5px] leading-relaxed">

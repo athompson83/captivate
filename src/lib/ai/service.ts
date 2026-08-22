@@ -269,11 +269,23 @@ export interface SceneOutcome {
  * the model: intent survives a redesign of the layout engine and a named
  * template does not.
  */
+/**
+ * How much writing the generator should do.
+ *
+ * `full` writes the presentation — complete prose, substantive bullets and a
+ * speakable script per scene. `outline` writes the frame: headings and short
+ * cues for an author who wants to put the words in themselves. The narrative
+ * map is identical either way; depth only changes how much of each beat is
+ * written down.
+ */
+export type ContentDepth = "outline" | "full";
+
 export async function buildScenesFromMap(
   briefs: MomentBrief[],
   prompt: string,
   context: AudienceContext,
   presentationId: string | null,
+  depth: ContentDepth = "full",
 ): Promise<
   | {
       ok: true;
@@ -301,7 +313,15 @@ export async function buildScenesFromMap(
           momentId: brief.momentId,
           ...materialise(
             fallbackScene(
-              { title: brief.title, purpose: brief.purpose, layout: layouts[index] },
+              {
+                title: brief.title,
+                purpose: brief.purpose,
+                layout: layouts[index],
+                takeaway: brief.takeaway,
+                instructions: brief.instructions,
+                evidence: brief.evidence,
+                movementTitle: brief.movementTitle,
+              },
               { title: brief.movementTitle, prompt },
             ),
           ),
@@ -344,6 +364,12 @@ You are writing the scenes for an argument that has already been agreed. Write e
 
 Every scene must do the job its moment states. The audience takeaway is the test: if a scene does not produce it, the scene is wrong.
 
+${
+  depth === "full"
+    ? `Write the presentation, not a template for one. Every field the layout displays carries finished content: body text is real prose making the moment's argument, every bullet is a complete claim someone could defend — never a label like "Key point" — and headings say something true rather than naming a topic. Speaker notes are the words to say out loud: a first-person script of three to six sentences that opens the moment, makes its case, and lands the takeaway. Nothing in any scene should need replacing before it could be presented.`
+    : `Write the frame, not the talk: crisp headings, bullets of a few words each as speaking cues, body text only where a layout demands it. Speaker notes are one or two sentences stating the moment's job. The author will write the words themselves.`
+}
+
 Transitions: where a beat ends a movement, let the last line carry the room into what follows — from this argument, in its own words. Do not announce the next section by name, and do not add a transition sentence to scenes that are not ending a movement.
 
 Where a moment names evidence, write only what that evidence supports. Never introduce a statistic, study or citation that was not given to you.`,
@@ -368,7 +394,15 @@ ${plan}`,
           momentId: brief.momentId,
           ...materialise(
             fallbackScene(
-              { title: brief.title, purpose: brief.purpose, layout: layouts[index] },
+              {
+                title: brief.title,
+                purpose: brief.purpose,
+                layout: layouts[index],
+                takeaway: brief.takeaway,
+                instructions: brief.instructions,
+                evidence: brief.evidence,
+                movementTitle: brief.movementTitle,
+              },
               { title: brief.movementTitle, prompt },
             ),
           ),
@@ -392,7 +426,15 @@ ${plan}`,
             momentId: brief.momentId,
             ...materialise(
               fallbackScene(
-                { title: brief.title, purpose: brief.purpose, layout: layouts[index] },
+                {
+                  title: brief.title,
+                  purpose: brief.purpose,
+                  layout: layouts[index],
+                  takeaway: brief.takeaway,
+                  instructions: brief.instructions,
+                  evidence: brief.evidence,
+                  movementTitle: brief.movementTitle,
+                },
                 { title: brief.movementTitle, prompt },
               ),
             ),
