@@ -449,12 +449,16 @@ export function Atmosphere({
         if (object instanceof THREE.Mesh) object.geometry.dispose();
       });
       renderer.dispose();
-      // `dispose()` releases three's own caches and leaves the GL context
-      // alive on the detached canvas until it is collected. Contexts are a
-      // small, hard limit per document, and this component's own set-up path
-      // names "too many live contexts" as a reason creation fails — so it must
-      // not be a producer of that condition.
-      renderer.forceContextLoss();
+      // Deliberately NOT forceContextLoss().
+      //
+      // It is the textbook way to stop contexts accumulating, and here it is a
+      // bug: React mounts, unmounts and mounts again in development, reusing
+      // the same <canvas>. A canvas has one context for its lifetime, so the
+      // second mount inherits the context the first one just destroyed and
+      // renders nothing — the field came back as a flat white sheet over the
+      // whole world, while a pixel read taken before the teardown still showed
+      // the correct colour. `dispose()` releases three's own caches; the
+      // context goes when the detached canvas is collected.
       rendererRef.current = null;
       sceneRef.current = null;
       cameraRef.current = null;

@@ -110,10 +110,14 @@ Worth recording, because it is the argument for the tests existing:
    reset outranked every Tailwind border utility including `border-transparent`,
    so the map's in-place prose fields drew a box around every line. Caught by
    looking at a screenshot, then confirmed against the computed style.
-9. **"Focus on 45-minute."** The fallback map wove the top keyword of the brief
-   into every movement purpose, and in a one-line brief every word appears once
-   — so a measurement won the alphabetical tie-break. A subject is now only
-   named when the author repeated it.
+9. **A white sheet over the world.** `forceContextLoss()` on unmount destroyed
+   the context React's development remount then inherited on the same canvas.
+   A pixel read taken before teardown still showed the right colour, which is
+   what made it look like a shader fault for as long as it did.
+10. **"Focus on 45-minute."** The fallback map wove the top keyword of the brief
+    into every movement purpose, and in a one-line brief every word appears once
+    — so a measurement won the alphabetical tie-break. A subject is now only
+    named when the author repeated it.
 
 ---
 
@@ -215,16 +219,15 @@ like a gradient. It took placing one warm region above the camera and measuring
 both halves to see it. The spec now does exactly that, and was checked to fail
 against the old line.
 
-**Known unresolved: the layer does not composite correctly in headless
-Chromium.** Reading the drawing buffer back through three's own context gives
-the right colour — `rgb(12,11,10)` where the theme's canvas is `rgb(16,20,24)` —
-and the same GLSL on a raw WebGL2 context passes every assertion above. But the
-composited page shows a near-white field, and hiding the canvas restores a
-correct page. Output colour space, an explicit alpha buffer and premultiplied
-alpha were each ruled out by testing them. This may be specific to software
-rendering under SwiftShader, which is the only renderer available in the
-environment it was found in; it needs one look on real hardware to settle, and
-until it is settled the layer should not be treated as verified.
+It also found a defect no test would have caught: the layer rendered as a flat
+white sheet over the whole world. Reading the drawing buffer back through
+three's own context gave the right colour, and the same GLSL on a raw context
+was correct, so the shader was never at fault — `forceContextLoss()` in the
+cleanup was. It is the textbook way to stop WebGL contexts accumulating, and it
+is wrong here: React mounts, unmounts and mounts again in development, reusing
+the same `<canvas>`, and a canvas has one context for its lifetime. The second
+mount inherited the context the first had just destroyed. `dispose()` alone is
+what this component wants.
 
 What no test here covers is whether the field _looks_ right. That is a judgement
 about pixels, and it belongs to a person looking at them.
