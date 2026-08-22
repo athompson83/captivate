@@ -268,3 +268,150 @@ body {
   background-size: 200% 100%;
   animation: captivate-shimmer 1.4s ease-in-out infinite;
 }
+
+/* ------------------------------------------------------------------------- */
+/* Landing: the miniature world                                               */
+/*                                                                            */
+/* The hero shows the product's thesis instead of describing it: scenes       */
+/* placed on one canvas, a camera travelling between them. Pure CSS — the     */
+/* global reduced-motion rule freezes the camera on its first scene.          */
+/* ------------------------------------------------------------------------- */
+
+.lw-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-2xl);
+  background:
+    radial-gradient(110% 90% at 78% -10%, oklch(0.32 0.06 62 / 0.55) 0%, transparent 52%),
+    radial-gradient(90% 80% at 8% 108%, oklch(0.26 0.05 285 / 0.6) 0%, transparent 55%),
+    oklch(0.17 0.015 265);
+  box-shadow: var(--shadow-xl);
+}
+
+.lw-scene {
+  position: absolute;
+  border-radius: 6px;
+  border: 1px solid oklch(1 0 0 / 0.09);
+  background: oklch(0.22 0.015 265 / 0.9);
+  box-shadow: 0 10px 30px oklch(0 0 0 / 0.35);
+  padding: 4.5% 4%;
+  display: flex;
+  flex-direction: column;
+  gap: 6%;
+}
+
+.lw-bar {
+  border-radius: 99px;
+  background: oklch(1 0 0 / 0.22);
+  height: 6%;
+  min-height: 3px;
+}
+.lw-bar--bright {
+  background: oklch(0.95 0.02 80 / 0.85);
+  height: 9%;
+  min-height: 4px;
+}
+.lw-bar--accent {
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+.lw-col {
+  display: flex;
+  align-items: flex-end;
+  gap: 7%;
+  flex: 1;
+}
+.lw-col > i {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(to top, oklch(0.65 0.13 62 / 0.9), oklch(0.8 0.14 75 / 0.9));
+}
+
+.lw-path {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The camera. Everything outside its frame falls a step into shadow, which is
+   the product's whole idea: the room looks where the camera is. */
+.lw-cam {
+  position: absolute;
+  border: 1.5px solid oklch(0.84 0.13 75 / 0.95);
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 9999px oklch(0.1 0.01 265 / 0.38),
+    0 0 24px oklch(0.8 0.14 70 / 0.35);
+  animation: lw-camera 22s cubic-bezier(0.6, 0.05, 0.25, 1) infinite;
+  /* Where reduced motion freezes the loop, this is the resting frame. */
+  left: 4%;
+  top: 7%;
+  width: 34%;
+  height: 44%;
+}
+
+.lw-cam::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: oklch(0.68 0.19 25);
+  animation: captivate-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes lw-camera {
+  0%,
+  11% {
+    left: 4%;
+    top: 7%;
+    width: 34%;
+    height: 44%;
+  }
+  18%,
+  29% {
+    left: 42%;
+    top: 1%;
+    width: 28%;
+    height: 36%;
+  }
+  36%,
+  46% {
+    left: 71%;
+    top: 12%;
+    width: 24%;
+    height: 40%;
+  }
+  52%,
+  61% {
+    left: 79%;
+    top: 33%;
+    width: 10.5%;
+    height: 16%;
+  }
+  67%,
+  77% {
+    left: 15%;
+    top: 53%;
+    width: 30%;
+    height: 40%;
+  }
+  83%,
+  93% {
+    left: 53%;
+    top: 47%;
+    width: 34%;
+    height: 46%;
+  }
+  100% {
+    left: 4%;
+    top: 7%;
+    width: 34%;
+    height: 44%;
+  }
+}

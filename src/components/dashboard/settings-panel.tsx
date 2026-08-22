@@ -33,7 +33,7 @@ export function SettingsPanel({
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-8 sm:px-8 sm:py-10">
-      <h1 className="text-ink text-[22px] font-semibold tracking-tight">Settings</h1>
+      <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Settings</h1>
 
       <section className="mt-8" aria-labelledby="profile-heading">
         <h2 id="profile-heading" className="text-ink text-[14px] font-semibold">

@@ -13,7 +13,7 @@ export default async function SignInPage({
 
   return (
     <div>
-      <h1 className="text-ink text-2xl font-semibold tracking-tight">Welcome back</h1>
+      <h1 className="text-ink text-[26px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Welcome back</h1>
       <p className="text-ink-3 mt-2 text-sm">Sign in to pick up where you left off.</p>
 
       <SignInForm next={next} />

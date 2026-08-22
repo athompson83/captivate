@@ -99,7 +99,7 @@ export function AssetLibrary({ assets }: { assets: Asset[] }) {
     >
       <header className="mb-6 flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-ink text-[22px] font-semibold tracking-tight">Assets</h1>
+          <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Assets</h1>
           <p className="text-ink-3 mt-1 text-[13px]">
             {assets.length} file{assets.length === 1 ? "" : "s"}
             {missingAlt > 0 && (

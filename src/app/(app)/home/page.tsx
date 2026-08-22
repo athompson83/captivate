@@ -40,7 +40,7 @@ export default async function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
       <header className="mb-8">
-        <h1 className="text-ink text-[26px] font-semibold tracking-tight">
+        <h1 className="text-ink text-[27px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
           {greeting()}, {firstName}
         </h1>
         <p className="text-ink-3 mt-1.5 text-[14px]">
