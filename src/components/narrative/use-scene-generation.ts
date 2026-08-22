@@ -6,6 +6,7 @@ import { composeScene } from "@/lib/editor/layouts";
 import { addScene, linkScenesToMoments, saveScene } from "@/lib/data/actions";
 import { useEditor } from "@/lib/editor/store";
 import { useToast } from "@/components/ui/toast";
+import { WrittenScenes } from "@/lib/ai/schemas";
 import type { SceneContent } from "@/lib/schema/presentation";
 
 /**
@@ -81,15 +82,20 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
           briefs,
         }),
       });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body?.error ?? "Couldn't generate scenes.");
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          typeof body === "object" && body !== null && "error" in body
+            ? String((body as { error: unknown }).error)
+            : "Couldn't generate scenes.";
+        throw new Error(message);
+      }
 
-      const written: {
-        momentId: string;
-        title: string;
-        content: SceneContent;
-        speakerNotes: string;
-      }[] = body.scenes ?? [];
+      const parsed = WrittenScenes.safeParse(body);
+      if (!parsed.success) {
+        throw new Error("The generated scenes came back in a shape this editor cannot store.");
+      }
+      const { scenes: written, notice } = parsed.data;
 
       // Reuse the scene a moment already owns rather than deleting and
       // recreating it: the scene's own id is what recordings, thumbnails and
@@ -166,7 +172,7 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
         toast({
           tone: "success",
           title: `${written.length} ${written.length === 1 ? "scene" : "scenes"} generated`,
-          description: body.notice ?? "Generated from your narrative map.",
+          description: notice ?? "Generated from your narrative map.",
         });
       }
 

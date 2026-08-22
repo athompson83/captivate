@@ -85,6 +85,13 @@ export const PresentMessage = z.discriminatedUnion("type", [
     startedAt: z.number().nullable(),
     sceneEnteredAt: z.number(),
     paused: z.boolean(),
+    /**
+     * Epoch ms when the current pause began, or null when running.
+     *
+     * Defaulted like the camera fields below: a console from an older build
+     * simply keeps its own clock rather than refusing the message.
+     */
+    pausedAt: z.number().nullable().default(null),
     fullscreen: z.boolean(),
     /**
      * Camera pulled back to show the whole world rather than one scene.

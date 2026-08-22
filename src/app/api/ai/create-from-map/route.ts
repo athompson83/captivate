@@ -34,9 +34,10 @@ const Input = z
  * material.
  *
  * The map is written before the scenes, and the scenes are written one at a
- * time. A failure part-way through therefore leaves an author with their
- * argument intact and some of it rendered, which they can finish from the map
- * view — rather than with nothing.
+ * time, so a failure while rendering leaves an author with their argument
+ * intact and some of it rendered, which they can finish from the map view.
+ * A failure writing the map itself is different: half a map is not a map the
+ * author can come back to, so it is rolled back rather than degraded.
  */
 export async function POST(request: Request) {
   const guarded = await guard(request, Input, LIMITS.heavy, ["map", "presentation"]);
@@ -84,11 +85,21 @@ export async function POST(request: Request) {
     })),
   );
 
+  // Carrying on with `movement_id: null` wrote every beat unplaced and called
+  // it a success — a map with no structure at all, which is worse than none.
+  if (movementError) {
+    await supabase.from("presentations").delete().eq("id", presentationId);
+    return NextResponse.json(
+      { error: "Your narrative map couldn't be saved, so nothing was created." },
+      { status: 500 },
+    );
+  }
+
   const { error: momentError } = await supabase.from("moments").insert(
     draft.moments.map((moment) => ({
       id: moment.id,
       presentation_id: presentationId,
-      movement_id: movementError ? null : moment.movementId,
+      movement_id: moment.movementId,
       position: moment.position,
       title: moment.title,
       role: moment.role,
@@ -102,9 +113,8 @@ export async function POST(request: Request) {
     })),
   );
 
-  // The map is the point of this route. Without it there is nothing to
-  // generate from and nothing to come back and edit, so this is the one
-  // failure that undoes the whole thing rather than degrading.
+  // Same reason: the map is the point of this route, and without its beats
+  // there is nothing to generate from and nothing to come back and edit.
   if (momentError) {
     await supabase.from("presentations").delete().eq("id", presentationId);
     return NextResponse.json(
@@ -159,7 +169,7 @@ export async function POST(request: Request) {
       // with an id: the AI path could not write scenes at all.
       id: index === 0 && seedId ? seedId : randomUUID(),
       presentation_id: presentationId,
-      section_id: movementError ? null : (moment?.movementId ?? null),
+      section_id: moment?.movementId ?? null,
       moment_id: scene.momentId,
       position: index,
       title: scene.title,

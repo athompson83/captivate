@@ -365,6 +365,57 @@ describe("session command routing", () => {
     expect(api.store.getState().blanked).toBe(true);
   });
 
+  it("does not stamp navigation with the wall clock during a pause", () => {
+    // The origins are shifted forward by the pause on resume. A scene entered
+    // *during* the break that stamped the wall clock would be shifted a second
+    // time and start life minutes in the future — so the scene timer would
+    // count backwards from a negative elapsed.
+    const api = createSession({ presentationId: "paused-nav", scenes, role: "stage" });
+    api.send("next");
+
+    const start = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(start);
+    api.send("toggle-pause");
+
+    vi.spyOn(Date, "now").mockReturnValue(start + 600_000);
+    api.send("next");
+    expect(api.store.getState().sceneEnteredAt).toBe(start);
+
+    api.send("toggle-pause");
+
+    const after = api.store.getState();
+    expect(after.nowMs - after.sceneEnteredAt).toBeGreaterThanOrEqual(0);
+    expect(after.nowMs - after.sceneEnteredAt).toBeLessThan(2000);
+  });
+
+  it("tells a console opened mid-pause where the clock was frozen", async () => {
+    // The console runs its own ticker. Joining during a break it stamped its
+    // own wall clock, so the two windows showed elapsed times a whole break
+    // apart — the stage frozen at the pause, the console minutes ahead.
+    const stage = createSession({ presentationId: "paused-broadcast", scenes, role: "stage" });
+    const detachStage = stage.attach();
+    stage.send("next");
+
+    const start = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(start);
+    stage.send("toggle-pause");
+    expect(stage.store.getState().pausedAt).toBe(start);
+
+    // Ten minutes of break, then the presenter opens the console.
+    vi.spyOn(Date, "now").mockReturnValue(start + 600_000);
+    const desk = createSession({ presentationId: "paused-broadcast", scenes, role: "console" });
+    const detachDesk = desk.attach();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const joined = desk.store.getState();
+    detachStage();
+    detachDesk();
+
+    expect(joined.paused).toBe(true);
+    expect(joined.nowMs).toBe(stage.store.getState().nowMs);
+    expect(joined.pausedAt).toBe(start);
+  });
+
   it("advances the stage locally", () => {
     const api = createSession({ presentationId: "p", scenes, role: "stage" });
     expect(api.store.getState().sceneIndex).toBe(0);

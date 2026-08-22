@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SceneLayout } from "@/lib/schema/presentation";
+import { SceneContent, SceneLayout } from "@/lib/schema/presentation";
 import { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 
 /**
@@ -69,6 +69,30 @@ export type GeneratedScene = z.infer<typeof GeneratedScene>;
 export const GeneratedScenes = z.object({
   scenes: z.array(GeneratedScene).min(1).max(24),
 });
+
+/**
+ * What `/api/ai/generate-scenes` hands back to the editor.
+ *
+ * These scenes go straight into the open document, so the response is parsed
+ * like any other input rather than cast. `SceneContent` is the real schema:
+ * content that would not survive a reload has no business being written.
+ *
+ * `scenes` is required. Defaulting a missing field to `[]` turned a malformed
+ * response into a silent success that generated nothing and said it worked.
+ */
+export const WrittenScenes = z.object({
+  scenes: z.array(
+    z.object({
+      momentId: z.string(),
+      title: z.string(),
+      content: SceneContent,
+      speakerNotes: z.string(),
+    }),
+  ),
+  source: z.string().optional(),
+  notice: z.string().optional(),
+});
+export type WrittenScenes = z.infer<typeof WrittenScenes>;
 
 /* -------------------------------------------------------------------------- */
 /* The narrative map                                                           */

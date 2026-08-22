@@ -159,11 +159,27 @@ export function createSession({
       startedAt: state.startedAt,
       sceneEnteredAt: state.sceneEnteredAt,
       paused: state.paused,
+      // Broadcast so the console can hold its own clock at the same instant.
+      // Without it a console opened during a pause froze at its own wall clock
+      // and showed an elapsed time minutes apart from the stage's.
+      pausedAt: state.pausedAt,
       fullscreen: isFullscreen(),
       overview: state.overview,
       establishing: state.establishing,
     });
   };
+
+  /**
+   * The clock a command's timestamps are measured against.
+   *
+   * While paused the session's clock is held at `pausedAt`, and resuming shifts
+   * both origins forward by the length of the break. A scene entered *during*
+   * the break that stamped the wall clock would therefore be shifted a second
+   * time on resume and start life minutes in the future — so navigation reads
+   * the frozen clock, exactly as the elapsed timers do.
+   */
+  const clock = (current: SessionState) =>
+    current.paused && current.pausedAt !== null ? current.pausedAt : Date.now();
 
   const update = (updater: (current: SessionState) => Partial<SessionState>) => {
     store.setState((current) => {
@@ -192,8 +208,8 @@ export function createSession({
         step: Math.max(0, Math.min((stepCounts[clamped] ?? 1) - 1, step)),
         stepsInScene: stepCounts[clamped] ?? 1,
         totalScenes: scenes.length,
-        startedAt: current.startedAt ?? Date.now(),
-        sceneEnteredAt: clamped === current.sceneIndex ? current.sceneEnteredAt : Date.now(),
+        startedAt: current.startedAt ?? clock(current),
+        sceneEnteredAt: clamped === current.sceneIndex ? current.sceneEnteredAt : clock(current),
         blanked: false,
         overview: false,
       };
@@ -206,7 +222,7 @@ export function createSession({
       if (current.step < steps - 1) {
         return {
           step: current.step + 1,
-          startedAt: current.startedAt ?? Date.now(),
+          startedAt: current.startedAt ?? clock(current),
           blanked: false,
           overview: false,
         };
@@ -218,8 +234,8 @@ export function createSession({
         sceneIndex: nextIndex,
         step: 0,
         stepsInScene: stepCounts[nextIndex] ?? 1,
-        sceneEnteredAt: Date.now(),
-        startedAt: current.startedAt ?? Date.now(),
+        sceneEnteredAt: clock(current),
+        startedAt: current.startedAt ?? clock(current),
         blanked: false,
         overview: false,
       };
@@ -237,7 +253,7 @@ export function createSession({
         // Returning to a scene shows it fully built, not rewound.
         step: steps - 1,
         stepsInScene: steps,
-        sceneEnteredAt: Date.now(),
+        sceneEnteredAt: clock(current),
         blanked: false,
         overview: false,
       };
@@ -397,6 +413,10 @@ export function createSession({
           startedAt: message.startedAt,
           sceneEnteredAt: message.sceneEnteredAt,
           paused: message.paused,
+          pausedAt: message.pausedAt,
+          // The stage's clock, not this window's: while paused they must agree
+          // to the millisecond, and the console's own ticker has stopped.
+          ...(message.paused && message.pausedAt !== null ? { nowMs: message.pausedAt } : {}),
           overview: message.overview,
           establishing: message.establishing,
         });

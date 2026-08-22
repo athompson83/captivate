@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   GeneratedScene,
   GeneratedScenes,
+  WrittenScenes,
   ProposedMap,
   RewriteResult,
   REWRITE_LABELS,
@@ -74,6 +75,46 @@ describe("generated scene schema", () => {
 
   it("requires at least one scene", () => {
     expect(GeneratedScenes.safeParse({ scenes: [] }).success).toBe(false);
+  });
+});
+
+describe("what the generation route hands back", () => {
+  const written = (over: Record<string, unknown> = {}) => ({
+    scenes: [
+      {
+        momentId: "m1",
+        title: "One",
+        content: composeScene("bullets", { heading: "One", bullets: ["a", "b"] }),
+        speakerNotes: "",
+        ...over,
+      },
+    ],
+  });
+
+  it("accepts a response the editor can store", () => {
+    expect(WrittenScenes.safeParse(written()).success).toBe(true);
+  });
+
+  it("refuses a response with no scenes field at all", () => {
+    // This is the regression: `body.scenes ?? []` turned a malformed response
+    // into a cheerful "0 scenes generated" instead of an error the author
+    // could act on.
+    expect(WrittenScenes.safeParse({}).success).toBe(false);
+    expect(WrittenScenes.safeParse({ notice: "done" }).success).toBe(false);
+  });
+
+  it("refuses content that is not really scene content", () => {
+    // Structurally typing this let anything through. `SceneContent` is the
+    // schema the document is reloaded with, so anything it rejects would come
+    // back from the database unusable.
+    expect(
+      WrittenScenes.safeParse(written({ content: { elements: "not an array" } })).success,
+    ).toBe(false);
+    expect(WrittenScenes.safeParse(written({ content: null })).success).toBe(false);
+  });
+
+  it("refuses a scene that names no moment", () => {
+    expect(WrittenScenes.safeParse(written({ momentId: 7 })).success).toBe(false);
   });
 });
 
