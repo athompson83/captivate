@@ -416,18 +416,20 @@ export class PresentationRecorder {
     const durationMs = this.elapsedMs;
     const mimeType = this.support.mimeType ?? "video/webm";
 
-    // The transcriber stops before the encoder is awaited: a final result
-    // arriving during finalisation would be stamped past `durationMs` and
-    // seek beyond the video. The clamp guarantees the invariant either way.
-    const transcript = clampCues(this.transcriber?.stop() ?? [], durationMs);
-    this.transcriber = null;
-
     const blob = await new Promise<Blob>((resolve) => {
       const recorder = this.recorder!;
       recorder.onstop = () => resolve(new Blob(this.chunks, { type: mimeType }));
       if (recorder.state !== "inactive") recorder.stop();
       else resolve(new Blob(this.chunks, { type: mimeType }));
     });
+
+    // The transcriber listens through the encoder's finalisation, because the
+    // last words of the take are still in flight then — and they are audible
+    // in the file. The clamp is what guarantees no cue outlives the video:
+    // a result stamped during the wait is trimmed to `durationMs`, not kept
+    // past it and not thrown away.
+    const transcript = clampCues(this.transcriber?.stop() ?? [], durationMs);
+    this.transcriber = null;
 
     const result: RecorderResult = {
       blob,
