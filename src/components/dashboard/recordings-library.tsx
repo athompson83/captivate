@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Camera,
+  Captions,
   Download,
   ExternalLink,
   Mic,
@@ -21,6 +22,7 @@ import { EmptyState, Badge, Spinner } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils/cn";
 import { formatBytes, formatDuration, relativeTime } from "@/lib/utils/format";
+import { toWebVTT } from "@/lib/record/transcript";
 
 /**
  * Recordings library.
@@ -47,7 +49,7 @@ export function RecordingsLibrary({
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-10">
       <header className="mb-6">
-        <h1 className="text-ink text-[22px] font-semibold tracking-tight">Recordings</h1>
+        <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Recordings</h1>
         <p className="text-ink-3 mt-1.5 max-w-2xl text-[13px] leading-relaxed">
           Everything you&apos;ve captured while presenting. Recordings are private to your account
           and stream through short-lived signed links.
@@ -238,6 +240,14 @@ function PlaybackBody({
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState(recording.title);
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+
+  /** Captions, served to the player as a same-document blob. */
+  const vttUrl = useMemo(() => {
+    if (recording.transcript.length === 0) return null;
+    return URL.createObjectURL(new Blob([toWebVTT(recording.transcript)], { type: "text/vtt" }));
+  }, [recording.transcript]);
+  useEffect(() => () => void (vttUrl && URL.revokeObjectURL(vttUrl)), [vttUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -278,8 +288,11 @@ function PlaybackBody({
                 controls
                 autoPlay
                 playsInline
+                crossOrigin="anonymous"
                 className="aspect-video w-full"
-              />
+              >
+                {vttUrl && <track kind="captions" src={vttUrl} label="Transcript" default />}
+              </video>
             ) : error ? (
               <div className="flex aspect-video items-center justify-center px-6 text-center">
                 <p className="text-[13px] leading-relaxed text-white/70">{error}</p>
@@ -316,6 +329,41 @@ function PlaybackBody({
             </div>
           )}
 
+          {recording.transcript.length > 0 && (
+            <div>
+              <button
+                onClick={() => setTranscriptOpen((open) => !open)}
+                aria-expanded={transcriptOpen}
+                className="text-ink-3 hover:text-ink mb-1.5 flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase transition-colors"
+              >
+                <Captions className="size-3" aria-hidden />
+                Transcript · {recording.transcript.length} lines
+              </button>
+              {transcriptOpen && (
+                <ul className="border-line-subtle max-h-40 space-y-0.5 overflow-y-auto rounded-[var(--radius-md)] border bg-[var(--surface-inset)] p-2">
+                  {recording.transcript.map((cue, i) => (
+                    <li key={i}>
+                      <button
+                        onClick={() => {
+                          if (videoEl) {
+                            videoEl.currentTime = cue.startMs / 1000;
+                            void videoEl.play();
+                          }
+                        }}
+                        className="text-ink-2 hover:bg-raised hover:text-ink flex w-full gap-2 rounded px-1.5 py-0.5 text-left text-[12px] leading-relaxed transition-colors"
+                      >
+                        <span className="text-ink-3 shrink-0 text-[11px] tabular-nums">
+                          {formatDuration(cue.startMs / 1000)}
+                        </span>
+                        {cue.text}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           <p className="text-ink-3 text-[11.5px] leading-relaxed">
             {recording.mimeType.includes("mp4")
               ? "MP4 — plays in any modern player."
@@ -330,6 +378,14 @@ function PlaybackBody({
             <Button variant="secondary" size="sm">
               <Download className="size-3.5" aria-hidden />
               Download
+            </Button>
+          </a>
+        )}
+        {vttUrl && (
+          <a href={vttUrl} download={`${recording.title.replace(/[^\w\s.-]/g, "").trim() || "recording"}.vtt`}>
+            <Button variant="secondary" size="sm">
+              <Captions className="size-3.5" aria-hidden />
+              Subtitles
             </Button>
           </a>
         )}

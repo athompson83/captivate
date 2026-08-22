@@ -30,6 +30,7 @@ export interface RecordingSummary {
   hasCamera: boolean;
   hasMicrophone: boolean;
   timeline: { sceneId: string | null; sceneIndex: number; atMs: number }[];
+  transcript: { startMs: number; endMs: number; text: string }[];
   errorMessage: string | null;
   createdAt: string;
 }
@@ -55,6 +56,16 @@ const CreateInput = z.object({
     )
     .max(1000)
     .default([]),
+  transcript: z
+    .array(
+      z.object({
+        startMs: z.number().min(0),
+        endMs: z.number().min(0),
+        text: z.string().max(600),
+      }),
+    )
+    .max(5000)
+    .default([]),
   status: z.enum(["uploading", "local_only", "failed"]).default("uploading"),
 });
 
@@ -73,6 +84,7 @@ export async function createRecording(input: unknown): Promise<RecordingResult<{
       has_camera: parsed.data.hasCamera,
       has_microphone: parsed.data.hasMicrophone,
       scene_timeline: parsed.data.timeline as never,
+      transcript: parsed.data.transcript as never,
       status: parsed.data.status,
     })
     .select("id")
@@ -187,6 +199,7 @@ export async function listRecordings(presentationId?: string): Promise<Recording
       has_camera: boolean;
       has_microphone: boolean;
       scene_timeline: RecordingSummary["timeline"];
+      transcript: RecordingSummary["transcript"];
       error_message: string | null;
       created_at: string;
       presentations: { title: string } | null;
@@ -203,6 +216,7 @@ export async function listRecordings(presentationId?: string): Promise<Recording
       hasCamera: row.has_camera,
       hasMicrophone: row.has_microphone,
       timeline: Array.isArray(row.scene_timeline) ? row.scene_timeline : [],
+      transcript: Array.isArray(row.transcript) ? row.transcript : [],
       errorMessage: row.error_message,
       createdAt: row.created_at,
     };

@@ -127,6 +127,7 @@ export type RecordingRow = Timestamps & {
   has_camera: boolean;
   has_microphone: boolean;
   scene_timeline: Json;
+  transcript: Json;
   error_message: string | null;
 };
 
