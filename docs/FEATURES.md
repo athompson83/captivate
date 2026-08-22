@@ -39,13 +39,13 @@ Sign-in errors are deliberately generic: distinguishing "no such user" from
 
 ## Creating
 
-| Path                         | Status      | Notes                                      |
-| ---------------------------- | ----------- | ------------------------------------------ |
-| From a template              | Implemented | Six curated structures                     |
-| Blank                        | Implemented | One title scene, not an empty void         |
-| With AI                      | Implemented | Prompt → editable outline → generated deck |
-| From an existing deck        | Implemented | Duplicate                                  |
-| Import PowerPoint or Keynote | Deferred    |                                            |
+| Path                         | Status      | Notes                                    |
+| ---------------------------- | ----------- | ---------------------------------------- |
+| From a template              | Implemented | Six curated structures                   |
+| Blank                        | Implemented | One title scene, not an empty void       |
+| With AI                      | Implemented | Prompt → editable narrative map → scenes |
+| From an existing deck        | Implemented | Duplicate                                |
+| Import PowerPoint or Keynote | Deferred    |                                          |
 
 ---
 
@@ -218,8 +218,12 @@ See [RECORDING.md](RECORDING.md) for what browsers genuinely cannot do.
 
 | Capability                                                    | Status                                                      |
 | ------------------------------------------------------------- | ----------------------------------------------------------- |
-| Prompt → outline                                              | Implemented                                                 |
-| Outline → full presentation                                   | Implemented                                                 |
+| Prompt → editable narrative map                               | Implemented                                                 |
+| Narrative map → full presentation                             | Implemented                                                 |
+| Regenerate scenes from an edited map                          | Implemented                                                 |
+| Rewrite one moment, leaving the rest of the map alone         | Implemented                                                 |
+| Ground a moment in an asset or lecture note                   | Implemented — by reference only; invented ids are dropped   |
+| Lock a moment against regeneration                            | Implemented                                                 |
 | Generate a single scene                                       | Implemented                                                 |
 | Speaker notes: draft and improve                              | Implemented                                                 |
 | Rewrite, shorten, expand, simplify, change tone, alternatives | Implemented                                                 |

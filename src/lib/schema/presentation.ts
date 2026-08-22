@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Moment } from "./narrative";
 
 /**
  * Captivate presentation content model.
@@ -547,6 +548,8 @@ export const Scene = z.object({
   content: SceneContent,
   /** Where this scene sits on the world canvas; null until it is placed. */
   placement: ScenePlacement.nullable().default(null),
+  /** The narrative moment this scene was generated from, if any. */
+  momentId: z.string().uuid().nullable().default(null),
   /** Presenter-only. Never rendered to the audience surface. */
   speakerNotes: z.string().max(20000),
   /** Rehearsal target in seconds; drives the presenter pacing indicator. */
@@ -571,6 +574,8 @@ export const Section = z.object({
   title: z.string().max(240),
   /** Short movement name. Falls back to the title where it is empty. */
   label: z.string().max(24).default(""),
+  /** What this stretch of the argument accomplishes. */
+  purpose: z.string().max(600).default(""),
   position: z.number().int().min(0),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -591,6 +596,13 @@ export const PresentationRecord = z.object({
   themeOverrides: z.record(z.string(), z.unknown()).nullable(),
   aspectRatio: AspectRatio,
   journey: JourneyConfig.prefault({}),
+  /**
+   * How long the talk is meant to run, in seconds. 0 = no target.
+   *
+   * The narrative map plans against this. Zero means the author never stated
+   * one, and a map with no target is never warned about its length.
+   */
+  targetSeconds: z.number().int().min(0).max(14_400).default(0),
   tags: z.array(z.string().max(48)).max(24),
   isFavorite: z.boolean(),
   thumbnailUrl: z.string().max(4096).nullable(),
@@ -606,6 +618,13 @@ export const PresentationDocument = z.object({
   presentation: PresentationRecord,
   sections: z.array(Section),
   scenes: z.array(Scene),
+  /**
+   * The narrative map's moments.
+   *
+   * Empty for a presentation that predates the map; one is derived from the
+   * scenes for display, and persisted the first time the author edits it.
+   */
+  moments: z.array(Moment).default([]),
 });
 export type PresentationDocument = z.infer<typeof PresentationDocument>;
 

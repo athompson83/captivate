@@ -8,6 +8,38 @@ Everything below was checked by running it, not by reading the code.
 
 ---
 
+## The narrative map
+
+The second change after review: even on a spatial canvas, the AI path still
+planned a _deck_. It proposed a list of scene titles with a layout each, and
+threw that list away the moment scenes existed — so the argument was never a
+thing the author could revise, only the slides were.
+
+A presentation now has a **narrative map**: ordered movements, each holding
+ordered moments that state what they are for and what the audience leaves with,
+decided before anything is rendered. Scenes are generated from it and carry the
+id of the moment that produced them. It is stored, it is a first-class editor
+view, and regeneration reads it rather than the original prompt.
+
+| Piece                                             | State                                              |
+| ------------------------------------------------- | -------------------------------------------------- |
+| Movement and moment model, 16 narrative roles     | Implemented, unit-tested                           |
+| Editable map as an editor view                    | Implemented, verified in a browser                 |
+| Map-first creation (`/new?mode=ai`)               | Implemented, verified in a browser                 |
+| Generate scenes from an accepted map              | Implemented                                        |
+| Rewrite one moment, leaving the rest alone        | Implemented                                        |
+| Lock a moment against regeneration                | Implemented, unit-tested                           |
+| Evidence by reference to assets and lecture notes | Implemented — invented ids are dropped and counted |
+| Duration planning that warns, never blocks        | Implemented, e2e-tested                            |
+| Template narrative shapes                         | Implemented for lecture, pitch and report          |
+| Backward derivation for presentations with no map | Implemented, deterministic, e2e-tested             |
+| Drag, keyboard reorder, move between movements    | Implemented                                        |
+| Branching playback and a node-and-edge editor     | **Not built** — sequenced next, see below          |
+| Lecture-note anchoring to a moment                | **Not built** — the ids it needs are stable now    |
+| Per-moment delivery analytics                     | **Not built**                                      |
+
+---
+
 ## The world canvas
 
 The presentation model changed after the first review: the screenshots looked
@@ -204,7 +236,27 @@ change. The app handles both correctly already.
 
 **AI key.** Without `ANTHROPIC_API_KEY`, AI generation falls back to the
 deterministic draft. The full path is implemented and validated; it has not been
-exercised against a live model in this environment.
+exercised against a live model in this environment. Everything recorded about
+the map in this document was therefore verified against the fallback proposer,
+which produces a real, schema-valid argument — the shape is exercised, the
+model's judgement is not.
+
+**Sequenced next, on top of the map.** These were deliberately left out of this
+change rather than half-built, and each is now cheap because the model underneath
+them exists:
+
+1. **Branching playback** — a moment with more than one successor, chosen live.
+   The map already orders moments explicitly rather than by array position, so
+   this is an edge table and a playback rule, not a remodelling.
+2. **A node-and-edge map editor**, once branching means the argument is no longer
+   a list. Building it before there is anything to branch would be a graph editor
+   for a straight line.
+3. **Lecture-note anchoring.** Notes anchor to a moment rather than to a scene,
+   so a note survives regeneration. Moment ids are stable across edit, reorder
+   and regeneration precisely so this can be built without a migration.
+4. **Live metric widgets** on the map — how long each movement actually ran, from
+   recordings.
+5. **The full two-tone editorial composition system.**
 
 ---
 
@@ -235,7 +287,10 @@ exercised against a live model in this environment.
 
 1. Re-run the smoke suite against the hosted preview rather than localhost.
 2. Configure SMTP so signup works for real users.
-3. Add the AI key and validate generation quality against real prompts.
-4. Sharing — a read-only link is the most-requested thing this does not do.
-5. Speaker view on a phone, using the same BroadcastChannel protocol over a
+3. Add the AI key and validate map quality against real prompts — the one part
+   of the narrative map that a deterministic fallback cannot stand in for.
+4. Branching playback, then the node-and-edge editor it makes necessary.
+5. Lecture-note anchoring to moments.
+6. Sharing — a read-only link is the most-requested thing this does not do.
+7. Speaker view on a phone, using the same BroadcastChannel protocol over a
    relay.

@@ -25,6 +25,7 @@ function makeScene(id: string, position: number, title = `Scene ${position + 1}`
     presentationId: PRESENTATION_ID,
     sectionId: null,
     placement: null,
+    momentId: null,
     position,
     title,
     content: composeScene("bullets", { heading: title, bullets: ["a", "b"] }),
@@ -47,6 +48,7 @@ function makeDocument(sceneCount = 3): PresentationDocument {
       themeOverrides: null,
       aspectRatio: "16:9",
       journey: JOURNEY_DEFAULTS,
+      targetSeconds: 0,
       tags: [],
       isFavorite: false,
       thumbnailUrl: null,
@@ -56,6 +58,7 @@ function makeDocument(sceneCount = 3): PresentationDocument {
       lastOpenedAt: null,
     },
     sections: [],
+    moments: [],
     scenes: Array.from({ length: sceneCount }, (_, i) => makeScene(`scene-${i}`, i)),
   };
 }

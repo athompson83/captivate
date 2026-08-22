@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect } from "react";
 import { useEditor } from "./store";
-import { reorderScenes, saveScene, updatePresentation, updateSection } from "@/lib/data/actions";
+import {
+  reorderScenes,
+  saveMoments,
+  saveScene,
+  updatePresentation,
+  updateSection,
+} from "@/lib/data/actions";
 
 /**
  * Autosave.
@@ -58,10 +64,19 @@ export async function flushEditor(
   const state = useEditor.getState();
   const dirtyScenes = [...state.dirtyScenes];
   const dirtySections = [...state.dirtySections];
+  const dirtyMoments = [...state.dirtyMoments];
   const needsOrder = state.dirtyOrder;
   const needsPresentation = state.dirtyPresentation;
 
-  if (!dirtyScenes.length && !dirtySections.length && !needsOrder && !needsPresentation) return;
+  if (
+    !dirtyScenes.length &&
+    !dirtySections.length &&
+    !dirtyMoments.length &&
+    !needsOrder &&
+    !needsPresentation
+  ) {
+    return;
+  }
 
   inFlight.add(presentationId);
   state.setSaveState("saving");
@@ -109,12 +124,50 @@ export async function flushEditor(
             id,
             title: section.title,
             label: section.label,
+            purpose: section.purpose,
           });
           if (result.ok) saved.push(id);
           else errors.push(result.error);
         }),
       );
       useEditor.getState().markSectionsSaved(saved);
+    }
+
+    if (dirtyMoments.length) {
+      /**
+       * The whole map, every time — never only the moment that was touched.
+       *
+       * `captivate_replace_moments` deletes any moment the payload omits,
+       * because that is how a deletion is persisted. A partial write is
+       * therefore indistinguishable from "the author deleted everything
+       * else", and sending one silently destroyed the rest of the argument
+       * while every visible thing about the edit looked correct.
+       *
+       * A map is tens of rows. Writing all of it is cheap, and it is the only
+       * payload whose meaning matches what the function does with it.
+       */
+      const doc = useEditor.getState().document;
+
+      const result = await saveMoments({
+        presentationId,
+        moments: doc.moments.map((moment) => ({
+          id: moment.id,
+          movementId: moment.movementId,
+          title: moment.title,
+          role: moment.role,
+          purpose: moment.purpose,
+          takeaway: moment.takeaway,
+          estimatedSeconds: moment.estimatedSeconds,
+          evidence: moment.evidence,
+          visualIntent: moment.visualIntent,
+          instructions: moment.instructions,
+          locked: moment.locked,
+          position: moment.position,
+        })),
+      });
+
+      if (result.ok) useEditor.getState().markMomentsSaved(dirtyMoments);
+      else errors.push(result.error);
     }
 
     if (needsOrder) {
@@ -140,6 +193,7 @@ export async function flushEditor(
         themeId: p.themeId,
         aspectRatio: p.aspectRatio,
         journey: p.journey,
+        targetSeconds: p.targetSeconds,
       });
       if (result.ok) useEditor.getState().markPresentationSaved();
       else errors.push(result.error);
@@ -156,6 +210,7 @@ export async function flushEditor(
       if (
         after.dirtyScenes.size ||
         after.dirtySections.size ||
+        after.dirtyMoments.size ||
         after.dirtyOrder ||
         after.dirtyPresentation
       ) {
@@ -205,9 +260,14 @@ export function useAutosave(presentationId: string) {
     let firstDirtyAt: number | null = null;
 
     const schedule = () => {
-      const { dirtyScenes, dirtySections, dirtyOrder, dirtyPresentation } = useEditor.getState();
+      const { dirtyScenes, dirtySections, dirtyMoments, dirtyOrder, dirtyPresentation } =
+        useEditor.getState();
       const hasWork =
-        dirtyScenes.size > 0 || dirtySections.size > 0 || dirtyOrder || dirtyPresentation;
+        dirtyScenes.size > 0 ||
+        dirtySections.size > 0 ||
+        dirtyMoments.size > 0 ||
+        dirtyOrder ||
+        dirtyPresentation;
 
       if (!hasWork) {
         firstDirtyAt = null;
@@ -254,10 +314,14 @@ export function useAutosave(presentationId: string) {
   // Guard against losing genuinely unsaved work on navigation away.
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      const { dirtyScenes, dirtySections, dirtyOrder, dirtyPresentation, saveState } =
+      const { dirtyScenes, dirtySections, dirtyMoments, dirtyOrder, dirtyPresentation, saveState } =
         useEditor.getState();
       const unsaved =
-        dirtyScenes.size > 0 || dirtySections.size > 0 || dirtyOrder || dirtyPresentation;
+        dirtyScenes.size > 0 ||
+        dirtySections.size > 0 ||
+        dirtyMoments.size > 0 ||
+        dirtyOrder ||
+        dirtyPresentation;
       if (unsaved || saveState === "saving" || saveState === "error") {
         e.preventDefault();
         return "";

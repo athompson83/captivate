@@ -15,6 +15,9 @@ import { AiDock } from "./ai-dock";
 import { JourneyMap } from "./journey-map";
 import { JourneyPanel } from "./journey-panel";
 import { PacingStrip } from "./pacing-strip";
+import { NarrativeMapView } from "@/components/narrative/narrative-map-view";
+import { useSceneGeneration } from "@/components/narrative/use-scene-generation";
+import type { EvidenceRef } from "@/lib/schema/narrative";
 import type { EditorView } from "./top-bar";
 import { RecoveryNotice } from "./recovery-notice";
 
@@ -38,6 +41,25 @@ export function EditorRoot({
   const [notesOpen, setNotesOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [view, setView] = useState<EditorView>("scene");
+  const [evidenceOptions, setEvidenceOptions] = useState<EvidenceRef[]>([]);
+  const { generate, generating } = useSceneGeneration(presentationId, initial.presentation.title);
+
+  // What a claim can be grounded in. Loaded once when the map is first opened,
+  // because it is the workspace's material rather than this deck's, and it
+  // changes far less often than anything else on screen.
+  useEffect(() => {
+    if (view !== "narrative" || evidenceOptions.length > 0) return;
+    let cancelled = false;
+    void fetch("/api/ai/evidence")
+      .then((response) => (response.ok ? response.json() : { evidence: [] }))
+      .then((body) => {
+        if (!cancelled) setEvidenceOptions(body.evidence ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [view, evidenceOptions.length]);
 
   // The store is the source of truth for readiness: it holds this document once
   // `init` has run, which is also what every child selector depends on.
@@ -81,6 +103,13 @@ export function EditorRoot({
         <div className="flex min-w-0 flex-1 flex-col">
           {view === "scene" ? (
             <Canvas theme={theme} />
+          ) : view === "narrative" ? (
+            <NarrativeMapView
+              presentationId={presentationId}
+              evidenceOptions={evidenceOptions}
+              onGenerate={() => void generate()}
+              generating={generating}
+            />
           ) : (
             <>
               <JourneyMap className="min-h-0 flex-1" />
@@ -94,9 +123,9 @@ export function EditorRoot({
 
         {view === "scene" ? (
           <Inspector theme={theme} />
-        ) : (
+        ) : view === "journey" ? (
           <JourneyPanel presentationId={presentationId} />
-        )}
+        ) : null}
         {aiOpen && <AiDock presentationId={presentationId} onClose={() => setAiOpen(false)} />}
       </div>
     </div>

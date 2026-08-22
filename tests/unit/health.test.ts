@@ -15,6 +15,7 @@ function scene(i: number, overrides: Partial<Scene> = {}): Scene {
     title: `Scene ${i}`,
     content: composeScene("statement", { heading: "A short claim" }),
     placement: null,
+    momentId: null,
     speakerNotes: "",
     durationSeconds: null,
     createdAt: "2026-01-01T00:00:00Z",
@@ -29,6 +30,7 @@ function section(id: string, label: string): Section {
     presentationId: "00000000-0000-4000-8000-000000000fff",
     title: label,
     label,
+    purpose: "",
     position: 0,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
@@ -51,6 +53,7 @@ function doc(
       themeOverrides: null,
       aspectRatio: "16:9",
       journey: JOURNEY_DEFAULTS,
+      targetSeconds: 0,
       tags: [],
       isFavorite: false,
       thumbnailUrl: null,
@@ -60,6 +63,7 @@ function doc(
       lastOpenedAt: null,
     },
     sections,
+    moments: [],
     scenes,
   };
 }

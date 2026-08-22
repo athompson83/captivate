@@ -11,7 +11,14 @@ import {
   type Scene,
   type Section,
 } from "@/lib/schema/presentation";
-import type { PresentationRow, SceneRow, SectionRow } from "@/lib/supabase/database.types";
+import { z } from "zod";
+import { EvidenceRef, NarrativeRole, VisualIntent, type Moment } from "@/lib/schema/narrative";
+import type {
+  MomentRow,
+  PresentationRow,
+  SceneRow,
+  SectionRow,
+} from "@/lib/supabase/database.types";
 
 /**
  * Read-side data access for presentations.
@@ -50,6 +57,7 @@ export function toPresentationRecord(row: PresentationRow): PresentationRecord {
     themeOverrides: (row.theme_overrides as Record<string, unknown> | null) ?? null,
     aspectRatio: row.aspect_ratio,
     journey: parseJourney(row.journey),
+    targetSeconds: row.target_seconds ?? 0,
     tags: row.tags ?? [],
     isFavorite: row.is_favorite,
     thumbnailUrl: row.thumbnail_url,
@@ -66,6 +74,40 @@ export function toSection(row: SectionRow): Section {
     presentationId: row.presentation_id,
     title: row.title,
     label: row.label ?? "",
+    purpose: row.purpose ?? "",
+    position: row.position,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * A stored moment.
+ *
+ * Role, visual intent and evidence are validated rather than trusted: a row
+ * written by an older build, or by hand, must not be able to put an unknown
+ * role into the map and break the generator downstream. Each falls back to a
+ * safe value rather than discarding the moment, because losing one beat of an
+ * argument to a bad enum is not a trade worth making.
+ */
+export function toMoment(row: MomentRow): Moment {
+  const role = NarrativeRole.safeParse(row.role);
+  const intent = VisualIntent.safeParse(row.visual_intent);
+  const evidence = z.array(EvidenceRef).safeParse(row.evidence ?? []);
+
+  return {
+    id: row.id,
+    presentationId: row.presentation_id,
+    movementId: row.movement_id,
+    title: row.title,
+    role: role.success ? role.data : "claim",
+    purpose: row.purpose,
+    takeaway: row.takeaway,
+    estimatedSeconds: row.estimated_seconds,
+    evidence: evidence.success ? evidence.data : [],
+    visualIntent: intent.success ? intent.data : "auto",
+    instructions: row.instructions,
+    locked: row.locked,
     position: row.position,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -83,6 +125,7 @@ export function toScene(row: SceneRow): { scene: Scene; recovered: boolean } {
       title: row.title,
       content,
       placement: parsePlacement(row.placement),
+      momentId: row.moment_id,
       speakerNotes: row.speaker_notes,
       durationSeconds: row.duration_seconds,
       createdAt: row.created_at,
@@ -167,15 +210,17 @@ export async function getPresentationDocument(
 ): Promise<(PresentationDocument & { recoveredScenes: string[] }) | null> {
   const supabase = await supabaseServer();
 
-  const [presentationRes, sectionsRes, scenesRes] = await Promise.all([
+  const [presentationRes, sectionsRes, scenesRes, momentsRes] = await Promise.all([
     supabase.from("presentations").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
     supabase.from("sections").select("*").eq("presentation_id", id).order("position"),
     supabase.from("scenes").select("*").eq("presentation_id", id).order("position"),
+    supabase.from("moments").select("*").eq("presentation_id", id).order("position"),
   ]);
 
   if (presentationRes.error || !presentationRes.data) return null;
   if (sectionsRes.error) throw new Error(sectionsRes.error.message);
   if (scenesRes.error) throw new Error(scenesRes.error.message);
+  if (momentsRes.error) throw new Error(momentsRes.error.message);
 
   const recoveredScenes: string[] = [];
   const scenes = (scenesRes.data as SceneRow[]).map((row) => {
@@ -188,6 +233,7 @@ export async function getPresentationDocument(
     presentation: toPresentationRecord(presentationRes.data as PresentationRow),
     sections: (sectionsRes.data as SectionRow[]).map(toSection),
     scenes,
+    moments: (momentsRes.data as MomentRow[]).map(toMoment),
     recoveredScenes,
   };
 }

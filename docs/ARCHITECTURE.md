@@ -98,6 +98,44 @@ href?, … }`. There is no `dangerouslySetInnerHTML` anywhere on the stage, so
 there is no sanitisation surface to get wrong. Stored content containing
 `<script>` renders as the literal characters, which a test asserts.
 
+### The argument model
+
+`src/lib/schema/narrative.ts` defines what a presentation is _for_, which is a
+different thing from what it looks like and is decided before any of it is
+rendered.
+
+Three words, used consistently everywhere in the product:
+
+- **Movement** — a stretch of the argument that does one job.
+- **Moment** — an ordered beat inside it, with a role, a stated purpose and an
+  audience takeaway.
+- **Scene** — the rendered output. Never called a slide.
+
+The **map is the generation contract**, not a picture drawn after the fact.
+Scenes are generated from moments, a scene carries the id of the moment that
+produced it, and regenerating reads the map rather than the original prompt. The
+outline it replaced was transient — discarded once scenes existed — which is
+precisely why an author could never revise the argument, only the slides.
+
+A moment's id is stable across editing, reordering and regeneration. That is
+what lets a locked moment survive a regeneration untouched, and what a note
+anchor will attach to when lecture-note anchoring is built.
+
+**Movements are `sections` rows.** Sections already carry ordering, a short
+label, owner-scoped policies and every foreign key the scenes depend on, and the
+movement rail already derived from them. Renaming the table to match the product
+vocabulary would have been migration risk bought for nothing, so the database
+says `sections` and the interface says Movement. Moments are a new table,
+because nothing existing could serve as the canonical pre-generation entity.
+
+**A presentation with no moments still has a map.** `deriveMap` builds one from
+the scenes, using each scene's own id as its moment's id — so derivation is
+deterministic, opening an old presentation twice produces the same map, and the
+ids are stable across reloads without writing anything. The interface says
+plainly that it was inferred.
+
+---
+
 ### Why scenes are JSONB
 
 `scenes.content` is a JSONB column, not a `scene_elements` table.
@@ -119,9 +157,9 @@ columns.
 Three stores, each with a different job.
 
 **Editor document** (`lib/editor/store.ts`, Zustand). Holds the presentation,
-sections and scenes. Every mutation goes through `mutate`, which produces the
-next document, records history, and marks exactly which scenes became dirty.
-Nothing edits a scene in place.
+its movements, its moments and its scenes. Every mutation goes through `mutate`,
+which produces the next document, records history, and marks exactly what became
+dirty. Nothing edits a scene in place.
 
 **Presentation session** (`lib/present/session.ts`, a Zustand store created
 outside React). The BroadcastChannel and the running clock are long-lived side
@@ -152,6 +190,22 @@ Around that:
 - consecutive failures back off exponentially, so one broken request does not
   become a sustained request loop;
 - `beforeunload` warns while anything is genuinely unsaved.
+
+Movements and moments follow the same dirty-flag discipline, and there is a
+history behind that. Renaming a section once changed the store, marked nothing
+dirty, and was silently gone on reload — autosave never looked at sections and
+the action that wrote them was dead code. The map has ten times the editable
+surface, so every entry point marks what it touched, undo and redo mark what
+they reverted, and both unit and end-to-end tests assert an edit survives a
+reload.
+
+**The map is written whole, never partially.** `captivate_replace_moments`
+deletes any moment the payload omits, because that is how a deletion is
+persisted — so a partial write is indistinguishable from "the author deleted
+everything else". Sending only the moment that changed destroyed the rest of the
+argument while every visible thing about the edit looked correct. A map is tens
+of rows; writing all of it is the only payload whose meaning matches what the
+function does with it.
 
 The notes surfaces use the same guarantees through `useDebouncedSave`, which
 merges pending writes per record — an earlier single-slot version dropped a

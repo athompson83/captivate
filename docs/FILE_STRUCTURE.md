@@ -18,7 +18,8 @@ captivate/
 │  │  ├─ present/[id]/             The stage (audience view)
 │  │  │  └─ console/               The presenter console
 │  │  ├─ api/
-│  │  │  ├─ ai/                    outline, generate, scene, rewrite, notes,
+│  │  │  ├─ ai/                    map, create-from-map, scenes-from-map,
+│  │  │  │                         moment, evidence, scene, rewrite, notes,
 │  │  │  │                         visuals, status
 │  │  │  ├─ assets/                Listing, and signed-URL resolution
 │  │  │  └─ search/                Cross-entity search for the palette
@@ -30,6 +31,8 @@ captivate/
 │  ├─ components/
 │  │  ├─ ui/                       Primitives: button, input, dialog, toast,
 │  │  │                            popover, tooltip, segmented, empty state
+│  │  ├─ narrative/                The map: movement bands, moment cards,
+│  │  │                            scene generation from an accepted map
 │  │  ├─ editor/journey-map.tsx    Direct manipulation of the world canvas
 │  │  ├─ editor/journey-panel.tsx  Arrangement and camera settings
 │  │  ├─ stage/                    The renderers — stage.tsx (one scene),
@@ -47,6 +50,8 @@ captivate/
 │  ├─ lib/
 │  │  ├─ schema/
 │  │  │  ├─ presentation.ts        THE content model. Start here
+│  │  │  ├─ narrative.ts           THE argument model: movements, moments,
+│  │  │  │                         roles, visual intent, evidence references
 │  │  │  └─ theme.ts               Six themes as token sets
 │  │  ├─ editor/
 │  │  │  ├─ store.ts               Document store, history, dirty tracking
@@ -64,6 +69,10 @@ captivate/
 │  │  │  ├─ path.ts                The smoothed route drawn between waypoints
 │  │  │  ├─ ambient.ts             Atmosphere: the colour of the air per position
 │  │  ├─ present/movement-rail.tsx The argument's shape, shown to the room
+│  │  ├─ narrative/
+│  │  │  ├─ map.ts                 Assemble, derive, reorder, diff the map
+│  │  │  └─ generate.ts            Proposal → map; map → per-moment briefs
+│  │  ├─ data/evidence.ts          What a claim may be grounded in, RLS-scoped
 │  │  ├─ analysis/pacing.ts        How long a presentation actually takes
 │  │  ├─ analysis/health.ts        Checks a presenter would change the deck over
 │  │  │  ├─ fit-text.ts            Deterministic auto-fit
@@ -111,11 +120,13 @@ captivate/
 
 1. `src/lib/schema/presentation.ts` — the content model. Everything else is
    downstream of it.
-2. `src/components/stage/stage.tsx` — how a scene becomes pixels.
-3. `src/components/stage/world.tsx` — how scenes become a place, and how the
+2. `src/lib/schema/narrative.ts` — the argument model. What a presentation is
+   _for_, decided before any of it is rendered.
+3. `src/components/stage/stage.tsx` — how a scene becomes pixels.
+4. `src/components/stage/world.tsx` — how scenes become a place, and how the
    camera moves between them.
-4. `src/lib/editor/store.ts` — how edits are tracked and saved.
-5. `src/lib/present/session.ts` — how two windows stay in step.
+5. `src/lib/editor/store.ts` — how edits are tracked and saved.
+6. `src/lib/present/session.ts` — how two windows stay in step.
 
 ---
 

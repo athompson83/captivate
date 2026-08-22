@@ -1,7 +1,8 @@
 "use client";
 
 import type { SceneContent } from "@/lib/schema/presentation";
-import type { PresentationOutline, RewriteMode } from "./schemas";
+import type { ProposedMap, RewriteMode } from "./schemas";
+import type { AvailableEvidence } from "@/lib/narrative/generate";
 
 /**
  * Browser-side callers for the AI routes.
@@ -47,22 +48,47 @@ export interface AudienceContext {
   sceneCount?: number;
 }
 
-export function requestOutline(
-  input: { prompt: string } & AudienceContext,
+/**
+ * Prompt → a proposed argument.
+ *
+ * Nothing is created and nothing is written. The map comes back with the
+ * evidence the user actually owns, so the review step can show what a claim is
+ * grounded in without a second round trip.
+ */
+export function requestMap(
+  input: { prompt: string; totalSeconds?: number; recommendedShape?: string } & AudienceContext,
   signal?: AbortSignal,
 ): Promise<
-  AiResult<{ outline: PresentationOutline; source: "model" | "fallback"; notice?: string }>
+  AiResult<{
+    proposal: ProposedMap;
+    available: AvailableEvidence[];
+    source: "model" | "fallback";
+    notice?: string;
+  }>
 > {
-  return post("/api/ai/outline", input, signal);
+  return post("/api/ai/map", input, signal);
 }
 
-export function requestPresentation(
-  input: { prompt: string; outline: PresentationOutline; themeId?: string } & AudienceContext,
+/** An accepted map → a real presentation. Ids and evidence are the server's. */
+export function requestPresentationFromMap(
+  input: {
+    prompt: string;
+    map: ProposedMap;
+    totalSeconds: number;
+    themeId?: string;
+    folderId?: string | null;
+  } & AudienceContext,
   signal?: AbortSignal,
 ): Promise<
-  AiResult<{ id: string; sceneCount: number; source: "model" | "fallback"; notice?: string }>
+  AiResult<{
+    id: string;
+    sceneCount: number;
+    source: "model" | "fallback";
+    droppedEvidence: number;
+    notice?: string;
+  }>
 > {
-  return post("/api/ai/generate", input, signal);
+  return post("/api/ai/create-from-map", input, signal);
 }
 
 export function requestScene(

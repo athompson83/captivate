@@ -53,6 +53,18 @@ happily accepts `javascript:` and a test caught that reaching an anchor's `href`
 **Errors are values.** Server actions return `{ ok: true, data } | { ok: false, error }`.
 Callers surface `error` in a toast. Don't throw across the boundary.
 
+**A local edit that marks nothing dirty is not saved.** Every mutation goes
+through `mutate` with the right `dirty*` option — and so does undo, which has to
+mark what it reverted. This has bitten twice: section renames were silently lost
+for a release, and the narrative map has ten times the editable surface. If you
+add an editable field, add the test that reloads and asserts it survived.
+
+**The narrative map is written whole, never partially.**
+`captivate_replace_moments` deletes any moment the payload omits, because that
+is how a deletion is persisted — so a partial write means "the author deleted
+everything else". Sending only the moment that changed destroyed the rest of a
+user's argument while every visible thing about the edit looked correct.
+
 **Zod 4.** Object defaults are `.prefault({})`, not `.default({})`.
 
 **Supabase row types are `type` aliases, not `interface`s.** Interfaces lack implicit
@@ -152,6 +164,9 @@ There is a regression test for it; it genuinely fails if you revert the fix.
 
 ## Style
 
+- Movement, moment, scene — never "slide", except in import and compatibility
+  code. A **movement** is a stretch of argument (a `sections` row), a **moment**
+  is a pre-generation beat, a **scene** is the rendered output.
 - Comments explain **why**, not what. If the code needs a narrator, rewrite the code.
 - Match the surrounding file's density and idiom.
 - Tailwind v4: design tokens in `@theme`, custom utilities via `@utility`. Colours are
@@ -160,6 +175,10 @@ There is a regression test for it; it genuinely fails if you revert the fix.
   (`src/components/stage/stage.tsx`) serves the editor, thumbnails, present mode and
   recording, so a scene cannot look different in the room than it did while authoring.
 - Prettier decides formatting. Don't hand-align.
+- Global CSS goes in `@layer base`. An unlayered rule outranks every Tailwind
+  utility regardless of specificity — a bare `* { border-color }` reset once
+  beat `border-transparent` everywhere, turning in-place prose fields into a
+  page of boxes.
 
 ## Tests
 

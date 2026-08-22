@@ -7,15 +7,18 @@ import { BASE_SYSTEM, generateStructured, isAiConfigured, type StructuredResult 
 import {
   GeneratedScene,
   GeneratedScenes,
-  PresentationOutline,
+  ProposedMap,
   RewriteResult,
+  RewrittenMoment,
   SpeakerNotesResult,
   VisualSuggestion,
   REWRITE_LABELS,
   type AiKind,
   type RewriteMode,
 } from "./schemas";
-import { fallbackOutline, fallbackRewrite, fallbackScene } from "./fallback";
+import { deriveTitle, fallbackRewrite, fallbackScene, subjectOf } from "./fallback";
+import { fallbackMap } from "./narrative-fallback";
+import { layoutFor, type AvailableEvidence, type MomentBrief } from "@/lib/narrative/generate";
 
 /**
  * Application-level AI operations.
@@ -77,66 +80,167 @@ function contextLine(context: AudienceContext): string {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Outline                                                                     */
+/* The narrative map                                                           */
 /* -------------------------------------------------------------------------- */
 
-export interface OutlineOutcome {
-  outline: PresentationOutline;
+export interface MapContext extends AudienceContext {
+  /** Requested running time. Drives how time is distributed, not how many. */
+  totalSeconds: number;
+  /** Assets and notes the workspace holds, offered to the model by id. */
+  available: AvailableEvidence[];
+  /** A template's recommended argument, where one was chosen. */
+  recommendedShape?: string;
+}
+
+export interface MapOutcome {
+  proposal: ProposedMap;
   source: "model" | "fallback";
   notice?: string;
 }
 
-export async function buildOutline(
+/**
+ * Proposes the argument before anything is rendered.
+ *
+ * The model is asked for purpose and takeaway in the subject's own terms, and
+ * is told explicitly that a generic open-middle-close shape is a failure when
+ * the subject calls for something else — that instruction exists because it is
+ * the default failure mode, not because it is a nice thing to say.
+ *
+ * Evidence is offered as a list of ids the workspace actually holds. Anything
+ * the model returns that is not in that list is discarded downstream, so a
+ * fabricated citation cannot survive into the map.
+ */
+export async function buildNarrativeMap(
   prompt: string,
-  context: AudienceContext,
-): Promise<{ ok: true; data: OutlineOutcome } | { ok: false; error: string }> {
-  const sceneTarget = Math.min(24, Math.max(4, context.sceneCount ?? 10));
+  context: MapContext,
+): Promise<{ ok: true; data: MapOutcome } | { ok: false; error: string }> {
+  const minutes = Math.max(1, Math.round(context.totalSeconds / 60));
+  // The subject of the request, not the request. "A 50-minute lecture on
+  // sepsis for paramedic students" is a brief; "Sepsis" is a title.
+  const title = deriveTitle(prompt);
+  const topic = subjectOf(prompt);
 
   if (!isAiConfigured()) {
     return {
       ok: true,
       data: {
-        outline: fallbackOutline(prompt, sceneTarget),
+        proposal: fallbackMap(prompt, title, topic),
         source: "fallback",
         notice:
-          "No language model is configured on this deployment, so Captivate built a structural draft instead. Every scene is real and editable.",
+          "No language model is configured on this deployment, so Captivate proposed a structural argument instead. Every movement and moment is real and editable.",
       },
+    };
+  }
+
+  const evidenceLines = context.available.length
+    ? context.available.map((item) => `- ${item.id} (${item.kind}): ${item.label}`).join("\n")
+    : "None available.";
+
+  const result = await generateStructured({
+    schema: ProposedMap,
+    toolName: "propose_narrative_map",
+    toolDescription:
+      "Propose the argument of a presentation — its movements and moments — before any content is written.",
+    system: `${BASE_SYSTEM}
+
+You are proposing an ARGUMENT, not slides. No content is being written yet.
+
+A movement is a stretch of the argument that does one job. A moment is a beat inside it with a specific effect on the audience.
+
+For every moment, state:
+  purpose  — why this beat exists, in terms of this subject. Never "introduce the topic".
+  takeaway — what the audience should understand, feel, question or remember afterwards, written as the audience would say it.
+
+Rules:
+- Choose a shape that suits the subject. A generic opening / three points / summary structure is a failure unless the subject genuinely calls for it.
+- Do not repeat the same role sequence in every movement.
+- The presentation runs about ${minutes} minutes. Use weights to say which parts deserve more of it.
+- Reference evidence ONLY by an id from the list you are given, and only where that source genuinely supports the claim. Never invent an id, a statistic or a citation. Leave evidenceIds empty when nothing supports it.
+${context.recommendedShape ? `- The chosen template recommends this shape as a starting point, which you may depart from where the subject calls for it:\n${context.recommendedShape}` : ""}`,
+    prompt: `Propose the narrative map for this presentation.
+
+${contextLine(context)}
+Requested length: about ${minutes} minutes.
+
+Evidence available in this workspace:
+${evidenceLines}
+
+Request:
+${prompt}`,
+    temperature: 0.75,
+    maxTokens: 4000,
+  });
+
+  await recordGeneration("map", prompt, null, toRecord(result));
+
+  if (!result.ok) {
+    return {
+      ok: true,
+      data: {
+        proposal: fallbackMap(prompt, title, topic),
+        source: "fallback",
+        notice: `${result.error} Captivate proposed a structural argument instead — you can regenerate once it's available.`,
+      },
+    };
+  }
+
+  return { ok: true, data: { proposal: result.data, source: "model" } };
+}
+
+/**
+ * Rewrites one moment's proposal.
+ *
+ * Scoped deliberately: it returns a title, a purpose and a takeaway, and the
+ * caller applies them to one moment. It cannot renumber, reassign or replace
+ * anything else, so a rewrite can never quietly restructure an argument the
+ * author has already settled.
+ */
+export async function rewriteMoment(input: {
+  title: string;
+  role: string;
+  purpose: string;
+  takeaway: string;
+  movementPurpose: string;
+}): Promise<
+  { ok: true; data: RewrittenMoment & { notice?: string } } | { ok: false; error: string }
+> {
+  if (!isAiConfigured()) {
+    return {
+      ok: false,
+      error: "No language model is configured on this deployment, so moments can't be rewritten.",
     };
   }
 
   const result = await generateStructured({
-    schema: PresentationOutline,
-    toolName: "propose_outline",
-    toolDescription: "Propose the structure of a presentation before any scene content is written.",
+    schema: RewrittenMoment,
+    toolName: "rewrite_moment",
+    toolDescription: "Propose a sharper version of one beat of an argument.",
     system: `${BASE_SYSTEM}
 
-You are proposing an outline only. Choose a layout for each scene that suits what that scene has to do — a comparison is not a bulleted list, a single idea is not three cards. Aim for about ${sceneTarget} scenes in total across all sections.`,
-    prompt: `Propose an outline for this presentation.
+Rewrite ONE beat of an argument. Keep its role — it has a job to do in the shape around it.
 
-${contextLine(context)}
+Make the purpose specific to this subject: "introduce the topic" is a failure. Write the takeaway as the audience would say it afterwards.`,
+    prompt: `The movement this beat belongs to exists to: ${input.movementPurpose || "(not stated)"}
 
-Request:
-${prompt}`,
-    temperature: 0.7,
-    maxTokens: 3000,
+Current beat
+  role: ${input.role}
+  title: ${input.title || "(untitled)"}
+  purpose: ${input.purpose || "(not stated)"}
+  takeaway: ${input.takeaway || "(not stated)"}
+
+Propose a sharper version.`,
+    temperature: 0.8,
+    maxTokens: 800,
   });
 
-  await recordGeneration("outline", prompt, null, toRecord(result));
-
-  if (!result.ok) {
-    // A provider failure must not block the user: fall back and say so.
-    return {
-      ok: true,
-      data: {
-        outline: fallbackOutline(prompt, sceneTarget),
-        source: "fallback",
-        notice: `${result.error} Captivate built a structural draft instead — you can regenerate once it's available.`,
-      },
-    };
-  }
-
-  return { ok: true, data: { outline: result.data, source: "model" } };
+  await recordGeneration("moment", input.title, null, toRecord(result));
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, data: result.data };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Scenes                                                                      */
+/* -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- */
 /* Scenes                                                                      */
@@ -148,74 +252,155 @@ export interface SceneOutcome {
   notice?: string;
 }
 
-export async function buildScenes(
-  outline: PresentationOutline,
+/**
+ * Writes scenes from an accepted narrative map.
+ *
+ * Each request carries the moment's own definition *and* the argument around
+ * it — the movement it belongs to, what came before, what comes next, and
+ * whether it ends a movement. That is what lets a transition be written from
+ * the actual turn in the argument rather than from a sentence stamped onto
+ * every scene, and it is why the map is the contract rather than a picture.
+ *
+ * Layout is chosen by the application from the moment's visual intent, not by
+ * the model: intent survives a redesign of the layout engine and a named
+ * template does not.
+ */
+export async function buildScenesFromMap(
+  briefs: MomentBrief[],
   prompt: string,
   context: AudienceContext,
   presentationId: string | null,
-): Promise<{ ok: true; data: SceneOutcome } | { ok: false; error: string }> {
-  const flat = outline.sections.flatMap((section) =>
-    section.scenes.map((scene) => ({ ...scene, section: section.title })),
-  );
+): Promise<
+  | {
+      ok: true;
+      data: {
+        scenes: {
+          momentId: string;
+          title: string;
+          content: SceneContent;
+          speakerNotes: string;
+          imagePrompt: string;
+        }[];
+        source: "model" | "fallback";
+        notice?: string;
+      };
+    }
+  | { ok: false; error: string }
+> {
+  const layouts = briefs.map((brief, index) => layoutFor(brief.visualIntent, brief.role, index));
 
   if (!isAiConfigured()) {
     return {
       ok: true,
       data: {
-        scenes: flat.map((s) => materialise(fallbackScene(s, { title: outline.title, prompt }))),
+        scenes: briefs.map((brief, index) => ({
+          momentId: brief.momentId,
+          ...materialise(
+            fallbackScene(
+              { title: brief.title, purpose: brief.purpose, layout: layouts[index] },
+              { title: brief.movementTitle, prompt },
+            ),
+          ),
+        })),
         source: "fallback",
-        notice: "No language model is configured, so these scenes are structural placeholders.",
+        notice:
+          "No language model is configured, so these scenes are structural placeholders. The argument behind them is real.",
       },
     };
   }
 
+  const outline = briefs
+    .map((brief, index) => {
+      const evidence = brief.evidence.length
+        ? brief.evidence.map((item) => item.label || item.id).join("; ")
+        : "none";
+      return [
+        `${index + 1}. [${brief.movementLabel}] ${brief.title} — role: ${brief.role}`,
+        `   purpose: ${brief.purpose}`,
+        `   audience takeaway: ${brief.takeaway}`,
+        `   about ${Math.max(5, brief.estimatedSeconds)} seconds; layout: ${layouts[index]}`,
+        `   grounded by: ${evidence}`,
+        brief.instructions ? `   author's instruction: ${brief.instructions}` : null,
+        brief.endsMovement && brief.nextMovementLabel
+          ? `   this beat ends the "${brief.movementLabel}" movement; "${brief.nextMovementLabel}" follows`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n");
+
   const result = await generateStructured({
     schema: GeneratedScenes,
     toolName: "write_scenes",
-    toolDescription: "Write the content for every scene in an approved outline.",
+    toolDescription: "Write the content for every moment in an accepted narrative map.",
     system: `${BASE_SYSTEM}
 
-Write content for exactly the scenes given, in the same order, keeping each scene's assigned layout. Fill only the fields that layout uses — a "quote" scene needs quote and attribution, not bullets. Leave unused fields as empty strings or empty arrays.
+You are writing the scenes for an argument that has already been agreed. Write exactly ${briefs.length} scenes, in order, one per moment, using the layout given for each.
 
-Where an image would genuinely help, describe it in imagePrompt in plain language. Leave imagePrompt empty when a picture would just be decoration.`,
-    prompt: `Presentation: ${outline.title}
-${outline.subtitle ? `Subtitle: ${outline.subtitle}\n` : ""}${contextLine(context)}
+Every scene must do the job its moment states. The audience takeaway is the test: if a scene does not produce it, the scene is wrong.
 
-Original request:
+Transitions: where a beat ends a movement, let the last line carry the room into what follows — from this argument, in its own words. Do not announce the next section by name, and do not add a transition sentence to scenes that are not ending a movement.
+
+Where a moment names evidence, write only what that evidence supports. Never introduce a statistic, study or citation that was not given to you.`,
+    prompt: `Original request:
 ${prompt}
 
-Scenes to write (${flat.length}):
-${flat.map((s, i) => `${i + 1}. [${s.layout}] ${s.title} — ${s.purpose}`).join("\n")}`,
+${contextLine(context)}
+
+The accepted narrative map:
+${outline}`,
     temperature: 0.7,
     maxTokens: 8000,
   });
 
-  await recordGeneration("presentation", prompt, presentationId, toRecord(result));
+  await recordGeneration("scenes", prompt, presentationId, toRecord(result));
 
   if (!result.ok) {
     return {
       ok: true,
       data: {
-        scenes: flat.map((s) => materialise(fallbackScene(s, { title: outline.title, prompt }))),
+        scenes: briefs.map((brief, index) => ({
+          momentId: brief.momentId,
+          ...materialise(
+            fallbackScene(
+              { title: brief.title, purpose: brief.purpose, layout: layouts[index] },
+              { title: brief.movementTitle, prompt },
+            ),
+          ),
+        })),
         source: "fallback",
-        notice: `${result.error} Captivate created the outline's scenes as editable placeholders instead.`,
+        notice: `${result.error} Captivate built structural scenes from your map instead.`,
       },
     };
   }
 
-  // Trust the outline's length over the model's: pad or trim to match, so the
-  // user gets exactly the structure they approved.
-  const generated = result.data.scenes;
-  const scenes = flat.map((outlineScene, i) => {
-    const match = generated[i];
-    return materialise(
-      match
-        ? { ...match, layout: outlineScene.layout }
-        : fallbackScene(outlineScene, { title: outline.title, prompt }),
-    );
-  });
-
-  return { ok: true, data: { scenes, source: "model" } };
+  // The model may return the wrong count; the map decides how many there are.
+  const written = result.data.scenes;
+  return {
+    ok: true,
+    data: {
+      source: "model",
+      scenes: briefs.map((brief, index) => {
+        const scene = written[index];
+        if (!scene) {
+          return {
+            momentId: brief.momentId,
+            ...materialise(
+              fallbackScene(
+                { title: brief.title, purpose: brief.purpose, layout: layouts[index] },
+                { title: brief.movementTitle, prompt },
+              ),
+            ),
+          };
+        }
+        return {
+          momentId: brief.momentId,
+          ...materialise({ ...scene, layout: layouts[index] }),
+        };
+      }),
+    },
+  };
 }
 
 export async function buildSingleScene(

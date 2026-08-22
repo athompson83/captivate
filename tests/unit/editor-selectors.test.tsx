@@ -35,6 +35,7 @@ function makeDocument(): PresentationDocument {
       themeOverrides: null,
       aspectRatio: "16:9",
       journey: JOURNEY_DEFAULTS,
+      targetSeconds: 0,
       tags: [],
       isFavorite: false,
       thumbnailUrl: null,
@@ -44,12 +45,14 @@ function makeDocument(): PresentationDocument {
       lastOpenedAt: null,
     },
     sections: [],
+    moments: [],
     scenes: [
       {
         id: "scene-0",
         presentationId: PRESENTATION_ID,
         sectionId: null,
         placement: null,
+        momentId: null,
         position: 0,
         title: "One",
         content: composeScene("bullets", { heading: "Heading", bullets: ["a", "b"] }),

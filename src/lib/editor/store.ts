@@ -13,6 +13,8 @@ import {
   type SceneElement,
   type Section,
 } from "@/lib/schema/presentation";
+import type { Moment } from "@/lib/schema/narrative";
+import { changedMoments, deriveMap, moveMoment } from "@/lib/narrative/map";
 
 /**
  * Editor state.
@@ -37,8 +39,11 @@ export type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 
 export interface EditorDocument {
   presentation: PresentationRecord;
+  /** Movements, in product terms. Persisted as sections. */
   sections: Section[];
   scenes: Scene[];
+  /** The narrative map's moments, ordered within each movement. */
+  moments: Moment[];
 }
 
 interface HistoryEntry {
@@ -68,6 +73,10 @@ interface MutateOptions {
   dirtyOrder?: boolean;
   /** Section ids whose own fields (title, movement label) changed. */
   dirtySections?: string[];
+  /** Moment ids whose narrative definition changed. */
+  dirtyMoments?: string[];
+  /** The whole map changed — reorder, reassignment, generation. */
+  dirtyMap?: boolean;
   /** Skip the history stack entirely (selection-only changes). */
   noHistory?: boolean;
 }
@@ -83,6 +92,9 @@ interface EditorState {
 
   dirtyScenes: Set<string>;
   dirtySections: Set<string>;
+  dirtyMoments: Set<string>;
+  /** True until the derived map has been written for the first time. */
+  momentsDerived: boolean;
   dirtyPresentation: boolean;
   dirtyOrder: boolean;
   sceneRevisions: Map<string, number>;
@@ -106,6 +118,7 @@ interface EditorState {
   markSceneSaved: (sceneId: string, revision: number, updatedAt: string) => void;
   markPresentationSaved: () => void;
   markSectionsSaved: (sectionIds: string[]) => void;
+  markMomentsSaved: (momentIds: string[]) => void;
   markOrderSaved: () => void;
   revisionOf: (sceneId: string) => number;
   clearRecovered: () => void;
@@ -124,6 +137,7 @@ function cloneDocument(doc: EditorDocument): EditorDocument {
       ...s,
       content: structuredClone(s.content),
     })),
+    moments: doc.moments.map((m) => ({ ...m, evidence: m.evidence.map((e) => ({ ...e })) })),
   };
 }
 
@@ -137,6 +151,7 @@ const emptyDocument: EditorDocument = {
     themeId: "midnight",
     themeOverrides: null,
     journey: JOURNEY_DEFAULTS,
+    targetSeconds: 0,
     aspectRatio: "16:9",
     tags: [],
     isFavorite: false,
@@ -148,6 +163,7 @@ const emptyDocument: EditorDocument = {
   },
   sections: [],
   scenes: [],
+  moments: [],
 };
 
 export const useEditor = create<EditorState>((set, get) => ({
@@ -159,6 +175,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   lastCoalesceAt: 0,
   dirtyScenes: new Set(),
   dirtySections: new Set(),
+  dirtyMoments: new Set(),
+  momentsDerived: true,
   dirtyPresentation: false,
   dirtyOrder: false,
   sceneRevisions: new Map(),
@@ -174,12 +192,24 @@ export const useEditor = create<EditorState>((set, get) => ({
         presentation: doc.presentation,
         sections: [...doc.sections].sort((a, b) => a.position - b.position),
         scenes: [...doc.scenes].sort((a, b) => a.position - b.position),
+        // Derived where a presentation has never had a map, so an existing
+        // deck opens showing an honest argument rather than an empty page.
+        // Derivation is deterministic, so the ids are stable across reloads
+        // without writing anything until the author actually edits.
+        moments:
+          doc.moments && doc.moments.length > 0
+            ? [...doc.moments].sort((a, b) => a.position - b.position)
+            : deriveMap(doc.scenes, doc.sections).moments,
       },
       selection: { sceneId: doc.scenes[0]?.id ?? null, elementIds: [] },
       past: [],
       future: [],
       dirtyScenes: new Set(),
       dirtySections: new Set(),
+      dirtyMoments: new Set(),
+      // True where the map was inferred from existing scenes rather than
+      // authored. The interface says so; nothing about saving depends on it.
+      momentsDerived: !(doc.moments && doc.moments.length > 0),
       dirtyPresentation: false,
       dirtyOrder: false,
       sceneRevisions: new Map(doc.scenes.map((s) => [s.id, 0])),
@@ -213,6 +243,12 @@ export const useEditor = create<EditorState>((set, get) => ({
       const dirtyScenes = new Set(state.dirtyScenes);
       const dirtySections = new Set(state.dirtySections);
       for (const id of options.dirtySections ?? []) dirtySections.add(id);
+
+      const dirtyMoments = new Set(state.dirtyMoments);
+      for (const id of options.dirtyMoments ?? []) dirtyMoments.add(id);
+      // A structural change to the map — reorder, reassignment, generation —
+      // makes every moment's stored position suspect, so all of them are dirty.
+      if (options.dirtyMap) for (const moment of next.moments) dirtyMoments.add(moment.id);
       const sceneRevisions = new Map(state.sceneRevisions);
       for (const id of options.dirty ?? []) {
         dirtyScenes.add(id);
@@ -227,6 +263,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       const hasWork =
         dirtyScenes.size > 0 ||
         dirtySections.size > 0 ||
+        dirtyMoments.size > 0 ||
         state.dirtyPresentation ||
         options.dirtyPresentation ||
         state.dirtyOrder ||
@@ -240,6 +277,7 @@ export const useEditor = create<EditorState>((set, get) => ({
         lastCoalesceAt: options.coalesceKey ? now : 0,
         dirtyScenes,
         dirtySections,
+        dirtyMoments,
         sceneRevisions,
         dirtyPresentation: state.dirtyPresentation || Boolean(options.dirtyPresentation),
         dirtyOrder: state.dirtyOrder || Boolean(options.dirtyOrder),
@@ -259,7 +297,10 @@ export const useEditor = create<EditorState>((set, get) => ({
       const entry = state.past[state.past.length - 1];
       if (!entry) return state;
 
-      // Every scene that differs between the two documents must be re-saved.
+      // Everything that differs between the two documents must be re-saved.
+      // Scenes alone was not enough: an undone moment edit or movement
+      // rename reverted in the store and was never written, which is the
+      // same silent loss the dirty flags exist to prevent.
       const dirty = diffSceneIds(state.document, entry.document);
       const sceneRevisions = new Map(state.sceneRevisions);
       const dirtyScenes = new Set(state.dirtyScenes);
@@ -267,6 +308,12 @@ export const useEditor = create<EditorState>((set, get) => ({
         dirtyScenes.add(id);
         sceneRevisions.set(id, (sceneRevisions.get(id) ?? 0) + 1);
       }
+
+      const dirtyMoments = new Set(state.dirtyMoments);
+      for (const id of diffMomentIds(state.document, entry.document)) dirtyMoments.add(id);
+
+      const dirtySections = new Set(state.dirtySections);
+      for (const id of diffSectionIds(state.document, entry.document)) dirtySections.add(id);
 
       return {
         document: entry.document,
@@ -277,6 +324,8 @@ export const useEditor = create<EditorState>((set, get) => ({
           ...state.future.slice(0, HISTORY_LIMIT - 1),
         ],
         dirtyScenes,
+        dirtyMoments,
+        dirtySections,
         sceneRevisions,
         dirtyOrder: state.dirtyOrder || orderChanged(state.document, entry.document),
         dirtyPresentation:
@@ -299,6 +348,12 @@ export const useEditor = create<EditorState>((set, get) => ({
         sceneRevisions.set(id, (sceneRevisions.get(id) ?? 0) + 1);
       }
 
+      const dirtyMoments = new Set(state.dirtyMoments);
+      for (const id of diffMomentIds(state.document, entry.document)) dirtyMoments.add(id);
+
+      const dirtySections = new Set(state.dirtySections);
+      for (const id of diffSectionIds(state.document, entry.document)) dirtySections.add(id);
+
       return {
         document: entry.document,
         selection: entry.selection,
@@ -308,6 +363,8 @@ export const useEditor = create<EditorState>((set, get) => ({
         ],
         future: state.future.slice(1),
         dirtyScenes,
+        dirtyMoments,
+        dirtySections,
         sceneRevisions,
         dirtyOrder: state.dirtyOrder || orderChanged(state.document, entry.document),
         dirtyPresentation:
@@ -343,6 +400,14 @@ export const useEditor = create<EditorState>((set, get) => ({
     }),
 
   markPresentationSaved: () => set({ dirtyPresentation: false }),
+  markMomentsSaved: (momentIds) =>
+    set((state) => {
+      const dirtyMoments = new Set(state.dirtyMoments);
+      for (const id of momentIds) dirtyMoments.delete(id);
+      // Once it has been written it is the author's map, not an inference.
+      return { dirtyMoments, momentsDerived: state.momentsDerived && dirtyMoments.size > 0 };
+    }),
+
   markSectionsSaved: (sectionIds) =>
     set((state) => {
       const dirtySections = new Set(state.dirtySections);
@@ -380,6 +445,41 @@ function diffSceneIds(a: EditorDocument, b: EditorDocument): string[] {
     }
   }
   return changed;
+}
+
+/**
+ * Ids of moments that must be written for `b` to be true on the server.
+ *
+ * A removal returns every surviving moment, because the write is a replacement:
+ * the stored procedure deletes what the payload omits, so a partial payload
+ * after undoing an addition would leave the undone moment on the server.
+ */
+function diffMomentIds(a: EditorDocument, b: EditorDocument): string[] {
+  const removed = a.moments.some((moment) => !b.moments.some((other) => other.id === moment.id));
+  if (removed) return b.moments.map((moment) => moment.id);
+  return changedMoments(a.moments, b.moments).map((moment) => moment.id);
+}
+
+/**
+ * Movements whose own fields differ.
+ *
+ * Only movements present on both sides: `updateSection` writes an existing row,
+ * so a movement that undo brings back has nothing on the server to update, and
+ * asking would surface an error the user cannot act on.
+ */
+function diffSectionIds(a: EditorDocument, b: EditorDocument): string[] {
+  const byId = new Map(a.sections.map((section) => [section.id, section]));
+  return b.sections
+    .filter((section) => {
+      const other = byId.get(section.id);
+      if (!other) return false;
+      return (
+        other.title !== section.title ||
+        other.label !== section.label ||
+        other.purpose !== section.purpose
+      );
+    })
+    .map((section) => section.id);
 }
 
 function orderChanged(a: EditorDocument, b: EditorDocument): boolean {
@@ -589,7 +689,10 @@ export function applyPlacements(
 
 export function updatePresentationMeta(
   patch: Partial<
-    Pick<PresentationRecord, "title" | "description" | "themeId" | "aspectRatio" | "journey">
+    Pick<
+      PresentationRecord,
+      "title" | "description" | "themeId" | "aspectRatio" | "journey" | "targetSeconds"
+    >
   >,
   options: { label: string; coalesceKey?: string },
 ) {
@@ -672,7 +775,7 @@ export function insertSection(section: Section) {
  */
 export function updateSectionLocal(
   sectionId: string,
-  patch: Partial<Pick<Section, "title" | "label">>,
+  patch: Partial<Pick<Section, "title" | "label" | "purpose">>,
   coalesceKey = `section-${sectionId}`,
 ) {
   useEditor.getState().mutate(
@@ -698,3 +801,98 @@ export function removeSection(sectionId: string) {
 }
 
 export { emptySceneContent };
+
+/* -------------------------------------------------------------------------- */
+/* The narrative map                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Editing the argument.
+ *
+ * Every one of these marks the moments it touched dirty. Without that flag
+ * autosave never looks at them and the action that writes them is dead code —
+ * which is exactly how section renames were silently lost, so it is worth
+ * being explicit about here.
+ */
+export function editMoment(
+  momentId: string,
+  patch: Partial<Omit<Moment, "id" | "presentationId">>,
+  options: { label?: string; coalesceKey?: string } = {},
+) {
+  useEditor.getState().mutate(
+    (draft) => {
+      const moment = draft.moments.find((m) => m.id === momentId);
+      if (moment) Object.assign(moment, patch);
+    },
+    {
+      label: options.label ?? "Edit moment",
+      coalesceKey: options.coalesceKey,
+      dirtyMoments: [momentId],
+    },
+  );
+}
+
+export function addMoment(moment: Moment) {
+  useEditor.getState().mutate(
+    (draft) => {
+      draft.moments.push(moment);
+      // Renumber the movement it landed in so two moments never claim one slot.
+      draft.moments
+        .filter((m) => m.movementId === moment.movementId)
+        .sort((a, b) => a.position - b.position)
+        .forEach((m, index) => {
+          m.position = index;
+        });
+    },
+    { label: "Add moment", dirtyMap: true },
+  );
+}
+
+export function removeMoment(momentId: string) {
+  useEditor.getState().mutate(
+    (draft) => {
+      const removed = draft.moments.find((m) => m.id === momentId);
+      draft.moments = draft.moments.filter((m) => m.id !== momentId);
+      if (removed) {
+        draft.moments
+          .filter((m) => m.movementId === removed.movementId)
+          .sort((a, b) => a.position - b.position)
+          .forEach((m, index) => {
+            m.position = index;
+          });
+      }
+      // Scenes generated from it survive, unattached. Deleting a plan should
+      // never delete the work made from it.
+      for (const scene of draft.scenes) {
+        if (scene.momentId === momentId) scene.momentId = null;
+      }
+    },
+    { label: "Delete moment", dirtyMap: true },
+  );
+}
+
+/** Moves a moment within or between movements, renumbering both. */
+export function relocateMoment(momentId: string, toMovementId: string | null, toIndex: number) {
+  useEditor.getState().mutate(
+    (draft) => {
+      draft.moments = moveMoment(draft.moments, momentId, toMovementId, toIndex);
+    },
+    { label: "Move moment", dirtyMap: true },
+  );
+}
+
+/** Replaces the whole map. Used by generation and by applying a template. */
+export function replaceMap(movements: Section[], moments: Moment[]) {
+  useEditor.getState().mutate(
+    (draft) => {
+      draft.sections = movements;
+      draft.moments = moments;
+    },
+    {
+      label: "Apply narrative map",
+      dirtyMap: true,
+      dirtySections: movements.map((m) => m.id),
+      dirtyOrder: true,
+    },
+  );
+}

@@ -1,4 +1,4 @@
-import type { GeneratedScene, PresentationOutline } from "./schemas";
+import type { GeneratedScene } from "./schemas";
 
 /**
  * Deterministic generator used when no model is configured.
@@ -110,12 +110,17 @@ const LEAD_IN =
 const FORMAT_PHRASE =
   /\b(\d+[-\s]?(minute|min|hour|hr)s?\s+)?(presentation|deck|slide deck|slides?|talk|lecture|session|workshop|briefing|seminar)\b\s*(about|on|for|covering|that covers|explaining)?\s*/i;
 
-function keywords(prompt: string, limit = 6): string[] {
+export function keywords(prompt: string, limit = 6): string[] {
   const words = prompt
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length > 3 && !STOPWORDS.has(w));
+    // Anything with a digit in it is a measurement, not a subject. Without
+    // this, "a 45-minute lecture on sepsis" has "45-minute" as its top
+    // keyword — it ties on frequency with every other word and wins the
+    // alphabetical tie-break — and every movement purpose reads
+    // "Focus on 45-minute."
+    .filter((w) => w.length > 3 && !/\d/.test(w) && !STOPWORDS.has(w));
 
   const counts = new Map<string, number>();
   for (const w of words) counts.set(w, (counts.get(w) ?? 0) + 1);
@@ -126,13 +131,39 @@ function keywords(prompt: string, limit = 6): string[] {
     .map(([w]) => w);
 }
 
+/**
+ * The subject of a request, where there is one worth naming.
+ *
+ * A single top keyword is not a subject. In a one-line brief every content
+ * word appears once, so the "top" keyword is whatever wins an alphabetical
+ * tie-break — which is how "Focus on compensated." ended up in every movement
+ * purpose of a lecture about compensated shock.
+ *
+ * A word the author repeated is different: repetition is the signal that it is
+ * what the talk is about. Where nothing repeats, this returns null and the
+ * purposes stand on their own, which they read perfectly well doing.
+ */
+export function subjectOf(prompt: string): string | null {
+  const counts = new Map<string, number>();
+  for (const word of prompt
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3 && !/\d/.test(w) && !STOPWORDS.has(w))) {
+    counts.set(word, (counts.get(word) ?? 0) + 1);
+  }
+
+  const best = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  return best && best[1] > 1 ? best[0] : null;
+}
+
 function sentenceCase(s: string): string {
   const trimmed = s.trim().replace(/\s+/g, " ");
   if (!trimmed) return "";
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
-function deriveTitle(prompt: string): string {
+export function deriveTitle(prompt: string): string {
   const cleaned = prompt.trim().replace(/\s+/g, " ");
   if (!cleaned) return "New presentation";
 
@@ -169,91 +200,6 @@ function deriveTitle(prompt: string): string {
  * is usually a fragment. The topic is woven into the purpose line instead,
  * where a partial phrase reads naturally.
  */
-const BODY_BEATS: { title: string; purpose: string; layout: GeneratedScene["layout"] }[] = [
-  {
-    title: "Why this matters",
-    purpose: "Establish the stakes before any detail.",
-    layout: "statement",
-  },
-  {
-    title: "The core idea",
-    purpose: "State the central concept in one sentence.",
-    layout: "bullets",
-  },
-  {
-    title: "How it works",
-    purpose: "Walk through the mechanism step by step.",
-    layout: "split-right",
-  },
-  {
-    title: "What to look for",
-    purpose: "The signals that tell you it is happening.",
-    layout: "bullets",
-  },
-  {
-    title: "A worked example",
-    purpose: "Make it concrete with a real situation.",
-    layout: "split-left",
-  },
-  {
-    title: "Compare and contrast",
-    purpose: "Set this against the thing it is confused with.",
-    layout: "two-column",
-  },
-  {
-    title: "Common mistakes",
-    purpose: "The three errors people actually make.",
-    layout: "three-up",
-  },
-  { title: "By the numbers", purpose: "The data that supports the argument.", layout: "chart" },
-  { title: "In practice", purpose: "What to do differently from tomorrow.", layout: "bullets" },
-  { title: "The exception", purpose: "Where the rule breaks down, and why.", layout: "quote" },
-];
-
-export function fallbackOutline(prompt: string, sceneTarget: number): PresentationOutline {
-  const title = deriveTitle(prompt);
-  const topic = keywords(prompt, 1)[0];
-  const bodyCount = Math.max(2, Math.min(BODY_BEATS.length, sceneTarget - 3));
-
-  const bodyScenes = BODY_BEATS.slice(0, bodyCount).map((beat) => ({
-    title: beat.title,
-    purpose: topic ? `${beat.purpose} Focus on ${topic}.` : beat.purpose,
-    layout: beat.layout,
-  }));
-
-  return {
-    title,
-    subtitle: "",
-    approach:
-      "Structural draft generated without a language model: a narrative skeleton with a designed composition for every scene. Replace the placeholder wording with your own.",
-    sections: [
-      {
-        title: "Opening",
-        scenes: [
-          { title: "Title", purpose: "Set the topic and who it is for.", layout: "title" as const },
-          {
-            title: "What we'll cover",
-            purpose: "Give the audience the shape of the session.",
-            layout: "bullets" as const,
-          },
-        ],
-      },
-      { title: "Main content", scenes: bodyScenes },
-      {
-        title: "Close",
-        scenes: [
-          {
-            title: "Takeaways",
-            purpose: "Leave them with the points that matter.",
-            layout: "closing" as const,
-          },
-        ],
-      },
-    ],
-    suggestedThemeId: "midnight",
-  };
-}
-
 export function fallbackScene(
   outlineScene: { title: string; purpose: string; layout: GeneratedScene["layout"] },
   context: { title: string; prompt: string },

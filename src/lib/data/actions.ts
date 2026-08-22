@@ -11,14 +11,20 @@ import {
   SCENE_SCHEMA_VERSION,
   emptySceneContent,
 } from "@/lib/schema/presentation";
+import { Moment } from "@/lib/schema/narrative";
+import { applyShape } from "@/lib/narrative/map";
 import { DEFAULT_THEME_ID, THEMES } from "@/lib/schema/theme";
 import { buildTemplateScenes, templateMovements, TEMPLATES } from "@/lib/templates/registry";
 import type {
   FolderRow,
+  MomentRow,
   PresentationRow,
   SceneRow,
   SectionRow,
 } from "@/lib/supabase/database.types";
+
+/** Assumed running length when a template's shape is first applied. */
+const DEFAULT_TEMPLATE_SECONDS = 15 * 60;
 
 /**
  * Write-side actions.
@@ -98,6 +104,7 @@ export async function createPresentation(input: unknown): Promise<Result<{ id: s
    */
   const movements = template ? templateMovements(seedScenes) : [];
   const sectionIdByScene = new Map<number, string>();
+  const createdSections: { id: string; label: string }[] = [];
 
   if (movements.length > 1) {
     const { data: sectionRows } = await supabase
@@ -118,7 +125,77 @@ export async function createPresentation(input: unknown): Promise<Result<{ id: s
       const movement = movements[row.position];
       if (!movement) continue;
       for (let i = movement.start; i < movement.end; i += 1) sectionIdByScene.set(i, row.id);
+      createdSections.push({ id: row.id, label: movement.label });
     }
+  }
+
+  /**
+   * The argument, not just the scenes.
+   *
+   * A template that only carries scenes leaves the author with a deck and no
+   * plan. Where a template declares a recommended shape, the movements it
+   * names are matched to the sections just created — by label, creating any it
+   * needs — and its moments are written as a real, editable narrative map.
+   *
+   * Fifteen minutes is the assumed running length. It is a starting point the
+   * author changes on the map, and every duration shown is labelled estimated.
+   */
+  if (template?.shape) {
+    const shaped = applyShape(template.shape, DEFAULT_TEMPLATE_SECONDS);
+    const sectionByLabel = new Map<string, string>();
+    for (const row of createdSections) sectionByLabel.set(row.label.toLowerCase(), row.id);
+
+    const extraSections = shaped
+      .filter((movement) => !sectionByLabel.has(movement.label.toLowerCase()))
+      .map((movement, index) => ({
+        presentation_id: data.id,
+        title: movement.title,
+        label: movement.label,
+        purpose: movement.purpose,
+        position: movements.length + index,
+      }));
+
+    if (extraSections.length) {
+      const { data: extra } = await supabase
+        .from("sections")
+        .insert(extraSections)
+        .select("id, label");
+      for (const row of extra ?? []) sectionByLabel.set(row.label.toLowerCase(), row.id);
+    }
+
+    // The shape's purposes belong on the movements it names.
+    await Promise.all(
+      shaped.map((movement) => {
+        const id = sectionByLabel.get(movement.label.toLowerCase());
+        if (!id) return Promise.resolve();
+        return supabase
+          .from("sections")
+          .update({ purpose: movement.purpose, title: movement.title })
+          .eq("id", id)
+          .then(() => undefined);
+      }),
+    );
+
+    const momentRows = shaped.flatMap((movement) =>
+      movement.moments.map((moment, index) => ({
+        presentation_id: data.id,
+        movement_id: sectionByLabel.get(movement.label.toLowerCase()) ?? null,
+        position: index,
+        title: moment.title,
+        role: moment.role,
+        purpose: moment.purpose,
+        takeaway: moment.takeaway,
+        estimated_seconds: moment.estimatedSeconds,
+        evidence: [] as unknown as MomentRow["evidence"],
+        visual_intent: moment.visualIntent,
+        instructions: "",
+        locked: false,
+      })),
+    );
+
+    // A map is a nicety on top of a working deck: a failure here must not fail
+    // the creation, and the author can still generate one from the map view.
+    if (momentRows.length) await supabase.from("moments").insert(momentRows);
   }
 
   const { error: sceneError } = await supabase.from("scenes").insert(
@@ -154,6 +231,7 @@ const UpdateInput = z.object({
   tags: z.array(z.string().trim().min(1).max(48)).max(24).optional(),
   isFavorite: z.boolean().optional(),
   journey: JourneyConfig.optional(),
+  targetSeconds: z.number().int().min(0).max(14_400).optional(),
 });
 
 export async function updatePresentation(input: unknown): Promise<Result<void>> {
@@ -173,6 +251,7 @@ export async function updatePresentation(input: unknown): Promise<Result<void>> 
   if (rest.isFavorite !== undefined) patch.is_favorite = rest.isFavorite;
   if (rest.journey !== undefined)
     patch.journey = rest.journey as unknown as PresentationRow["journey"];
+  if (rest.targetSeconds !== undefined) patch.target_seconds = rest.targetSeconds;
 
   if (Object.keys(patch).length === 0) return ok(undefined);
 
@@ -406,6 +485,69 @@ export async function setScenePlacements(input: unknown): Promise<Result<{ updat
   return ok({ updated: data ?? 0 });
 }
 
+/* -------------------------------------------------------------------------- */
+/* The narrative map                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Writes the whole map in one statement.
+ *
+ * Accepting a map, applying a template, reordering, reassigning — all of it
+ * rewrites positions across movements, and a half-applied argument is worse
+ * than either whole one. The RPC runs as the caller, so the same owner-scoped
+ * policy that guards a single moment guards this, and it refuses to overwrite
+ * a locked moment even when one is in the payload.
+ */
+const SaveMomentsInput = z.object({
+  presentationId: Uuid,
+  moments: z
+    .array(Moment.omit({ presentationId: true, createdAt: true, updatedAt: true }))
+    .max(400),
+});
+
+export async function saveMoments(input: unknown): Promise<Result<{ written: number }>> {
+  const parsed = SaveMomentsInput.safeParse(input);
+  if (!parsed.success) {
+    return fail("That narrative map contains something Captivate can't store.");
+  }
+
+  const { presentationId, moments } = parsed.data;
+  const supabase = await client();
+  const { data, error } = await supabase.rpc("captivate_replace_moments", {
+    p_presentation_id: presentationId,
+    p_moments: moments as unknown as never,
+  });
+
+  if (error) return fail(error.message);
+  return ok({ written: data ?? 0 });
+}
+
+/** Attaches generated scenes to the moments that produced them. */
+const LinkScenesInput = z.object({
+  presentationId: Uuid,
+  links: z.array(z.object({ sceneId: Uuid, momentId: Uuid.nullable() })).max(400),
+});
+
+export async function linkScenesToMoments(input: unknown): Promise<Result<void>> {
+  const parsed = LinkScenesInput.safeParse(input);
+  if (!parsed.success) return fail("Invalid scene links.");
+
+  const supabase = await client();
+  const results = await Promise.all(
+    parsed.data.links.map(({ sceneId, momentId }) =>
+      supabase
+        .from("scenes")
+        .update({ moment_id: momentId })
+        .eq("id", sceneId)
+        .eq("presentation_id", parsed.data.presentationId),
+    ),
+  );
+
+  const failure = results.find((result) => result.error);
+  if (failure?.error) return fail(failure.error.message);
+  return ok(undefined);
+}
+
 const AddSceneInput = z.object({
   presentationId: Uuid,
   /** Insert directly after this scene; appended to the end when omitted. */
@@ -623,6 +765,8 @@ const UpdateSectionInput = z.object({
   title: z.string().trim().min(1).max(240).optional(),
   /** The short movement name shown to the audience. May be cleared. */
   label: z.string().trim().max(24).optional(),
+  /** What this stretch of the argument accomplishes. */
+  purpose: z.string().trim().max(600).optional(),
 });
 
 export async function updateSection(input: unknown): Promise<Result<void>> {
@@ -633,6 +777,7 @@ export async function updateSection(input: unknown): Promise<Result<void>> {
   const patch: Partial<SectionRow> = {};
   if (rest.title !== undefined) patch.title = rest.title;
   if (rest.label !== undefined) patch.label = rest.label;
+  if (rest.purpose !== undefined) patch.purpose = rest.purpose;
   if (Object.keys(patch).length === 0) return ok(undefined);
 
   const supabase = await client();

@@ -29,8 +29,18 @@ full-text index on `title || description`.
 
 ### `sections`
 
-Ordered grouping of scenes within a deck. Deleting a section keeps its scenes —
-they simply become unsectioned (`ON DELETE SET NULL`).
+Ordered grouping of scenes within a deck, and — since `0006` — the movements of
+the narrative map. Deleting a section keeps its scenes: they simply become
+unsectioned (`ON DELETE SET NULL`).
+
+### `moments`
+
+The pre-generation unit of the argument: `movement_id`, `position`, `title`,
+`role`, `purpose`, `takeaway`, `estimated_seconds`, `evidence` (JSONB array of
+`{kind, id, label}` references), `visual_intent`, `instructions` and `locked`.
+
+`scenes.moment_id` points back at the moment a scene was generated from, with
+`ON DELETE SET NULL` — deleting a plan never deletes the work made from it.
 
 ### `scenes`
 
@@ -80,6 +90,29 @@ shown to the audience during a presentation. Additive and defaulted to the empty
 string, which falls back to the section's own title at render time, so every
 presentation that already has sections gains a working movement rail without
 being migrated.
+
+## The narrative map
+
+Migration `0006_narrative_map.sql` adds `sections.purpose`, the `moments` table,
+`scenes.moment_id`, and the function below. Migration `0007_target_duration.sql`
+adds `presentations.target_seconds` — the planned running time the map warns
+against, where `0` means the author never stated one and nothing is warned about.
+
+A movement is a `sections` row rather than a new table. Sections already carry
+ordering, a short label, owner-scoped policies and every foreign key the scenes
+depend on, and the movement rail already derived from them; renaming a table
+that every policy and index references would have been migration risk bought for
+nothing. The database says `sections`, the product says Movement.
+
+Saving a map rewrites it, so it goes through `captivate_replace_moments(uuid,
+jsonb)`: it deletes the presentation's unlocked moments absent from the payload,
+then upserts the payload, skipping any row the author locked. `SECURITY INVOKER`
+with a pinned empty `search_path` — the caller's own policies decide what it may
+touch, which is exactly the guarantee wanted here.
+
+The delete-what-is-absent behaviour is why the client always sends the **whole**
+map. A partial payload means "the author deleted everything else", and one that
+carried only the moment that changed silently destroyed the rest of the argument.
 
 ## The world canvas
 

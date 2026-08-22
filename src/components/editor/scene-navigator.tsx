@@ -90,6 +90,7 @@ export function SceneNavigator({
         position: result.data.position,
         title: "",
         placement: null,
+        momentId: null,
         content: {
           version: 1,
           layout: "custom",
@@ -144,6 +145,7 @@ export function SceneNavigator({
         presentationId,
         title: "New section",
         label: "",
+        purpose: "",
         position: sections.length,
         createdAt: now,
         updatedAt: now,

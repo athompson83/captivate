@@ -1,6 +1,7 @@
 import { composeScene } from "@/lib/editor/layouts";
 import type { SceneContent, SceneLayout } from "@/lib/schema/presentation";
 import type { LayoutContent } from "@/lib/editor/layouts";
+import type { NarrativeShape } from "@/lib/schema/narrative";
 
 /**
  * A small, genuinely useful template set.
@@ -32,11 +33,109 @@ export interface Template {
   audience: string;
   themeId: string;
   scenes: TemplateScene[];
+  /**
+   * The argument this template recommends, not just how it looks.
+   *
+   * Weights rather than durations, so the same shape holds whether someone
+   * asked for fifteen minutes or fifty. It is a starting point: every movement,
+   * moment, role and duration remains editable once applied.
+   */
+  shape?: NarrativeShape;
 }
 
 export const TEMPLATES: Template[] = [
   {
     id: "lecture",
+    shape: [
+      {
+        label: "OPEN",
+        title: "Why this matters",
+        purpose: "Give the room a reason to care before any content arrives.",
+        weight: 1,
+        moments: [
+          {
+            title: "The situation they recognise",
+            role: "hook",
+            purpose: "Start inside something the audience has already lived.",
+            takeaway: "This is about my work, not somebody else's.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+          {
+            title: "What you'll be able to do",
+            role: "frame",
+            purpose: "Set the contract for the session.",
+            takeaway: "I know what I am expected to be able to do afterwards.",
+            visualIntent: "enumeration",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "FRAME",
+        title: "The core idea",
+        purpose: "Replace the working mental model with a better one.",
+        weight: 1.4,
+        moments: [
+          {
+            title: "The idea in one sentence",
+            role: "claim",
+            purpose: "State the thing everything else hangs off.",
+            takeaway: "I could repeat the central idea to someone else.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+          {
+            title: "How it actually works",
+            role: "reframe",
+            purpose: "Walk the mechanism rather than assert the conclusion.",
+            takeaway: "I understand why it works, not just that it does.",
+            visualIntent: "sequence",
+            weight: 1.5,
+          },
+        ],
+      },
+      {
+        label: "EVIDENCE",
+        title: "Why you should believe it",
+        purpose: "Ground the claim in something checkable.",
+        weight: 1.3,
+        moments: [
+          {
+            title: "What the evidence shows",
+            role: "evidence",
+            purpose: "Show the data behind the claim, not a summary of it.",
+            takeaway: "The claim is supported, and I have seen the support.",
+            visualIntent: "data",
+            weight: 1,
+          },
+          {
+            title: "A case worth walking through",
+            role: "example",
+            purpose: "Make it concrete with one real situation.",
+            takeaway: "I can picture this happening.",
+            visualIntent: "demonstration",
+            weight: 1.2,
+          },
+        ],
+      },
+      {
+        label: "CLOSE",
+        title: "What to carry out",
+        purpose: "Turn understanding into something they do differently.",
+        weight: 0.8,
+        moments: [
+          {
+            title: "The one thing to remember",
+            role: "close",
+            purpose: "Land a single idea rather than a summary of everything.",
+            takeaway: "If I remember nothing else, I remember this.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+        ],
+      },
+    ],
     name: "Lecture",
     description: "Objectives, teaching blocks, a case, and a recap. Built for a 50-minute class.",
     audience: "Educators and trainers",
@@ -70,7 +169,10 @@ export const TEMPLATES: Template[] = [
       {
         title: "The core idea",
         layout: "statement",
-        content: { heading: "State the single most important idea", headingAccent: "in one sentence." },
+        content: {
+          heading: "State the single most important idea",
+          headingAccent: "in one sentence.",
+        },
         speakerNotes: "Pause after this. Let it land before you explain it.",
         movement: "FRAME",
       },
@@ -136,6 +238,88 @@ export const TEMPLATES: Template[] = [
   },
   {
     id: "pitch",
+    shape: [
+      {
+        label: "PROBLEM",
+        title: "The problem, felt",
+        purpose: "Make the cost of the status quo real before offering relief.",
+        weight: 1,
+        moments: [
+          {
+            title: "The problem in their words",
+            role: "provocation",
+            purpose: "Name the pain the way the audience would name it.",
+            takeaway: "They understand my problem better than I expected.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+          {
+            title: "What it costs today",
+            role: "evidence",
+            purpose: "Quantify the status quo so the change has a size.",
+            takeaway: "Doing nothing is not free.",
+            visualIntent: "data",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "INSIGHT",
+        title: "What everyone gets wrong",
+        purpose: "Earn the right to a different answer.",
+        weight: 1.1,
+        moments: [
+          {
+            title: "The assumption to drop",
+            role: "reframe",
+            purpose: "Overturn the belief that keeps the problem in place.",
+            takeaway: "The obvious approach is why this has not been solved.",
+            visualIntent: "comparison",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "PROOF",
+        title: "Why this works",
+        purpose: "Show the answer working rather than assert it.",
+        weight: 1.4,
+        moments: [
+          {
+            title: "The approach",
+            role: "claim",
+            purpose: "State what is being proposed, plainly.",
+            takeaway: "I could explain the proposal to a colleague.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+          {
+            title: "Someone it worked for",
+            role: "example",
+            purpose: "One concrete case beats three abstractions.",
+            takeaway: "This has worked somewhere real.",
+            visualIntent: "demonstration",
+            weight: 1.2,
+          },
+        ],
+      },
+      {
+        label: "ASK",
+        title: "What happens next",
+        purpose: "Make the decision easy to say yes to.",
+        weight: 0.7,
+        moments: [
+          {
+            title: "The ask",
+            role: "close",
+            purpose: "Say exactly what is being asked for and what follows.",
+            takeaway: "I know what I am being asked to decide.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+        ],
+      },
+    ],
     name: "Pitch",
     description: "Problem, insight, solution, proof, ask. The classic ten-minute investor arc.",
     audience: "Founders and sales teams",
@@ -343,6 +527,80 @@ export const TEMPLATES: Template[] = [
   },
   {
     id: "report",
+    shape: [
+      {
+        label: "FINDINGS",
+        title: "What you need to know",
+        purpose: "Lead with the finding, not the method.",
+        weight: 0.8,
+        moments: [
+          {
+            title: "The headline finding",
+            role: "claim",
+            purpose: "State the conclusion first; this audience is busy.",
+            takeaway: "I have the answer in the first thirty seconds.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "EVIDENCE",
+        title: "What the data shows",
+        purpose: "Support the finding with what was actually measured.",
+        weight: 1.6,
+        moments: [
+          {
+            title: "The numbers",
+            role: "evidence",
+            purpose: "Show the measurement behind the headline.",
+            takeaway: "I have seen the evidence, not a summary of it.",
+            visualIntent: "data",
+            weight: 1,
+          },
+          {
+            title: "How to read it",
+            role: "context",
+            purpose: "Say what the figures do and do not support.",
+            takeaway: "I know how much weight this can carry.",
+            visualIntent: "comparison",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "RISK",
+        title: "What could be wrong",
+        purpose: "Name the weaknesses before somebody else does.",
+        weight: 0.8,
+        moments: [
+          {
+            title: "What would change the conclusion",
+            role: "contrast",
+            purpose: "State the conditions under which this is wrong.",
+            takeaway: "I know what would make this conclusion fail.",
+            visualIntent: "enumeration",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "NEXT",
+        title: "The decision",
+        purpose: "Convert the finding into a decision.",
+        weight: 0.8,
+        moments: [
+          {
+            title: "What to do about it",
+            role: "application",
+            purpose: "Give the decision and its owner.",
+            takeaway: "I know what happens next and who does it.",
+            visualIntent: "enumeration",
+            weight: 1,
+          },
+        ],
+      },
+    ],
     name: "Report",
     description: "Findings-first structure for briefings and updates. Data before narrative.",
     audience: "Consultants and analysts",

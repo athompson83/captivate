@@ -19,20 +19,22 @@ and rendering something broken in front of a room.
 
 ### Unit
 
-| File                  | Covers                                                                                               |
-| --------------------- | ---------------------------------------------------------------------------------------------------- |
-| `presentation-schema` | Defaults, unknown element rejection, corrupt-content recovery, URL scheme safety                     |
-| `geometry`            | Snapping, resize anchoring, aspect lock, clamping, align and distribute, marquee                     |
-| `layouts`             | All 14 layouts stay on stage and inside the safe area; relayout preserves text                       |
-| `editor-store`        | Dirty tracking, the autosave revision guard, undo/redo with coalescing, element and scene operations |
-| `editor-selectors`    | The React bindings — specifically that a selector cannot re-render forever                           |
-| `debounced-save`      | Debounce, per-record merging, in-flight queueing, flush on unmount and tab hide                      |
-| `ai-schemas`          | Output caps, layout restrictions, fallback quality, title derivation                                 |
-| `present`             | Cross-window message validation, build step counting, motion presets, session command routing        |
-| `stage-render`        | Real rendering: text as text, alt text, chart descriptions, sandboxing, builds, auto-fit             |
-| `fit-text`            | Auto-fit maths, including that a thumbnail and the stage agree                                       |
-| `theme-and-recorder`  | Theme integrity, template validity, recorder capability detection                                    |
-| `format`              | Duration, bytes, relative time, including nonsense input                                             |
+| File                    | Covers                                                                                               |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| `presentation-schema`   | Defaults, unknown element rejection, corrupt-content recovery, URL scheme safety                     |
+| `geometry`              | Snapping, resize anchoring, aspect lock, clamping, align and distribute, marquee                     |
+| `layouts`               | All 14 layouts stay on stage and inside the safe area; relayout preserves text                       |
+| `editor-store`          | Dirty tracking, the autosave revision guard, undo/redo with coalescing, element and scene operations |
+| `editor-selectors`      | The React bindings — specifically that a selector cannot re-render forever                           |
+| `debounced-save`        | Debounce, per-record merging, in-flight queueing, flush on unmount and tab hide                      |
+| `ai-schemas`            | Output caps, layout restrictions, fallback quality, title and subject extraction                     |
+| `narrative-map`         | Movement and moment ordering, duration totals, stable ids, backward derivation, evidence, briefs     |
+| `narrative-persistence` | That every map edit reaches the server — and that the write is never partial                         |
+| `present`               | Cross-window message validation, build step counting, motion presets, session command routing        |
+| `stage-render`          | Real rendering: text as text, alt text, chart descriptions, sandboxing, builds, auto-fit             |
+| `fit-text`              | Auto-fit maths, including that a thumbnail and the stage agree                                       |
+| `theme-and-recorder`    | Theme integrity, template validity, recorder capability detection                                    |
+| `format`                | Duration, bytes, relative time, including nonsense input                                             |
 
 ### End-to-end
 
@@ -40,13 +42,19 @@ and rendering something broken in front of a room.
 are present, keyboard focus is visible, there are no console errors, nothing
 overflows at 390px, both colour schemes work, and reduced motion is respected.
 
-**Journeys** (16 tests, needs an account) — sign in, create from a template, add
+**Journeys** (21 tests, needs an account) — sign in, create from a template, add
 an element, autosave, survive a reload, undo and redo, write speaker notes and
 verify they do not appear on the audience surface, present with no editor
 chrome, navigate by keyboard, use the laser/highlight/ink tools and clear them,
 blank the screen, open the presenter console, verify cross-window sync, open the
 recording dialog, write a lecture note and reload it, filter the library, and
 use the command palette.
+
+**The narrative map** (6 tests, in the same project) — a template arrives with a
+real argument rather than an empty page; an edited moment, an added moment and a
+deleted moment each survive a reload; the duration warning appears without
+blocking generation and the rescale clears it; and a presentation created before
+the map existed still opens one.
 
 Journeys are **skipped, not failed**, when credentials are absent, so the suite
 never produces misleading red on a machine without an account.
@@ -89,6 +97,23 @@ Worth recording, because it is the argument for the tests existing:
 5. **Dropped note edits.** The first version of `useDebouncedSave` kept one
    pending slot, so editing a title and then a body within one debounce window
    sent only the body.
+6. **Section renames never saved.** `renameSectionLocal` marked nothing dirty,
+   autosave never looked at sections, and the action that wrote them was dead
+   code. The rename looked perfect until you refreshed.
+7. **The map destroying itself on every edit.** `captivate_replace_moments`
+   deletes any moment the payload omits, and autosave sent only the moment that
+   changed — so editing one field deleted the rest of the argument. Every
+   assertion about the edited moment passed while it happened. Caught by running
+   the end-to-end suite in serial against one presentation and noticing the map
+   had one moment left in a failure screenshot.
+8. **A page of boxes instead of an argument.** An unlayered `* { border-color }`
+   reset outranked every Tailwind border utility including `border-transparent`,
+   so the map's in-place prose fields drew a box around every line. Caught by
+   looking at a screenshot, then confirmed against the computed style.
+9. **"Focus on 45-minute."** The fallback map wove the top keyword of the brief
+   into every movement purpose, and in a one-line brief every word appears once
+   — so a measurement won the alphabetical tie-break. A subject is now only
+   named when the author repeated it.
 
 ---
 

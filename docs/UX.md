@@ -14,15 +14,33 @@ the component cannot leak it, no matter what happens to the state.
 
 ---
 
-## The outline gate
+## The map gate
 
-The AI path stops at an outline you can read, edit, delete from and regenerate
-before anything is created.
+The AI path stops at a narrative map you can read, edit, delete from and
+regenerate before anything is created.
 
-Reviewing twelve lines takes fifteen seconds. Discovering a bad structure after
-forty scenes exist costs far more — in tokens, and in the feeling that the tool
-wasted your time. This is the difference between AI that saves work and AI that
-creates cleanup.
+Reviewing an argument takes a minute. Discovering a bad argument after forty
+scenes exist costs far more — in tokens, and in the feeling that the tool wasted
+your time. This is the difference between AI that saves work and AI that creates
+cleanup.
+
+What you review is not a list of slide titles. Every moment says why it exists
+and what the room leaves with, because that is the decision worth reviewing —
+"Slide 4: The data" tells you nothing about whether the talk works.
+
+The map is not consumed by generation. It stays as a view of the editor, it is
+what regeneration reads, and locking a moment excludes it from every future
+generation rather than generating it and throwing the result away.
+
+## Warn, never block
+
+A map that runs longer than the time you planned for says so, in a sentence,
+and changes nothing. "Generate scenes" stays enabled. Running long is a fact
+about the argument, and what comes out is the author's decision — the tool has
+no basis for making it.
+
+"Rescale to 15 min" is offered beside the warning. It changes durations only,
+never wording, and a locked moment keeps exactly the time you gave it.
 
 ---
 

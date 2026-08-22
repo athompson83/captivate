@@ -91,6 +91,7 @@ describe("atmosphere", () => {
       title: `Scene ${i}`,
       content: { ...composeScene("statement", { heading: "x" }), themeOverride },
       placement: null,
+      momentId: null,
       speakerNotes: "",
       durationSeconds: null,
       createdAt: "2026-01-01T00:00:00Z",

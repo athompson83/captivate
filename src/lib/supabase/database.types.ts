@@ -43,6 +43,8 @@ export type PresentationRow = Timestamps & {
   schema_version: number;
   last_opened_at: string | null;
   deleted_at: string | null;
+  /** Planned running time. 0 = the author has not stated one. */
+  target_seconds: number;
 };
 
 export type SectionRow = Timestamps & {
@@ -50,7 +52,25 @@ export type SectionRow = Timestamps & {
   presentation_id: string;
   title: string;
   label: string;
+  purpose: string;
   position: number;
+};
+
+/** A narrative moment. The pre-generation unit; `sections` are its movements. */
+export type MomentRow = Timestamps & {
+  id: string;
+  presentation_id: string;
+  movement_id: string | null;
+  position: number;
+  title: string;
+  role: string;
+  purpose: string;
+  takeaway: string;
+  estimated_seconds: number;
+  evidence: Json;
+  visual_intent: string;
+  instructions: string;
+  locked: boolean;
 };
 
 export type SceneRow = Timestamps & {
@@ -61,6 +81,7 @@ export type SceneRow = Timestamps & {
   title: string;
   content: Json;
   placement: Json | null;
+  moment_id: string | null;
   speaker_notes: string;
   duration_seconds: number | null;
   schema_version: number;
@@ -139,6 +160,7 @@ export type Database = {
       presentations: Table<PresentationRow>;
       sections: Table<SectionRow>;
       scenes: Table<SceneRow>;
+      moments: Table<MomentRow>;
       lecture_notes: Table<LectureNoteRow>;
       assets: Table<AssetRow>;
       recordings: Table<RecordingRow>;
@@ -152,6 +174,10 @@ export type Database = {
       };
       captivate_set_scene_placements: {
         Args: { p_presentation_id: string; p_placements: Json };
+        Returns: number;
+      };
+      captivate_replace_moments: {
+        Args: { p_presentation_id: string; p_moments: Json };
         Returns: number;
       };
     };

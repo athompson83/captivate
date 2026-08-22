@@ -16,23 +16,26 @@ import {
 } from "lucide-react";
 import { TEMPLATES } from "@/lib/templates/registry";
 import { THEMES, getTheme } from "@/lib/schema/theme";
-import type { PresentationOutline } from "@/lib/ai/schemas";
-import { requestOutline, requestPresentation } from "@/lib/ai/client";
+import type { ProposedMap } from "@/lib/ai/schemas";
+import { ROLE_META, ROLE_ORDER } from "@/lib/schema/narrative";
+import type { AvailableEvidence } from "@/lib/narrative/generate";
+import { requestMap, requestPresentationFromMap } from "@/lib/ai/client";
 import { createPresentation } from "@/lib/data/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Segmented, Badge } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils/cn";
-import { ALL_LAYOUTS } from "@/lib/editor/layouts";
 
 /**
  * Creating a presentation.
  *
- * The AI path deliberately stops at an outline the user can read, edit and
- * regenerate before a single scene is written. Reviewing a twelve-line
- * structure takes fifteen seconds; discovering a bad structure after forty
- * scenes have been generated costs far more.
+ * The AI path stops at a narrative map: what each movement and moment has to
+ * accomplish, which the author reads, edits and regenerates before a single
+ * scene exists. Reviewing an argument takes a minute; discovering a bad
+ * argument after forty scenes have been written costs far more — and the map
+ * is not thrown away afterwards, it stays as the thing scenes are generated
+ * from.
  */
 export function CreateFlow({
   initialMode,
@@ -57,7 +60,8 @@ export function CreateFlow({
 
       <h1 className="text-ink text-[26px] font-semibold tracking-tight">New presentation</h1>
       <p className="text-ink-3 mt-1.5 text-[14px]">
-        Start from a structure, or describe what you need and review the outline first.
+        Start from a structure, or describe what you need and shape the argument before anything is
+        written.
       </p>
 
       <div className="mt-6">
@@ -73,7 +77,11 @@ export function CreateFlow({
       </div>
 
       <div className="mt-6">
-        {mode === "template" ? <TemplatePath folders={folders} folderId={folderId} /> : <AiPath />}
+        {mode === "template" ? (
+          <TemplatePath folders={folders} folderId={folderId} />
+        ) : (
+          <AiPath folderId={folderId} />
+        )}
       </div>
     </div>
   );
@@ -207,63 +215,112 @@ const AUDIENCES = [
 
 const TONES = ["Clear and direct", "Warm and conversational", "Formal", "Energetic", "Academic"];
 
-function AiPath() {
+function AiPath({ folderId }: { folderId: string | null }) {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [step, setStep] = useState<"prompt" | "outline" | "generating">("prompt");
+  const [step, setStep] = useState<"brief" | "map" | "generating">("brief");
   const [prompt, setPrompt] = useState("");
   const [audience, setAudience] = useState("");
   const [tone, setTone] = useState("");
-  const [sceneCount, setSceneCount] = useState(10);
+  const [minutes, setMinutes] = useState(20);
   const [themeId, setThemeId] = useState("midnight");
-  const [outline, setOutline] = useState<PresentationOutline | null>(null);
+  const [map, setMap] = useState<ProposedMap | null>(null);
+  const [available, setAvailable] = useState<AvailableEvidence[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const buildOutline = async () => {
+  const totalSeconds = minutes * 60;
+
+  const buildMap = async () => {
     if (prompt.trim().length < 8) return;
     setBusy(true);
     setNotice(null);
 
-    const result = await requestOutline({ prompt, audience, tone, sceneCount });
+    const result = await requestMap({ prompt, audience, tone, totalSeconds });
     setBusy(false);
 
     if (!result.ok) {
-      toast({ tone: "error", title: "Couldn't build an outline", description: result.error });
+      toast({ tone: "error", title: "Couldn't build a map", description: result.error });
       return;
     }
-    setOutline(result.outline);
-    setThemeId(result.outline.suggestedThemeId);
+    setMap(result.proposal);
+    setAvailable(result.available);
+    setThemeId(result.proposal.suggestedThemeId);
     setNotice(result.notice ?? null);
-    setStep("outline");
+    setStep("map");
   };
 
   const generate = async () => {
-    if (!outline) return;
+    if (!map) return;
     setStep("generating");
 
-    const result = await requestPresentation({ prompt, outline, themeId, audience, tone });
+    const result = await requestPresentationFromMap({
+      prompt,
+      map,
+      totalSeconds,
+      themeId,
+      folderId,
+      audience,
+      tone,
+    });
 
     if (!result.ok) {
-      setStep("outline");
+      setStep("map");
       toast({ tone: "error", title: "Generation failed", description: result.error });
       return;
     }
 
+    if (result.droppedEvidence > 0) {
+      toast({
+        tone: "info",
+        title: "Some references were dropped",
+        description: `${result.droppedEvidence} source${result.droppedEvidence === 1 ? "" : "s"} named in the map couldn't be found in your workspace, so nothing was attached for ${result.droppedEvidence === 1 ? "it" : "them"}.`,
+      });
+    }
     if (result.notice) {
       toast({ tone: "info", title: "Created with limits", description: result.notice });
     }
     router.push(`/edit/${result.id}`);
   };
 
-  const totalScenes = outline?.sections.reduce((n, s) => n + s.scenes.length, 0) ?? 0;
+  const momentCount = map?.movements.reduce((n, m) => n + m.moments.length, 0) ?? 0;
+
+  /** Replaces one movement, leaving the rest of the argument alone. */
+  const patchMovement = (index: number, patch: Partial<ProposedMap["movements"][number]>) => {
+    if (!map) return;
+    const movements = [...map.movements];
+    movements[index] = { ...movements[index], ...patch };
+    setMap({ ...map, movements });
+  };
+
+  const patchMoment = (
+    movementIndex: number,
+    momentIndex: number,
+    patch: Partial<ProposedMap["movements"][number]["moments"][number]>,
+  ) => {
+    if (!map) return;
+    const moments = [...map.movements[movementIndex].moments];
+    moments[momentIndex] = { ...moments[momentIndex], ...patch };
+    patchMovement(movementIndex, { moments });
+  };
+
+  const removeMoment = (movementIndex: number, momentIndex: number) => {
+    if (!map) return;
+    const moments = map.movements[movementIndex].moments.filter((_, i) => i !== momentIndex);
+    // A movement with nothing left in it is no longer a stretch of argument.
+    if (moments.length === 0) {
+      setMap({ ...map, movements: map.movements.filter((_, i) => i !== movementIndex) });
+      return;
+    }
+    patchMovement(movementIndex, { moments });
+  };
 
   return (
     <AnimatePresence mode="wait">
-      {step === "prompt" && (
+      {step === "brief" && (
         <motion.div
-          key="prompt"
+          key="brief"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
@@ -277,7 +334,7 @@ function AiPath() {
             rows={5}
             autoFocus
             placeholder="A 50-minute lecture on recognising and managing compensated shock for second-year paramedic students. Cover the physiology, the clinical signs that appear before hypotension, and two case examples."
-            hint="The more specific you are about the audience and the goal, the better the structure."
+            hint="Say what has to change in the room by the end. That is what the argument is built around."
           />
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -322,38 +379,43 @@ function AiPath() {
 
           <div>
             <div className="mb-1.5 flex items-baseline justify-between">
-              <span className="text-ink-2 text-[13px] font-medium">Roughly how many scenes?</span>
-              <span className="text-ink-3 text-[13px] tabular-nums">{sceneCount}</span>
+              <span className="text-ink-2 text-[13px] font-medium">How long do you have?</span>
+              <span className="text-ink-3 text-[13px] tabular-nums">{minutes} min</span>
             </div>
             <input
               type="range"
-              min={4}
-              max={24}
-              value={sceneCount}
-              onChange={(e) => setSceneCount(Number(e.target.value))}
-              aria-label="Approximate number of scenes"
+              min={5}
+              max={120}
+              step={5}
+              value={minutes}
+              onChange={(e) => setMinutes(Number(e.target.value))}
+              aria-label="Planned running time in minutes"
               className="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--surface-inset)] accent-[var(--ai)]"
             />
+            <p className="text-ink-3 mt-1.5 text-[11.5px] leading-relaxed">
+              This decides the shape of the argument, not the number of scenes. You can change it on
+              the map afterwards.
+            </p>
           </div>
 
           <div className="flex justify-end">
             <Button
               variant="ai"
               size="lg"
-              onClick={() => void buildOutline()}
+              onClick={() => void buildMap()}
               loading={busy}
               disabled={prompt.trim().length < 8}
             >
               <Wand2 className="size-4" aria-hidden />
-              Build an outline
+              Plan the argument
             </Button>
           </div>
         </motion.div>
       )}
 
-      {step === "outline" && outline && (
+      {step === "map" && map && (
         <motion.div
-          key="outline"
+          key="map"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
@@ -370,81 +432,135 @@ function AiPath() {
           )}
 
           <div className="border-line-subtle bg-raised rounded-[var(--radius-lg)] border p-5">
-            <input
-              value={outline.title}
-              onChange={(e) => setOutline({ ...outline, title: e.target.value })}
+            {/* A textarea rather than an input: a derived title is often a full
+                clause, and a single-line field clips it at the box edge where
+                it reads as truncated data rather than an editable title. */}
+            <textarea
+              value={map.title}
+              onChange={(e) => setMap({ ...map, title: e.target.value.replace(/\n/g, " ") })}
+              rows={1}
               aria-label="Presentation title"
-              className="text-ink hover:border-line-subtle focus:border-line w-full rounded-[var(--radius-sm)] border border-transparent bg-transparent px-1.5 py-1 text-[19px] font-semibold tracking-tight transition-colors focus:bg-[var(--surface-inset)]"
+              className="text-ink hover:border-line-subtle focus:border-line field-sizing-content w-full resize-none rounded-[var(--radius-sm)] border border-transparent bg-transparent px-1.5 py-1 text-[19px] leading-snug font-semibold tracking-tight transition-colors focus:bg-[var(--surface-inset)]"
             />
-            {outline.approach && (
+            {map.approach && (
               <p className="text-ink-3 mt-1.5 px-1.5 text-[12.5px] leading-relaxed">
-                {outline.approach}
+                {map.approach}
               </p>
             )}
-            <p className="mt-3 flex items-center gap-2 px-1.5">
-              <Badge tone="ai">{totalScenes} scenes</Badge>
-              <Badge>{outline.sections.length} sections</Badge>
+            <p className="mt-3 flex flex-wrap items-center gap-2 px-1.5">
+              <Badge tone="ai">{map.movements.length} movements</Badge>
+              <Badge>{momentCount} moments</Badge>
+              <Badge>{minutes} min</Badge>
             </p>
           </div>
 
-          <div className="space-y-4">
-            {outline.sections.map((section, sectionIndex) => (
-              <section key={sectionIndex}>
-                <input
-                  value={section.title}
-                  onChange={(e) => {
-                    const sections = [...outline.sections];
-                    sections[sectionIndex] = { ...section, title: e.target.value };
-                    setOutline({ ...outline, sections });
-                  }}
-                  aria-label={`Section ${sectionIndex + 1} title`}
-                  className="text-ink-3 hover:border-line-subtle focus:border-line mb-1.5 w-full rounded-[var(--radius-sm)] border border-transparent bg-transparent px-1.5 py-0.5 text-[11px] font-semibold tracking-wider uppercase transition-colors focus:bg-[var(--surface-inset)]"
+          <div className="space-y-6">
+            {map.movements.map((movement, movementIndex) => (
+              <section key={movementIndex}>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <input
+                    value={movement.label}
+                    onChange={(e) =>
+                      patchMovement(movementIndex, { label: e.target.value.slice(0, 24) })
+                    }
+                    aria-label={`Short label for movement ${movementIndex + 1}`}
+                    className="border-accent/30 text-accent focus:border-accent w-[124px] rounded-full border bg-[var(--accent-soft)] px-2.5 py-0.5 text-[10.5px] font-medium tracking-[0.14em] uppercase outline-none"
+                  />
+                  <input
+                    value={movement.title}
+                    onChange={(e) => patchMovement(movementIndex, { title: e.target.value })}
+                    aria-label={`Movement ${movementIndex + 1} title`}
+                    className="text-ink hover:border-line-subtle focus:border-line min-w-0 flex-1 rounded-[var(--radius-sm)] border border-transparent bg-transparent px-1 py-0.5 text-[15px] font-semibold tracking-tight transition-colors focus:bg-[var(--surface-inset)]"
+                  />
+                </div>
+
+                <textarea
+                  value={movement.purpose}
+                  onChange={(e) => patchMovement(movementIndex, { purpose: e.target.value })}
+                  rows={1}
+                  aria-label={`What movement ${movementIndex + 1} accomplishes`}
+                  className="text-ink-3 hover:border-line-subtle focus:border-line mb-2 field-sizing-content w-full resize-none rounded-[var(--radius-sm)] border border-transparent bg-transparent px-1 py-0.5 text-[12.5px] leading-snug transition-colors focus:bg-[var(--surface-inset)]"
                 />
-                <ol className="space-y-1">
-                  {section.scenes.map((scene, sceneIndex) => (
+
+                <ol className="space-y-1.5">
+                  {movement.moments.map((moment, momentIndex) => (
                     <li
-                      key={sceneIndex}
-                      className="border-line-subtle bg-raised flex items-start gap-3 rounded-[var(--radius-md)] border px-3 py-2.5"
+                      key={momentIndex}
+                      className="border-line-subtle bg-raised rounded-[var(--radius-md)] border px-3 py-2.5"
                     >
-                      <span className="text-ink-3 mt-0.5 shrink-0 rounded bg-[var(--surface-inset)] px-1.5 py-0.5 text-[10px] font-medium">
-                        {ALL_LAYOUTS.find((l) => l.value === scene.layout)?.label ?? scene.layout}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <input
-                          value={scene.title}
-                          onChange={(e) => {
-                            const sections = [...outline.sections];
-                            const scenes = [...section.scenes];
-                            scenes[sceneIndex] = { ...scene, title: e.target.value };
-                            sections[sectionIndex] = { ...section, scenes };
-                            setOutline({ ...outline, sections });
-                          }}
-                          aria-label={`Scene ${sceneIndex + 1} title`}
-                          className="text-ink hover:border-line-subtle focus:border-line w-full rounded-[var(--radius-sm)] border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-medium transition-colors focus:bg-[var(--surface-inset)]"
-                        />
-                        <span className="text-ink-3 mt-0.5 block px-1 text-[11.5px] leading-snug">
-                          {scene.purpose}
-                        </span>
-                      </span>
-                      <button
-                        onClick={() => {
-                          const sections = [...outline.sections];
-                          const scenes = section.scenes.filter((_, i) => i !== sceneIndex);
-                          if (scenes.length === 0) {
-                            setOutline({
-                              ...outline,
-                              sections: sections.filter((_, i) => i !== sectionIndex),
-                            });
-                            return;
+                      <div className="flex items-start gap-2.5">
+                        <select
+                          value={moment.role}
+                          onChange={(e) =>
+                            patchMoment(movementIndex, momentIndex, {
+                              role: e.target
+                                .value as ProposedMap["movements"][number]["moments"][number]["role"],
+                            })
                           }
-                          sections[sectionIndex] = { ...section, scenes };
-                          setOutline({ ...outline, sections });
-                        }}
-                        aria-label={`Remove ${scene.title}`}
-                        className="text-ink-3 hover:text-danger mt-0.5 shrink-0 rounded p-1 transition-colors"
-                      >
-                        ×
-                      </button>
+                          aria-label={`What moment ${momentIndex + 1} does`}
+                          title={ROLE_META[moment.role].plain}
+                          className="border-line text-ink-2 focus:border-accent mt-0.5 shrink-0 rounded-[var(--radius-sm)] border bg-[var(--surface-inset)] px-1.5 py-1 text-[10.5px] font-medium outline-none"
+                        >
+                          {ROLE_ORDER.map((role) => (
+                            <option key={role} value={role}>
+                              {ROLE_META[role].label}
+                            </option>
+                          ))}
+                        </select>
+
+                        <div className="min-w-0 flex-1">
+                          <input
+                            value={moment.title}
+                            onChange={(e) =>
+                              patchMoment(movementIndex, momentIndex, { title: e.target.value })
+                            }
+                            aria-label={`Moment ${momentIndex + 1} title`}
+                            className="text-ink hover:border-line-subtle focus:border-line w-full rounded-[var(--radius-sm)] border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-medium transition-colors focus:bg-[var(--surface-inset)]"
+                          />
+                          <textarea
+                            value={moment.purpose}
+                            onChange={(e) =>
+                              patchMoment(movementIndex, momentIndex, { purpose: e.target.value })
+                            }
+                            rows={1}
+                            aria-label={`Why moment ${momentIndex + 1} exists`}
+                            className="text-ink-3 hover:border-line-subtle focus:border-line mt-0.5 field-sizing-content w-full resize-none rounded-[var(--radius-sm)] border border-transparent bg-transparent px-1 py-0.5 text-[11.5px] leading-snug transition-colors focus:bg-[var(--surface-inset)]"
+                          />
+                          <p className="text-ink-3 mt-1 flex items-start gap-1.5 px-1 text-[11.5px] leading-snug">
+                            <span className="text-ink-3/70 shrink-0">They leave with</span>
+                            <input
+                              value={moment.takeaway}
+                              onChange={(e) =>
+                                patchMoment(movementIndex, momentIndex, {
+                                  takeaway: e.target.value,
+                                })
+                              }
+                              aria-label={`What the audience takes from moment ${momentIndex + 1}`}
+                              className="text-ink-2 hover:border-line-subtle focus:border-line min-w-0 flex-1 rounded-[var(--radius-sm)] border border-transparent bg-transparent px-1 py-0 text-[11.5px] italic transition-colors focus:bg-[var(--surface-inset)]"
+                            />
+                          </p>
+                          {moment.evidenceIds.length > 0 && (
+                            <p className="text-ink-3 mt-1 px-1 text-[11px]">
+                              Grounded by{" "}
+                              {moment.evidenceIds
+                                .map(
+                                  (id) =>
+                                    available.find((item) => item.id === id)?.label ??
+                                    "an unknown source",
+                                )
+                                .join(", ")}
+                            </p>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => removeMoment(movementIndex, momentIndex)}
+                          aria-label={`Remove ${moment.title}`}
+                          className="text-ink-3 hover:text-danger mt-0.5 shrink-0 rounded p-1 transition-colors"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ol>
@@ -456,25 +572,25 @@ function AiPath() {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setStep("prompt")}>
+              <Button variant="ghost" size="sm" onClick={() => setStep("brief")}>
                 <ArrowLeft className="size-3.5" aria-hidden />
                 Change the brief
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void buildOutline()}
-                loading={busy}
-              >
+              <Button variant="secondary" size="sm" onClick={() => void buildMap()} loading={busy}>
                 <RefreshCw className="size-3.5" aria-hidden />
-                Try a different structure
+                Try a different argument
               </Button>
             </div>
             <Button variant="ai" size="lg" onClick={() => void generate()}>
               <Sparkles className="size-4" aria-hidden />
-              Write {totalScenes} scenes
+              Generate {momentCount} scenes
             </Button>
           </div>
+
+          <p className="text-ink-3 text-[11.5px] leading-relaxed">
+            The map is saved with the presentation. You can keep editing it afterwards and
+            regenerate any part of it without losing the rest.
+          </p>
         </motion.div>
       )}
 
@@ -486,10 +602,12 @@ function AiPath() {
           className="flex flex-col items-center justify-center py-20 text-center"
         >
           <Loader2 className="text-ai size-6 animate-spin" aria-hidden />
-          <p className="text-ink mt-4 text-[15px] font-medium">Writing {totalScenes} scenes</p>
+          <p className="text-ink mt-4 text-[15px] font-medium">
+            Writing {momentCount} scenes from your map
+          </p>
           <p className="text-ink-3 mt-1.5 max-w-sm text-[13px] leading-relaxed">
-            Each scene is composed into a designed layout, not just filled with text. This usually
-            takes half a minute.
+            Each scene is composed to do the job its moment describes, in the time it was given.
+            This usually takes half a minute.
           </p>
         </motion.div>
       )}

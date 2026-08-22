@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SceneLayout } from "@/lib/schema/presentation";
+import { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 
 /**
  * Schemas for model output.
@@ -13,31 +14,6 @@ import { SceneLayout } from "@/lib/schema/presentation";
 
 /** Layouts the generator may choose. `custom` is excluded on purpose. */
 export const GeneratedLayout = SceneLayout.exclude(["custom"]);
-
-export const OutlineScene = z.object({
-  title: z.string().min(1).max(120),
-  /** One sentence describing what this scene does for the audience. */
-  purpose: z.string().min(1).max(300),
-  layout: GeneratedLayout,
-});
-
-export const PresentationOutline = z.object({
-  title: z.string().min(1).max(140),
-  subtitle: z.string().max(220).default(""),
-  /** Short justification the user can read before committing to generation. */
-  approach: z.string().max(600).default(""),
-  sections: z
-    .array(
-      z.object({
-        title: z.string().min(1).max(120),
-        scenes: z.array(OutlineScene).min(1).max(14),
-      }),
-    )
-    .min(1)
-    .max(8),
-  suggestedThemeId: z.string().max(64).default("midnight"),
-});
-export type PresentationOutline = z.infer<typeof PresentationOutline>;
 
 /**
  * Scene content.
@@ -94,6 +70,68 @@ export const GeneratedScenes = z.object({
   scenes: z.array(GeneratedScene).min(1).max(24),
 });
 
+/* -------------------------------------------------------------------------- */
+/* The narrative map                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A proposed beat, before anything is written.
+ *
+ * `purpose` and `takeaway` are required and cannot be empty. That is the whole
+ * difference between this and the flat outline it replaces: a beat that cannot
+ * say what it is for and what the room leaves with is not a beat, and the
+ * schema refuses it rather than letting a title stand in for a reason.
+ *
+ * Ids are never proposed. Evidence is named by id from a list the application
+ * supplied, and every one is verified against that list before it is stored —
+ * naming a plausible id is exactly how a model would invent a citation.
+ */
+export const ProposedMoment = z.object({
+  title: z.string().min(1).max(160),
+  role: NarrativeRole,
+  /** Why this beat exists. Specific to the subject, not a generic label. */
+  purpose: z.string().min(1).max(400),
+  /** What the audience should understand, feel, question or remember. */
+  takeaway: z.string().min(1).max(400),
+  visualIntent: VisualIntent.default("auto"),
+  /** Share of the movement's time, relative to its siblings. */
+  weight: z.number().min(0.2).max(5).default(1),
+  evidenceIds: z.array(z.string().max(64)).max(8).default([]),
+});
+export type ProposedMoment = z.infer<typeof ProposedMoment>;
+
+export const ProposedMovement = z.object({
+  label: z.string().min(1).max(24),
+  title: z.string().min(1).max(120),
+  purpose: z.string().min(1).max(400),
+  weight: z.number().min(0.2).max(5).default(1),
+  moments: z.array(ProposedMoment).min(1).max(10),
+});
+export type ProposedMovement = z.infer<typeof ProposedMovement>;
+
+/**
+ * Two movements minimum.
+ *
+ * One movement is a list of beats, not a shape — and the point of planning the
+ * argument is that its parts do different jobs.
+ */
+export const ProposedMap = z.object({
+  title: z.string().min(1).max(140),
+  /** What the argument does and why it is shaped this way. */
+  approach: z.string().max(700).default(""),
+  movements: z.array(ProposedMovement).min(2).max(8),
+  suggestedThemeId: z.string().max(64).default("midnight"),
+});
+export type ProposedMap = z.infer<typeof ProposedMap>;
+
+/** A rewritten proposal for one beat, leaving the rest of the map alone. */
+export const RewrittenMoment = z.object({
+  title: z.string().min(1).max(160),
+  purpose: z.string().min(1).max(400),
+  takeaway: z.string().min(1).max(400),
+});
+export type RewrittenMoment = z.infer<typeof RewrittenMoment>;
+
 export const RewriteResult = z.object({
   /** Several options so the user chooses rather than accepting one answer. */
   options: z.array(z.string().min(1).max(2000)).min(1).max(3),
@@ -140,7 +178,8 @@ export const FlowReview = z.object({
 });
 
 export const AI_KINDS = [
-  "outline",
+  "map",
+  "moment",
   "presentation",
   "scene",
   "scenes",

@@ -29,8 +29,13 @@ import { relativeTime } from "@/lib/utils/format";
  * Global editor controls. Deliberately thin: title, save state, history,
  * the panels, and Present. Everything else is contextual.
  */
-/** Which half of the job the editor is showing. */
-export type EditorView = "scene" | "journey";
+/**
+ * Which part of the job the editor is showing.
+ *
+ * Narrative first, deliberately: what you are going to say is a bigger
+ * decision than how any one scene looks, and the order of the control says so.
+ */
+export type EditorView = "narrative" | "scene" | "journey";
 
 export function EditorTopBar({
   presentationId,
@@ -102,6 +107,7 @@ export function EditorTopBar({
         value={view}
         onChange={onViewChange}
         options={[
+          { value: "narrative", label: "Narrative" },
           { value: "scene", label: "Scene" },
           { value: "journey", label: "Journey" },
         ]}

@@ -37,31 +37,56 @@ Swapping providers means reimplementing that one function.
 
 ## Capabilities
 
-| Route              | Schema                | Notes                                                  |
-| ------------------ | --------------------- | ------------------------------------------------------ |
-| `/api/ai/outline`  | `PresentationOutline` | Structure only. Nothing is created yet                 |
-| `/api/ai/generate` | `GeneratedScenes`     | Writes an approved outline into a real deck            |
-| `/api/ai/scene`    | `GeneratedScene`      | One scene, inserted where the user chooses             |
-| `/api/ai/rewrite`  | `RewriteResult`       | Rewrite, shorten, expand, simplify, tone, alternatives |
-| `/api/ai/notes`    | `SpeakerNotesResult`  | Reads the scene from the database, not the request     |
-| `/api/ai/visuals`  | `VisualSuggestion`    | Describes what a picture should show                   |
-| `/api/ai/status`   | —                     | Whether a model is configured, so the UI can be honest |
+| Route                     | Schema               | Notes                                                  |
+| ------------------------- | -------------------- | ------------------------------------------------------ |
+| `/api/ai/map`             | `ProposedMap`        | The argument. Nothing is created yet                   |
+| `/api/ai/create-from-map` | `GeneratedScenes`    | An accepted map → a presentation, map stored first     |
+| `/api/ai/scenes-from-map` | `GeneratedScenes`    | Regenerates scenes for an existing presentation's map  |
+| `/api/ai/moment`          | `RewrittenMoment`    | Rewrites one beat. Nothing else in the map is touched  |
+| `/api/ai/evidence`        | —                    | What this user can ground a claim in, read server-side |
+| `/api/ai/scene`           | `GeneratedScene`     | One scene, inserted where the user chooses             |
+| `/api/ai/rewrite`         | `RewriteResult`      | Rewrite, shorten, expand, simplify, tone, alternatives |
+| `/api/ai/notes`           | `SpeakerNotesResult` | Reads the scene from the database, not the request     |
+| `/api/ai/visuals`         | `VisualSuggestion`   | Describes what a picture should show                   |
+| `/api/ai/status`          | —                    | Whether a model is configured, so the UI can be honest |
 
 ---
 
-## Outline first
+## Map first
 
-The AI path stops at an outline the user can read, edit line by line, delete
-scenes from, and regenerate — before a single scene is written.
+The AI path stops at a **narrative map** — what each movement and moment has to
+accomplish — which the user reads, edits and regenerates before a single scene
+exists. It replaced a flat title/purpose/layout outline, and the difference is
+not cosmetic: every moment must state why it exists and what the audience
+leaves with, and `ProposedMoment` refuses an empty one. A beat that cannot say
+what it is for is not a beat.
 
-Reviewing twelve lines takes fifteen seconds. Discovering a bad structure after
-forty scenes have been generated costs far more, in tokens and in the user's
-patience. The outline is also where the user picks the theme.
+Reviewing an argument takes a minute. Discovering a bad argument after forty
+scenes have been written costs far more, in tokens and in the user's patience.
+The map is also where the user picks the theme.
 
-Generation then writes scenes into a real deck one at a time, so a failure
-part-way through leaves a usable partial deck rather than nothing. The outline's
-length wins over the model's: scenes are padded or trimmed to match exactly the
-structure the user approved.
+Unlike the outline, the map is **not thrown away after generation**. It is
+stored, it is what scenes are generated from, and it is a first-class editor
+view the author comes back to. Regenerating a presentation regenerates it from
+the map rather than from the prompt.
+
+Three things the application owns and never delegates to a prompt:
+
+- **Ids.** A proposal has none. `draftFromProposal` assigns them, and a
+  regeneration merges into the existing map by reusing a movement's id where
+  its short label is unchanged — so scenes filed under it survive.
+- **Evidence.** A model may only cite ids from a list read server-side from
+  what the user actually owns. Anything else is dropped and the count of what
+  was dropped is reported. This is what stops a fabricated citation entering
+  the document by way of a plausible-looking id.
+- **Time.** Proposals carry weights, not seconds. `distributeSeconds`
+  distributes the requested running time across them twice — movements, then
+  moments within each — so a template's proportions hold at any length and the
+  totals add up exactly.
+
+`/api/ai/create-from-map` writes the map before it writes any scene, so a
+failed generation leaves an author with their argument intact and a map view to
+generate from — rather than nothing.
 
 ---
 

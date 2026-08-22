@@ -2,11 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   GeneratedScene,
   GeneratedScenes,
-  PresentationOutline,
+  ProposedMap,
   RewriteResult,
   REWRITE_LABELS,
 } from "@/lib/ai/schemas";
-import { fallbackOutline, fallbackRewrite, fallbackScene } from "@/lib/ai/fallback";
+import {
+  deriveTitle,
+  fallbackRewrite,
+  fallbackScene,
+  keywords,
+  subjectOf,
+} from "@/lib/ai/fallback";
+import { fallbackMap } from "@/lib/ai/narrative-fallback";
+import { layoutFor } from "@/lib/narrative/generate";
 import { composeScene } from "@/lib/editor/layouts";
 import { SceneContent } from "@/lib/schema/presentation";
 
@@ -69,35 +77,93 @@ describe("generated scene schema", () => {
   });
 });
 
-describe("outline schema", () => {
-  const outline = {
+describe("proposed map schema", () => {
+  const proposal = {
     title: "Shock",
-    sections: [
-      { title: "Opening", scenes: [{ title: "Title", purpose: "Set up", layout: "title" }] },
+    movements: [
+      {
+        label: "OPEN",
+        title: "Why this matters",
+        purpose: "Earn attention.",
+        moments: [
+          {
+            title: "The call",
+            role: "hook",
+            purpose: "Start where they live.",
+            takeaway: "This is my job.",
+          },
+        ],
+      },
+      {
+        label: "PROVE",
+        title: "Why believe it",
+        purpose: "Ground the claim.",
+        moments: [
+          {
+            title: "The data",
+            role: "evidence",
+            purpose: "Show the support.",
+            takeaway: "The claim holds.",
+          },
+        ],
+      },
     ],
   };
 
-  it("accepts a minimal outline and defaults the theme", () => {
-    const parsed = PresentationOutline.parse(outline);
+  it("accepts a minimal proposal and fills its defaults", () => {
+    const parsed = ProposedMap.parse(proposal);
     expect(parsed.suggestedThemeId).toBe("midnight");
-    expect(parsed.subtitle).toBe("");
+    expect(parsed.movements[0].weight).toBe(1);
+    expect(parsed.movements[0].moments[0].visualIntent).toBe("auto");
+    expect(parsed.movements[0].moments[0].evidenceIds).toEqual([]);
   });
 
-  it("rejects an outline with no sections", () => {
-    expect(PresentationOutline.safeParse({ ...outline, sections: [] }).success).toBe(false);
+  it("refuses a one-movement argument", () => {
+    // A single movement is a list of beats, not a shape. The point of the map
+    // is that the argument has parts that do different jobs.
+    const one = { ...proposal, movements: [proposal.movements[0]] };
+    expect(ProposedMap.safeParse(one).success).toBe(false);
   });
 
-  it("rejects a section with no scenes", () => {
-    const result = PresentationOutline.safeParse({
-      ...outline,
-      sections: [{ title: "Empty", scenes: [] }],
-    });
-    expect(result.success).toBe(false);
+  it("rejects a movement with no moments", () => {
+    const empty = {
+      ...proposal,
+      movements: [{ ...proposal.movements[0], moments: [] }, proposal.movements[1]],
+    };
+    expect(ProposedMap.safeParse(empty).success).toBe(false);
   });
 
-  it("caps sections and scenes per section", () => {
-    const many = Array.from({ length: 9 }, () => outline.sections[0]);
-    expect(PresentationOutline.safeParse({ ...outline, sections: many }).success).toBe(false);
+  it("requires a purpose and a takeaway on every moment", () => {
+    // These two fields are the whole difference between a map and an outline.
+    for (const field of ["purpose", "takeaway"]) {
+      const stripped = structuredClone(proposal) as typeof proposal;
+      const moment = stripped.movements[0].moments[0] as Record<string, unknown>;
+      moment[field] = "";
+      expect(ProposedMap.safeParse(stripped).success, field).toBe(false);
+    }
+  });
+
+  it("caps movements and moments per movement", () => {
+    const many = Array.from({ length: 9 }, () => proposal.movements[0]);
+    expect(ProposedMap.safeParse({ ...proposal, movements: many }).success).toBe(false);
+
+    const crowded = {
+      ...proposal,
+      movements: [
+        {
+          ...proposal.movements[0],
+          moments: Array.from({ length: 11 }, () => proposal.movements[0].moments[0]),
+        },
+        proposal.movements[1],
+      ],
+    };
+    expect(ProposedMap.safeParse(crowded).success).toBe(false);
+  });
+
+  it("refuses an invented role", () => {
+    const bogus = structuredClone(proposal) as typeof proposal;
+    (bogus.movements[0].moments[0] as Record<string, unknown>).role = "razzle";
+    expect(ProposedMap.safeParse(bogus).success).toBe(false);
   });
 });
 
@@ -118,52 +184,48 @@ describe("rewrite schema", () => {
 
 describe("deterministic fallback", () => {
   it("derives a sensible title from a prompt", () => {
-    const outline = fallbackOutline(
+    const title = deriveTitle(
       "Create a presentation about recognising compensated shock in paediatric patients",
-      10,
     );
-    expect(outline.title.toLowerCase()).toContain("recognising");
-    expect(outline.title.toLowerCase()).not.toContain("create a presentation");
+    expect(title.toLowerCase()).toContain("recognising");
+    expect(title.toLowerCase()).not.toContain("create a presentation");
   });
 
-  it("produces an outline that satisfies the real schema", () => {
-    const outline = fallbackOutline("Teach the basics of capnography", 12);
-    expect(PresentationOutline.safeParse(outline).success).toBe(true);
+  it("produces a map that satisfies the real schema", () => {
+    const map = fallbackMap("Teach the basics of capnography", "Capnography", "capnography");
+    expect(ProposedMap.safeParse(map).success).toBe(true);
   });
 
-  it("varies layouts rather than emitting a wall of bullet slides", () => {
-    const outline = fallbackOutline("A talk about six different mechanisms", 12);
-    const layouts = outline.sections.flatMap((s) => s.scenes.map((sc) => sc.layout));
+  it("varies compositions rather than emitting a wall of bullet scenes", () => {
+    const map = fallbackMap("A lecture on six different mechanisms", "Mechanisms", null);
+    const layouts = map.movements
+      .flatMap((movement) => movement.moments)
+      .map((moment, index) => layoutFor(moment.visualIntent, moment.role, index));
     expect(new Set(layouts).size).toBeGreaterThan(2);
   });
 
-  it("respects the requested scene count approximately", () => {
-    for (const target of [4, 8, 16, 24]) {
-      const outline = fallbackOutline("Any topic at all", target);
-      const count = outline.sections.reduce((n, s) => n + s.scenes.length, 0);
-      expect(count).toBeGreaterThanOrEqual(4);
-      expect(count).toBeLessThanOrEqual(24);
-    }
-  });
-
   it("produces scenes that compose into valid scene content", () => {
-    const outline = fallbackOutline("Airway management", 10);
-    for (const section of outline.sections) {
-      for (const scene of section.scenes) {
-        const generated = fallbackScene(scene, { title: outline.title, prompt: "" });
-        expect(GeneratedScene.safeParse(generated).success, scene.layout).toBe(true);
+    const map = fallbackMap("Airway management", "Airway management", "airway");
+    const beats = map.movements.flatMap((movement) => movement.moments);
 
-        const content = composeScene(generated.layout, {
-          heading: generated.heading || undefined,
-          bullets: generated.bullets.length ? generated.bullets : undefined,
-          quote: generated.quote || undefined,
-          cards: generated.cards.length ? generated.cards : undefined,
-          chart: generated.chart ?? undefined,
-          code: generated.code ?? undefined,
-        });
-        expect(SceneContent.safeParse(content).success, scene.layout).toBe(true);
-      }
-    }
+    beats.forEach((beat, index) => {
+      const layout = layoutFor(beat.visualIntent, beat.role, index);
+      const generated = fallbackScene(
+        { title: beat.title, purpose: beat.purpose, layout },
+        { title: map.title, prompt: "" },
+      );
+      expect(GeneratedScene.safeParse(generated).success, layout).toBe(true);
+
+      const content = composeScene(generated.layout, {
+        heading: generated.heading || undefined,
+        bullets: generated.bullets.length ? generated.bullets : undefined,
+        quote: generated.quote || undefined,
+        cards: generated.cards.length ? generated.cards : undefined,
+        chart: generated.chart ?? undefined,
+        code: generated.code ?? undefined,
+      });
+      expect(SceneContent.safeParse(content).success, layout).toBe(true);
+    });
   });
 
   it("shortens text without inventing content", () => {
@@ -186,8 +248,7 @@ describe("deterministic fallback", () => {
   });
 
   it("handles an empty prompt without throwing", () => {
-    const outline = fallbackOutline("", 8);
-    expect(PresentationOutline.safeParse(outline).success).toBe(true);
+    expect(ProposedMap.safeParse(fallbackMap("", "Untitled", null)).success).toBe(true);
   });
 });
 
@@ -204,7 +265,7 @@ describe("fallback title derivation", () => {
     ["Make me a deck on capnography waveforms", /capnography waveforms/i],
     ["I need slides covering the sepsis six", /sepsis six/i],
   ])("extracts the subject from %j", (prompt, expected) => {
-    const { title } = fallbackOutline(prompt, 10);
+    const title = deriveTitle(prompt);
     expect(title).toMatch(expected);
     // The framing words are not the subject.
     expect(title.toLowerCase()).not.toMatch(/^(create|make|a \d+-minute|i need)/);
@@ -216,12 +277,15 @@ describe("fallback title derivation", () => {
     expect(title).not.toMatch(/[.,;:]$/);
   });
 
-  it("gives every scene a title a human would recognise as a scene", () => {
-    const { sections } = fallbackOutline(
+  it("gives every moment a title a human would recognise as a beat", () => {
+    const map = fallbackMap(
       "A 50-minute lecture on recognising and managing compensated shock",
-      12,
+      "Compensated shock",
+      "shock",
     );
-    const titles = sections.flatMap((s) => s.scenes.map((sc) => sc.title));
+    const titles = map.movements.flatMap((movement) =>
+      movement.moments.map((moment) => moment.title),
+    );
 
     for (const title of titles) {
       // Not a stray fragment lifted out of the prompt.
@@ -234,7 +298,53 @@ describe("fallback title derivation", () => {
 
   it("never returns an empty title", () => {
     for (const prompt of ["", "   ", "a", "make me a presentation"]) {
-      expect(fallbackOutline(prompt, 8).title.length).toBeGreaterThan(0);
+      expect(deriveTitle(prompt).length, JSON.stringify(prompt)).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("subject extraction", () => {
+  it("never treats a duration as the subject", () => {
+    // "Focus on 45-minute." appeared in every movement purpose: a measurement
+    // ties on frequency with every other word and wins the alphabetical
+    // tie-break, so it was always the top keyword.
+    for (const prompt of [
+      "A 45-minute lecture on recognising compensated shock in paediatric patients",
+      "90 minute workshop about capnography",
+      "A 2-hour session on the sepsis six",
+    ]) {
+      const [top] = keywords(prompt, 1);
+      expect(top, prompt).toBeDefined();
+      expect(top, prompt).not.toMatch(/\d/);
+    }
+  });
+
+  it("finds the actual subject", () => {
+    expect(keywords("A 45-minute lecture on capnography waveforms", 2)).toContain("capnography");
+  });
+
+  it("names a subject only when the author repeated it", () => {
+    // In a one-line brief nothing repeats, so the "top" keyword is whatever
+    // wins an alphabetical tie-break. That produced "Focus on compensated."
+    // in every movement purpose of a lecture about compensated shock.
+    expect(subjectOf("A 45-minute lecture on recognising compensated shock")).toBeNull();
+    expect(
+      subjectOf("Sepsis recognition for paramedics. Cover sepsis screening and sepsis bundles."),
+    ).toBe("sepsis");
+  });
+
+  it("weaves a real subject into the map's purposes, never a measurement", () => {
+    const prompt = "Sepsis recognition for paramedics. Cover sepsis screening and sepsis bundles.";
+    const map = fallbackMap(prompt, "Sepsis recognition", subjectOf(prompt));
+    for (const movement of map.movements) {
+      expect(movement.purpose).toContain("sepsis");
+      expect(movement.purpose).not.toMatch(/\d/);
+    }
+  });
+
+  it("leaves the purposes alone when there is no confident subject", () => {
+    const prompt = "A 45-minute lecture on recognising compensated shock";
+    const map = fallbackMap(prompt, "Compensated shock", subjectOf(prompt));
+    for (const movement of map.movements) expect(movement.purpose).not.toMatch(/Focus on/);
   });
 });

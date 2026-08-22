@@ -458,3 +458,155 @@ test.describe("authoring and presenting", () => {
     await expect(palette).toBeHidden();
   });
 });
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The narrative map.
+ *
+ * The map is the contract scene generation works from, so these cover the two
+ * things that would make it worthless: edits that do not survive a reload, and
+ * a presentation made before the map existed that cannot open one.
+ */
+test.describe("the narrative map", () => {
+  let mapDeck = "";
+
+  /**
+   * The map, scoped as a region.
+   *
+   * The scene navigator beside it has its own "Actions for…" buttons, and an
+   * unscoped selector picks those instead — which is how a screenshot meant to
+   * show the moment menu came back showing "Delete section".
+   */
+  function mapRegion(page: Page) {
+    return page.getByRole("region", { name: "Narrative map" });
+  }
+
+  async function openMap(page: Page, url: string) {
+    await page.goto(url);
+    await page.waitForSelector("[data-stage]");
+    await page.getByRole("radio", { name: /Narrative/i }).click();
+    await expect(page.getByRole("heading", { name: "Narrative map" })).toBeVisible();
+    return mapRegion(page);
+  }
+
+  /** Reloads and returns the map again, which is the whole point of these. */
+  async function reopenMap(page: Page) {
+    await page.reload();
+    await page.waitForSelector("[data-stage]");
+    await page.getByRole("radio", { name: /Narrative/i }).click();
+    await expect(page.getByRole("heading", { name: "Narrative map" })).toBeVisible();
+    return mapRegion(page);
+  }
+
+  /**
+   * Saves explicitly rather than waiting on the debounce.
+   *
+   * The indicator already reads "saved" from before the edit, so waiting for
+   * that text proves nothing and the reload can beat the write.
+   */
+  async function save(page: Page) {
+    await page.keyboard.press("Control+s");
+    await page.waitForTimeout(1500);
+  }
+
+  test("a template arrives with a real argument, not an empty page", async ({ page }) => {
+    await signIn(page);
+    mapDeck = await createLectureDeck(page);
+    const map = await openMap(page, mapDeck);
+
+    // Every moment states what it is for and what the room leaves with. That
+    // is the whole difference between this and the outline it replaced.
+    const purposes = map.getByRole("textbox", { name: /Why this moment exists/i });
+    expect(await purposes.count()).toBeGreaterThan(0);
+    await expect(purposes.first()).not.toHaveValue("");
+    await expect(
+      map.getByRole("textbox", { name: /What the audience takes away/i }).first(),
+    ).not.toHaveValue("");
+  });
+
+  test("keeps an edited moment after a reload", async ({ page }) => {
+    // The section-rename defect, on a surface with ten times the fields: the
+    // store changed, autosave never looked, and the edit was gone on reload.
+    const marker = `Recognising it early ${Date.now()}`;
+    await signIn(page);
+    const map = await openMap(page, mapDeck);
+
+    await map.getByRole("textbox", { name: "Moment title" }).first().fill(marker);
+    await map
+      .getByRole("textbox", { name: /Why this moment exists/i })
+      .first()
+      .fill("Because the signs appear before the numbers do.");
+    await save(page);
+
+    const after = await reopenMap(page);
+    await expect(after.getByRole("textbox", { name: "Moment title" }).first()).toHaveValue(marker);
+    await expect(
+      after.getByRole("textbox", { name: /Why this moment exists/i }).first(),
+    ).toHaveValue("Because the signs appear before the numbers do.");
+  });
+
+  test("keeps an added moment after a reload", async ({ page }) => {
+    await signIn(page);
+    const map = await openMap(page, mapDeck);
+
+    const before = await map.getByRole("textbox", { name: "Moment title" }).count();
+    await map
+      .getByRole("button", { name: /Add a moment to/i })
+      .first()
+      .click();
+    await map
+      .getByRole("textbox", { name: "Moment title" })
+      .nth(before)
+      .fill("A case worth walking through");
+    await save(page);
+
+    const after = await reopenMap(page);
+    await expect(after.getByRole("textbox", { name: "Moment title" })).toHaveCount(before + 1);
+    await expect(after.getByRole("textbox", { name: "Moment title" }).nth(before)).toHaveValue(
+      "A case worth walking through",
+    );
+  });
+
+  test("a deleted moment stays deleted", async ({ page }) => {
+    await signIn(page);
+    const map = await openMap(page, mapDeck);
+
+    const before = await map.getByRole("textbox", { name: "Moment title" }).count();
+    await map
+      .getByRole("button", { name: /^Actions for the moment/i })
+      .first()
+      .click();
+    await page.getByRole("button", { name: "Delete moment" }).click();
+    await save(page);
+
+    const after = await reopenMap(page);
+    await expect(after.getByRole("textbox", { name: "Moment title" })).toHaveCount(before - 1);
+  });
+
+  test("warns when the map outruns the planned length, and never blocks", async ({ page }) => {
+    await signIn(page);
+    const map = await openMap(page, mapDeck);
+
+    // One minute against a map of several moments is comfortably over.
+    await map.getByRole("spinbutton", { name: /Planned running time/i }).fill("1");
+
+    const warning = map.getByText(/runs about .* longer than/i);
+    await expect(warning).toBeVisible();
+
+    // A warning, not a gate: generation stays available.
+    await expect(map.getByRole("button", { name: /Generate scenes/i })).toBeEnabled();
+
+    await map.getByRole("button", { name: /Rescale to/i }).click();
+    await expect(warning).toBeHidden();
+  });
+
+  test("a presentation made before the map existed still opens one", async ({ page }) => {
+    // Derived from its scenes, deterministically, without writing anything.
+    await signIn(page);
+    const blank = await createDeck(page, `Pre-map deck ${Date.now()}`);
+    const map = await openMap(page, blank);
+
+    await expect(map.getByRole("textbox", { name: "Moment title" }).first()).toBeVisible();
+  });
+});

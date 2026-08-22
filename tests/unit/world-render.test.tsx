@@ -42,6 +42,7 @@ function makeScenes(count: number): Scene[] {
     title: `Scene ${i + 1}`,
     content: composeScene("statement", { heading: `Heading number ${i + 1}` }),
     placement: null,
+    momentId: null,
     speakerNotes: "",
     durationSeconds: null,
     createdAt: "2026-01-01T00:00:00Z",

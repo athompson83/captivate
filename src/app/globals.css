@@ -156,8 +156,17 @@
   --color-danger-soft: var(--danger-soft);
 }
 
-* {
-  border-color: var(--border-subtle);
+/**
+ * A sensible default border colour for anything that draws one without saying
+ * which. In `@layer base` deliberately: unlayered, this rule outranks every
+ * Tailwind border utility including `border-transparent`, which is how the
+ * narrative map's in-place fields ended up drawing a box around every line of
+ * an argument that is meant to read as prose.
+ */
+@layer base {
+  * {
+    border-color: var(--border-subtle);
+  }
 }
 
 html,
