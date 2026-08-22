@@ -182,9 +182,11 @@ const FRAGMENT = /* glsl */ `
       canvasSum += uCanvas[i] * w;
       weightSum += w;
 
-      // The accent hugs its region much more tightly than the canvas does: it
-      // is the light a region throws, not the colour of the room.
-      float wa = 1.0 / (0.04 + d2 * d2 * 9.0);
+      // The accent reaches less far than the canvas colour: it is the light a
+      // region throws, not the colour of the room. Quadratic rather than
+      // quartic — a quartic falloff made each region a discrete lump of colour
+      // hanging in space, which is a rectangle by another name.
+      float wa = 1.0 / (0.35 + d2 * 2.5);
       accentSum += uAccent[i] * wa;
       accentSum_w += wa;
     }
@@ -192,9 +194,9 @@ const FRAGMENT = /* glsl */ `
     vec3 air = weightSum > 0.0 ? canvasSum / weightSum : uBaseCanvas;
     vec3 glow = accentSum_w > 0.0 ? accentSum / accentSum_w : uBaseAccent;
 
-    // How present the glow is, rather than what colour it is. Saturates, so a
-    // dense cluster of regions does not blow out.
-    float glowAmount = accentSum_w / (accentSum_w + 2.2);
+    // How present the glow is, rather than what colour it is. Saturates late,
+    // so a dense cluster of regions does not blow out.
+    float glowAmount = accentSum_w / (accentSum_w + 6.0);
 
     // Depth. Two layers at different scales drifting at different rates, in
     // world space so they are anchored to the place rather than to the screen,
@@ -209,7 +211,12 @@ const FRAGMENT = /* glsl */ `
     air.x += (field - 0.5) * 0.05 * uDepth;
 
     // Regions bloom into the air around them, in their own accent.
-    air = mix(air, mix(air, glow, 0.42), glowAmount * (0.34 + field * 0.22));
+    //
+    // The ceiling here is low on purpose. At 0.42 this was not a bloom, it was
+    // a repaint: standing on a midnight region rendered the room mid-grey when
+    // midnight's own canvas is very nearly black. The colour of the room is
+    // the theme's; the accent is a suggestion of light on top of it.
+    air = mix(air, glow, glowAmount * (0.09 + field * 0.05));
 
     // A vignette pulls the eye to the middle of the frame, which is where the
     // camera has just put the thing worth looking at.
@@ -217,7 +224,17 @@ const FRAGMENT = /* glsl */ `
     float vignette = 1.0 - dot(centred, centred) * 0.55;
     air.x *= vignette;
 
-    gl_FragColor = vec4(linearToSrgb(oklabToLinear(air)), 1.0);
+    vec3 srgb = linearToSrgb(oklabToLinear(air));
+
+    // Dither, at the very end.
+    //
+    // Everything above is a gradient with no edge in it, and an 8-bit
+    // framebuffer cannot hold one: the noise field was quantising into
+    // terraced contour lines that read exactly like a topographic map. A
+    // sub-quantum of noise per pixel breaks the steps and costs nothing.
+    srgb += (hash(fragment) - 0.5) / 255.0;
+
+    gl_FragColor = vec4(srgb, 1.0);
   }
 `;
 
