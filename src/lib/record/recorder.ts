@@ -19,7 +19,12 @@
  */
 
 import { sharedPersonSegmenter, type CameraBackground, type PersonSegmenter } from "@/lib/media/segmentation";
-import { LiveTranscriber, transcriptSupported, type TranscriptCue } from "@/lib/record/transcript";
+import {
+  LiveTranscriber,
+  clampCues,
+  transcriptSupported,
+  type TranscriptCue,
+} from "@/lib/record/transcript";
 
 export type RecorderPhase =
   "idle" | "requesting" | "ready" | "recording" | "paused" | "stopping" | "complete" | "error";
@@ -411,15 +416,18 @@ export class PresentationRecorder {
     const durationMs = this.elapsedMs;
     const mimeType = this.support.mimeType ?? "video/webm";
 
+    // The transcriber stops before the encoder is awaited: a final result
+    // arriving during finalisation would be stamped past `durationMs` and
+    // seek beyond the video. The clamp guarantees the invariant either way.
+    const transcript = clampCues(this.transcriber?.stop() ?? [], durationMs);
+    this.transcriber = null;
+
     const blob = await new Promise<Blob>((resolve) => {
       const recorder = this.recorder!;
       recorder.onstop = () => resolve(new Blob(this.chunks, { type: mimeType }));
       if (recorder.state !== "inactive") recorder.stop();
       else resolve(new Blob(this.chunks, { type: mimeType }));
     });
-
-    const transcript = this.transcriber?.stop() ?? [];
-    this.transcriber = null;
 
     const result: RecorderResult = {
       blob,

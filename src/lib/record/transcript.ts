@@ -91,6 +91,21 @@ export function toWebVTT(cues: TranscriptCue[]): string {
   return `WEBVTT\n\n${body}\n`;
 }
 
+/**
+ * Clamps cues to the recording's real duration. Recognition can deliver one
+ * last result while the recorder is finalising, and a cue that outlives the
+ * video would let the transcript seek past the last frame.
+ */
+export function clampCues(cues: TranscriptCue[], durationMs: number): TranscriptCue[] {
+  const result: TranscriptCue[] = [];
+  for (const cue of cues) {
+    if (cue.startMs >= durationMs) continue;
+    const endMs = Math.min(cue.endMs, durationMs);
+    if (endMs > cue.startMs) result.push({ ...cue, endMs });
+  }
+  return result;
+}
+
 /** The cue under the playhead, or null between cues. */
 export function cueAt(cues: TranscriptCue[], atMs: number): TranscriptCue | null {
   for (const cue of cues) {

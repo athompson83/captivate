@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  clampCues,
   cueAt,
   cueFromFinalResult,
   parseCues,
@@ -110,6 +111,28 @@ describe("parseCues", () => {
   it("returns empty for non-arrays", () => {
     expect(parseCues({})).toEqual([]);
     expect(parseCues(null)).toEqual([]);
+  });
+});
+
+describe("clampCues", () => {
+  it("clamps a cue that outlives the recording to its end", () => {
+    // The race this guards: recognition delivers one last result while the
+    // encoder is finalising, stamped after durationMs was captured.
+    const cues = clampCues([{ startMs: 9_000, endMs: 11_000, text: "late" }], 10_000);
+    expect(cues).toEqual([{ startMs: 9_000, endMs: 10_000, text: "late" }]);
+  });
+
+  it("drops a cue that starts after the recording ended", () => {
+    expect(clampCues([{ startMs: 10_500, endMs: 11_000, text: "ghost" }], 10_000)).toEqual([]);
+  });
+
+  it("drops a cue clamped to nothing", () => {
+    expect(clampCues([{ startMs: 10_000, endMs: 12_000, text: "edge" }], 10_000)).toEqual([]);
+  });
+
+  it("leaves in-range cues untouched", () => {
+    const cues = [{ startMs: 0, endMs: 1_000, text: "fine" }];
+    expect(clampCues(cues, 10_000)).toEqual(cues);
   });
 });
 
