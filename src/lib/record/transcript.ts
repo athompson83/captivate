@@ -189,6 +189,8 @@ export class LiveTranscriber {
   private interim = "";
   private lastFinalAt = 0;
   private running = false;
+  /** True once the engine has ended and no restart will revive it. */
+  private engineEnded = false;
   private clock: () => number = () => 0;
   private audioTrack: MediaStreamTrack | null = null;
 
@@ -205,6 +207,7 @@ export class LiveTranscriber {
     this.interim = "";
     this.lastFinalAt = 0;
     this.running = true;
+    this.engineEnded = false;
 
     const recognition = new Ctor();
     recognition.continuous = true;
@@ -240,7 +243,11 @@ export class LiveTranscriber {
           this.begin(recognition);
         } catch {
           this.running = false;
+          this.engineEnded = true;
         }
+      } else {
+        // Suspended: the engine has finished finalising and gone quiet.
+        this.engineEnded = true;
       }
     };
 
@@ -289,6 +296,7 @@ export class LiveTranscriber {
   resume(): void {
     if (this.running || !this.recognition) return;
     this.running = true;
+    this.engineEnded = false;
     try {
       this.begin(this.recognition);
     } catch {
@@ -318,6 +326,19 @@ export class LiveTranscriber {
     this.recognition = null;
     if (!recognition) return this.cues;
 
+    // A suspend that has fully finished leaves nothing to wait for — but a
+    // suspend still finalising must be waited out, or the phrase it is
+    // finalising is persisted-past rather than kept.
+    if (this.engineEnded) {
+      recognition.onend = null;
+      try {
+        recognition.abort();
+      } catch {
+        // Already gone.
+      }
+      return this.cues;
+    }
+
     const ended = new Promise<void>((resolve) => {
       recognition.onend = () => resolve();
     });
@@ -325,9 +346,8 @@ export class LiveTranscriber {
     try {
       recognition.stop();
     } catch {
-      // Engine already stopped; nothing left to finalise.
-      recognition.onend = null;
-      return this.cues;
+      // A prior suspend already requested finalisation; its onend still
+      // resolves the wait below, so fall through rather than returning early.
     }
 
     await Promise.race([

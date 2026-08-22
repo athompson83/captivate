@@ -171,7 +171,13 @@ class FakeRecognition {
     this.onresult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: text } }] });
   }
 
+  private stopping = false;
+
   stop(): void {
+    // Real engines throw when stop is requested twice — the second request
+    // arrives while the first is still finalising.
+    if (this.stopping) throw new Error("InvalidStateError");
+    this.stopping = true;
     // The engine finalises the in-flight phrase, then ends — asynchronously,
     // as the real service does.
     queueMicrotask(() => {
@@ -207,6 +213,37 @@ describe("LiveTranscriber with a fake engine", () => {
 
     const cues = await transcriber.stop();
     expect(cues.map((cue) => cue.text)).toEqual(["spoken mid take", "the very last words"]);
+  });
+
+  it("keeps a phrase a pause was still finalising when stop follows at once", async () => {
+    // The race: suspend() has requested finalisation, its final result is in
+    // flight, and the presenter clicks stop before it lands. The second stop
+    // request throws — the wait must survive that and keep the words.
+    let clock = 4_000;
+    const transcriber = new LiveTranscriber();
+    transcriber.start(() => clock);
+
+    const engine = FakeRecognition.instances[0];
+    engine.pendingFinal = "words the pause was finalising";
+    clock = 8_000;
+    transcriber.suspend();
+
+    const cues = await transcriber.stop();
+    expect(cues.map((cue) => cue.text)).toEqual(["words the pause was finalising"]);
+  });
+
+  it("returns at once when a suspend has already fully finished", async () => {
+    const transcriber = new LiveTranscriber();
+    transcriber.start(() => 2_000);
+    const engine = FakeRecognition.instances[0];
+    transcriber.suspend();
+    // Let the engine's finalisation and onend complete.
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    const cues = await transcriber.stop();
+    expect(cues).toEqual([]);
+    expect(engine.aborted).toBe(true);
   });
 
   it("stops listening after stop() resolves", async () => {
