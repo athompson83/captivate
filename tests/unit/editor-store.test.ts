@@ -100,6 +100,34 @@ describe("mutations mark work dirty", () => {
     expect(state.dirtyPresentation).toBe(true);
     expect(state.dirtyScenes.size).toBe(0);
   });
+
+  it("marks an undone journey change dirty so the revert is written", () => {
+    // Autosave writes `journey` and `targetSeconds`, but the undo/redo diff
+    // did not look at either — so reverting an arrangement or a running time
+    // updated the store, looked right, and was gone on reload. Exactly the
+    // shape of the section-rename and moment-edit losses before it.
+    const before = useEditor.getState().document.presentation.journey.arrangement;
+    updatePresentationMeta(
+      { journey: { ...useEditor.getState().document.presentation.journey, arrangement: "spiral" } },
+      { label: "Arrange" },
+    );
+    useEditor.getState().markPresentationSaved();
+    expect(useEditor.getState().dirtyPresentation).toBe(false);
+
+    useEditor.getState().undo();
+
+    expect(useEditor.getState().document.presentation.journey.arrangement).toBe(before);
+    expect(useEditor.getState().dirtyPresentation).toBe(true);
+  });
+
+  it("marks an undone target-duration change dirty too", () => {
+    updatePresentationMeta({ targetSeconds: 2700 }, { label: "Set running time" });
+    useEditor.getState().markPresentationSaved();
+
+    useEditor.getState().undo();
+
+    expect(useEditor.getState().dirtyPresentation).toBe(true);
+  });
 });
 
 describe("save acknowledgement is revision-guarded", () => {

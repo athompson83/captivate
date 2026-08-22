@@ -87,12 +87,12 @@ export default defineConfig({
       },
     },
     {
-      // The component's lifecycle, in a browser that really has WebGL. Bundles
-      // `src/components/stage/atmosphere.tsx` itself and mounts it under
-      // StrictMode, which is the only thing that unmounts and mounts again on
-      // one canvas — the condition the white-sheet defect needed.
+      // Real components, bundled from source and mounted in a real browser,
+      // for the defects that only exist there: the atmosphere's WebGL context
+      // across a StrictMode remount, and a contentEditable's caret across a
+      // store write. Neither needs a server or an account.
       name: "lifecycle",
-      testMatch: /atmosphere-lifecycle\.spec\.ts/,
+      testMatch: /(atmosphere-lifecycle|inline-editing)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         launchOptions: {

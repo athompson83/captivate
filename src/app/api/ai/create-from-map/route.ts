@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildScenesFromMap } from "@/lib/ai/service";
@@ -147,7 +148,16 @@ export async function POST(request: Request) {
   built.data.scenes.forEach((scene, index) => {
     const moment = byMoment.get(scene.momentId);
     rows.push({
-      ...(index === 0 && seedId ? { id: seedId } : {}),
+      // Every row carries an id, including the ones being created.
+      //
+      // A bulk insert is one statement, so PostgREST needs one column list:
+      // postgrest-js takes the union of the objects' keys and sends missing
+      // ones as NULL. Giving only row 0 an `id` therefore did not mean "let
+      // the database default the rest" — it meant `id = NULL` on every other
+      // row, which the primary key rejects. The whole write failed, and since
+      // `createPresentation` always seeds a scene there was always a row 0
+      // with an id: the AI path could not write scenes at all.
+      id: index === 0 && seedId ? seedId : randomUUID(),
       presentation_id: presentationId,
       section_id: movementError ? null : (moment?.movementId ?? null),
       moment_id: scene.momentId,

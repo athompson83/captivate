@@ -44,10 +44,36 @@ export function ElementFrame({
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
 
+  const currentText =
+    element.type === "code"
+      ? element.code
+      : element.type === "heading" || element.type === "text" || element.type === "quote"
+        ? element.content.map((r) => r.text).join("")
+        : "";
+
+  // Read when editing begins and never during it — see the effect below.
+  const textAtStart = useRef(currentText);
+  useEffect(() => {
+    textAtStart.current = currentText;
+  });
+
   useEffect(() => {
     if (!editing || !editorRef.current) return;
     const node = editorRef.current;
+
+    // The text is seeded imperatively, once, and React is never given a child
+    // to own here.
+    //
+    // `onInput` commits to the store on every keystroke, so the element — and
+    // therefore the text derived from it — changes on every keystroke too.
+    // Rendering that text as a React child meant React diffed against its own
+    // previous virtual text rather than the DOM the author had just typed
+    // into, replaced the text node, and collapsed the caret to the start. The
+    // second character of any edit landed in front of the first, so inline
+    // editing was unusable past one letter.
+    node.textContent = textAtStart.current;
     node.focus();
+
     // Place the caret at the end rather than selecting everything, so a
     // double-click to edit does not risk replacing the whole block.
     const range = document.createRange();
@@ -78,13 +104,6 @@ export function ElementFrame({
       { label: "Edit text", coalesceKey: `text-${element.id}` },
     );
   };
-
-  const currentText =
-    element.type === "code"
-      ? element.code
-      : element.type === "heading" || element.type === "text" || element.type === "quote"
-        ? element.content.map((r) => r.text).join("")
-        : "";
 
   return (
     <div
@@ -154,9 +173,7 @@ export function ElementFrame({
               fontFamily: element.type === "code" ? "var(--font-mono)" : "var(--font-inter)",
               lineHeight: 1.4,
             }}
-          >
-            {currentText}
-          </div>
+          />
         )}
 
         {element.locked && selected && (

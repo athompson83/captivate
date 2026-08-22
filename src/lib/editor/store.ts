@@ -545,7 +545,15 @@ function presentationChanged(a: EditorDocument, b: EditorDocument): boolean {
     ka.title !== kb.title ||
     ka.themeId !== kb.themeId ||
     ka.aspectRatio !== kb.aspectRatio ||
-    ka.description !== kb.description
+    ka.description !== kb.description ||
+    ka.targetSeconds !== kb.targetSeconds ||
+    // The journey is the arrangement, the travel and the depth — every one of
+    // which autosave writes. Omitted here, undoing a change to any of them
+    // reverted the store and marked nothing dirty, so the revert was never
+    // saved: the same silent loss as the section rename and the moment edit
+    // before it. Stringified because it is a small flat config parsed from one
+    // schema, so its key order is fixed.
+    JSON.stringify(ka.journey) !== JSON.stringify(kb.journey)
   );
 }
 

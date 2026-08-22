@@ -1,9 +1,5 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import react from "@vitejs/plugin-react";
-import { build } from "vite";
 import { expect, test, type Page } from "@playwright/test";
+import { bundleFixture } from "./fixtures/build";
 
 /**
  * The atmosphere's lifecycle, in a real browser.
@@ -41,42 +37,8 @@ const ENTRY = "tests/e2e/fixtures/atmosphere-mount.tsx";
  */
 let pageUrl: Promise<string> | null = null;
 
-async function fixtureUrl(): Promise<string> {
-  pageUrl ??= (async () => {
-    const outDir = await mkdtemp(join(tmpdir(), "captivate-atmosphere-"));
-
-    await build({
-      root: process.cwd(),
-      mode: "development",
-      logLevel: "error",
-      plugins: [react()],
-      resolve: { alias: { "@": resolve(process.cwd(), "src") } },
-      define: { "process.env.NODE_ENV": '"development"' },
-      build: {
-        outDir,
-        emptyOutDir: true,
-        minify: false,
-        // One self-contained script, so the page can be opened from the file
-        // system without a server and without module CORS.
-        lib: {
-          entry: resolve(process.cwd(), ENTRY),
-          formats: ["iife"],
-          name: "atmosphereFixture",
-          fileName: () => "fixture.js",
-        },
-      },
-    });
-
-    const script = await readFile(join(outDir, "fixture.js"), "utf8");
-    const html = join(outDir, "index.html");
-    await writeFile(
-      html,
-      `<!doctype html><meta charset="utf-8"><title>atmosphere</title>` +
-        `<body style="margin:0;background:#000"><script>${script}</script></body>`,
-    );
-    return `file://${html}`;
-  })();
-
+function fixtureUrl(): Promise<string> {
+  pageUrl ??= bundleFixture(ENTRY);
   return pageUrl;
 }
 
