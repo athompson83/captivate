@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PresentMessage,
   SceneAnnotations,
@@ -312,6 +312,13 @@ describe("session command routing", () => {
 
   const scenes = [scene("s1", "One"), scene("s2", "Two"), scene("s3", "Three")];
 
+  // In a teardown, not at the end of a test body: a failed assertion would
+  // otherwise skip the restore and leave `Date.now` frozen four minutes into
+  // the future for every test after it in this file.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("gives back the paused time when the presenter resumes", () => {
     // Elapsed time is `now - origin`, and pausing only stops `now` moving.
     // Resuming stamped `now` with the wall clock while both origins stayed
@@ -336,8 +343,6 @@ describe("session command routing", () => {
     // The origins moved forward with the pause, so elapsed is unchanged.
     expect(after.nowMs - after.startedAt!).toBeLessThan(2000);
     expect(after.nowMs - after.sceneEnteredAt).toBeLessThan(2000);
-
-    vi.restoreAllMocks();
   });
 
   it("advances the stage locally", () => {

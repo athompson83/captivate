@@ -151,17 +151,24 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
             : "Couldn't save the generated scenes",
           description: failures[0],
         });
-        // Deliberately no reload here. It would replace the page — and the
-        // message explaining what went wrong — with a document that quietly
-        // has less in it than the author was just told about.
-        return;
-      }
 
-      toast({
-        tone: "success",
-        title: `${written.length} ${written.length === 1 ? "scene" : "scenes"} generated`,
-        description: body.notice ?? "Generated from your narrative map.",
-      });
+        // Nothing was written, so the store still matches the server and the
+        // author keeps the message that says why. This is the case where the
+        // explanation matters most and costs nothing.
+        if (saved === 0) return;
+
+        // Something *was* written. The store does not know about it, and the
+        // check that decides whether to reuse a scene or create one reads the
+        // store — so leaving it behind would make the next attempt add a second
+        // copy of every scene that had already landed. Duplicating the author's
+        // content is worse than losing a toast, so the reload wins here.
+      } else {
+        toast({
+          tone: "success",
+          title: `${written.length} ${written.length === 1 ? "scene" : "scenes"} generated`,
+          description: body.notice ?? "Generated from your narrative map.",
+        });
+      }
 
       // The document has changed underneath the store; a reload is the honest
       // way to show it rather than reconstructing state that the server owns.
