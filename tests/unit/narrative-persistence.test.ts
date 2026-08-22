@@ -168,6 +168,88 @@ afterEach(() => {
 
 /* -------------------------------------------------------------------------- */
 
+describe("an edit made while a save is in flight", () => {
+  /**
+   * The narrower version of the same defect this file exists for.
+   *
+   * `dirtyMoments` is a Set of ids, so a second edit to a moment that is
+   * already dirty adds nothing distinguishable. The payload was built before
+   * the request went out, so acknowledging it cleared a flag that now stood
+   * for an edit the server never saw — and that edit was gone on reload, with
+   * the interface showing "Saved" throughout. Scenes have carried a revision
+   * guard for exactly this since the beginning; moments and movements did not.
+   */
+
+  /** A request that stays open until the test decides to answer it. */
+  function deferred<T>() {
+    let settle!: (value: T) => void;
+    const promise = new Promise<T>((resolve) => {
+      settle = resolve;
+    });
+    return { promise, settle };
+  }
+
+  it("keeps the moment dirty when it changed under an open request", async () => {
+    const open = deferred<Ok<{ written: number }>>();
+    saveMoments.mockImplementationOnce(() => open.promise);
+
+    editMoment(uuid(11), { title: "First edit" });
+    const flush = flushEditor(PRESENTATION, { force: true });
+    await Promise.resolve();
+
+    editMoment(uuid(11), { title: "Second edit, while the first is still open" });
+
+    open.settle({ ok: true, data: { written: 2 } });
+    await flush;
+
+    expect([...useEditor.getState().dirtyMoments]).toContain(uuid(11));
+  });
+
+  it("sends the newer text on the next flush", async () => {
+    const open = deferred<Ok<{ written: number }>>();
+    saveMoments.mockImplementationOnce(() => open.promise);
+
+    editMoment(uuid(11), { title: "First edit" });
+    const flush = flushEditor(PRESENTATION, { force: true });
+    await Promise.resolve();
+    editMoment(uuid(11), { title: "The one that must survive" });
+    open.settle({ ok: true, data: { written: 2 } });
+    await flush;
+
+    await flushEditor(PRESENTATION, { force: true });
+
+    const written = lastWrite().find((m) => m.id === uuid(11));
+    expect(written?.title).toBe("The one that must survive");
+  });
+
+  it("still clears the flag when nothing changed underneath", async () => {
+    // The guard must not make every save permanently dirty, which would turn
+    // autosave into an unbounded write loop.
+    editMoment(uuid(11), { title: "Edited once" });
+    await flushEditor(PRESENTATION, { force: true });
+    expect([...useEditor.getState().dirtyMoments]).toEqual([]);
+  });
+
+  it("keeps a movement dirty when it was renamed under an open request", async () => {
+    const open = deferred<Ok<void>>();
+    updateSection.mockImplementationOnce(() => open.promise);
+
+    updateSectionLocal(uuid(1), { label: "OPEN" });
+    const flush = flushEditor(PRESENTATION, { force: true });
+    await Promise.resolve();
+
+    updateSectionLocal(uuid(1), { label: "FRAME" });
+
+    open.settle({ ok: true, data: undefined });
+    await flush;
+
+    expect([...useEditor.getState().dirtySections]).toContain(uuid(1));
+
+    await flushEditor(PRESENTATION, { force: true });
+    expect(lastSection().label).toBe("FRAME");
+  });
+});
+
 describe("a moment edit reaches the server", () => {
   it("marks the edited moment dirty", () => {
     // The flag is the whole defect. Without it the store looks right, the

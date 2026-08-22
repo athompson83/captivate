@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   PresentMessage,
   SceneAnnotations,
@@ -311,6 +311,34 @@ describe("session command routing", () => {
     }) as Scene;
 
   const scenes = [scene("s1", "One"), scene("s2", "Two"), scene("s3", "Three")];
+
+  it("gives back the paused time when the presenter resumes", () => {
+    // Elapsed time is `now - origin`, and pausing only stops `now` moving.
+    // Resuming stamped `now` with the wall clock while both origins stayed
+    // put, so the room watched the timers jump forward by the whole break.
+    const api = createSession({ presentationId: "pause", scenes, role: "stage" });
+    api.send("next"); // Starts the clock.
+
+    const before = api.store.getState();
+    expect(before.startedAt).not.toBeNull();
+
+    const start = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(start);
+    api.send("toggle-pause");
+    expect(api.store.getState().paused).toBe(true);
+
+    // Four minutes off the clock.
+    vi.spyOn(Date, "now").mockReturnValue(start + 240_000);
+    api.send("toggle-pause");
+
+    const after = api.store.getState();
+    expect(after.paused).toBe(false);
+    // The origins moved forward with the pause, so elapsed is unchanged.
+    expect(after.nowMs - after.startedAt!).toBeLessThan(2000);
+    expect(after.nowMs - after.sceneEnteredAt).toBeLessThan(2000);
+
+    vi.restoreAllMocks();
+  });
 
   it("advances the stage locally", () => {
     const api = createSession({ presentationId: "p", scenes, role: "stage" });

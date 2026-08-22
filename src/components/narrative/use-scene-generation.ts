@@ -95,19 +95,28 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
       // recreating it: the scene's own id is what recordings, thumbnails and
       // any future note anchor already point at.
       const links: { sceneId: string; momentId: string | null }[] = [];
+      // Generation is the one place where a silent write failure is invisible
+      // by construction: the reload below replaces the whole document, so a
+      // scene that was never written simply is not there — and a success toast
+      // for it reads as the model's work disappearing rather than as an error.
+      const failures: string[] = [];
+      let saved = 0;
+
       for (const generated of written) {
         const existing = useEditor
           .getState()
           .document.scenes.find((scene) => scene.momentId === generated.momentId);
 
         if (existing) {
-          await saveScene({
+          const result = await saveScene({
             id: existing.id,
             presentationId,
             title: generated.title,
             content: generated.content,
             speakerNotes: generated.speakerNotes,
           });
+          if (result.ok) saved += 1;
+          else failures.push(result.error);
           continue;
         }
 
@@ -119,10 +128,34 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
           content: generated.content,
           speakerNotes: generated.speakerNotes,
         });
-        if (created.ok) links.push({ sceneId: created.data.id, momentId: generated.momentId });
+        if (created.ok) {
+          saved += 1;
+          links.push({ sceneId: created.data.id, momentId: generated.momentId });
+        } else {
+          failures.push(created.error);
+        }
       }
 
-      if (links.length) await linkScenesToMoments({ presentationId, links });
+      if (links.length) {
+        const linked = await linkScenesToMoments({ presentationId, links });
+        // A scene that exists but is filed under no moment is not a small
+        // problem: regenerating would make a second copy rather than reuse it.
+        if (!linked.ok) failures.push(linked.error);
+      }
+
+      if (failures.length) {
+        toast({
+          tone: "error",
+          title: saved
+            ? `Saved ${saved} of ${written.length} scenes`
+            : "Couldn't save the generated scenes",
+          description: failures[0],
+        });
+        // Deliberately no reload here. It would replace the page — and the
+        // message explaining what went wrong — with a document that quietly
+        // has less in it than the author was just told about.
+        return;
+      }
 
       toast({
         tone: "success",

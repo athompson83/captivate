@@ -111,13 +111,17 @@ export async function flushEditor(
     );
 
     if (dirtySections.length) {
-      const doc = useEditor.getState().document;
-      const saved: string[] = [];
+      const saved: { id: string; revision: number }[] = [];
       await Promise.all(
         dirtySections.map(async (id) => {
-          const section = doc.sections.find((s) => s.id === id);
+          // Read from current state rather than one snapshot taken before the
+          // loop: a rename made while an earlier section was still in flight
+          // would otherwise be sent stale and acknowledged anyway.
+          const state = useEditor.getState();
+          const section = state.document.sections.find((s) => s.id === id);
+          const revision = state.sectionRevisionOf(id);
           if (!section) {
-            saved.push(id);
+            saved.push({ id, revision });
             return;
           }
           const result = await updateSection({
@@ -126,7 +130,7 @@ export async function flushEditor(
             label: section.label,
             purpose: section.purpose,
           });
-          if (result.ok) saved.push(id);
+          if (result.ok) saved.push({ id, revision });
           else errors.push(result.error);
         }),
       );
@@ -146,7 +150,13 @@ export async function flushEditor(
        * A map is tens of rows. Writing all of it is cheap, and it is the only
        * payload whose meaning matches what the function does with it.
        */
-      const doc = useEditor.getState().document;
+      // Captured with the payload, not after it. A moment edited while this
+      // request is open leaves the id in `dirtyMoments` — a Set cannot tell
+      // the newer edit from the one being saved — so the revision is what
+      // decides whether the acknowledgement still applies.
+      const state = useEditor.getState();
+      const doc = state.document;
+      const revision = state.mapRevision;
 
       const result = await saveMoments({
         presentationId,
@@ -166,7 +176,7 @@ export async function flushEditor(
         })),
       });
 
-      if (result.ok) useEditor.getState().markMomentsSaved(dirtyMoments);
+      if (result.ok) useEditor.getState().markMomentsSaved(dirtyMoments, revision);
       else errors.push(result.error);
     }
 

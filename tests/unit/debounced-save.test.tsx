@@ -52,6 +52,86 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("a save that fails", () => {
+  /**
+   * The pending map was emptied the instant a request went out and never
+   * refilled when that request failed. A transient error therefore left
+   * nothing to retry, nothing for an explicit flush to send, and nothing for
+   * `beforeunload` to warn about — so a paragraph that had only ever existed
+   * in the browser was gone on reload, with an error toast the only trace.
+   */
+
+  it("keeps the edit so a later flush can send it again", async () => {
+    render(<Harness onReady={(a) => (api = a)} failing />);
+
+    act(() => {
+      api.schedule({ id: "n1", body: "the paragraph" });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(screen.getByTestId("status").textContent).toBe("error");
+
+    // The edit is still held, so asking again re-sends it rather than
+    // discovering there is nothing left to send.
+    await act(async () => {
+      api.flush();
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toMatchObject({ id: "n1", body: "the paragraph" });
+  });
+
+  it("does not spin against a server that is refusing", async () => {
+    // The batch is back in `pending`, so a retry in the `finally` block would
+    // run immediately, fail, requeue and run again — forever.
+    render(<Harness onReady={(a) => (api = a)} failing />);
+
+    act(() => {
+      api.schedule({ id: "n1", body: "x" });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+
+    const afterFirstFailure = calls.length;
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(calls.length).toBe(afterFirstFailure);
+  });
+
+  it("lets a newer edit win over the batch it puts back", async () => {
+    render(<Harness onReady={(a) => (api = a)} failing manual />);
+
+    act(() => {
+      api.schedule({ id: "n1", title: "first", body: "first body" });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+
+    // Typed while the doomed request was still open.
+    act(() => {
+      api.schedule({ id: "n1", body: "second body" });
+    });
+
+    await act(async () => {
+      resolveNext?.({ ok: false, error: "nope" });
+    });
+
+    await act(async () => {
+      api.flush();
+    });
+
+    // The newer body, and the title the newer edit never carried.
+    expect(calls.at(-1)).toMatchObject({ id: "n1", title: "first", body: "second body" });
+  });
+});
+
 describe("useDebouncedSave", () => {
   it("debounces a burst of edits into one call", async () => {
     render(<Harness onReady={(a) => (api = a)} />);

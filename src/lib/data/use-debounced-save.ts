@@ -30,6 +30,27 @@ export function useDebouncedSave<T extends { id: string }>(
   const inFlight = useRef(false);
   const saveRef = useRef(save);
 
+  /**
+   * Put a batch that did not save back where it came from.
+   *
+   * Without this the pending map was emptied the moment a request went out and
+   * never refilled on failure: a transient error left nothing to retry, nothing
+   * to flush on unload, and nothing for `beforeunload` to warn about — so a
+   * paragraph that had only ever existed in the browser was gone on reload,
+   * with an error toast the only trace.
+   *
+   * The whole batch goes back, including records that individually succeeded.
+   * These writes are upserts, so re-sending one is free, and the alternative is
+   * deciding which half of a failed batch to trust.
+   */
+  const requeue = (batch: T[]) => {
+    for (const payload of batch) {
+      const newer = pending.current.get(payload.id);
+      // Anything typed while the request was open already supersedes this.
+      pending.current.set(payload.id, newer ? { ...payload, ...newer } : payload);
+    }
+  };
+
   const run = async (): Promise<void> => {
     if (inFlight.current || pending.current.size === 0) return;
 
@@ -38,11 +59,14 @@ export function useDebouncedSave<T extends { id: string }>(
     inFlight.current = true;
     setStatus("saving");
 
+    let failed = false;
     try {
       const results = await Promise.all(batch.map((payload) => saveRef.current(payload)));
       const failure = results.find((r) => !r.ok);
 
       if (failure) {
+        failed = true;
+        requeue(batch);
         setError(failure.error ?? "That couldn't be saved.");
         setStatus("error");
       } else {
@@ -50,12 +74,18 @@ export function useDebouncedSave<T extends { id: string }>(
         setStatus(pending.current.size === 0 ? "saved" : "pending");
       }
     } catch {
+      failed = true;
+      requeue(batch);
       setError("Couldn't reach the server.");
       setStatus("error");
     } finally {
       inFlight.current = false;
-      // More typing landed while the request was open.
-      if (pending.current.size > 0) void run();
+      // More typing landed while the request was open. Deliberately not after
+      // a failure: the batch is back in `pending`, and re-running here would
+      // spin against a server that has just refused. It goes out on the next
+      // edit, on an explicit flush, or when the tab is hidden — and until then
+      // `beforeunload` knows there is something unsaved.
+      if (!failed && pending.current.size > 0) void run();
     }
   };
 

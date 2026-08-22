@@ -98,6 +98,16 @@ interface EditorState {
   dirtyPresentation: boolean;
   dirtyOrder: boolean;
   sceneRevisions: Map<string, number>;
+  sectionRevisions: Map<string, number>;
+  /**
+   * One counter for the whole narrative map.
+   *
+   * Per moment would be wrong here: `captivate_replace_moments` is handed the
+   * map whole, so a save either persists the state of every moment at the
+   * instant the payload was built or it does not. Anything edited while that
+   * request is in flight has to stay dirty, whichever moment it was.
+   */
+  mapRevision: number;
 
   saveState: SaveState;
   saveError: string | null;
@@ -117,10 +127,11 @@ interface EditorState {
   setSaveState: (state: SaveState, error?: string | null) => void;
   markSceneSaved: (sceneId: string, revision: number, updatedAt: string) => void;
   markPresentationSaved: () => void;
-  markSectionsSaved: (sectionIds: string[]) => void;
-  markMomentsSaved: (momentIds: string[]) => void;
+  markSectionsSaved: (saved: { id: string; revision: number }[]) => void;
+  markMomentsSaved: (momentIds: string[], revision: number) => void;
   markOrderSaved: () => void;
   revisionOf: (sceneId: string) => number;
+  sectionRevisionOf: (sectionId: string) => number;
   clearRecovered: () => void;
   setPreviewStep: (step: number) => void;
 }
@@ -180,6 +191,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   dirtyPresentation: false,
   dirtyOrder: false,
   sceneRevisions: new Map(),
+  sectionRevisions: new Map(),
+  mapRevision: 0,
   saveState: "idle",
   saveError: null,
   lastSavedAt: null,
@@ -213,6 +226,8 @@ export const useEditor = create<EditorState>((set, get) => ({
       dirtyPresentation: false,
       dirtyOrder: false,
       sceneRevisions: new Map(doc.scenes.map((s) => [s.id, 0])),
+      sectionRevisions: new Map(doc.sections.map((s) => [s.id, 0])),
+      mapRevision: 0,
       saveState: "idle",
       saveError: null,
       lastSavedAt: doc.presentation.updatedAt,
@@ -242,13 +257,22 @@ export const useEditor = create<EditorState>((set, get) => ({
 
       const dirtyScenes = new Set(state.dirtyScenes);
       const dirtySections = new Set(state.dirtySections);
-      for (const id of options.dirtySections ?? []) dirtySections.add(id);
+      const sectionRevisions = new Map(state.sectionRevisions);
+      for (const id of options.dirtySections ?? []) {
+        dirtySections.add(id);
+        sectionRevisions.set(id, (sectionRevisions.get(id) ?? 0) + 1);
+      }
+      for (const section of next.sections) {
+        if (!sectionRevisions.has(section.id)) sectionRevisions.set(section.id, 0);
+      }
 
       const dirtyMoments = new Set(state.dirtyMoments);
       for (const id of options.dirtyMoments ?? []) dirtyMoments.add(id);
       // A structural change to the map — reorder, reassignment, generation —
       // makes every moment's stored position suspect, so all of them are dirty.
       if (options.dirtyMap) for (const moment of next.moments) dirtyMoments.add(moment.id);
+      const touchedMap = Boolean(options.dirtyMoments?.length) || Boolean(options.dirtyMap);
+      const mapRevision = touchedMap ? state.mapRevision + 1 : state.mapRevision;
       const sceneRevisions = new Map(state.sceneRevisions);
       for (const id of options.dirty ?? []) {
         dirtyScenes.add(id);
@@ -279,6 +303,8 @@ export const useEditor = create<EditorState>((set, get) => ({
         dirtySections,
         dirtyMoments,
         sceneRevisions,
+        sectionRevisions,
+        mapRevision,
         dirtyPresentation: state.dirtyPresentation || Boolean(options.dirtyPresentation),
         dirtyOrder: state.dirtyOrder || Boolean(options.dirtyOrder),
         saveState: hasWork ? "dirty" : state.saveState,
@@ -310,10 +336,15 @@ export const useEditor = create<EditorState>((set, get) => ({
       }
 
       const dirtyMoments = new Set(state.dirtyMoments);
-      for (const id of diffMomentIds(state.document, entry.document)) dirtyMoments.add(id);
+      const changedMoments = diffMomentIds(state.document, entry.document);
+      for (const id of changedMoments) dirtyMoments.add(id);
 
       const dirtySections = new Set(state.dirtySections);
-      for (const id of diffSectionIds(state.document, entry.document)) dirtySections.add(id);
+      const sectionRevisions = new Map(state.sectionRevisions);
+      for (const id of diffSectionIds(state.document, entry.document)) {
+        dirtySections.add(id);
+        sectionRevisions.set(id, (sectionRevisions.get(id) ?? 0) + 1);
+      }
 
       return {
         document: entry.document,
@@ -327,6 +358,8 @@ export const useEditor = create<EditorState>((set, get) => ({
         dirtyMoments,
         dirtySections,
         sceneRevisions,
+        sectionRevisions,
+        mapRevision: changedMoments.length ? state.mapRevision + 1 : state.mapRevision,
         dirtyOrder: state.dirtyOrder || orderChanged(state.document, entry.document),
         dirtyPresentation:
           state.dirtyPresentation || presentationChanged(state.document, entry.document),
@@ -349,10 +382,15 @@ export const useEditor = create<EditorState>((set, get) => ({
       }
 
       const dirtyMoments = new Set(state.dirtyMoments);
-      for (const id of diffMomentIds(state.document, entry.document)) dirtyMoments.add(id);
+      const changedMoments = diffMomentIds(state.document, entry.document);
+      for (const id of changedMoments) dirtyMoments.add(id);
 
       const dirtySections = new Set(state.dirtySections);
-      for (const id of diffSectionIds(state.document, entry.document)) dirtySections.add(id);
+      const sectionRevisions = new Map(state.sectionRevisions);
+      for (const id of diffSectionIds(state.document, entry.document)) {
+        dirtySections.add(id);
+        sectionRevisions.set(id, (sectionRevisions.get(id) ?? 0) + 1);
+      }
 
       return {
         document: entry.document,
@@ -366,6 +404,8 @@ export const useEditor = create<EditorState>((set, get) => ({
         dirtyMoments,
         dirtySections,
         sceneRevisions,
+        sectionRevisions,
+        mapRevision: changedMoments.length ? state.mapRevision + 1 : state.mapRevision,
         dirtyOrder: state.dirtyOrder || orderChanged(state.document, entry.document),
         dirtyPresentation:
           state.dirtyPresentation || presentationChanged(state.document, entry.document),
@@ -400,22 +440,33 @@ export const useEditor = create<EditorState>((set, get) => ({
     }),
 
   markPresentationSaved: () => set({ dirtyPresentation: false }),
-  markMomentsSaved: (momentIds) =>
+  markMomentsSaved: (momentIds, revision) =>
     set((state) => {
+      // The map moved while this was in flight, so the payload that just
+      // succeeded is already out of date. Clearing here would drop the newer
+      // edit: the id is in `dirtyMoments` either way, and a Set cannot tell
+      // the second edit from the first.
+      if (state.mapRevision !== revision) return state;
+
       const dirtyMoments = new Set(state.dirtyMoments);
       for (const id of momentIds) dirtyMoments.delete(id);
       // Once it has been written it is the author's map, not an inference.
       return { dirtyMoments, momentsDerived: state.momentsDerived && dirtyMoments.size > 0 };
     }),
 
-  markSectionsSaved: (sectionIds) =>
+  markSectionsSaved: (saved) =>
     set((state) => {
       const dirtySections = new Set(state.dirtySections);
-      for (const id of sectionIds) dirtySections.delete(id);
+      // Per section, for the same reason scenes are: one edited while the
+      // request was open must survive the acknowledgement of the older one.
+      for (const { id, revision } of saved) {
+        if ((state.sectionRevisions.get(id) ?? 0) === revision) dirtySections.delete(id);
+      }
       return { dirtySections };
     }),
   markOrderSaved: () => set({ dirtyOrder: false }),
   revisionOf: (sceneId) => get().sceneRevisions.get(sceneId) ?? 0,
+  sectionRevisionOf: (sectionId) => get().sectionRevisions.get(sectionId) ?? 0,
   clearRecovered: () => set({ recoveredScenes: [] }),
   setPreviewStep: (previewStep) => set({ previewStep }),
 }));

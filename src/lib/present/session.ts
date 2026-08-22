@@ -40,6 +40,15 @@ export interface SessionState {
   startedAt: number | null;
   sceneEnteredAt: number;
   paused: boolean;
+  /**
+   * When the current pause began, so resuming can give the time back.
+   *
+   * The timers are `now - origin`, and pausing only stops `now` advancing.
+   * Without recording this, resuming stamped `now` with the wall clock while
+   * both origins sat where they were, and the room watched the elapsed time
+   * jump forward by the length of the break.
+   */
+  pausedAt: number | null;
   /** Audience sees black; used to take attention off the screen. */
   blanked: boolean;
   /**
@@ -91,6 +100,7 @@ function initialState(scenes: Scene[], stepCounts: number[]): SessionState {
     startedAt: null,
     sceneEnteredAt: Date.now(),
     paused: false,
+    pausedAt: null,
     blanked: false,
     overview: false,
     establishing: null,
@@ -270,10 +280,29 @@ export function createSession({
         navigate(() => goTo(scenes.length - 1));
         break;
       case "toggle-pause":
-        update((c) => ({ paused: !c.paused }));
+        update((c) => {
+          if (!c.paused) return { paused: true, pausedAt: Date.now() };
+
+          // Resuming. Push both origins forward by however long the pause
+          // lasted, so the timers measure time spent presenting rather than
+          // wall clock — a five-minute break is not five minutes of talking.
+          const away = c.pausedAt === null ? 0 : Math.max(0, Date.now() - c.pausedAt);
+          return {
+            paused: false,
+            pausedAt: null,
+            startedAt: c.startedAt === null ? null : c.startedAt + away,
+            sceneEnteredAt: c.sceneEnteredAt + away,
+          };
+        });
         break;
       case "reset-timer":
-        update(() => ({ startedAt: Date.now(), sceneEnteredAt: Date.now() }));
+        update((c) => ({
+          startedAt: Date.now(),
+          sceneEnteredAt: Date.now(),
+          // Reset while paused starts the clock from here, not from whenever
+          // the pause began — otherwise resuming would immediately undo it.
+          pausedAt: c.paused ? Date.now() : null,
+        }));
         break;
       case "blank":
         update((c) => ({ blanked: !c.blanked }));
@@ -479,6 +508,7 @@ export function usePresentSession({
       startedAt: state.startedAt,
       sceneEnteredAt: state.sceneEnteredAt,
       paused: state.paused,
+      pausedAt: state.pausedAt,
       blanked: state.blanked,
       overview: state.overview,
       establishing: state.establishing,

@@ -54,6 +54,11 @@ export async function POST(request: Request) {
     themeId: theme,
     aspectRatio: "16:9",
     folderId,
+    // The running time the author asked for, kept on the presentation rather
+    // than only spent distributing seconds across the map. Without it the
+    // editor opened with no target: the duration warning had nothing to warn
+    // about and rescaling had nothing to rescale to.
+    targetSeconds: totalSeconds,
   });
   if (!created.ok) return NextResponse.json({ error: created.error }, { status: 500 });
 

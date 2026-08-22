@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -58,6 +59,8 @@ const CreateInput = z.object({
   aspectRatio: AspectRatio.default("16:9"),
   templateId: z.string().max(64).optional(),
   folderId: Uuid.nullable().optional(),
+  /** Running time the author asked for. 0 means they did not ask for one. */
+  targetSeconds: z.number().int().min(0).max(86_400).default(0),
 });
 
 export async function createPresentation(input: unknown): Promise<Result<{ id: string }>> {
@@ -76,6 +79,7 @@ export async function createPresentation(input: unknown): Promise<Result<{ id: s
       theme_id: themeId,
       aspect_ratio: parsed.data.aspectRatio,
       folder_id: parsed.data.folderId ?? null,
+      target_seconds: parsed.data.targetSeconds,
       schema_version: 1,
       last_opened_at: new Date().toISOString(),
     })
@@ -319,10 +323,11 @@ export async function duplicatePresentation(id: string): Promise<Result<{ id: st
   if (!Uuid.safeParse(id).success) return fail("Invalid id.");
   const supabase = await client();
 
-  const [src, sections, scenes] = await Promise.all([
+  const [src, sections, scenes, moments] = await Promise.all([
     supabase.from("presentations").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
     supabase.from("sections").select("*").eq("presentation_id", id).order("position"),
     supabase.from("scenes").select("*").eq("presentation_id", id).order("position"),
+    supabase.from("moments").select("*").eq("presentation_id", id).order("position"),
   ]);
 
   if (src.error || !src.data) return fail("That presentation could not be found.");
@@ -338,6 +343,11 @@ export async function duplicatePresentation(id: string): Promise<Result<{ id: st
       aspect_ratio: source.aspect_ratio,
       folder_id: source.folder_id,
       tags: source.tags,
+      // The journey is how the copy is arranged on the canvas and how the
+      // camera travels through it; the target is the running time it was
+      // planned against. Both are the presentation, not decoration.
+      journey: source.journey,
+      target_seconds: source.target_seconds,
       schema_version: source.schema_version,
       last_opened_at: new Date().toISOString(),
     })
@@ -355,6 +365,11 @@ export async function duplicatePresentation(id: string): Promise<Result<{ id: st
         sections.data.map((s) => ({
           presentation_id: created.id,
           title: s.title,
+          // A movement's label is the one-word name the room is shown, and its
+          // purpose is what that stretch of the argument does. Copying a
+          // presentation without them copies the filing and not the argument.
+          label: s.label,
+          purpose: s.purpose,
           position: s.position,
         })),
       )
@@ -371,11 +386,52 @@ export async function duplicatePresentation(id: string): Promise<Result<{ id: st
     }
   }
 
+  // The map, before the scenes, so a scene can point at the moment it came
+  // from. Without this a copy of a planned presentation opened with a *derived*
+  // map — the authored purposes, takeaways, evidence and locks silently
+  // replaced by an inference from the scenes, which is the one thing the map
+  // exists not to be.
+  const momentIdMap = new Map<string, string>();
+  if (moments.data?.length) {
+    const rows = moments.data.map((m) => {
+      // Ids are assigned here rather than read back, because moments are
+      // matched to scenes by id and `position` is not unique across movements.
+      const nextId = randomUUID();
+      momentIdMap.set(m.id, nextId);
+      return {
+        id: nextId,
+        presentation_id: created.id,
+        movement_id: m.movement_id ? (sectionIdMap.get(m.movement_id) ?? null) : null,
+        position: m.position,
+        title: m.title,
+        role: m.role,
+        purpose: m.purpose,
+        takeaway: m.takeaway,
+        estimated_seconds: m.estimated_seconds,
+        evidence: m.evidence,
+        visual_intent: m.visual_intent,
+        instructions: m.instructions,
+        locked: m.locked,
+      };
+    });
+
+    const { error: momentErr } = await supabase.from("moments").insert(rows);
+    if (momentErr) {
+      await supabase.from("presentations").delete().eq("id", created.id);
+      return fail("Could not duplicate the presentation's narrative map.");
+    }
+  }
+
   if (scenes.data?.length) {
     const { error: sceneErr } = await supabase.from("scenes").insert(
       scenes.data.map((s) => ({
         presentation_id: created.id,
         section_id: s.section_id ? (sectionIdMap.get(s.section_id) ?? null) : null,
+        // Where the scene sits on the world canvas. Omitted, every copied row
+        // came back null and was re-placed from its ordinal, so a hand-arranged
+        // world was silently flattened back into a row.
+        placement: s.placement,
+        moment_id: s.moment_id ? (momentIdMap.get(s.moment_id) ?? null) : null,
         position: s.position,
         title: s.title,
         content: s.content,
