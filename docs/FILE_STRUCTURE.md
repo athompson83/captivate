@@ -40,7 +40,9 @@ captivate/
 │  │  │                            atmosphere.tsx (the air, in WebGL)
 │  │  ├─ editor/                   Canvas, navigator, inspector, docks, toolbars
 │  │  ├─ present/                  Stage root, presenter bar, console,
-│  │  │                            annotation layer, scene jumper
+│  │  │                            annotation layer, scene jumper,
+│  │  │                            movement rail (the argument's shape,
+│  │  │                            shown to the room)
 │  │  ├─ record/                   Recording controller and setup dialog
 │  │  ├─ dashboard/                Cards, library, galleries, settings
 │  │  ├─ notes/                    Notes workspace
@@ -70,7 +72,7 @@ captivate/
 │  │  │  ├─ path.ts                The smoothed route drawn between waypoints
 │  │  │  ├─ ambient.ts             Atmosphere: the colour of the air per position
 │  │  │  ├─ atmosphere.ts          The same, per pixel: uniforms for the shader
-│  │  ├─ present/movement-rail.tsx The argument's shape, shown to the room
+│  │  │  └─ audience.ts            What the projector window is allowed to load
 │  │  ├─ narrative/
 │  │  │  ├─ map.ts                 Assemble, derive, reorder, diff the map
 │  │  │  └─ generate.ts            Proposal → map; map → per-moment briefs
@@ -100,17 +102,18 @@ captivate/
 │  │  │  └─ use-debounced-save.ts  Durable debounced save for notes
 │  │  ├─ supabase/                 client, server, admin, config, types
 │  │  ├─ templates/registry.ts     Six curated templates
-│  │  └─ utils/                    cn, formatting
+│  │  └─ utils/                    cn, formatting, OKLab/WCAG colour, embed
+│  │                               sandboxing
 │  │
 │  └─ proxy.ts                     Session refresh and route gating
 │
 ├─ supabase/
-│  ├─ migrations/                  0001 core, 0002 storage
+│  ├─ migrations/                  0001 core … 0008, applied in name order
 │  └─ tests/                       RLS isolation suite + runner
 │
 ├─ tests/
-│  ├─ unit/                        12 files, 238 tests
-│  ├─ e2e/                         smoke.spec.ts, journey.spec.ts
+│  ├─ unit/                        23 files, 485 tests
+│  ├─ e2e/                         smoke, journey, atmosphere, atmosphere-lifecycle
 │  └─ setup.ts                     jsdom shims
 │
 └─ docs/                           This documentation

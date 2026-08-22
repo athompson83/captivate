@@ -2,14 +2,21 @@
 
 ## Environment variables
 
-| Variable                        | Required    | Reaches the browser | Purpose                         |
-| ------------------------------- | ----------- | ------------------- | ------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Yes         | Yes                 | Project URL                     |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes         | Yes                 | Publishable key                 |
-| `ANTHROPIC_API_KEY`             | No          | **No**              | Enables AI authoring            |
-| `CAPTIVATE_AI_MODEL`            | No          | No                  | Overrides the model id          |
-| `NEXT_PUBLIC_SITE_URL`          | Recommended | Yes                 | Absolute origin for email links |
-| `SUPABASE_SERVICE_ROLE_KEY`     | No          | **No**              | Not needed by any current route |
+| Variable                        | Required      | Reaches the browser | Purpose                         |
+| ------------------------------- | ------------- | ------------------- | ------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Yes           | Yes                 | Project URL                     |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes           | Yes                 | Publishable key                 |
+| `ANTHROPIC_API_KEY`             | No            | **No**              | Enables AI authoring            |
+| `CAPTIVATE_AI_MODEL`            | No            | No                  | Overrides the model id          |
+| `NEXT_PUBLIC_SITE_URL`          | In production | Yes                 | Absolute origin for email links |
+| `SUPABASE_SERVICE_ROLE_KEY`     | No            | **No**              | Not needed by any current route |
+
+`NEXT_PUBLIC_SITE_URL` is required in production rather than merely advisable.
+Confirmation and recovery links carry a one-time credential, and the only other
+source for the host is `x-forwarded-host` — which is whatever the client sent.
+Without the variable set, sign-up and password reset return a configuration
+error naming it instead of emailing a link built from a header. A development
+server still falls back to its own host, where there is nothing to take.
 
 The two `NEXT_PUBLIC_` values are public by design: row-level security is the
 authorisation boundary, not key secrecy. The other two are read only from

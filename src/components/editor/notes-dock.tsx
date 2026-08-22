@@ -50,9 +50,14 @@ export function NotesDock({
         dragging.current = false;
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
       };
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
+      // pointercancel too: a touch or pen interrupted by a system gesture
+      // never sends pointerup, and the drag then never ended — guides stayed
+      // on screen and the move handler kept running against a dead gesture.
+      window.addEventListener("pointercancel", onUp);
     },
     [height],
   );

@@ -48,7 +48,7 @@ per-scene _speaker notes_ (the short prompts you glance at) and _lecture notes_
 (the long-form research and teaching material behind a deck, in a full-page
 writing surface).
 
-**AI.** Prompt → reviewable outline → generated deck. The model answers through
+**AI.** Prompt → editable narrative map → generated scenes. The model answers through
 a validated schema whose limits structurally prevent wall-of-text scenes, and
 content is poured into the layout engine rather than positioned by the model.
 Every generated element is ordinary editable content.

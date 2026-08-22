@@ -39,7 +39,7 @@ const COMMANDS: Command[] = [
   {
     id: "ai",
     label: "Create with AI",
-    hint: "Describe it and review an outline",
+    hint: "Describe it and review the narrative map",
     icon: Sparkles,
     href: "/new?mode=ai",
     group: "Create",
@@ -141,6 +141,29 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
     router.push(href);
   };
 
+  /**
+   * Escape, and focus, for the whole palette rather than just the field.
+   *
+   * Escape was bound to the input's own `onKeyDown`, so it stopped working the
+   * moment focus moved to a result — and closing dropped focus on `<body>`,
+   * which restarts the next Tab at the top of the page. This surface calls
+   * itself `aria-modal`; it has to behave like one.
+   */
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      opener?.focus?.();
+    };
+  }, [onClose]);
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -153,8 +176,6 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
       const item = items[activeIndex];
       if (!item) return;
       go(item.kind === "command" ? item.command.href : item.hit.href);
-    } else if (e.key === "Escape") {
-      onClose();
     }
   };
 

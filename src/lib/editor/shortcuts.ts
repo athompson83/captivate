@@ -113,6 +113,32 @@ export function useEditorShortcuts(handlers: {
         return;
       }
 
+      // Alt with an arrow resizes the selection from its bottom-right corner,
+      // which is the only way to change an element's size without a pointer:
+      // the canvas handles are a drag affordance and the inspector has no
+      // width or height field.
+      if (e.key.startsWith("Arrow") && e.altKey && sceneId && selected.length) {
+        e.preventDefault();
+        const step = e.shiftKey ? 5 : 0.5;
+        const dw = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dh = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+        for (const id of selected) {
+          editElement(
+            sceneId,
+            id,
+            (el) =>
+              el.locked
+                ? el
+                : {
+                    ...el,
+                    frame: clampFrame({ ...el.frame, w: el.frame.w + dw, h: el.frame.h + dh }),
+                  },
+            { label: "Resize element", coalesceKey: `resize-${id}` },
+          );
+        }
+        return;
+      }
+
       // Arrow keys: nudge the selection, or move between scenes when nothing
       // on the canvas is selected.
       if (e.key.startsWith("Arrow")) {
@@ -187,6 +213,8 @@ export const SHORTCUTS: { keys: string; action: string; group: string }[] = [
   { keys: "Delete", action: "Delete selection", group: "Editing" },
   { keys: "Arrows", action: "Nudge selection", group: "Editing" },
   { keys: "⇧ Arrows", action: "Nudge further", group: "Editing" },
+  { keys: "⌥ Arrows", action: "Resize selection", group: "Editing" },
+  { keys: "⇧⌥ Arrows", action: "Resize further", group: "Editing" },
   { keys: "Esc", action: "Deselect", group: "Editing" },
   { keys: "↑ / ↓", action: "Previous / next scene", group: "Navigation" },
   { keys: "N", action: "Toggle notes", group: "Panels" },

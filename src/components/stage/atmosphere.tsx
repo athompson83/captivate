@@ -322,10 +322,7 @@ export function Atmosphere({
     if (viewport.width === 0 || viewport.height === 0) return false;
 
     const view = viewUniforms(camera, viewport);
-    const count = packRegions(
-      nearestRegions(camera, placements, palettes),
-      buffersRef.current,
-    );
+    const count = packRegions(nearestRegions(camera, placements, palettes), buffersRef.current);
 
     uniforms.uCamera.value.set(view.cameraX, view.cameraY);
     uniforms.uHalf.value.set(view.halfWidth, view.halfHeight);
@@ -491,9 +488,16 @@ export function Atmosphere({
    * most of a presentation. It runs at a twelfth of the display's rate,
    * because the motion it carries takes tens of seconds to cross the screen
    * and rendering it faster would be heat with nothing to show for it.
+   *
+   * `lost` stops it, and that is not a tidiness point. Nothing else does:
+   * losing the context de-registers the handle so the world stops calling
+   * `draw`, but this loop calls `render` directly. Without the guard a GPU
+   * reset left it driving a dead context twelve times a second, forever,
+   * behind a canvas already hidden — every frame a wasted wake-up and a WebGL
+   * warning, on the machine that had just proved it was struggling.
    */
   useEffect(() => {
-    if (still || depth <= 0) return;
+    if (still || depth <= 0 || lost) return;
 
     let frame = 0;
     let last = 0;
@@ -509,7 +513,7 @@ export function Atmosphere({
 
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [still, depth, render]);
+  }, [still, depth, lost, render]);
 
   return (
     <canvas

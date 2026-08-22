@@ -174,6 +174,7 @@ export function Canvas({ theme }: { theme: PresentationTheme }) {
       const onUp = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
         setGuides([]);
         setLiveFrames(null);
         if (moved) commitFrames(latest, dragging.length > 1 ? "Move elements" : "Move element");
@@ -181,6 +182,10 @@ export function Canvas({ theme }: { theme: PresentationTheme }) {
 
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
+      // pointercancel too: a touch or pen interrupted by a system gesture
+      // never sends pointerup, and the drag then never ended — guides stayed
+      // on screen and the move handler kept running against a dead gesture.
+      window.addEventListener("pointercancel", onUp);
     },
     [commitFrames, editingId, elements, select, selectedIds, toStage],
   );
@@ -220,6 +225,7 @@ export function Canvas({ theme }: { theme: PresentationTheme }) {
       const onUp = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
         setGuides([]);
         setLiveFrames(null);
         if (moved) commitFrames(latest, "Resize element");
@@ -227,6 +233,10 @@ export function Canvas({ theme }: { theme: PresentationTheme }) {
 
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
+      // pointercancel too: a touch or pen interrupted by a system gesture
+      // never sends pointerup, and the drag then never ended — guides stayed
+      // on screen and the move handler kept running against a dead gesture.
+      window.addEventListener("pointercancel", onUp);
     },
     [commitFrames, elements, toStage],
   );
@@ -260,12 +270,17 @@ export function Canvas({ theme }: { theme: PresentationTheme }) {
       const onUp = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
         setMarquee(null);
         if (!dragged) select({ elementIds: [] });
       };
 
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
+      // pointercancel too: a touch or pen interrupted by a system gesture
+      // never sends pointerup, and the drag then never ended — guides stayed
+      // on screen and the move handler kept running against a dead gesture.
+      window.addEventListener("pointercancel", onUp);
     },
     [elements, select, toStage],
   );

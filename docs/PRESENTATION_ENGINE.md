@@ -327,7 +327,7 @@ timed transition of session state that the console needs to know about too.
 
 ### Overview
 
-`O` or `Tab` pulls the camera back over the whole world and draws the route
+`O` pulls the camera back over the whole world and draws the route
 between waypoints; clicking a scene flies to it. It is a camera position, not a
 mode: the presentation is still live, the current scene is still current, and
 advancing from there flies back down to it.

@@ -50,8 +50,8 @@ on it, and presenting moves a camera between those placements.
 | Piece                            | State                                                    |
 | -------------------------------- | -------------------------------------------------------- |
 | World renderer and camera        | Implemented, verified in a browser                       |
-| Optimal zoom-and-pan flight path | Implemented, 43 unit tests                               |
-| Six spatial arrangements         | Implemented, invariant-tested                            |
+| Optimal zoom-and-pan flight path | Implemented, 46 unit tests                               |
+| Seven spatial arrangements       | Implemented, invariant-tested                            |
 | Journey map (drag, resize, nest) | Implemented, verified in a browser                       |
 | Overview (`O`), route drawing    | Implemented, e2e-tested                                  |
 | Section establish beat           | Implemented                                              |
@@ -149,34 +149,37 @@ show while travelling between two regions.
 > tools, display private notes and timing, record with microphone and camera,
 > save the project, reopen it later, and obtain a usable recording or export.
 
-| Requirement                | Status | Evidence                                                                                            |
-| -------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| Create an account          | Works  | Signup, trigger-created profile, and sign-in verified against the live project                      |
-| Create a presentation      | Works  | Template and blank paths, end-to-end test                                                           |
-| Generate a presentation    | Works  | Outline → deck. With a model key it is model-written; without one it is a labelled structural draft |
-| Organise content           | Works  | Folders, tags, favourites, search, sort, soft delete and restore                                    |
-| Edit visually              | Works  | Drag, resize, snap, align, multi-select, inline text, undo/redo                                     |
-| Lecture notes              | Works  | Separate table and full-page workspace, persistence verified after reload                           |
-| Speaker notes              | Works  | Per scene, private, verified absent from the audience surface by test                               |
-| Mixed media                | Works  | Image, video, audio, embed; upload, library reuse, alt text                                         |
-| Present full-screen        | Works  | Separate route, no editor chrome, asserted by test                                                  |
-| Presenter tools            | Works  | Laser, highlight, ink, eraser, clear — all verified in a browser                                    |
-| Private notes and timing   | Works  | Console with notes, filmstrip, total and per-scene timers                                           |
-| Record with mic and camera | Works  | Screen + mic + composited camera; verified by hand, dialog verified by test                         |
-| Save and reopen            | Works  | Reload persistence test; survives sign-out and sign-in                                              |
-| Obtain a recording         | Works  | Immediate local download, plus library playback from a signed URL                                   |
+| Requirement                | Status | Evidence                                                                                                    |
+| -------------------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| Create an account          | Works  | Signup, trigger-created profile, and sign-in verified against the live project                              |
+| Create a presentation      | Works  | Template and blank paths, end-to-end test                                                                   |
+| Generate a presentation    | Works  | Narrative map → scenes. With a model key it is model-written; without one it is a labelled structural draft |
+| Organise content           | Works  | Folders, tags, favourites, search, sort, soft delete and restore                                            |
+| Edit visually              | Works  | Drag, resize, snap, align, multi-select, inline text, undo/redo                                             |
+| Lecture notes              | Works  | Separate table and full-page workspace, persistence verified after reload                                   |
+| Speaker notes              | Works  | Per scene, private, verified absent from the audience surface by test                                       |
+| Mixed media                | Works  | Image, video, audio, embed; upload, library reuse, alt text                                                 |
+| Present full-screen        | Works  | Separate route, no editor chrome, asserted by test                                                          |
+| Presenter tools            | Works  | Laser, highlight, ink, eraser, clear — all verified in a browser                                            |
+| Private notes and timing   | Works  | Console with notes, filmstrip, total and per-scene timers                                                   |
+| Record with mic and camera | Works  | Screen + mic + composited camera; verified by hand, dialog verified by test                                 |
+| Save and reopen            | Works  | Reload persistence test; survives sign-out and sign-in                                                      |
+| Obtain a recording         | Works  | Immediate local download, plus library playback from a signed URL                                           |
 
 ---
 
 ## Verification actually performed
 
 **Static.** TypeScript strict: clean. ESLint including the React Compiler rules:
-clean, no suppressions beyond two documented `next/image` exemptions. Production
+clean, no suppressions beyond five documented `next/image` exemptions and one
+documented `exhaustive-deps` exemption. Production
 build: succeeds.
 
-**Unit.** 238 tests across 12 files. All pass.
+**Unit.** 485 tests across 23 files. All pass.
 
-**End-to-end.** 26 Playwright tests in a real Chromium. All pass against the
+**End-to-end.** 47 Playwright tests in a real Chromium, across four projects —
+37 against a running application, and 10 more (`shader` and `lifecycle`) that
+need no server and no account. All pass against the
 live Supabase project. Includes zero-console-errors, security headers, keyboard
 focus visibility, narrow-viewport overflow, both colour schemes and reduced
 motion.

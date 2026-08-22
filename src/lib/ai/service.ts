@@ -52,9 +52,13 @@ async function recordGeneration(
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Written with the user's own client so RLS still applies; the table has no
-    // insert policy for `authenticated`, so this runs only where the server has
-    // elevated access. Failures here must never break a generation.
+    // Written with the user's own client so RLS still applies: the table's
+    // insert policy accepts a row whose owner_id is the caller, which is what
+    // makes this work without elevated access. It has no update or delete
+    // policy, so a caller can add to their own ledger and never edit it — and
+    // the rate limiter reads exactly these rows, so anything that stops them
+    // being written stops spend protection too. Failures here must never break
+    // a generation.
     await supabase.from("ai_generations").insert({
       owner_id: user.id,
       presentation_id: presentationId,
@@ -309,7 +313,7 @@ export async function buildScenesFromMap(
     };
   }
 
-  const outline = briefs
+  const plan = briefs
     .map((brief, index) => {
       const evidence = brief.evidence.length
         ? brief.evidence.map((item) => item.label || item.id).join("; ")
@@ -349,7 +353,7 @@ ${prompt}
 ${contextLine(context)}
 
 The accepted narrative map:
-${outline}`,
+${plan}`,
     temperature: 0.7,
     maxTokens: 8000,
   });

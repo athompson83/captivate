@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getPresentationDocument } from "@/lib/data/presentations";
+import { forAudience } from "@/lib/present/audience";
 import { SetupRequired } from "@/components/setup-required";
 import { PresentRoot } from "@/components/present/present-root";
 
@@ -39,7 +40,11 @@ export default async function PresentPage({
   return (
     <PresentRoot
       presentation={document.presentation}
-      scenes={document.scenes}
+      // Stripped, not merely unrendered. Every prop a client component takes
+      // is serialised into the payload this window downloads, so passing the
+      // scenes through unchanged put the whole deck's speaker notes into the
+      // source of the page on the projector.
+      scenes={forAudience(document.scenes)}
       sections={document.sections}
       // In audience mode the window is a pure display: no controls are rendered
       // at all, so there is nothing to accidentally reveal on a projector.

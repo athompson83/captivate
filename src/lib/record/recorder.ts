@@ -444,7 +444,26 @@ export class PresentationRecorder {
     const inset = Math.round(width * options.placement.size);
     const margin = Math.round(width * 0.022);
 
-    const draw = () => {
+    // Composite at the rate actually being captured. This ran at the
+
+    // display's rate, so a 120Hz laptop drew a full 1080p frame plus the
+
+    // camera inset four times for every frame the encoder took — while the
+
+    // machine was already presenting and encoding.
+
+    const fps = options.frameRate ?? 30;
+
+    const interval = 1000 / fps;
+
+    let lastDrawn = 0;
+
+    const draw = (now: number) => {
+      this.rafId = requestAnimationFrame(draw);
+
+      if (now - lastDrawn < interval) return;
+
+      lastDrawn = now;
       const screen = this.screenVideo;
       const camera = this.cameraVideo;
       if (!screen || !camera) return;
@@ -500,13 +519,11 @@ export class PresentationRecorder {
         context.stroke();
       }
       context.restore();
-
-      this.rafId = requestAnimationFrame(draw);
     };
 
     this.rafId = requestAnimationFrame(draw);
 
-    const canvasStream = canvas.captureStream(options.frameRate ?? 30);
+    const canvasStream = canvas.captureStream(fps);
     for (const track of this.micStream!.getAudioTracks()) canvasStream.addTrack(track);
     this.compositeStream = canvasStream;
     return canvasStream;

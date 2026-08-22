@@ -11,8 +11,8 @@ npm run verify                             # typecheck, lint, unit, build
 
 ## What is covered
 
-**238 unit tests** across twelve files, plus **26 end-to-end tests**, plus a
-database isolation suite.
+**485 unit tests** across twenty-three files, plus **47 Playwright tests** in
+four projects, plus a database isolation suite.
 
 The tests concentrate on the things that would hurt: losing work, leaking data,
 and rendering something broken in front of a room.
@@ -35,8 +35,26 @@ and rendering something broken in front of a room.
 | `fit-text`              | Auto-fit maths, including that a thumbnail and the stage agree                                       |
 | `theme-and-recorder`    | Theme integrity, template validity, recorder capability detection                                    |
 | `format`                | Duration, bytes, relative time, including nonsense input                                             |
+| `camera`                | The flight path, the arrangements and the route — see **The camera** below                           |
+| `movements`             | Movement derivation, ordering and labelling from sections                                            |
+| `ambient`               | Colour maths and OKLab blending — see **Atmosphere** below                                           |
+| `atmosphere`            | The GPU layer's arithmetic: screen → world, packing, the DPR cap, the WebGL probe                    |
+| `atmosphere-lifecycle`  | Reduced motion, the no-WebGL path, and that every loop it starts it also stops                       |
+| `world-render`          | Flights stepped frame by frame, with a `cancelAnimationFrame` that really cancels                    |
+| `health`                | Pacing, balance, contrast and the health checks — see **Analysis** below                             |
+| `embed-sandbox`         | That an embed of this deployment is never framed with `allow-same-origin`                            |
+| `present-load-boundary` | That the stage route sends the projector no speaker notes — asserted on the payload, not the DOM     |
 
 ### End-to-end
+
+Four projects. Two of them need nothing at all: `shader` and `lifecycle` run
+against no server and no account, so the cheapest and most diagnostic tests in
+the suite are also the easiest to reach.
+
+```bash
+npx playwright test --project=shader      # compiles the committed GLSL
+npx playwright test --project=lifecycle   # mounts the component in a browser
+```
 
 **Smoke** (10 tests, no account needed) — public pages render, security headers
 are present, keyboard focus is visible, there are no console errors, nothing
@@ -56,6 +74,14 @@ deleted moment each survive a reload; the duration warning appears without
 blocking generation and the rescale clears it; and a presentation created before
 the map existed still opens one.
 
+**The shader** (5 tests, no server) — compiles the committed GLSL, draws it with
+regions of known colour at known positions, and reads the pixels back.
+
+**The lifecycle** (5 tests, no server) — bundles
+`src/components/stage/atmosphere.tsx` itself and mounts it under StrictMode in a
+browser that really has WebGL, then unmounts and remounts it. See **Atmosphere**
+below for what that is for.
+
 Journeys are **skipped, not failed**, when credentials are absent, so the suite
 never produces misleading red on a machine without an account.
 
@@ -68,13 +94,17 @@ npx playwright test --project=authenticated
 
 ### Database
 
-`supabase/tests/run.sh` applies the migrations to a throwaway Postgres, creates
-two users, and asserts that neither can read, write, update or delete the
-other's data, and that neither can forge `owner_id`. It exits non-zero on any
-leak.
+`supabase/tests/run.sh` applies `0001_captivate_core.sql` to a throwaway
+Postgres, creates two users, and asserts that neither can read, write, update or
+delete the other's data, and that neither can forge `owner_id`. It exits
+non-zero on any leak.
 
-The same probes were run against the live project through PostgREST with two
-real JWTs — the actual production path, not a simulation of it.
+It applies **only** that first migration, and probes only `presentations`,
+`sections`, `scenes` and `lecture_notes`. So `moments` — the narrative map's own
+table, added in `0006` — is not covered by it, nor are `assets`, `recordings`,
+`folders`, `profiles` or `ai_generations`. Those policies were verified against
+live PostgREST with two real JWTs instead, which is the actual production path;
+they are not in the automated suite, and that is a gap rather than a decision.
 
 ---
 
@@ -219,8 +249,8 @@ like a gradient. It took placing one warm region above the camera and measuring
 both halves to see it. The spec now does exactly that, and was checked to fail
 against the old line.
 
-It also found a defect no test would have caught: the layer rendered as a flat
-white sheet over the whole world. Reading the drawing buffer back through
+It also found a defect no test at the time could have caught: the layer
+rendered as a flat white sheet over the whole world. Reading the drawing buffer back through
 three's own context gave the right colour, and the same GLSL on a raw context
 was correct, so the shader was never at fault — `forceContextLoss()` in the
 cleanup was. It is the textbook way to stop WebGL contexts accumulating, and it
@@ -228,6 +258,29 @@ is wrong here: React mounts, unmounts and mounts again in development, reusing
 the same `<canvas>`, and a canvas has one context for its lifetime. The second
 mount inherited the context the first had just destroyed. `dispose()` alone is
 what this component wants.
+
+`tests/e2e/atmosphere-lifecycle.spec.ts` (the `lifecycle` project) is the test
+that now catches it. Seeing that failure needs three things at once — a real
+WebGL implementation, React's development double-invoke, and one canvas across
+both mounts — so the spec bundles the component itself with Vite in development
+mode, opens it as a local page, and drives the mounts from the test. It reads
+the drawing buffer back through the canvas's own context, which is also the only
+way to ask whether the context a remount inherited is still alive.
+
+Two things keep it honest. It asserts that a single mount produced **two**
+registrations and one release — React having torn the effect down and set it up
+again — because a production bundle would report one, and everything after that
+would pass while testing nothing. And it was checked against the defect: with
+`forceContextLoss()` restored, all five fail, the first of them saying that the
+remount inherited a destroyed context.
+
+It also covers what removing that call could plausibly have broken. Twelve
+unmount-and-remount cycles in a row must each end with a live context and a
+drawn frame, because releasing a context when its detached canvas is collected,
+rather than at once, is exactly the trade `forceContextLoss()` existed to avoid.
+And a context taken away mid-presentation must leave the canvas hidden with
+nothing still spinning — which is how the drift loop was found still driving a
+dead context twelve times a second, forever, behind a canvas nobody could see.
 
 What no test here covers is whether the field _looks_ right. That is a judgement
 about pixels, and it belongs to a person looking at them.

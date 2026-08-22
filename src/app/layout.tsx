@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Fraunces, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { ReducedMotionProvider } from "@/components/ui/reduced-motion";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
@@ -65,9 +66,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         className={`${inter.variable} ${fraunces.variable} ${grotesk.variable} ${mono.variable} antialiased`}
       >
-        <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </ThemeProvider>
+        <ReducedMotionProvider>
+          <ThemeProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </ThemeProvider>
+        </ReducedMotionProvider>
       </body>
     </html>
   );

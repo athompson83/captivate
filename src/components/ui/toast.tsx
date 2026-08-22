@@ -1,7 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AlertTriangle, Check, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -53,6 +61,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     },
     [dismiss],
   );
+
+  // The map outlives any single toast, so it is the thing that has to be
+  // emptied — otherwise every toast raised in the session leaves a timeout
+  // pending against a provider that no longer exists.
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const timer of pending.values()) clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
 
   const value = useMemo(() => ({ toast, dismiss }), [toast, dismiss]);
 

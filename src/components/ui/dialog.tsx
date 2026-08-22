@@ -75,7 +75,14 @@ export function Dialog({
       document.body.style.overflow = prevOverflow;
       restoreFocus.current?.focus?.();
     };
-  }, [open, onClose]);
+    // Deliberately keyed on `open` alone. Every caller passes an inline
+    // `onClose`, so listing it re-ran this on any parent render: pressing
+    // Delete flipped a `loading` prop, the cleanup threw focus back to the
+    // button behind the dialog and released the page scroll, and forty
+    // milliseconds later focus was dragged into the dialog again — mid
+    // operation, with a screen reader announcing the wrong thing twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+  }, [open]);
 
   return (
     <AnimatePresence>

@@ -201,13 +201,13 @@ export function deriveTitle(prompt: string): string {
  * where a partial phrase reads naturally.
  */
 export function fallbackScene(
-  outlineScene: { title: string; purpose: string; layout: GeneratedScene["layout"] },
+  momentBrief: { title: string; purpose: string; layout: GeneratedScene["layout"] },
   context: { title: string; prompt: string },
 ): GeneratedScene {
   const base: GeneratedScene = {
-    title: outlineScene.title,
-    layout: outlineScene.layout,
-    heading: outlineScene.title,
+    title: momentBrief.title,
+    layout: momentBrief.layout,
+    heading: momentBrief.title,
     headingAccent: "",
     subheading: "",
     eyebrow: "",
@@ -221,10 +221,10 @@ export function fallbackScene(
     chart: null,
     code: null,
     imagePrompt: "",
-    speakerNotes: `${outlineScene.purpose} Replace this placeholder with what you'll actually say.`,
+    speakerNotes: `${momentBrief.purpose} Replace this placeholder with what you'll actually say.`,
   };
 
-  switch (outlineScene.layout) {
+  switch (momentBrief.layout) {
     case "title":
       return {
         ...base,
@@ -242,7 +242,7 @@ export function fallbackScene(
       // The claim turns on its second clause, which carries the accent.
       return {
         ...base,
-        heading: `${outlineScene.title} —`,
+        heading: `${momentBrief.title} —`,
         headingAccent: "state the single idea here.",
       };
     case "quote":
@@ -267,13 +267,13 @@ export function fallbackScene(
       return {
         ...base,
         bullets: ["Key point", "Supporting point", "What it means in practice"],
-        imagePrompt: `An illustrative image for ${outlineScene.title}`,
+        imagePrompt: `An illustrative image for ${momentBrief.title}`,
       };
     case "media-full":
       return {
         ...base,
         caption: "Add a caption.",
-        imagePrompt: `A striking image for ${outlineScene.title}`,
+        imagePrompt: `A striking image for ${momentBrief.title}`,
       };
     case "chart":
       return {
@@ -292,7 +292,7 @@ export function fallbackScene(
     case "code":
       return { ...base, code: { code: "// Replace with your example", language: "text" } };
     case "section":
-      return { ...base, eyebrow: "Section", heading: outlineScene.title };
+      return { ...base, eyebrow: "Section", heading: momentBrief.title };
     default:
       return { ...base, bullets: ["First point", "Second point", "Third point"] };
   }

@@ -169,10 +169,17 @@ export function ElementFrame({
 
       {selected && !element.locked && !editing && (
         <>
+          {/*
+            Drag affordances, not controls. They were focusable buttons
+            announcing "Resize top-left" and doing nothing at all from the
+            keyboard: eight promises per selected element, none of them kept,
+            and 8px targets besides. The keyboard path is Alt with the arrow
+            keys, which resizes the selection directly.
+          */}
           {HANDLES.map(({ handle, className, cursor }) => (
-            <button
+            <div
               key={handle}
-              aria-label={`Resize ${handle}`}
+              aria-hidden
               onPointerDown={(e) => onResizeStart(e, handle)}
               style={{ cursor }}
               className={cn(

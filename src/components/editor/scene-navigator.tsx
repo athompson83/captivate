@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import {
   DndContext,
+  KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
@@ -10,7 +11,12 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Copy, FolderPlus, GripVertical, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import type { PresentationTheme } from "@/lib/schema/theme";
@@ -60,7 +66,13 @@ export function SceneNavigator({
   const { toast } = useToast();
   const [pending, start] = useTransition();
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    // Reordering scenes is the only way to change their order in the product,
+    // and the grip below is a real focusable button that announces itself as
+    // one. Without this sensor it announced an action it could not perform.
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;

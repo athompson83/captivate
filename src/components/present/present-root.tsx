@@ -15,6 +15,9 @@ import { AnnotationLayer } from "./annotation-layer";
 import { PresenterBar } from "./presenter-bar";
 import { RecordingController } from "@/components/record/recording-controller";
 
+/** How often pointer activity may restart the presenter bar's countdown. */
+const ACTIVITY_INTERVAL = 250;
+
 /**
  * The stage window.
  *
@@ -56,7 +59,11 @@ export function PresentRoot({
   const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
   const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
 
-  const stage = stageSize(presentation.aspectRatio);
+  // Memoised: `stageSize` returns a fresh object, and this is a dependency of
+  // the placements below, which are a prop of `World` — so without it `World`'s
+  // memo could never hold and every arrangement was resolved again on every
+  // render of this component.
+  const stage = useMemo(() => stageSize(presentation.aspectRatio), [presentation.aspectRatio]);
   const placements = useMemo(
     () => resolvePlacements(scenes, journey, stage),
     [scenes, journey, stage],
@@ -71,6 +78,8 @@ export function PresentRoot({
   const [barVisible, setBarVisible] = useState(!audienceOnly);
   /** Bumped on any presenter activity to restart the auto-hide countdown. */
   const [activity, setActivity] = useState(0);
+  /** When the countdown was last restarted, so pointer moves stay cheap. */
+  const bumpedAt = useRef(0);
 
   /**
    * Where the camera should be.
@@ -79,11 +88,15 @@ export function PresentRoot({
    * entered, or square on the current scene. The session owns which of those is
    * true; this only turns it into a framing.
    */
-  const focus: Focus = session.overview
-    ? { kind: "world" }
-    : session.establishing
-      ? { kind: "section", sectionId: session.establishing }
-      : { kind: "scene", index: session.sceneIndex };
+  const focus: Focus = useMemo(
+    () =>
+      session.overview
+        ? { kind: "world" }
+        : session.establishing
+          ? { kind: "section", sectionId: session.establishing }
+          : { kind: "scene", index: session.sceneIndex },
+    [session.overview, session.establishing, session.sceneIndex],
+  );
 
   /**
    * The presenter bar is the presenter's, not the audience's: it appears on
@@ -93,6 +106,15 @@ export function PresentRoot({
   const showBar = () => {
     if (audienceOnly) return;
     setBarVisible(true);
+
+    // Throttled, because `setActivity` can never bail out — every call is a
+    // new value — and this is bound to `onPointerMove`. A trackpad delivers
+    // 120–240 of those a second, and each one re-rendered the whole
+    // presentation tree. The countdown only has to restart often enough that
+    // the bar feels like it is following the presenter.
+    const now = performance.now();
+    if (now - bumpedAt.current < ACTIVITY_INTERVAL) return;
+    bumpedAt.current = now;
     setActivity((n) => n + 1);
   };
 
@@ -134,7 +156,10 @@ export function PresentRoot({
           e.preventDefault();
           session.last();
           break;
-        case "Tab":
+        // Deliberately not Tab. This listener is on `window`, so binding Tab
+        // here cancelled it everywhere outside a text field — which is a
+        // keyboard trap, and on the console it also meant every timer, tool
+        // and note control could never be reached at all.
         case "o":
         case "O":
           e.preventDefault();

@@ -147,6 +147,11 @@ export function analyse(doc: PresentationDocument): Health {
 
   /* Contrast -------------------------------------------------------------- */
 
+  // The theme's own pairs, and only those. A scene may carry a solid
+  // background and a run may carry a colour override, and neither is walked
+  // here — so the detail line says which of those it looked at. A ratio that
+  // reads like a verdict on the deck, when it is a verdict on the palette, is
+  // the failure this file's rule exists to prevent.
   const theme = getTheme(presentation.themeId);
   const inkOnCanvas = contrastRatio(theme.tokens.ink, theme.tokens.canvas);
   const accentOnCanvas = contrastRatio(theme.tokens.accent, theme.tokens.canvas);
@@ -158,11 +163,11 @@ export function analyse(doc: PresentationDocument): Health {
     ...(worst >= MIN_CONTRAST
       ? {
           status: "pass" as const,
-          detail: `Text sits at ${inkOnCanvas.toFixed(1)}:1 against the background.`,
+          detail: `The theme puts text at ${inkOnCanvas.toFixed(1)}:1 against its background. Per-scene backgrounds and colour overrides are not measured.`,
         }
       : {
           status: worst >= 2.2 ? ("warn" as const) : ("fail" as const),
-          detail: `Lowest contrast is ${worst.toFixed(1)}:1, under the ${MIN_CONTRAST}:1 needed for large text.`,
+          detail: `The theme's lowest contrast is ${worst.toFixed(1)}:1, under the ${MIN_CONTRAST}:1 needed for large text. Per-scene backgrounds and colour overrides are not measured.`,
           fix: "Choose a theme with more separation between text and background.",
         }),
   });

@@ -66,7 +66,7 @@ export default async function HomePage() {
           <Sparkles className="text-ai size-4" aria-hidden />
           <h2 className="text-ink mt-3 text-[14px] font-semibold">Create with AI</h2>
           <p className="text-ink-3 mt-1 text-[12.5px] leading-relaxed">
-            Describe your topic. Review the outline before anything is created.
+            Describe your topic. Review the narrative map before anything is created.
           </p>
           <span className="text-ai-text mt-3 inline-flex items-center gap-1 text-[12px] font-medium">
             Start{" "}

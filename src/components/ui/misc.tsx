@@ -1,8 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils/cn";
+import { FieldCaptionContext } from "./input";
 
 /* -------------------------------------------------------------------------- */
 /* Tooltip                                                                     */
@@ -322,10 +323,19 @@ export function Segmented<T extends string>({
 }
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  // The caption is a paragraph rather than a `<label>` because a Field may
+  // hold several controls, or none — so it is published by id instead, and any
+  // Input or Textarea inside that has no name of its own takes this one.
+  const captionId = useId();
   return (
     <div>
-      <p className="text-ink-3 mb-1.5 text-[10px] font-medium tracking-wider uppercase">{label}</p>
-      {children}
+      <p
+        id={captionId}
+        className="text-ink-3 mb-1.5 text-[10px] font-medium tracking-wider uppercase"
+      >
+        {label}
+      </p>
+      <FieldCaptionContext value={captionId}>{children}</FieldCaptionContext>
     </div>
   );
 }
@@ -384,6 +394,10 @@ export function Toggle({
         type="button"
         role="switch"
         aria-checked={checked}
+        // A wrapping `<label>` is not a naming source for a button, and this
+        // one's whole subtree is an empty thumb — so it announced as
+        // "switch, off" with no hint of what it switches.
+        aria-label={label}
         onClick={() => onChange(!checked)}
         className={cn(
           "mt-0.5 h-4 w-7 shrink-0 rounded-full p-0.5 transition-colors",

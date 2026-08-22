@@ -3,6 +3,7 @@
 import { createElement, memo } from "react";
 import * as Icons from "lucide-react";
 import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
+import { embedSandbox } from "@/lib/utils/embed";
 import { categoricalHues, resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
 import { fitTextSize, textMetrics } from "@/lib/present/fit-text";
@@ -683,9 +684,11 @@ export const ElementView = memo(function ElementView({
           src={element.url}
           title={element.title || "Embedded content"}
           loading="lazy"
-          // Locked-down sandbox: embedded third-party content can render and
-          // run scripts but cannot reach this origin's storage or navigate us.
-          sandbox="allow-scripts allow-same-origin allow-presentation"
+          // Third-party content may render and run scripts on its own origin;
+          // it can never navigate us. An embed pointing back at this
+          // deployment is framed without `allow-same-origin`, because that
+          // pairing would hand it this origin — see `embedSandbox`.
+          sandbox={embedSandbox(element.url, process.env.NEXT_PUBLIC_SITE_URL)}
           referrerPolicy="no-referrer"
           allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           style={{

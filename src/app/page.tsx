@@ -97,7 +97,7 @@ export default async function LandingPage() {
             [
               Sparkles,
               "AI that drafts, not decides",
-              "Describe a topic, review the outline, then edit every word and every element.",
+              "Describe a topic, review the narrative map, then edit every word and every element.",
             ],
           ].map(([Icon, title, body]) => {
             const I = Icon as React.ComponentType<{ className?: string }>;

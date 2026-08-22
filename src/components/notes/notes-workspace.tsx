@@ -105,7 +105,11 @@ export function NotesWorkspace({
   const wordCount = active ? active.body.trim().split(/\s+/).filter(Boolean).length : 0;
 
   return (
-    <div className="grid h-[calc(100vh-0px)] grid-cols-1 md:h-screen md:grid-cols-[268px_minmax(0,1fr)]">
+    <div // `dvh`, because on iOS Safari `vh` counts space the browser toolbar is
+      // sitting on, which put the bottom of the writing surface permanently
+      // behind it.
+      className="grid h-[100dvh] grid-cols-1 md:grid-cols-[268px_minmax(0,1fr)]"
+    >
       <aside className="border-line-subtle flex min-h-0 flex-col border-b md:border-r md:border-b-0">
         <div className="flex items-center gap-2 px-4 pt-5 pb-3">
           <h1 className="text-ink flex-1 text-[16px] font-semibold tracking-tight">Notes</h1>

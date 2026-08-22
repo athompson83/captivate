@@ -182,10 +182,15 @@ There is a regression test for it; it genuinely fails if you revert the fix.
 
 ## Tests
 
-Unit and component tests sit next to what they cover (`src/**/*.test.ts{,x}`); e2e specs
-live in `e2e/`. When you fix a bug, add the test that fails without the fix — and check
+Unit and component tests live in `tests/unit/`; end-to-end specs live in
+`tests/e2e/`. When you fix a bug, add the test that fails without the fix — and check
 that it does fail. Several tests in this repo exist because a "fix" turned out not to
 have been applied at all.
+
+Two Playwright projects need no server and no account — `shader` compiles the
+committed GLSL and reads the pixels back, `lifecycle` bundles a component and
+mounts it in a real browser. Reach for those before concluding that something is
+untestable outside a running application.
 
 ## Database
 

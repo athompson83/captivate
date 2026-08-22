@@ -53,6 +53,18 @@ export function AppShell({
 
   return (
     <div className="bg-base flex min-h-screen">
+      {/*
+        Every page in this group puts nine chrome controls — search, six nav
+        links, settings and the account menu — in front of its content, and a
+        keyboard user was tabbing through all of them on every navigation.
+      */}
+      <a
+        href="#main"
+        className="bg-overlay text-ink border-line focus:ring-accent sr-only rounded-[var(--radius-md)] border px-3 py-2 text-[13px] font-medium focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-[100] focus:ring-2"
+      >
+        Skip to content
+      </a>
+
       {/* Mobile scrim */}
       {mobileOpen && (
         <button
@@ -164,7 +176,9 @@ export function AppShell({
           <span className="text-ink text-[14px] font-semibold">Captivate</span>
         </header>
 
-        <main className="min-w-0 flex-1">{children}</main>
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1">
+          {children}
+        </main>
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />

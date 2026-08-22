@@ -121,7 +121,13 @@ export const World = memo(function World({
   onSceneSelect,
   onArrive,
 }: WorldProps) {
-  const stage = stageSize(aspect);
+  // Memoised because it is a dependency of four other memos — the flight
+  // target, the culling pass, the world bounds and the region gradients — and
+  // `stageSize` returns a fresh object. Without this every one of them
+  // recomputed on every render, including a full culling sweep and a
+  // per-scene gradient string, at pointer-event rate while the presenter
+  // moved the mouse or waved the laser.
+  const stage = useMemo(() => stageSize(aspect), [aspect]);
   const reduced = useReducedMotion();
 
   const basePalette = useMemo(() => paletteOf(theme), [theme]);
@@ -224,12 +230,6 @@ export const World = memo(function World({
     const node = worldRef.current;
     if (!node || viewport.width === 0) return;
 
-    // Re-rendering with an equal destination must not restart a flight, and
-    // the memo above cannot promise referential stability across every parent.
-    if (targetRef.current && camerasEqual(targetRef.current, target)) return;
-    targetRef.current = target;
-    halt();
-
     const apply = (camera: Camera) => {
       cameraRef.current = camera;
       node.style.transform = worldTransform(camera, viewport);
@@ -255,12 +255,45 @@ export const World = memo(function World({
       if (atmosphereRef.current?.draw(camera)) atmospherePaintedRef.current = true;
     };
 
+    // Re-rendering with an equal destination must not restart a flight, and
+    // the memo above cannot promise referential stability across every parent.
+    if (targetRef.current && camerasEqual(targetRef.current, target)) {
+      // The destination has not moved, but the viewport may have.
+      // `worldTransform` is a function of both and nothing else writes it, so
+      // a resize that preserved the aspect ratio left the world positioned and
+      // scaled for the old size — while the atmosphere, whose size effect
+      // keys off the viewport directly, had already redrawn for the new one.
+      // The air and the content then disagreed about where the regions were.
+      if (frameRef.current === 0 && !timerRef.current && cameraRef.current) {
+        apply(cameraRef.current);
+      }
+      return;
+    }
+    targetRef.current = target;
+    halt();
+    // Only the dissolve branch writes opacity back. A dissolve interrupted
+    // before its midpoint by a target that then takes the cut or fly path left
+    // the world invisible with nothing to restore it.
+    node.style.opacity = "1";
+
+    /**
+     * Landed.
+     *
+     * Collapsing `origin` onto the destination is what ends the flight as far
+     * as culling and detail are concerned. Left set, the union of both
+     * endpoints stayed in force for the rest of the presentation, so one move
+     * to overview kept the whole deck mounted at full detail from then on.
+     */
+    const arrive = () => {
+      setOrigin(target);
+      arriveRef.current?.();
+    };
+
     const from = cameraRef.current;
     // First paint, an explicit cut, or a reduced-motion preference: arrive.
     if (!from || travel === "cut" || reduced) {
-      setOrigin(target);
       apply(target);
-      arriveRef.current?.();
+      arrive();
       return;
     }
 
@@ -277,7 +310,7 @@ export const World = memo(function World({
         timerRef.current = null;
         apply(target);
         node.style.opacity = "1";
-        arriveRef.current?.();
+        arrive();
       }, half);
       return;
     }
@@ -286,7 +319,7 @@ export const World = memo(function World({
     const duration = flightDuration(path.length, pace) * 1000;
     if (duration < 32) {
       apply(target);
-      arriveRef.current?.();
+      arrive();
       return;
     }
 
@@ -305,7 +338,7 @@ export const World = memo(function World({
       // that error would otherwise accumulate across a presentation.
       apply(target);
       frameRef.current = 0;
-      arriveRef.current?.();
+      arrive();
     };
     frameRef.current = requestAnimationFrame(tick);
   }, [
@@ -350,14 +383,20 @@ export const World = memo(function World({
     return placements
       .map((placement, index) => {
         const rect = sceneWorldRect(placement, stage);
-        const visible =
-          index === activeIndex || regions.some((region) => rectsIntersect(region, rect));
-        if (!visible) return null;
+        const seenFrom = cameras.filter((_, i) => rectsIntersect(regions[i], rect));
+        if (!seenFrom.length && index !== activeIndex) return null;
 
-        // Detail is the best either endpoint asks for: a scene that is legible
-        // at the destination stays legible for the whole flight.
+        // Detail is the best any endpoint that can actually see it asks for: a
+        // scene legible at the destination stays legible for the whole flight.
+        //
+        // Judged per camera rather than across all of them, because a scene
+        // off-screen at the origin still had the origin's zoom applied to it —
+        // so pulling back to overview from a close-in scene promoted every
+        // scene in the deck to a full Stage, which is the exact cost the
+        // landmark path exists to avoid.
+        const judged = seenFrom.length ? seenFrom : [target];
         const widest = Math.max(
-          ...cameras.map((camera) => stage.width * placement.scale * cameraScale(camera, viewport)),
+          ...judged.map((camera) => stage.width * placement.scale * cameraScale(camera, viewport)),
         );
 
         return { index, placement, detailed: widest >= DETAIL_THRESHOLD };

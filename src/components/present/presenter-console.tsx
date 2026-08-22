@@ -114,7 +114,10 @@ export function PresenterConsole({
           e.preventDefault();
           session.toggleBlank();
           break;
-        case "Tab":
+        // Deliberately not Tab. This listener is on `window`, so binding Tab
+        // here cancelled it everywhere outside a text field — which is a
+        // keyboard trap, and on the console it also meant every timer, tool
+        // and note control could never be reached at all.
         case "o":
         case "O":
           e.preventDefault();

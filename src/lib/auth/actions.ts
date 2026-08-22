@@ -30,14 +30,34 @@ function safeNext(next: unknown): string {
   return next;
 }
 
-async function origin(): Promise<string> {
-  const h = await headers();
+/**
+ * Where this deployment lives, for links sent by email.
+ *
+ * `x-forwarded-host` is whatever the client sent. A confirmation or recovery
+ * link carries a one-time credential, so building one from a request header
+ * means anybody can post the reset form with `Host: attacker.example` and have
+ * the account's owner emailed a genuine Supabase link that hands the code
+ * somewhere else. Supabase's redirect allowlist is a backstop, and a backstop
+ * configured elsewhere is not a reason to aim at it.
+ *
+ * So the header fallback survives only where nothing is at stake — a local
+ * dev server, where there is no attacker and no `NEXT_PUBLIC_SITE_URL`. In
+ * production the deployment says where it is or no link is sent at all. Naming
+ * the variable in the error makes that a configuration mistake someone fixes
+ * in a minute; the alternative is a poisoned link nobody ever sees.
+ */
+async function origin(): Promise<string | null> {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL;
   if (explicit) return explicit.replace(/\/$/, "");
+  if (process.env.NODE_ENV === "production") return null;
+
+  const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  return `${proto}://${host}`;
+  return host ? `${h.get("x-forwarded-proto") ?? "http"}://${host}` : null;
 }
+
+const NO_ORIGIN =
+  "This deployment has no NEXT_PUBLIC_SITE_URL set, so the link in the email would point nowhere reliable. Set it and try again.";
 
 export async function signIn(
   _prev: ActionResult | null,
@@ -86,13 +106,16 @@ export async function signUp(
     return { ok: false, error: issue.message, field: String(issue.path[0]) };
   }
 
+  const site = await origin();
+  if (!site) return { ok: false, error: NO_ORIGIN };
+
   const supabase = await supabaseServer();
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
       data: { display_name: parsed.data.displayName },
-      emailRedirectTo: `${await origin()}/auth/callback?next=/home`,
+      emailRedirectTo: `${site}/auth/callback?next=/home`,
     },
   });
 
@@ -119,9 +142,12 @@ export async function requestPasswordReset(
   const parsed = Email.safeParse(formData.get("email"));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message, field: "email" };
 
+  const site = await origin();
+  if (!site) return { ok: false, error: NO_ORIGIN };
+
   const supabase = await supabaseServer();
   await supabase.auth.resetPasswordForEmail(parsed.data, {
-    redirectTo: `${await origin()}/auth/callback?next=/update-password`,
+    redirectTo: `${site}/auth/callback?next=/update-password`,
   });
 
   // Always report success — a differing response would leak which addresses

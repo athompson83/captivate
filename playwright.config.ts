@@ -21,6 +21,29 @@ const baseURL = process.env.CAPTIVATE_E2E_URL ?? "http://127.0.0.1:3100";
 const PROVISIONED_CHROMIUM = "/opt/pw-browsers/chromium";
 const executablePath = existsSync(PROVISIONED_CHROMIUM) ? PROVISIONED_CHROMIUM : undefined;
 
+/**
+ * Projects that need no running application.
+ *
+ * `shader` compiles the committed GLSL on a bare canvas; `lifecycle` bundles
+ * the atmosphere component and opens it from the file system. Requiring a
+ * production build to run either would make the cheapest, most diagnostic
+ * tests in the suite the most expensive ones to reach.
+ */
+const SERVERLESS = new Set(["shader", "lifecycle"]);
+
+function selectedProjects(): string[] {
+  const names: string[] = [];
+  for (let i = 0; i < process.argv.length; i += 1) {
+    const argument = process.argv[i];
+    if (argument.startsWith("--project=")) names.push(argument.slice("--project=".length));
+    else if (argument === "--project" && process.argv[i + 1]) names.push(process.argv[i + 1]);
+  }
+  return names;
+}
+
+const chosen = selectedProjects();
+const needsServer = chosen.length === 0 || chosen.some((name) => !SERVERLESS.has(name));
+
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 60_000,
@@ -64,6 +87,21 @@ export default defineConfig({
       },
     },
     {
+      // The component's lifecycle, in a browser that really has WebGL. Bundles
+      // `src/components/stage/atmosphere.tsx` itself and mounts it under
+      // StrictMode, which is the only thing that unmounts and mounts again on
+      // one canvas — the condition the white-sheet defect needed.
+      name: "lifecycle",
+      testMatch: /atmosphere-lifecycle\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: {
+          executablePath,
+          args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
+        },
+      },
+    },
+    {
       name: "authenticated",
       testMatch: /journey\.spec\.ts/,
       use: {
@@ -80,12 +118,13 @@ export default defineConfig({
     },
   ],
 
-  webServer: process.env.CAPTIVATE_E2E_URL
-    ? undefined
-    : {
-        command: "npm run start -- -p 3100",
-        url: "http://127.0.0.1:3100",
-        reuseExistingServer: true,
-        timeout: 120_000,
-      },
+  webServer:
+    process.env.CAPTIVATE_E2E_URL || !needsServer
+      ? undefined
+      : {
+          command: "npm run start -- -p 3100",
+          url: "http://127.0.0.1:3100",
+          reuseExistingServer: true,
+          timeout: 120_000,
+        },
 });
