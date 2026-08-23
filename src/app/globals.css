@@ -34,11 +34,11 @@
 :root {
   color-scheme: light;
 
-  --surface-base: oklch(0.985 0.003 90);
-  --surface-sunken: oklch(0.955 0.005 90);
-  --surface-raised: oklch(1 0 0);
-  --surface-overlay: oklch(1 0 0);
-  --surface-inset: oklch(0.965 0.004 90);
+  --surface-base: oklch(0.985 0.01 90);
+  --surface-sunken: oklch(0.955 0.015 90);
+  --surface-raised: oklch(0.99 0.006 90);
+  --surface-overlay: oklch(0.99 0.006 90);
+  --surface-inset: oklch(0.965 0.012 90);
 
   --text-primary: oklch(0.22 0.012 265);
   --text-secondary: oklch(0.44 0.012 265);
