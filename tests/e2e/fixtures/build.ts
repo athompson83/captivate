@@ -23,7 +23,13 @@ export async function bundleFixture(entry: string): Promise<string> {
     mode: "development",
     logLevel: "error",
     plugins: [react()],
-    resolve: { alias: { "@": resolve(process.cwd(), "src") } },
+    resolve: {
+      alias: {
+        "@": resolve(process.cwd(), "src"),
+        // No Next runtime exists in a file:// fixture; links render as links.
+        "next/link": resolve(process.cwd(), "tests/e2e/fixtures/next-link-shim.tsx"),
+      },
+    },
     define: { "process.env.NODE_ENV": '"development"' },
     build: {
       outDir,

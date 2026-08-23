@@ -607,6 +607,12 @@ export const PresentationRecord = z.object({
   isFavorite: z.boolean(),
   thumbnailUrl: z.string().max(4096).nullable(),
   schemaVersion: z.number().int(),
+  /**
+   * View-only link token, or null when the deck is not shared. The token is
+   * the capability itself, so it only ever travels to the owner's own
+   * windows — the shared route resolves it server-side and never echoes it.
+   */
+  shareToken: z.string().uuid().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
   lastOpenedAt: z.string().nullable(),

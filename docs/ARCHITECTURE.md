@@ -11,6 +11,11 @@ the scene navigator — not "hides them", _does not load them_. Private material
 therefore cannot reach a projector through a state bug, a race, or a malformed
 message, because there is no code path that would render it there.
 
+`/v/[token]` — the public share-link viewer — takes the same principle one
+layer deeper: its payload is produced by a single database function that never
+selects presenter material, so the boundary holds before the application code
+runs at all.
+
 Everything else follows from wanting that to be true while still feeling like
 one application.
 

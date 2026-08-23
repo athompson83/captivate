@@ -92,7 +92,7 @@ export default defineConfig({
       // across a StrictMode remount, and a contentEditable's caret across a
       // store write. Neither needs a server or an account.
       name: "lifecycle",
-      testMatch: /(atmosphere-lifecycle|inline-editing)\.spec\.ts/,
+      testMatch: /(atmosphere-lifecycle|inline-editing|shared-viewer)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         launchOptions: {

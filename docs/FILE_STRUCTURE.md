@@ -17,6 +17,8 @@ captivate/
 │  │  ├─ edit/[id]/                Editor — its own chrome, outside the shell
 │  │  ├─ present/[id]/             The stage (audience view)
 │  │  │  └─ console/               The presenter console
+│  │  ├─ v/[token]/                Public share-link viewer — no account
+│  │  ├─ handout/[id]/             Print/PDF export, owner only
 │  │  ├─ api/
 │  │  │  ├─ ai/                    map, create-from-map, scenes-from-map,
 │  │  │  │                         moment, evidence, scene, rewrite, notes,
@@ -42,7 +44,8 @@ captivate/
 │  │  ├─ present/                  Stage root, presenter bar, console,
 │  │  │                            annotation layer, scene jumper,
 │  │  │                            movement rail (the argument's shape,
-│  │  │                            shown to the room)
+│  │  │                            shown to the room), shared viewer
+│  │  ├─ handout/                  The paper version of a deck
 │  │  ├─ record/                   Recording controller and setup dialog
 │  │  ├─ dashboard/                Cards, library, galleries, settings
 │  │  ├─ notes/                    Notes workspace

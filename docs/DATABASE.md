@@ -74,7 +74,9 @@ Metadata for captures. `status` distinguishes `uploading`, `ready`, `failed` and
 `local_only` — the last is a recording that exists only on the device that made
 it, which the library says plainly rather than showing an entry that plays
 nothing. `scene_timeline` is `[{ sceneId, sceneIndex, atMs }]` and becomes
-chapter markers during playback.
+chapter markers during playback. `transcript` (since `0009`) is
+`[{ startMs, endMs, text }]` — the subtitle cues captured live while recording;
+WebVTT is derived from it on demand rather than stored.
 
 ### `ai_generations`
 
@@ -137,6 +139,26 @@ owner-scoped RLS policy on `public.scenes` is exactly the check it needs, so it
 runs as the caller and inherits it. A `SECURITY DEFINER` function here would
 have to re-implement that check by hand, and would become a privilege-escalation
 bug the first time somebody got the re-implementation wrong.
+
+## Share links
+
+Migration `0010_share_links.sql` adds `presentations.share_token` — a nullable
+unique uuid. Null means not shared; revoking a link is setting it null, which
+kills every copy at once. The token is generated server-side
+(`crypto.randomUUID`), never accepted from a client.
+
+A link-holder's entire access path is `captivate_shared_presentation(uuid)`:
+`SECURITY DEFINER`, pinned `search_path`, granted to `anon` and
+`authenticated`. Every table policy is scoped `to authenticated`, so the
+default table grants an `anon` client holds on a Supabase project yield zero
+rows — the function is the only door. It selects only what an audience may
+see: title, description, theme, aspect, journey, sections' titles and labels,
+scenes' content and placement. It never selects `speaker_notes` or
+`owner_id`, so the audience boundary holds at the source: a column added to
+these tables stays private until someone selects it here deliberately.
+`supabase/tests/rls_isolation.test.sql` asserts all of this against a live
+database, including that anon sees zero table rows under production-shaped
+grants.
 
 ## Row-level security
 

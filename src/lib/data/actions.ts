@@ -269,6 +269,47 @@ export async function updatePresentation(input: unknown): Promise<Result<void>> 
   return ok(undefined);
 }
 
+const SharingInput = z.object({ id: Uuid, enabled: z.boolean() });
+
+/**
+ * Turns the view-only link on or off.
+ *
+ * The token is generated here, never accepted from the client — a chosen
+ * token would let a caller point their deck at a guessable URL. Enabling an
+ * already-shared deck keeps its token, so "copy link" never silently breaks
+ * the copies already sent; revoking nulls it, which kills every copy at once.
+ */
+export async function setSharing(
+  input: unknown,
+): Promise<Result<{ shareToken: string | null }>> {
+  const parsed = SharingInput.safeParse(input);
+  if (!parsed.success) return fail("Invalid sharing request.");
+
+  const supabase = await client();
+  const { data: current, error: readError } = await supabase
+    .from("presentations")
+    .select("share_token")
+    .eq("id", parsed.data.id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (readError) return fail(readError.message);
+  if (!current) return fail("Presentation not found.");
+
+  if (parsed.data.enabled && current.share_token) {
+    return ok({ shareToken: current.share_token });
+  }
+
+  const shareToken = parsed.data.enabled ? randomUUID() : null;
+  const { error } = await supabase
+    .from("presentations")
+    .update({ share_token: shareToken })
+    .eq("id", parsed.data.id);
+  if (error) return fail(error.message);
+
+  revalidatePath(`/edit/${parsed.data.id}`);
+  return ok({ shareToken });
+}
+
 export async function markPresentationOpened(id: string): Promise<Result<void>> {
   if (!Uuid.safeParse(id).success) return fail("Invalid id.");
   const supabase = await client();

@@ -45,6 +45,8 @@ export type PresentationRow = Timestamps & {
   deleted_at: string | null;
   /** Planned running time. 0 = the author has not stated one. */
   target_seconds: number;
+  /** View-only link token. Null = not shared. */
+  share_token: string | null;
 };
 
 export type SectionRow = Timestamps & {
@@ -180,6 +182,10 @@ export type Database = {
       captivate_replace_moments: {
         Args: { p_presentation_id: string; p_moments: Json };
         Returns: number;
+      };
+      captivate_shared_presentation: {
+        Args: { p_token: string };
+        Returns: Json;
       };
     };
     Enums: Record<never, never>;

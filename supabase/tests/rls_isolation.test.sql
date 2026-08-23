@@ -1,7 +1,12 @@
 \set ON_ERROR_STOP on
 -- Grant the table privileges Supabase normally grants; RLS is the actual gate.
+-- anon gets the same select grants it holds on a real Supabase project: every
+-- policy is scoped `to authenticated`, so those grants must still yield
+-- nothing — which is exactly what the anon probes below assert.
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage on schema public to anon;
+grant select on all tables in schema public to anon;
 
 -- Two users, each with one presentation containing one scene and one note.
 insert into auth.users (id, email) values
@@ -72,3 +77,52 @@ reset role;
 -- Alice's data is intact.
 select 'alice_data_intact' as check, count(*) as n from public.presentations
   where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+
+-- ---- Share links ------------------------------------------------------------
+-- Alice shares her deck; the token is the whole of a link-holder's authority.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+update public.presentations
+   set share_token = 'cccccccc-0000-0000-0000-000000000001'
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+reset role;
+
+set role anon;
+
+-- Even with production-shaped grants, table policies give anon nothing —
+-- holding a token must not change that.
+select 'anon_sees_presentations' as check, count(*) as n from public.presentations;
+select 'anon_sees_scenes'        as check, count(*) as n from public.scenes;
+
+-- The right token resolves the deck through the one function anon may call…
+select 'shared_link_resolves' as check,
+  (public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001')
+     -> 'presentation' ->> 'title' = 'Alice deck')::int as n;
+
+-- …and the payload is the audience's: no speaker notes, no owner identity.
+select 'shared_link_omits_notes' as check,
+  (position('PRIVATE ALICE NOTES' in
+     coalesce(public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001')::text, ''))
+   = 0)::int as n;
+select 'shared_link_omits_owner' as check,
+  (position('11111111-1111-1111-1111-111111111111' in
+     coalesce(public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001')::text, ''))
+   = 0)::int as n;
+
+-- A wrong token is a dead link, not an error.
+select 'shared_link_wrong_token_dead' as check,
+  (public.captivate_shared_presentation('cccccccc-0000-0000-0000-0000000000ff') is null)::int as n;
+
+reset role;
+
+-- Revoking kills the link at once.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+update public.presentations set share_token = null
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+reset role;
+
+set role anon;
+select 'shared_link_revoked_dead' as check,
+  (public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001') is null)::int as n;
+reset role;
