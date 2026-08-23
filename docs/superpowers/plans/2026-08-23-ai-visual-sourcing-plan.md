@@ -17,6 +17,7 @@
 - The budget reservation must fail **closed** on error (deny the call) — this is the opposite posture from `src/lib/ai/rate-limit.ts`'s existing "fail open on infra hiccup" rule, which is correct for its own low-stakes case (an inconvenient block) and wrong for this one (an uncapped-spend incident). Note this divergence explicitly in the code, not just here.
 - Every new server action returns `{ ok: true; data } | { ok: false; error }` per AGENTS.md's "errors are values" rule — never throws across that boundary.
 - Migrations are append-only; check the actual current highest-numbered file in `supabase/migrations/` at implementation time rather than trusting a number hardcoded in this plan — other work may have landed migrations in between.
+- **Test-harness dependency on the hotspot-elements plan**: `supabase/tests/run.sh` originally applied only `supabase/migrations/0001_captivate_core.sql`, not every migration — without a fix, `npm run test:rls` would never see any migration this plan adds (Task 1's provenance columns, Task 2's budget tables), making every RLS check below vacuous. The hotspot-elements plan (sequenced immediately before this one) fixes `run.sh` to loop over every migration as part of its own Task 1. If this plan is implemented before that fix has landed, apply the same one-line fix here first (loop `for f in supabase/migrations/*.sql; do psql ... -f "$f"; done` instead of the single hardcoded file) rather than proceeding with a test suite that silently isn't testing anything new.
 
 ---
 
