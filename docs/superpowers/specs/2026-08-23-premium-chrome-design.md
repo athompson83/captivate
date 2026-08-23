@@ -1,0 +1,184 @@
+# Premium chrome & journey polish — design
+
+Workstream 1 of 4 agreed with the user (the others — clickable/expandable scene
+elements, AI visual captivation, and phone remote control — are separate specs).
+
+## Problem
+
+The user asked to "make the UI feel more premium" and "make the presentation
+experience even more captivating... check out Prezi.com and make sure we have
+something even better."
+
+A hands-on audit (running the app against the live `Captivate` Supabase
+project, walking through sign-up → dashboard → templates → editor
+(narrative/scene/journey views) → present mode → console) found that **the
+stage is already excellent and already beats Prezi on the specific thing
+Prezi is known for**: the camera (`src/lib/present/camera.ts`) implements the
+Van Wijk & Nuij optimal zoom-and-pan path, which already pulls back, travels,
+and pushes in on any long jump — the "zoom out of current, zoom into next"
+behavior the user asked for is not a gap, it is the existing `fly` travel
+mode. The pulled-back overview (`O` key) already renders a glowing dotted
+route over a procedurally-generated amber atmosphere, which reads as more
+considered than Prezi's flat path line.
+
+The actual gap is that **the chrome around the stage undersells it**. The
+dashboard, templates gallery, and editor shell are flat, thin-bordered,
+default-SaaS-white, while the stage they lead into is dark, editorial
+(Fraunces serif), and warm-gold accented. That mismatch — not the stage
+itself — is what reads as "not premium."
+
+## Goals
+
+- Bring dashboard / templates / library / settings / recordings chrome up to
+  the level of craft already present on the stage, using the *existing*
+  design language (`docs/DESIGN.md`) rather than inventing a new one.
+- Fix two concrete, evidence-based defects between the documented design
+  intent and the shipped code (below).
+- Add small, additive polish to journey/present-mode moments that are already
+  strong, without touching the camera math, culling, or LOD logic in
+  `world.tsx` / `camera.ts` — those are correct and out of scope.
+
+## Non-goals
+
+- No new visual language (colors, type, motion tokens stay as documented).
+- No changes to clickable/expandable elements, AI generation, or remote
+  control — separate specs.
+- No changes to the flight/camera algorithm itself, arrangement presets, or
+  culling/LOD. The engine is sound; this workstream is chrome and finish.
+
+## Findings
+
+1. **Light theme isn't actually warm.** `docs/DESIGN.md`: "Light mode is warm
+   paper rather than clinical white." Actual token
+   (`src/app/globals.css:37`): `--surface-base: oklch(0.985 0.003 90)` —
+   chroma 0.003 is imperceptible; it renders as plain white (confirmed via
+   screenshot of the live dashboard). `--surface-sunken` (L38, chroma 0.005)
+   and `--surface-raised`/`--surface-overlay` (pure white, chroma 0) have the
+   same problem.
+2. **Theme resolves to OS preference on first visit, not dark.**
+   `docs/DESIGN.md` frames the product as "dark by default... it sits next to
+   a dark projection." `src/components/ui/theme-provider.tsx`'s
+   `readPreference()` returns `"system"` both when the user has never
+   expressed a preference *and* when they've explicitly chosen "System" in
+   Settings (`settings-panel.tsx` has a working Light/Dark/System toggle via
+   `useTheme`/`setPref`) — both cases then defer to
+   `matchMedia("(prefers-color-scheme: dark)")`. The user confirmed the fix:
+   first-run (nothing in `localStorage`) should resolve dark unconditionally;
+   an explicit "System" choice should keep following the OS. This means
+   distinguishing "never set" from "explicitly set to system" — currently
+   collapsed into one value.
+3. **Dashboard/templates/library chrome is under-crafted relative to the
+   stage**: flat white cards with thin gray borders (`presentation-card.tsx`,
+   `template-gallery.tsx`), small utilitarian icons, no hover/elevation
+   choreography beyond default browser behavior. The template thumbnails
+   themselves (dark, Fraunces-set, color-graded per template) are already
+   excellent — the plain white card footer beneath each one (title,
+   description, "Use this →" link) doesn't extend that craft down into the
+   rest of the card.
+4. **Journey/present-mode has room for small additive polish**: the
+   "establish a section" beat (pull back, hold ~1s, dive —
+   `docs/UX.md` "Moving through a presentation") and the pulled-back overview
+   are both good and are the right places to add a bit more visual weight
+   (e.g. path/glow depth, section-frame emphasis) rather than inventing new
+   mechanics.
+
+## Design
+
+### A. Light theme: real warmth
+
+Raise chroma on the light-mode surface tokens (`globals.css` lines ~36-40)
+enough to read as warm paper against a white reference, while keeping
+`oklch` lightness values and the perceptual-evenness property intact. Verify
+against real content (dashboard, editor chrome, dialogs) rather than the
+token in isolation — OKLCH chroma that looks warm in a swatch can look muddy
+under text. `--accent` and text tokens are unaffected; this is a surface-only
+change. Dark theme tokens are untouched.
+
+### B. Theme default policy: dark first
+
+Change `theme-provider.tsx` (and the matching inline bootstrap script in
+`src/app/layout.tsx:62`, which must stay in sync since it sets `data-theme`
+before hydration to avoid a flash) so that:
+
+- No stored preference → resolves dark, regardless of OS `prefers-color-scheme`.
+- Stored preference `"light"` or `"dark"` → behaves as today (explicit wins).
+- Stored preference `"system"` (i.e. the user opened Settings and explicitly
+  picked "System") → continues to follow OS `prefers-color-scheme`, as today.
+
+This requires `readPreference()`'s return type/contract to distinguish
+"absent" from "system" — today both collapse to the string `"system"`. The
+implementation plan should pick a concrete representation (e.g. `null`/absent
+vs. the literal `"system"`) and update both the provider and the inline
+bootstrap script identically, since a mismatch between them reintroduces the
+hydration flash the current script exists to prevent.
+
+### C. Dashboard / library / settings / recordings chrome
+
+Apply the stage's level of craft to the app shell, within the existing
+design system (`docs/DESIGN.md`'s tokens — no new colors, no new fonts):
+
+- **Cards** (`presentation-card.tsx`, `template-gallery.tsx`,
+  `recordings-library.tsx`, `asset-library.tsx`): give hover/focus a
+  deliberate elevation transition using the existing elevation and motion
+  tokens (`--duration-*`, `cubic-bezier(0.22, 1, 0.36, 1)`) instead of
+  default/no transition. Extend the card's visual quality (border, radius,
+  shadow) consistently between a template's dark thumbnail and its
+  metadata footer, so the card reads as one crafted object rather than an
+  image with an unrelated panel bolted underneath.
+- **Empty states** — `docs/UX.md` already mandates these do work ("three
+  concrete next steps"); check each against that bar and tighten any that
+  default to a generic icon + text (the audit saw `presentations-library.tsx`
+  empty state, which already does most of this — verify the others match).
+- **Iconography** — confirm consistent sizing/weight across the sidebar,
+  cards, and top bars; `docs/DESIGN.md` sets a 28px minimum for interactive
+  controls — audit for violations.
+- Explicitly do **not** add gradients, extra shadows-on-shadows, or a second
+  accent color — `docs/DESIGN.md`'s "What was deliberately avoided" section
+  still applies to this pass.
+
+### D. Templates gallery
+
+Specifically strengthen `template-gallery.tsx` cards: the thumbnail already
+sells the template; extend consistent elevation/hover treatment from item C
+here first since it's the most-seen "premium or not" surface for a new user,
+and tighten the typographic rhythm between the thumbnail's Fraunces title and
+the footer's Inter title/description so they read as one card.
+
+### E. Journey / present-mode additive polish
+
+Two small, additive changes — no camera/culling/LOD changes:
+
+- **Establish-section beat**: add a touch more visual weight to the
+  hold-frame (e.g. the section's movement label gets brief emphasis) so the
+  "one beat where showing the shape of the thing is worth more than showing
+  its content" (`docs/UX.md`) reads even more deliberately as a beat, not a
+  pause.
+- **Overview path**: minor depth/legibility pass on the dotted route and
+  scene glow rendered in the pulled-back view (already implemented in
+  `world.tsx`/`ambient.ts`/`atmosphere.tsx`) — confirm it holds up with more
+  scenes/sections than the 7-scene lecture template used in the audit, and
+  tune if it degrades (e.g. path/glow overlap at higher scene density).
+
+## Testing
+
+- Unit/component tests (`tests/unit/`) for the theme-provider default-policy
+  change: no stored preference resolves dark; explicit `"light"`/`"dark"`
+  unaffected; explicit `"system"` still follows `matchMedia`. Per AGENTS.md's
+  testing rule, write the test that fails without the fix and confirm it
+  does.
+- Visual verification via the `run` skill (Playwright against the live dev
+  server, as used for this audit) for: dashboard light-mode warmth, dark-mode
+  default on a fresh (no-localStorage) session, template gallery hover
+  states, and the establish-section flourish in present mode.
+- `npm run verify` before considering any part of this done, per AGENTS.md.
+
+## Risks
+
+- OKLCH chroma changes on `--surface-base` propagate everywhere (it's the
+  `body` background per `globals.css:178`) — needs visual verification across
+  every light-mode surface, not just the dashboard, to avoid muddying text
+  contrast.
+- The theme-provider change touches `useSyncExternalStore` snapshot logic and
+  the pre-hydration inline script together; getting them out of sync
+  reintroduces the flash-of-wrong-theme the current code was written to
+  avoid. Treat both edits as one unit.
