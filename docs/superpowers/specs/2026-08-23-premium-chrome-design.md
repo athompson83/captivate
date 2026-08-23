@@ -67,14 +67,24 @@ itself — is what reads as "not premium."
    an explicit "System" choice should keep following the OS. This means
    distinguishing "never set" from "explicitly set to system" — currently
    collapsed into one value.
-3. **Dashboard/templates/library chrome is under-crafted relative to the
-   stage**: flat white cards with thin gray borders (`presentation-card.tsx`,
-   `template-gallery.tsx`), small utilitarian icons, no hover/elevation
-   choreography beyond default browser behavior. The template thumbnails
-   themselves (dark, Fraunces-set, color-graded per template) are already
-   excellent — the plain white card footer beneath each one (title,
-   description, "Use this →" link) doesn't extend that craft down into the
-   rest of the card.
+3. **Correction from an implementation-planning pass**: reading
+   `presentation-card.tsx` and `template-gallery.tsx` directly (rather than
+   only the dashboard screenshots from the original audit) shows both
+   already implement hover/elevation choreography
+   (`hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]`, a considered
+   `transition-[border-color,box-shadow,transform] duration-[var(--duration-base)]`)
+   — the original finding that cards have "no hover/elevation choreography"
+   overstated the gap. The real, verified gap: neither transition respects
+   `prefers-reduced-motion` (`ReducedMotionProvider`,
+   `src/components/ui/reduced-motion.tsx`, only reaches `motion/react`
+   library animations — plain Tailwind `transition-*` hover effects like
+   these are outside its coverage), which is exactly what acceptance
+   criterion 3 above requires. The template thumbnails (dark, Fraunces-set,
+   color-graded) are already excellent and the footer typography already has
+   a considered hierarchy (semibold title, muted description, accent CTA
+   with an icon) — treat "make cards feel premium" as largely already done,
+   and scope this workstream's card-level work to the reduced-motion gap
+   plus a genuine visual-review pass (not an assumed rebuild).
 4. **Journey/present-mode has room for small additive polish**: the
    "establish a section" beat (pull back, hold ~1s, dive —
    `docs/UX.md` "Moving through a presentation") and the pulled-back overview
@@ -118,13 +128,13 @@ Apply the stage's level of craft to the app shell, within the existing
 design system (`docs/DESIGN.md`'s tokens — no new colors, no new fonts):
 
 - **Cards** (`presentation-card.tsx`, `template-gallery.tsx`,
-  `recordings-library.tsx`, `asset-library.tsx`): give hover/focus a
-  deliberate elevation transition using the existing elevation and motion
-  tokens (`--duration-*`, `cubic-bezier(0.22, 1, 0.36, 1)`) instead of
-  default/no transition. Extend the card's visual quality (border, radius,
-  shadow) consistently between a template's dark thumbnail and its
-  metadata footer, so the card reads as one crafted object rather than an
-  image with an unrelated panel bolted underneath.
+  `recordings-library.tsx`, `asset-library.tsx`): `presentation-card.tsx` and
+  `template-gallery.tsx` already have deliberate hover/elevation transitions
+  (see finding 3's correction) — make them `prefers-reduced-motion`-aware
+  (Tailwind's `motion-reduce:` variant, or an equivalent guard) rather than
+  adding new choreography. Audit `recordings-library.tsx` and
+  `asset-library.tsx` against the same bar those two files already meet and
+  bring them up to it if they fall short — verify before assuming a gap.
 - **Empty states** — `docs/UX.md` already mandates these do work ("three
   concrete next steps"); check each against that bar and tighten any that
   default to a generic icon + text (the audit saw `presentations-library.tsx`
@@ -138,11 +148,12 @@ design system (`docs/DESIGN.md`'s tokens — no new colors, no new fonts):
 
 ### D. Templates gallery
 
-Specifically strengthen `template-gallery.tsx` cards: the thumbnail already
-sells the template; extend consistent elevation/hover treatment from item C
-here first since it's the most-seen "premium or not" surface for a new user,
-and tighten the typographic rhythm between the thumbnail's Fraunces title and
-the footer's Inter title/description so they read as one card.
+`template-gallery.tsx` is already in good shape (finding 3's correction) —
+this section is now the reduced-motion fix from C applied here first, since
+it's the most-seen "premium or not" surface for a new user, plus a genuine
+visual-review pass rather than an assumed typography rebuild: check the
+rendered page for anything that still looks off once reduced-motion is
+handled, fix only what's actually found.
 
 ### E. Journey / present-mode additive polish
 
@@ -199,10 +210,17 @@ judgment call, a deterministic one failing is a bug.
    the existing camera-flight behavior untouched. A reduced-motion session
    sees the end state of every new hover/emphasis effect immediately, no
    animated path.
-4. **No regression to camera math, culling/LOD, or arrangement behavior.**
-   `world.tsx`/`camera.ts`/`arrange.ts` are unmodified by this workstream;
-   any diff touching them is out of scope for this PR by definition, not
-   just by intent.
+4. **No regression to camera math, culling/LOD selection, or arrangement
+   placement.** `camera.ts` (flight interpolation, `frameScene`/`frameRect`/
+   `flight`) and `arrange.ts` (placement math) are unmodified by this
+   workstream. `world.tsx` is touched only for the rendering-level polish
+   section E asks for (the path/glow visual weight, the establish-section
+   hold-frame emphasis) — its culling/LOD *selection* logic (the `rendered`
+   memo's endpoint-based detail decisions, described in AGENTS.md) is
+   unmodified. A diff to `camera.ts`/`arrange.ts`, or to `world.tsx`'s
+   culling/LOD selection, is out of scope for this PR by definition; a diff
+   to `world.tsx`'s rendering of the path/glow/hold-frame is section E and
+   in scope.
 
 ### Subjective (visual-review checklist, human judgment)
 
