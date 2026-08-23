@@ -10,7 +10,14 @@ cd "$(dirname "$0")/../.."
 DB="${CAPTIVATE_TEST_DB:-cap_test}"
 psql -q -d postgres -c "drop database if exists ${DB};" -c "create database ${DB};"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/tests/_supabase_stub.sql
-psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/migrations/0001_captivate_core.sql
+# Every migration, in filename order — not only 0001_captivate_core.sql. A
+# harness that stopped at 0001 would let every RLS probe below "pass" while
+# silently testing a schema years out of date; supabase/tests/rls_isolation
+# .test.sql's migration-coverage checks exist to catch exactly that if this
+# loop is ever narrowed back down to a single file.
+for f in supabase/migrations/*.sql; do
+  psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f"
+done
 
 out=$(psql -q -d "$DB" -f supabase/tests/rls_isolation.test.sql 2>&1)
 echo "$out"

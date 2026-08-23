@@ -1,4 +1,10 @@
--- Minimal stand-in for the parts of Supabase that migration 0001 touches.
+-- Minimal stand-in for the parts of Supabase that the migrations touch.
+--
+-- run.sh applies every file in supabase/migrations/, not only 0001, so this
+-- stub has to cover whatever any of them reference — currently `auth` (0001
+-- onward) and `storage` (0002_storage.sql's buckets/object policies). Extend
+-- it, don't work around it, if a future migration needs another schema this
+-- doesn't yet stand in for.
 create schema if not exists auth;
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
@@ -12,3 +18,25 @@ do $$ begin
   if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if;
   if not exists (select 1 from pg_roles where rolname='anon') then create role anon; end if;
 end $$;
+
+-- storage.buckets / storage.objects, enough for 0002_storage.sql's bucket
+-- rows and per-bucket object policies to apply. Not a faithful reproduction
+-- of Supabase Storage — just the shape those statements actually touch.
+create schema if not exists storage;
+create table if not exists storage.buckets (
+  id text primary key,
+  name text not null,
+  public boolean not null default false,
+  file_size_limit bigint,
+  allowed_mime_types text[]
+);
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text references storage.buckets(id),
+  name text,
+  owner uuid
+);
+alter table storage.objects enable row level security;
+create or replace function storage.foldername(name text) returns text[] language sql immutable as $$
+  select string_to_array(name, '/');
+$$;
