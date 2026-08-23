@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
-import { Copy, MoreHorizontal, Pencil, Play, Star, Trash2 } from "lucide-react";
+import { Copy, MoreHorizontal, Pencil, Play, Printer, Star, Trash2 } from "lucide-react";
 import type { PresentationSummary } from "@/lib/data/presentations";
 import type { SceneContent } from "@/lib/schema/presentation";
 import { getTheme } from "@/lib/schema/theme";
@@ -181,6 +181,9 @@ export function PresentationCard({
                   onDuplicate();
                 }}
               />
+              <Link href={`/handout/${presentation.id}`} onClick={() => setMenuOpen(false)}>
+                <MenuItem icon={Printer} label="Handout / PDF" />
+              </Link>
               <div className="border-line-subtle my-1 border-t" />
               <MenuItem
                 icon={Trash2}

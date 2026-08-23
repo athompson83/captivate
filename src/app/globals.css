@@ -414,3 +414,29 @@ body {
     height: 44%;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Print — the handout route is the export path, and "Save as PDF" in the
+   print dialog is the file. Colour is forced on because a scene rendered
+   without its background is not the scene the room saw.
+--------------------------------------------------------------------------- */
+@page {
+  margin: 12mm;
+}
+
+@layer base {
+  @media print {
+    .handout {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .handout-page {
+      break-inside: avoid;
+      break-after: page;
+      padding-top: 8mm;
+    }
+    .handout-page:last-child {
+      break-after: auto;
+    }
+  }
+}
