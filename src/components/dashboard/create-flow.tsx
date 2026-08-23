@@ -39,10 +39,12 @@ import { cn } from "@/lib/utils/cn";
  */
 export function CreateFlow({
   initialMode,
+  initialTemplateId,
   folders,
   folderId,
 }: {
   initialMode: "ai" | "template";
+  initialTemplateId?: string;
   folders: { id: string; name: string }[];
   folderId: string | null;
 }) {
@@ -78,7 +80,11 @@ export function CreateFlow({
 
       <div className="mt-6">
         {mode === "template" ? (
-          <TemplatePath folders={folders} folderId={folderId} />
+          <TemplatePath
+            folders={folders}
+            folderId={folderId}
+            initialTemplateId={initialTemplateId}
+          />
         ) : (
           <AiPath folderId={folderId} />
         )}
@@ -92,18 +98,24 @@ export function CreateFlow({
 function TemplatePath({
   folders,
   folderId,
+  initialTemplateId,
 }: {
   folders: { id: string; name: string }[];
   folderId: string | null;
+  initialTemplateId?: string;
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [pending, start] = useTransition();
 
-  const [templateId, setTemplateId] = useState("lecture");
+  const startingId =
+    initialTemplateId && TEMPLATES.some((t) => t.id === initialTemplateId)
+      ? initialTemplateId
+      : "lecture";
+  const [templateId, setTemplateId] = useState(startingId);
   const [title, setTitle] = useState("");
   const [themeId, setThemeId] = useState(
-    TEMPLATES.find((t) => t.id === "lecture")?.themeId ?? "midnight",
+    TEMPLATES.find((t) => t.id === startingId)?.themeId ?? "midnight",
   );
   const [folder, setFolder] = useState(folderId ?? "");
 
