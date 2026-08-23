@@ -30,9 +30,9 @@
 **Interfaces:**
 - Produces: `presentation_sessions(id, owner_id, presentation_id, status, created_at, expires_at, ended_at)` — consumed by Task 3 (session creation/teardown) and Task 2 (the Realtime RLS policies, which join against this table).
 
-- [ ] **Step 1: Fix `run.sh` to apply every migration**
+- [ ] **Step 1: Confirm `run.sh` applies every migration (likely already fixed by an earlier sibling plan)**
 
-Edit `supabase/tests/run.sh`, replacing the single hardcoded migration line:
+This plan is sequenced after the hotspot-elements and AI-visual-sourcing plans, both of which fix this same harness gap as part of their own Task 1 / a noted dependency — check `supabase/tests/run.sh` first (`grep -n "for f in\|0001_captivate_core" supabase/tests/run.sh`). If it already loops over every migration file, skip straight to Step 2. If it's still hardcoded to only `0001_captivate_core.sql` (implementation order changed, or an earlier plan's fix didn't land), apply the same fix here:
 
 ```bash
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/migrations/0001_captivate_core.sql
