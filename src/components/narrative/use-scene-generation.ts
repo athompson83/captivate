@@ -1,0 +1,199 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { briefsFor } from "@/lib/narrative/generate";
+import { composeScene } from "@/lib/editor/layouts";
+import { addScene, linkScenesToMoments, saveScene } from "@/lib/data/actions";
+import { useEditor } from "@/lib/editor/store";
+import { useToast } from "@/components/ui/toast";
+import { WrittenScenes } from "@/lib/ai/schemas";
+import type { SceneContent } from "@/lib/schema/presentation";
+
+/**
+ * Generating scenes from an accepted map.
+ *
+ * The map is the input, not a suggestion alongside one: every request carries
+ * the moment's role, purpose, takeaway, evidence, duration, visual intent and
+ * its neighbours in the argument.
+ *
+ * Two rules the implementation exists to hold:
+ *
+ *  - **A locked moment is never regenerated.** Its scenes are left exactly as
+ *    they are, and it is excluded from the request rather than generated and
+ *    then discarded.
+ *  - **Nothing is destroyed silently.** The caller is told how many scenes will
+ *    be replaced before this runs, and scenes belonging to no moment — anything
+ *    hand-made — are never touched.
+ */
+export interface GenerationPlan {
+  /** Moments that will be generated. */
+  moments: number;
+  /** Existing scenes that will be replaced. */
+  replacing: number;
+  /** Moments skipped because they are locked. */
+  locked: number;
+  /** Hand-made scenes that will be left alone. */
+  untouched: number;
+}
+
+export function useSceneGeneration(presentationId: string, prompt: string) {
+  const { toast } = useToast();
+  const [generating, setGenerating] = useState(false);
+
+  const plan = useCallback((): GenerationPlan => {
+    const { moments, scenes } = useEditor.getState().document;
+    const unlocked = moments.filter((moment) => !moment.locked);
+    const unlockedIds = new Set(unlocked.map((moment) => moment.id));
+
+    return {
+      moments: unlocked.length,
+      replacing: scenes.filter((scene) => scene.momentId && unlockedIds.has(scene.momentId)).length,
+      locked: moments.length - unlocked.length,
+      untouched: scenes.filter((scene) => !scene.momentId).length,
+    };
+  }, []);
+
+  const generate = useCallback(async () => {
+    const state = useEditor.getState();
+    const { sections, moments } = state.document;
+    const unlocked = moments.filter((moment) => !moment.locked);
+
+    if (unlocked.length === 0) {
+      toast({
+        tone: "info",
+        title: "Nothing to generate",
+        description: "Every moment is locked, so there is nothing for Captivate to write.",
+      });
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const briefs = briefsFor(sections, moments).filter((brief) =>
+        unlocked.some((moment) => moment.id === brief.momentId),
+      );
+
+      const response = await fetch("/api/ai/scenes-from-map", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          prompt: prompt || "Generate this presentation.",
+          presentationId,
+          briefs,
+        }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          typeof body === "object" && body !== null && "error" in body
+            ? String((body as { error: unknown }).error)
+            : "Couldn't generate scenes.";
+        throw new Error(message);
+      }
+
+      const parsed = WrittenScenes.safeParse(body);
+      if (!parsed.success) {
+        throw new Error("The generated scenes came back in a shape this editor cannot store.");
+      }
+      const { scenes: written, notice } = parsed.data;
+
+      // Reuse the scene a moment already owns rather than deleting and
+      // recreating it: the scene's own id is what recordings, thumbnails and
+      // any future note anchor already point at.
+      const links: { sceneId: string; momentId: string | null }[] = [];
+      // Generation is the one place where a silent write failure is invisible
+      // by construction: the reload below replaces the whole document, so a
+      // scene that was never written simply is not there — and a success toast
+      // for it reads as the model's work disappearing rather than as an error.
+      const failures: string[] = [];
+      let saved = 0;
+
+      for (const generated of written) {
+        const existing = useEditor
+          .getState()
+          .document.scenes.find((scene) => scene.momentId === generated.momentId);
+
+        if (existing) {
+          const result = await saveScene({
+            id: existing.id,
+            presentationId,
+            title: generated.title,
+            content: generated.content,
+            speakerNotes: generated.speakerNotes,
+          });
+          if (result.ok) saved += 1;
+          else failures.push(result.error);
+          continue;
+        }
+
+        const moment = moments.find((m) => m.id === generated.momentId);
+        const created = await addScene({
+          presentationId,
+          sectionId: moment?.movementId ?? null,
+          title: generated.title,
+          content: generated.content,
+          speakerNotes: generated.speakerNotes,
+        });
+        if (created.ok) {
+          saved += 1;
+          links.push({ sceneId: created.data.id, momentId: generated.momentId });
+        } else {
+          failures.push(created.error);
+        }
+      }
+
+      if (links.length) {
+        const linked = await linkScenesToMoments({ presentationId, links });
+        // A scene that exists but is filed under no moment is not a small
+        // problem: regenerating would make a second copy rather than reuse it.
+        if (!linked.ok) failures.push(linked.error);
+      }
+
+      if (failures.length) {
+        toast({
+          tone: "error",
+          title: saved
+            ? `Saved ${saved} of ${written.length} scenes`
+            : "Couldn't save the generated scenes",
+          description: failures[0],
+        });
+
+        // Nothing was written, so the store still matches the server and the
+        // author keeps the message that says why. This is the case where the
+        // explanation matters most and costs nothing.
+        if (saved === 0) return;
+
+        // Something *was* written. The store does not know about it, and the
+        // check that decides whether to reuse a scene or create one reads the
+        // store — so leaving it behind would make the next attempt add a second
+        // copy of every scene that had already landed. Duplicating the author's
+        // content is worse than losing a toast, so the reload wins here.
+      } else {
+        toast({
+          tone: "success",
+          title: `${written.length} ${written.length === 1 ? "scene" : "scenes"} generated`,
+          description: notice ?? "Generated from your narrative map.",
+        });
+      }
+
+      // The document has changed underneath the store; a reload is the honest
+      // way to show it rather than reconstructing state that the server owns.
+      window.location.reload();
+    } catch (error) {
+      toast({
+        tone: "error",
+        title: "Couldn't generate scenes",
+        description: error instanceof Error ? error.message : "Try again in a moment.",
+      });
+    } finally {
+      setGenerating(false);
+    }
+  }, [presentationId, prompt, toast]);
+
+  return { generate, generating, plan };
+}
+
+/** Composes a scene without a model, from a moment's own definition. */
+export function structuralScene(title: string, purpose: string): SceneContent {
+  return composeScene("statement", { heading: title, subheading: purpose });
+}
