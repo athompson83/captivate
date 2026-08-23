@@ -5,10 +5,10 @@ import { SUPABASE_URL } from "./config";
 import type { Database } from "./database.types";
 
 /**
- * Service-role client. Bypasses RLS, so it is used only where the server has
- * *already* established ownership by another means — currently nowhere in the
- * request path except signed-URL minting for objects proven to belong to the
- * caller.
+ * Service-role client. Bypasses RLS, so it must only be used where the server
+ * has *already* established ownership by another means. No code currently
+ * calls this — it exists for a future elevated-access path, not an active
+ * one.
  *
  * Never import this from a client component. `server-only` makes that a build
  * error rather than a silent key leak.
