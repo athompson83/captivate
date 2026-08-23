@@ -227,7 +227,10 @@ export function createSession({
           overview: false,
         };
       }
-      if (current.sceneIndex >= scenes.length - 1) return { blanked: false, overview: false };
+      // Past the final step of the final scene, the camera pulls back: the
+      // whole argument at once is the closing image, and one more press is
+      // the natural way to ask for it. `prev` returns to the last scene.
+      if (current.sceneIndex >= scenes.length - 1) return { blanked: false, overview: true };
 
       const nextIndex = current.sceneIndex + 1;
       return {
@@ -243,6 +246,9 @@ export function createSession({
 
   const prev = () =>
     update((current) => {
+      // From the pulled-back view, "back" means return to where you were —
+      // not skip a scene behind the map's back.
+      if (current.overview) return { blanked: false, overview: false };
       if (current.step > 0) return { step: current.step - 1, blanked: false, overview: false };
       if (current.sceneIndex === 0) return { blanked: false, overview: false };
 

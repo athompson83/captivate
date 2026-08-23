@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- The mark is the product: scenes on one dark canvas, one of them lit. -->
+  <rect width="64" height="64" rx="14" fill="#141722"/>
+  <rect x="11" y="13" width="24" height="17" rx="3.5" fill="#e5b054"/>
+  <rect x="40" y="19" width="13" height="10" rx="2.5" fill="#4c5165"/>
+  <rect x="17" y="37" width="15" height="11" rx="2.5" fill="#4c5165"/>
+  <rect x="37" y="34" width="17" height="13" rx="3" fill="none" stroke="#e7e3d9" stroke-width="2.6" stroke-dasharray="6 4" stroke-linecap="round" opacity="0.85"/>
+</svg>

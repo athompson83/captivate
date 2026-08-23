@@ -489,6 +489,22 @@ describe("session command routing", () => {
     expect(api.store.getState().sceneIndex).toBe(scenes.length - 1);
   });
 
+  it("pulls the camera back over the whole world at the end", () => {
+    const api = createSession({ presentationId: "p-end", scenes, role: "stage" });
+    api.send("last");
+    // Walk the final scene's builds; the press after the last one pulls back.
+    for (let i = 0; i < 10 && !api.store.getState().overview; i += 1) api.send("next");
+
+    const ended = api.store.getState();
+    expect(ended.sceneIndex).toBe(scenes.length - 1);
+    expect(ended.overview).toBe(true);
+
+    // "Back" from the closing image returns to the final scene, not past it.
+    api.send("prev");
+    expect(api.store.getState().overview).toBe(false);
+    expect(api.store.getState().sceneIndex).toBe(scenes.length - 1);
+  });
+
   it("starts the clock on the first advance, not on load", () => {
     const api = createSession({ presentationId: "p5", scenes, role: "stage" });
     expect(api.store.getState().startedAt).toBeNull();
