@@ -229,13 +229,21 @@ sensitivity factor), accumulating into a normalized `{ x, y }` position
 centered (`{ x: 0.5, y: 0.5 }`) each time a touch begins. **The pointer is
 only active while a finger is actually touching the pad** — lifting the
 finger immediately sends `pointer: { point: null, ... }` (the existing
-"hidden" state the `pointer` message already supports), matching how the
-console's own laser tool already behaves (active only while a mouse button
-is held, per the existing `PresenterTool` interaction — confirm this
-against `annotation-layer.tsx`'s current laser implementation at
-implementation time and mirror it exactly, rather than inventing a
-second laser interaction model). Sent as ordinary `pointer` envelopes
-(section D) — no new message type, ordinary `PresentMessage` reuse.
+"hidden" state the `pointer` message already supports). This is not "active
+only while a button is held" in the desktop sense — read
+`annotation-layer.tsx`'s actual laser handling (`onPointerDown`/
+`onPointerMove`/`onPointerUp`, `annotation-layer.tsx:82-171`) and its own
+comment: on the console, the laser follows the mouse on hover *regardless*
+of whether a button is held, and only clears on pointer-up/pointer-leave —
+there is no "held" state on desktop to mirror. A touchscreen has no hover at
+all, so touch-presence is the correct equivalent of that hover state, not a
+new, different interaction model — "send `pointer` continuously while a
+finger is down, clear it the instant contact ends" is the direct translation
+of the desktop behavior into a medium that only has "touching" and "not
+touching," not an approximation of some other, button-based behavior that
+doesn't actually exist in the code being mirrored. Sent as ordinary
+`pointer` envelopes (section D) — no new message type, ordinary
+`PresentMessage` reuse.
 
 ## Non-goals (this spec)
 
