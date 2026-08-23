@@ -166,13 +166,26 @@ export function PresentationCard({
             anchor="bottom-end"
             className="w-[188px]"
           >
+            {/* MenuItem is a button, so navigation goes through the router
+                rather than a wrapping Link — a button inside an anchor is two
+                competing activation targets for one gesture. */}
             <div role="menu">
-              <Link href={`/edit/${presentation.id}`} onClick={() => setMenuOpen(false)}>
-                <MenuItem icon={Pencil} label="Edit" />
-              </Link>
-              <Link href={`/present/${presentation.id}`} onClick={() => setMenuOpen(false)}>
-                <MenuItem icon={Play} label="Present" />
-              </Link>
+              <MenuItem
+                icon={Pencil}
+                label="Edit"
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push(`/edit/${presentation.id}`);
+                }}
+              />
+              <MenuItem
+                icon={Play}
+                label="Present"
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push(`/present/${presentation.id}`);
+                }}
+              />
               <MenuItem
                 icon={Copy}
                 label="Duplicate"
@@ -181,9 +194,14 @@ export function PresentationCard({
                   onDuplicate();
                 }}
               />
-              <Link href={`/handout/${presentation.id}`} onClick={() => setMenuOpen(false)}>
-                <MenuItem icon={Printer} label="Handout / PDF" />
-              </Link>
+              <MenuItem
+                icon={Printer}
+                label="Handout / PDF"
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push(`/handout/${presentation.id}`);
+                }}
+              />
               <div className="border-line-subtle my-1 border-t" />
               <MenuItem
                 icon={Trash2}

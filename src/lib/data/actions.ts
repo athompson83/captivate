@@ -278,14 +278,49 @@ const SharingInput = z.object({ id: Uuid, enabled: z.boolean() });
  * token would let a caller point their deck at a guessable URL. Enabling an
  * already-shared deck keeps its token, so "copy link" never silently breaks
  * the copies already sent; revoking nulls it, which kills every copy at once.
+ *
+ * Enabling writes with a `share_token IS NULL` condition rather than
+ * read-then-write: two concurrent enables would otherwise each read null,
+ * each write a different token, and one caller would copy a link the other
+ * write had already killed. With the condition, exactly one write claims the
+ * slot and the other caller is handed the token that actually stuck.
  */
 export async function setSharing(
   input: unknown,
 ): Promise<Result<{ shareToken: string | null }>> {
   const parsed = SharingInput.safeParse(input);
   if (!parsed.success) return fail("Invalid sharing request.");
-
   const supabase = await client();
+
+  if (!parsed.data.enabled) {
+    const { data: revoked, error } = await supabase
+      .from("presentations")
+      .update({ share_token: null })
+      .eq("id", parsed.data.id)
+      .select("id")
+      .maybeSingle();
+    if (error) return fail(error.message);
+    if (!revoked) return fail("Presentation not found.");
+    revalidatePath(`/edit/${parsed.data.id}`);
+    return ok({ shareToken: null });
+  }
+
+  const { data: claimed, error } = await supabase
+    .from("presentations")
+    .update({ share_token: randomUUID() })
+    .eq("id", parsed.data.id)
+    .is("share_token", null)
+    .is("deleted_at", null)
+    .select("share_token")
+    .maybeSingle();
+  if (error) return fail(error.message);
+  if (claimed) {
+    revalidatePath(`/edit/${parsed.data.id}`);
+    return ok({ shareToken: claimed.share_token });
+  }
+
+  // No row claimed: either the deck is already shared — return the token that
+  // is genuinely stored — or it isn't ours to share at all.
   const { data: current, error: readError } = await supabase
     .from("presentations")
     .select("share_token")
@@ -294,20 +329,8 @@ export async function setSharing(
     .maybeSingle();
   if (readError) return fail(readError.message);
   if (!current) return fail("Presentation not found.");
-
-  if (parsed.data.enabled && current.share_token) {
-    return ok({ shareToken: current.share_token });
-  }
-
-  const shareToken = parsed.data.enabled ? randomUUID() : null;
-  const { error } = await supabase
-    .from("presentations")
-    .update({ share_token: shareToken })
-    .eq("id", parsed.data.id);
-  if (error) return fail(error.message);
-
-  revalidatePath(`/edit/${parsed.data.id}`);
-  return ok({ shareToken });
+  if (current.share_token) return ok({ shareToken: current.share_token });
+  return fail("Sharing changed while enabling — try again.");
 }
 
 export async function markPresentationOpened(id: string): Promise<Result<void>> {

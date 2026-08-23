@@ -46,15 +46,23 @@ export function ShareDialog({
 
   const apply = async (enabled: boolean) => {
     setBusy(true);
-    const result = await setSharing({ id: presentationId, enabled });
-    setBusy(false);
-    if (!result.ok) {
-      toast({ tone: "error", title: "Sharing change failed", description: result.error });
-      return;
+    try {
+      const result = await setSharing({ id: presentationId, enabled });
+      if (!result.ok) {
+        toast({ tone: "error", title: "Sharing change failed", description: result.error });
+        return;
+      }
+      setToken(result.data.shareToken);
+      setCopied(false);
+      if (!enabled) {
+        toast({ tone: "info", title: "Link revoked", description: "Old copies of the link no longer work." });
+      }
+    } catch {
+      // A server action can reject outright (network, deploy in progress).
+      toast({ tone: "error", title: "Sharing change failed", description: "Try again in a moment." });
+    } finally {
+      setBusy(false);
     }
-    setToken(result.data.shareToken);
-    setCopied(false);
-    if (!enabled) toast({ tone: "info", title: "Link revoked", description: "Old copies of the link no longer work." });
   };
 
   const copy = async () => {

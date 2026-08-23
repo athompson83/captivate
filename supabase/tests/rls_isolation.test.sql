@@ -126,3 +126,27 @@ set role anon;
 select 'shared_link_revoked_dead' as check,
   (public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001') is null)::int as n;
 reset role;
+
+-- The conditional write that enabling uses ("claim only where no token
+-- exists") must not replace a live token — it is what makes two concurrent
+-- enables collapse to one winner instead of killing each other's links.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+update public.presentations
+   set share_token = 'cccccccc-0000-0000-0000-000000000002'
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+
+with attempt as (
+  update public.presentations
+     set share_token = 'cccccccc-0000-0000-0000-000000000003'
+   where id = 'aaaaaaaa-0000-0000-0000-000000000001'
+     and share_token is null
+  returning 1
+)
+select 'shared_link_conditional_claim_blocked' as check, (count(*) = 0)::int as n from attempt;
+
+select 'shared_link_token_survives_lost_race' as check,
+  (share_token = 'cccccccc-0000-0000-0000-000000000002')::int as n
+  from public.presentations
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+reset role;

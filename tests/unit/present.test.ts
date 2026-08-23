@@ -499,7 +499,15 @@ describe("session command routing", () => {
     expect(ended.sceneIndex).toBe(scenes.length - 1);
     expect(ended.overview).toBe(true);
 
-    // "Back" from the closing image returns to the final scene, not past it.
+    // Any advance from the pulled-back view resumes the final scene — it
+    // must never advance a scene behind the map's back or go dead.
+    api.send("next");
+    expect(api.store.getState().overview).toBe(false);
+    expect(api.store.getState().sceneIndex).toBe(scenes.length - 1);
+
+    // And "back" from the closing image behaves the same way.
+    api.send("next");
+    expect(api.store.getState().overview).toBe(true);
     api.send("prev");
     expect(api.store.getState().overview).toBe(false);
     expect(api.store.getState().sceneIndex).toBe(scenes.length - 1);

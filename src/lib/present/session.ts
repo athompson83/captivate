@@ -217,6 +217,11 @@ export function createSession({
 
   const next = () =>
     update((current) => {
+      // From the pulled-back view — mid-talk or the closing image — any
+      // advance means "resume where I was", exactly as `prev` does and as the
+      // shared viewer behaves. Without this, an advance from overview also
+      // moved a scene, and at the end it silently did nothing at all.
+      if (current.overview) return { blanked: false, overview: false };
       const steps = stepCounts[current.sceneIndex] ?? 1;
       // Walk the builds within a scene before moving on to the next scene.
       if (current.step < steps - 1) {
