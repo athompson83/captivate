@@ -10,6 +10,12 @@ import { STORAGE_BUCKETS, SIGNED_URL_TTL_SECONDS } from "@/lib/supabase/config";
  * confirmed the asset belongs to the caller. An id belonging to someone else
  * returns 404 — the same response as an id that does not exist, so the route
  * cannot be used to probe for other users' assets.
+ *
+ * A shared deck can reference the same URLs, and a link-holder has no
+ * session — so an unauthenticated caller falls back to
+ * `captivate_shared_asset`, which resolves the asset only if it belongs to a
+ * presentation that is *currently* shared. Revoking the share removes both
+ * paths in the same instant.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,19 +27,25 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return new NextResponse("Not found", { status: 404 });
 
-  const { data: asset } = await supabase
-    .from("assets")
-    .select("storage_path, mime_type")
-    .eq("id", id)
-    .maybeSingle();
+  let storagePath: string | null = null;
+  if (user) {
+    const { data: asset } = await supabase
+      .from("assets")
+      .select("storage_path")
+      .eq("id", id)
+      .maybeSingle();
+    storagePath = asset?.storage_path ?? null;
+  } else {
+    const { data: shared } = await supabase.rpc("captivate_shared_asset", { p_asset_id: id });
+    storagePath = shared?.[0]?.storage_path ?? null;
+  }
 
-  if (!asset) return new NextResponse("Not found", { status: 404 });
+  if (!storagePath) return new NextResponse("Not found", { status: 404 });
 
   const { data: signed, error } = await supabase.storage
     .from(STORAGE_BUCKETS.assets)
-    .createSignedUrl(asset.storage_path, SIGNED_URL_TTL_SECONDS);
+    .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
 
   if (error || !signed) return new NextResponse("Not found", { status: 404 });
 

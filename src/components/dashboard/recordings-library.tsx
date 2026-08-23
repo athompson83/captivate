@@ -226,7 +226,7 @@ function PlaybackDialog({
  * Mounted per recording, so the signed URL, error and title draft all reset on
  * their own instead of being cleared by an effect.
  */
-function PlaybackBody({
+export function PlaybackBody({
   recording,
   onClose,
   onRenamed,
@@ -242,13 +242,22 @@ function PlaybackBody({
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
 
-  /** Captions as a data: URL — a pure computation, so there is no blob to
-      allocate during render and nothing to revoke. Transcripts are a few
-      kilobytes; the browser parses the track the same either way. */
+  /** Captions as a blob: URL. The CSP's `media-src` allows `blob:` but not
+      `data:` — a `<track>` pointed at a data: URL is silently dropped by the
+      browser under this policy, so this has to be an allocated object URL,
+      revoked on cleanup or when the transcript changes. */
   const vttUrl = useMemo(() => {
     if (recording.transcript.length === 0) return null;
-    return `data:text/vtt;charset=utf-8,${encodeURIComponent(toWebVTT(recording.transcript))}`;
+    const blob = new Blob([toWebVTT(recording.transcript)], { type: "text/vtt" });
+    return URL.createObjectURL(blob);
   }, [recording.transcript]);
+  // The memo above allocates the object URL; this only ever revokes it —
+  // an effect whose body performs no setState, just cleanup.
+  useEffect(() => {
+    return () => {
+      if (vttUrl) URL.revokeObjectURL(vttUrl);
+    };
+  }, [vttUrl]);
 
   useEffect(() => {
     let cancelled = false;

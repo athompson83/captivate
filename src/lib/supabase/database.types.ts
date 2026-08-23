@@ -187,6 +187,14 @@ export type Database = {
         Args: { p_token: string };
         Returns: Json;
       };
+      captivate_shared_asset: {
+        Args: { p_asset_id: string };
+        Returns: { storage_path: string; mime_type: string }[];
+      };
+      captivate_asset_object_is_shared: {
+        Args: { p_storage_path: string };
+        Returns: boolean;
+      };
     };
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;

@@ -31,4 +31,8 @@ fi
 if echo "$out" | grep -E "shared_link_" | grep -qvE "\|\s+1\s*$"; then
   echo "SHARE LINK TESTS FAILED"; exit 1
 fi
+# Same for the assets a shared deck can reference.
+if echo "$out" | grep -E "shared_asset_" | grep -qvE "\|\s+1\s*$"; then
+  echo "SHARED ASSET TESTS FAILED"; exit 1
+fi
 echo "RLS TESTS PASSED"

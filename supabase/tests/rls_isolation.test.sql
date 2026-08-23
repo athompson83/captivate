@@ -8,6 +8,13 @@ grant select, insert, update, delete on all tables in schema public to authentic
 grant usage on schema public to anon;
 grant select on all tables in schema public to anon;
 
+-- Same story for storage.objects: Supabase grants both roles table access by
+-- default, and its own RLS policies (migration 0002, plus 0011's share-link
+-- addition) are what actually decide who can read or write which object.
+grant usage on schema storage to authenticated, anon;
+grant select, insert, update, delete on storage.objects to authenticated, anon;
+grant select on storage.buckets to authenticated, anon;
+
 -- Two users, each with one presentation containing one scene and one note.
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'alice@example.com'),
@@ -149,4 +156,68 @@ select 'shared_link_token_survives_lost_race' as check,
   (share_token = 'cccccccc-0000-0000-0000-000000000002')::int as n
   from public.presentations
  where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+reset role;
+
+-- ---- Shared-link assets ------------------------------------------------------
+-- A shared deck's scene content can reference uploaded media. The RPC that
+-- resolves it — and the storage read it depends on — must follow the same
+-- token-gated shape as the deck itself: readable while shared, dead the
+-- instant the link is revoked, and never reachable through someone else's
+-- unshared deck.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+insert into public.assets (id, presentation_id, storage_path, kind, mime_type, byte_size) values
+  ('dddddddd-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111/asset1.png', 'image', 'image/png', 1024);
+insert into storage.objects (bucket_id, name, owner) values
+  ('assets', '11111111-1111-1111-1111-111111111111/asset1.png', '11111111-1111-1111-1111-111111111111');
+reset role;
+
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+insert into public.assets (id, presentation_id, storage_path, kind, mime_type, byte_size) values
+  ('dddddddd-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000001',
+   '22222222-2222-2222-2222-222222222222/asset2.png', 'image', 'image/png', 1024);
+insert into storage.objects (bucket_id, name, owner) values
+  ('assets', '22222222-2222-2222-2222-222222222222/asset2.png', '22222222-2222-2222-2222-222222222222');
+reset role;
+
+set role anon;
+
+-- Alice's deck is shared (token '...002' from above): its asset resolves…
+select 'shared_asset_resolves' as check,
+  (exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000001')
+      where storage_path = '11111111-1111-1111-1111-111111111111/asset1.png'
+  ))::int as n;
+select 'shared_asset_storage_readable' as check,
+  (count(*) = 1)::int as n from storage.objects
+  where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/asset1.png';
+
+-- …and Bob's deck is not shared at all, so his asset resolves nowhere and its
+-- object is not readable — a link-holder for one deck gains nothing on another.
+select 'shared_asset_unshared_deck_dead' as check,
+  (not exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000002')
+  ))::int as n;
+select 'shared_asset_unshared_storage_unreadable' as check,
+  (count(*) = 0)::int as n from storage.objects
+  where bucket_id = 'assets' and name = '22222222-2222-2222-2222-222222222222/asset2.png';
+reset role;
+
+-- Revoking kills asset access in the same instant it kills the deck.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+update public.presentations set share_token = null
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+reset role;
+
+set role anon;
+select 'shared_asset_revoked_dead' as check,
+  (not exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000001')
+  ))::int as n;
+select 'shared_asset_revoked_storage_unreadable' as check,
+  (count(*) = 0)::int as n from storage.objects
+  where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/asset1.png';
 reset role;

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { STORAGE_BUCKETS, SIGNED_URL_TTL_SECONDS } from "@/lib/supabase/config";
+import { parseCues } from "@/lib/record/transcript";
 
 /**
  * Recording metadata.
@@ -221,7 +222,7 @@ export async function listRecordings(presentationId?: string): Promise<Recording
       hasCamera: row.has_camera,
       hasMicrophone: row.has_microphone,
       timeline: Array.isArray(row.scene_timeline) ? row.scene_timeline : [],
-      transcript: Array.isArray(row.transcript) ? row.transcript : [],
+      transcript: parseCues(row.transcript),
       errorMessage: row.error_message,
       createdAt: row.created_at,
     };
