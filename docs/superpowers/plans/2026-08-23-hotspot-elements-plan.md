@@ -16,6 +16,7 @@
 - `hotspot.targetSceneId` must reject self-targeting at the save boundary; a dangling reference (deleted target) is repaired to `null` on load, not treated as a parse failure.
 - Every new interactive control is keyboard-activatable (Enter/Space) and has a non-empty accessible name — never rely on click alone or an empty `aria-label`.
 - Migrations are append-only (`supabase/migrations/`); this plan adds exactly one, for `scenes.flow_role`.
+- **Test-harness note, found while grounding a later sibling plan (phone remote control) and worth fixing here since this plan lands first**: `supabase/tests/run.sh` currently applies only `supabase/migrations/0001_captivate_core.sql` against its throwaway test database, not every migration in order — so without a fix, `npm run test:rls` would never actually see this plan's `flow_role` column at all, making Task 1's final RLS check vacuously pass rather than genuinely verify anything. Task 1 includes the one-line fix (loop over every migration file) as part of its own work, since this plan is the first of the four workstream plans to need it.
 
 ---
 
@@ -171,6 +172,29 @@ comment on column public.scenes.flow_role is
 ```
 
 No RLS policy change needed — `scenes` is already owner-scoped per AGENTS.md's database rule, and this is a new column on an existing table, not a new table.
+
+- [ ] **Step 5b: Fix the RLS test harness to apply every migration, not only `0001`**
+
+Edit `supabase/tests/run.sh`, replacing the single hardcoded migration application:
+
+```bash
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/migrations/0001_captivate_core.sql
+```
+
+with:
+
+```bash
+for f in supabase/migrations/*.sql; do
+  psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f"
+done
+```
+
+Run the existing suite (`./supabase/tests/run.sh`, matching whatever `PGHOST`/`PGPORT`/`PGUSER` values `docs/DATABASE.md` documents) to confirm every migration through this task's new one applies cleanly and the existing cross-user probes still pass. Commit this fix on its own before continuing:
+
+```bash
+git add supabase/tests/run.sh
+git commit -m "fix: RLS test harness applies every migration, not only 0001"
+```
 
 - [ ] **Step 6: Apply the migration locally and regenerate types if the project does so**
 
