@@ -16,7 +16,7 @@
 - `hotspot.targetSceneId` must reject self-targeting at the save boundary; a dangling reference (deleted target) is repaired to `null` on load, not treated as a parse failure.
 - Every new interactive control is keyboard-activatable (Enter/Space) and has a non-empty accessible name — never rely on click alone or an empty `aria-label`.
 - Migrations are append-only (`supabase/migrations/`); this plan adds exactly one, for `scenes.flow_role`.
-- **Test-harness note, found while grounding a later sibling plan (phone remote control) and worth fixing here since this plan lands first**: `supabase/tests/run.sh` currently applies only `supabase/migrations/0001_captivate_core.sql` against its throwaway test database, not every migration in order — so without a fix, `npm run test:rls` would never actually see this plan's `flow_role` column at all, making Task 1's final RLS check vacuously pass rather than genuinely verify anything. Task 1 includes the one-line fix (loop over every migration file) as part of its own work, since this plan is the first of the four workstream plans to need it.
+- **Test-harness note, now resolved as its own prerequisite PR**: `supabase/tests/run.sh` originally applied only `supabase/migrations/0001_captivate_core.sql`, not every migration in order — without a fix, `npm run test:rls` would never actually see this plan's `flow_role` column, making Task 1's RLS check vacuously pass. This has been extracted into its own real fix (not just described in a plan): PR "fix: RLS test harness applies every migration, not only 0001" (branch `claude/fix-rls-harness-migration-coverage`), verified locally end-to-end (a regression check added to `rls_isolation.test.sql` fails against the old harness, passes against the fixed one; full run confirmed exit 0 / `RLS TESTS PASSED` against a real local Postgres 16). **Merge or rebase onto that branch before starting Task 1** rather than re-deriving the fix here — Task 1's Step 5b below is redundant with it and should be skipped once that prerequisite is in place.
 
 ---
 
@@ -173,7 +173,7 @@ comment on column public.scenes.flow_role is
 
 No RLS policy change needed — `scenes` is already owner-scoped per AGENTS.md's database rule, and this is a new column on an existing table, not a new table.
 
-- [ ] **Step 5b: Fix the RLS test harness to apply every migration, not only `0001`**
+- [ ] **Step 5b: Fix the RLS test harness to apply every migration, not only `0001`** — **SKIP this step** if `claude/fix-rls-harness-migration-coverage` has already been merged/rebased in (see the Global Constraints note above); this step is preserved for reference only in case that prerequisite hasn't landed yet.
 
 Edit `supabase/tests/run.sh`, replacing the single hardcoded migration application:
 
