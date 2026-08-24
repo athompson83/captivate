@@ -29,6 +29,15 @@ echo "$out"
 
 if echo "$out" | grep -q "FAIL"; then echo "RLS TESTS FAILED"; exit 1; fi
 if echo "$out" | grep -q "^psql.*ERROR"; then echo "RLS TESTS ERRORED"; exit 1; fi
+# The fixtures must actually exist. Every probe above asserts that Bob sees
+# zero rows — which is also exactly what happens if Alice's inserts silently
+# failed and there was never anything to see. Without this the whole suite can
+# report PASS while proving nothing at all.
+if echo "$out" | grep -E "alice_[a-z_]*intact" | grep -qE "\|\s+0\s*$"; then
+  echo "FIXTURES MISSING: alice's rows were not created, so the isolation probes proved nothing"
+  exit 1
+fi
+
 # Every cross-user visibility probe must return zero rows.
 if echo "$out" | grep -E "bob_sees_alice|bob_idor|bob_delete_alice" | grep -qvE "\|\s+0\s*$"; then
   echo "RLS LEAK DETECTED"; exit 1
