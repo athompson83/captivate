@@ -40,9 +40,17 @@ select public.captivate_reserve_generation('${KIND}', array['${KIND}'], 'race', 
 SQL
 done
 
-# Give every worker time to reach the barrier, then release them together.
+# Wait for every worker to reach the barrier, then release them together.
+# Bounded: a worker that never arrives is a broken test, not a reason to hang
+# a CI job until the runner is killed.
+waited=0
 until [ "$(psql -q -t -A -d "$DB" -c "select count(*) from pg_locks where locktype = 'advisory' and objid = ${BARRIER} and not granted;")" -ge "$((CONCURRENCY - 1))" ]; do
-  :
+  waited=$((waited + 1))
+  if [ "$waited" -gt 600 ]; then
+    echo "RESERVATION RACE FAILED: workers never reached the barrier"
+    exit 1
+  fi
+  sleep 0.1
 done
 echo "select pg_advisory_unlock(${BARRIER});" >&9
 exec 9>&-
