@@ -95,7 +95,7 @@ export function AppShell({
           <button
             onClick={() => setMobileOpen(false)}
             aria-label="Close navigation"
-            className="text-ink-3 rounded p-1 md:hidden"
+            className="text-ink-3 rounded p-1.5 md:hidden"
           >
             <X className="size-4" aria-hidden />
           </button>

@@ -110,14 +110,26 @@ test.describe("public surface", () => {
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
-  test("renders in both light and dark schemes", async ({ page }) => {
+  test("a fresh session defaults to dark regardless of OS scheme", async ({ page }) => {
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto("/");
+      // No stored preference: first visit always resolves dark, per the
+      // "spotlight stage" default — the OS preference only applies once the
+      // user has explicitly chosen "System" in Settings.
+      await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+      const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+      expect(background).not.toBe("rgba(0, 0, 0, 0)");
+    }
+  });
+
+  test("an explicit System preference still follows the OS scheme", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("captivate-theme", "system"));
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto("/");
       await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-
-      const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-      expect(background).not.toBe("rgba(0, 0, 0, 0)");
     }
   });
 

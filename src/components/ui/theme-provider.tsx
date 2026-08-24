@@ -33,14 +33,16 @@ function subscribe(onChange: () => void) {
   };
 }
 
-function readPreference(): ThemePref {
+type StoredPref = ThemePref | null;
+
+function readPreference(): StoredPref {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "light" || stored === "dark" || stored === "system") return stored;
   } catch {
     // Private browsing or blocked storage; fall through to the default.
   }
-  return "system";
+  return null;
 }
 
 /**
@@ -48,10 +50,15 @@ function readPreference(): ThemePref {
  * `useSyncExternalStore`'s identity check stays cheap and stable.
  */
 function getSnapshot(): `${ThemePref}:${"light" | "dark"}` {
-  const pref = readPreference();
+  const stored = readPreference();
+  const pref: ThemePref = stored ?? "system";
   const dark =
-    pref === "dark" ||
-    (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    stored === "dark" ||
+    // No stored preference at all defaults to dark, regardless of OS
+    // preference — the "system" branch (OS-driven) only applies once the
+    // user has explicitly chosen "System" in Settings.
+    stored === null ||
+    (stored === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   const resolved = dark ? "dark" : "light";
 
   // Keep the document attribute in step with the store. The inline script in

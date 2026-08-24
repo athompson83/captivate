@@ -67,6 +67,22 @@ describe("movements", () => {
     expect(movementsOf(returning, sections)).toHaveLength(3);
   });
 
+  it("identifies a returning section's movement by scene, not by section id", () => {
+    // Because a section can appear twice, two movements legitimately share an
+    // id — so resolving "which movement are we establishing?" by section id
+    // silently picks the first stretch and numbers the signpost wrongly.
+    // `present-root` looks the movement up by scene index for this reason.
+    const returning = [scene(0, "a"), scene(1, "b"), scene(2, "a")];
+    const movements = movementsOf(returning, sections);
+
+    const bySectionId = movements.findIndex((m) => m.id === "a");
+    expect(bySectionId).toBe(0); // the wrong stretch when we are in the second
+
+    const byScene = movementAt(movements, 2);
+    expect(byScene).toMatchObject({ id: "a", start: 2, end: 3 });
+    expect(movements.indexOf(byScene!)).toBe(2);
+  });
+
   it("locates the movement a scene is in", () => {
     const movements = movementsOf(scenes, sections);
     expect(movementAt(movements, 0)?.label).toBe("OPEN");

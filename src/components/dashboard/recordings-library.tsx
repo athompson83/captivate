@@ -75,7 +75,8 @@ export function RecordingsLibrary({
             <li
               key={recording.id}
               className={cn(
-                "border-line-subtle bg-raised flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border px-4 py-3.5",
+                "border-line-subtle bg-raised hover:border-line flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border px-4 py-3.5",
+                "transition-[border-color] duration-[var(--duration-fast)] motion-reduce:transition-none",
                 recording.status !== "ready" && "border-dashed",
               )}
             >

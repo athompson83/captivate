@@ -176,7 +176,7 @@ export function AssetLibrary({ assets }: { assets: Asset[] }) {
             <li key={asset.id}>
               <button
                 onClick={() => setDetail(asset)}
-                className="group border-line-subtle bg-raised hover:border-line w-full overflow-hidden rounded-[var(--radius-md)] border text-left transition-[border-color,transform] duration-[var(--duration-fast)] hover:-translate-y-0.5"
+                className="group border-line-subtle bg-raised hover:border-line w-full overflow-hidden rounded-[var(--radius-md)] border text-left transition-[border-color,transform,box-shadow] duration-[var(--duration-fast)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)] motion-reduce:transition-none motion-reduce:transform-none"
               >
                 <span className="bg-sunken relative flex aspect-square items-center justify-center overflow-hidden">
                   {asset.kind === "image" ? (
