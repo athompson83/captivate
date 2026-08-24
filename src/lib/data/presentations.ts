@@ -6,6 +6,7 @@ import {
   PRESENTATION_SCHEMA_VERSION,
   ScenePlacement,
   parseSceneContent,
+  repairDanglingHotspots,
   type PresentationDocument,
   type PresentationRecord,
   type Scene,
@@ -115,7 +116,7 @@ export function toMoment(row: MomentRow): Moment {
 }
 
 export function toScene(row: SceneRow): { scene: Scene; recovered: boolean } {
-  const { content, recovered } = parseSceneContent(row.content);
+  const { content, recovered } = parseSceneContent(row.content, row.id);
   return {
     scene: {
       id: row.id,
@@ -226,11 +227,17 @@ export async function getPresentationDocument(
   if (momentsRes.error) throw new Error(momentsRes.error.message);
 
   const recoveredScenes: string[] = [];
-  const scenes = (scenesRes.data as SceneRow[]).map((row) => {
+  const parsed = (scenesRes.data as SceneRow[]).map((row) => {
     const { scene, recovered } = toScene(row);
     if (recovered) recoveredScenes.push(scene.id);
     return scene;
   });
+
+  // Only here is the whole deck in hand, so only here can a hotspot pointing at
+  // a deleted scene be found. Report it alongside the salvaged scenes: the
+  // author should know a link was cleared rather than discover it on stage.
+  const { scenes, repaired } = repairDanglingHotspots(parsed);
+  for (const id of repaired) if (!recoveredScenes.includes(id)) recoveredScenes.push(id);
 
   return {
     presentation: toPresentationRecord(presentationRes.data as PresentationRow),
