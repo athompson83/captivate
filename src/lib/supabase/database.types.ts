@@ -115,6 +115,19 @@ export type AssetRow = {
   alt_text: string;
   original_filename: string;
   created_at: string;
+  /** Where this image came from. Everything below is null for an upload. */
+  source: "upload" | "stock" | "generated";
+  provider: string | null;
+  provider_asset_id: string | null;
+  original_page_url: string | null;
+  creator_name: string | null;
+  creator_page_url: string | null;
+  license_ref: string | null;
+  verified_at: string | null;
+  model: string | null;
+  prompt: string | null;
+  quality: string | null;
+  generation_ms: number | null;
 };
 
 export type RecordingRow = Timestamps & {
@@ -147,6 +160,10 @@ export type AiGenerationRow = {
   error_message: string | null;
   created_at: string;
   completed_at: string | null;
+  /** What this call cost, reserved at an estimate and reconciled after. */
+  cost_usd: number;
+  /** How long the provider took. Not tokens — an image response has none. */
+  duration_ms: number | null;
 };
 
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
@@ -210,6 +227,27 @@ export type Database = {
           p_model: string | null;
           p_input_tokens: number | null;
           p_output_tokens: number | null;
+          p_error: string | null;
+        };
+        Returns: boolean;
+      };
+      captivate_reserve_image_generation: {
+        Args: {
+          p_prompt: string;
+          p_presentation_id: string | null;
+          p_estimate_usd: number;
+          p_monthly_budget: number;
+          p_daily_max: number;
+        };
+        Returns: { id: string | null; refusal: string | null }[];
+      };
+      captivate_settle_image_generation: {
+        Args: {
+          p_id: string;
+          p_status: string;
+          p_cost_usd: number;
+          p_model: string | null;
+          p_generation_ms: number | null;
           p_error: string | null;
         };
         Returns: boolean;

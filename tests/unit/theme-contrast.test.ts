@@ -25,7 +25,19 @@ function lightTokens(): Record<string, string> {
   return tokens;
 }
 
+function darkTokens(): Record<string, string> {
+  const css = readFileSync(GLOBALS, "utf8");
+  const block = /\[data-theme="dark"\][^{]*\{([\s\S]*?)\n\}/.exec(css);
+  if (!block) throw new Error("could not find the dark token block in globals.css");
+  const tokens: Record<string, string> = {};
+  for (const [, name, value] of block[1].matchAll(/^\s*--([\w-]+):\s*(oklch\([^)]*\));/gm)) {
+    tokens[name] = value;
+  }
+  return tokens;
+}
+
 const TOKENS = lightTokens();
+const DARK = darkTokens();
 
 function token(name: string): string {
   const value = TOKENS[name];
@@ -87,5 +99,31 @@ describe("light theme contrast after the warmth bump", () => {
         ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
       }
     }
+  });
+});
+
+/**
+ * The warning pair, in both themes.
+ *
+ * Added with the generated-image guardrail, which is the first thing in the app
+ * to put body text on a warning surface. A guardrail nobody can read is not a
+ * guardrail, so it is held to the same threshold as any other prose — and to
+ * both themes, because the earlier regression here was a token that was fine in
+ * one and not the other.
+ */
+describe("the warning surface carries readable text", () => {
+  it("meets AA in the light theme", () => {
+    const ratio = contrastRatio(hex(token("warning-text")), hex(token("warning-soft")));
+    expect(ratio).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+  });
+
+  it("meets AA in the dark theme", () => {
+    const dark = (name: string) => {
+      const value = DARK[name];
+      if (!value) throw new Error(`--${name} is not an oklch() token in the dark block`);
+      return value;
+    };
+    const ratio = contrastRatio(hex(dark("warning-text")), hex(dark("warning-soft")));
+    expect(ratio).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
   });
 });

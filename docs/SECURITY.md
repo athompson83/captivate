@@ -217,6 +217,62 @@ a ticket currently surfaces as a `502` carrying the correct message rather than
 a `429` — the client renders the message either way, but the status is wrong for
 that narrow concurrent-burst path.
 
+## Sourced images: two outbound calls and one fetch
+
+Stock search and image generation are the first features that call a third
+party other than the model provider, and the first that fetch bytes from a URL
+into the app's own storage.
+
+**The fetch is an allowlist of exact hostnames, not a pattern.** `*.pexels.com`
+would admit any subdomain a provider — or anyone who can register one — happens
+to control. Only `searchStockPhotos` and `generateImage` ever produce a URL to
+ingest, both server-side, so anything else reaching `fetchImageBytes` is
+refused on the hostname before a request is made. `http`, `file:`, `localhost`
+and link-local addresses are all refused by the same check, which is what stops
+this becoming a server-side request forgery primitive.
+
+**The byte ceiling is enforced while reading.** A response that never ends is
+cancelled mid-stream rather than buffered until it does, and `content-length`
+is checked first but never trusted on its own.
+
+**The format comes from the bytes.** `Content-Type` is a claim; the first bytes
+are checked against PNG, JPEG and WebP signatures and anything else is refused,
+including a file that says `image/png` and is not one.
+
+**Nothing is stored until the author accepts it.** A search result is a
+provider thumbnail and a generation is a data URL held in memory. Only on
+"use this image" does the server fetch, verify and re-host into the user's own
+storage prefix — the same private bucket and signed-URL route as an upload, so
+no deck ends up with one picture that is a permanent hotlink into somebody
+else's CDN.
+
+**Generation is bounded on two axes, and the refusals are distinguishable.**
+The per-user hourly limit that bounds text calls is the wrong shape when the
+cost is money and the budget is shared, so `captivate_reserve_image_generation`
+checks a global monthly ceiling *and* a per-user daily count in one locked
+statement, and inserts the ledger row that both are measured from. The lock is
+global rather than per-user — two different people spending the last of a shared
+budget simultaneously is exactly the race a per-user lock would miss. A refusal
+says which ceiling was reached, because "the deployment is out of budget" and
+"you have used your day's allowance" are different situations and only one of
+them is the reader's own doing; both say that search and upload still work, so
+a budget problem does not read as "images are broken".
+
+A failed provider call is still charged at the estimate. Charging zero would
+make an outage look like free capacity, and retries would burn the month.
+
+**Generated images are labelled as illustrations, permanently.** The notice
+under the prompt field is not dismissible, because it is true of every
+generated image; a prompt that names an ECG, a dosage, a lab value or a chart
+of specific numbers draws a stronger warning *before* the generation, since a
+model has no access to the real trace and will invent one that looks right.
+This is a guardrail on use rather than a block: Captivate cannot determine
+clinical intent, and false-positive blocking would only route people around it.
+
+**Whole-deck generation still spends nothing.** An AI-generated scene leaves an
+image prompt and an empty placeholder, exactly as before. Filling one is always
+a separate, per-scene, explicitly chosen action.
+
 ## Known gaps
 
 - **Email confirmation uses Supabase's built-in SMTP**, which is rate limited to
@@ -226,11 +282,16 @@ that narrow concurrent-burst path.
   level; no UI exposes them.
 - **No audit log of sign-ins.** Supabase records them; Captivate does not
   surface them.
-- **No global AI spend ceiling.** The limits are per user per hour (30 heavy, 200
-  light), so total spend scales with the number of accounts. Bounding it needs an
-  owner-set figure and a global counter beside the per-user one in
-  `captivate_reserve_generation`, which is the right place for it — the locking
-  and fail-closed behaviour are already there.
+- **No global ceiling on *text* generation.** Images have one
+  (`CAPTIVATE_IMAGE_BUDGET_USD`); text is still bounded only per user per hour
+  (30 heavy, 200 light), so total text spend scales with the number of accounts.
+  `captivate_reserve_image_generation` is now the worked example of the shape
+  this needs — a global counter checked under a global lock in the same
+  statement that increments it.
+- **The provider review at 250 generations is a process step, not enforced.**
+  `ai_generations` records cost, latency and status per attempt, and an attempt
+  with no matching `assets` row is one the author discarded, so the acceptance
+  rate is queryable. Nothing reminds anyone to look.
 - **Leaked-password protection is disabled on the Supabase project.** Supabase
   Auth can check new passwords against HaveIBeenPwned; it is off. This is a
   project setting rather than a code change, and turning it on is strictly a

@@ -10,6 +10,7 @@ import {
   updateSceneMeta,
   useCurrentScene,
   useEditor,
+  usePresentationId,
   useSelectedElements,
 } from "@/lib/editor/store";
 import { Input, Textarea } from "@/components/ui/input";
@@ -188,6 +189,7 @@ function StyleControls({
   sceneId: string;
   theme: PresentationTheme;
 }) {
+  const presentationId = usePresentationId();
   const patch = <T extends SceneElement>(
     update: (el: T) => T,
     label: string,
@@ -276,6 +278,11 @@ function StyleControls({
             <AssetPicker
               kind={element.type}
               currentUrl={element.url}
+              presentationId={presentationId}
+              // An AI-generated scene leaves its image prompt in `alt` beside
+              // an empty placeholder, which is exactly the description the
+              // author would otherwise retype into search or generation.
+              prompt={element.url ? "" : element.alt}
               onSelect={(asset) =>
                 patch(
                   (el: typeof element) => ({

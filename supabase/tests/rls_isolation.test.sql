@@ -295,6 +295,61 @@ select 'alice_reservation_still_pending' as check,
   (select (status = 'pending')::int from public.ai_generations
     where kind = 'probe' and prompt = 'second') as n;
 
+-- ---- Image generation budget --------------------------------------------------
+-- Text generation is bounded per user; images are bounded per user *and*
+-- against a shared monthly budget, because they cost money rather than
+-- goodwill. These probe the parts that make that a control rather than a
+-- number: that the ceilings are checked before the spend, that the two
+-- refusals are distinguishable, and that settling cannot hand budget back.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+
+-- `\gset` silently skips a NULL column, leaving the variable unset and the
+-- next query a syntax error, so both are coalesced to the empty string the
+-- probes below compare against.
+-- Under both ceilings: issued.
+select coalesce(id::text, '') as id, coalesce(refusal, '') as refusal
+  from public.captivate_reserve_image_generation('a picture', null, 0.04, 1.00, 5) \gset first_
+select 'image_reserve_within_budget' as check,
+  (:'first_id' <> '' and :'first_refusal' = '')::int as n;
+
+-- Over the monthly budget: refused, and the refusal says which ceiling.
+select coalesce(id::text, '') as id, coalesce(refusal, '') as refusal
+  from public.captivate_reserve_image_generation('another', null, 0.04, 0.04, 5) \gset budget_
+select 'image_reserve_over_budget_refused' as check,
+  (:'budget_id' = '' and :'budget_refusal' = 'budget')::int as n;
+
+-- Over the per-user daily cap: refused, and distinguishably so — one of these
+-- is the presenter's own doing and the other is not.
+select coalesce(id::text, '') as id, coalesce(refusal, '') as refusal
+  from public.captivate_reserve_image_generation('third', null, 0.04, 100.00, 1) \gset daily_
+select 'image_reserve_over_daily_cap_refused' as check,
+  (:'daily_id' = '' and :'daily_refusal' = 'daily')::int as n;
+
+-- Settling reconciles the estimate to what was charged, once.
+select 'image_settle_own_pending' as check,
+  (public.captivate_settle_image_generation(
+     :'first_id'::uuid, 'succeeded', 0.02, 'test-image-model', 4200, null))::int as n;
+select 'image_settle_is_not_replayable' as check,
+  (not public.captivate_settle_image_generation(
+     :'first_id'::uuid, 'succeeded', 0.00, 'test-image-model', 1, null))::int as n;
+select 'image_settled_cost_recorded' as check,
+  (select (cost_usd = 0.02 and duration_ms = 4200)::int
+     from public.ai_generations where id = :'first_id'::uuid) as n;
+reset role;
+
+-- Bob cannot settle Alice's reservation, which is what would let him zero its
+-- cost and free up the shared budget.
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select 'bob_settles_alice_image' as check,
+  (public.captivate_settle_image_generation(
+     :'first_id'::uuid, 'succeeded', 0.00, 'stolen', 1, null))::int as n;
+reset role;
+
+select 'image_cost_survived_bob' as check,
+  (select (cost_usd = 0.02)::int from public.ai_generations where id = :'first_id'::uuid) as n;
+
 -- ---- Shared-link assets ------------------------------------------------------
 -- A shared deck's scene content can reference uploaded media. The RPC that
 -- resolves it — and the storage read it depends on — must follow the same

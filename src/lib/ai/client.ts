@@ -133,13 +133,30 @@ export function requestVisuals(
   return post("/api/ai/visuals", input, signal);
 }
 
-let statusCache: Promise<boolean> | null = null;
+export interface AiAvailability {
+  configured: boolean;
+  stockSearch: boolean;
+  imageGeneration: boolean;
+}
 
-/** Whether a model is configured. Cached — it cannot change mid-session. */
-export function aiConfigured(): Promise<boolean> {
+const UNAVAILABLE: AiAvailability = {
+  configured: false,
+  stockSearch: false,
+  imageGeneration: false,
+};
+
+let statusCache: Promise<AiAvailability> | null = null;
+
+/** What this deployment has keys for. Cached — it cannot change mid-session. */
+export function aiAvailability(): Promise<AiAvailability> {
   statusCache ??= fetch("/api/ai/status")
-    .then((r) => (r.ok ? r.json() : { configured: false }))
-    .then((d: { configured: boolean }) => d.configured)
-    .catch(() => false);
+    .then((r) => (r.ok ? r.json() : UNAVAILABLE))
+    .then((d: Partial<AiAvailability>) => ({ ...UNAVAILABLE, ...d }))
+    .catch(() => UNAVAILABLE);
   return statusCache;
+}
+
+/** Whether a text model is configured. */
+export function aiConfigured(): Promise<boolean> {
+  return aiAvailability().then((a) => a.configured);
 }

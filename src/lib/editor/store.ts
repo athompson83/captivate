@@ -562,6 +562,11 @@ function presentationChanged(a: EditorDocument, b: EditorDocument): boolean {
 /* Selectors                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/** The deck being edited. Used to attribute an asset to it as it is created. */
+export function usePresentationId(): string {
+  return useEditor((s) => s.document.presentation.id);
+}
+
 export function useCurrentScene(): Scene | null {
   return useEditor((s) => {
     const id = s.selection.sceneId;

@@ -68,6 +68,11 @@
   --success: oklch(0.54 0.14 155);
   --success-soft: oklch(0.95 0.04 155);
   --warning: oklch(0.66 0.15 75);
+  /* A warning needs a surface to sit on and text that reads on it. Same hue
+     family as --warning so the tone is recognisable, and both halves are
+     contrast-checked against each other in tests/unit/theme-contrast.test.ts. */
+  --warning-soft: oklch(0.95 0.045 78);
+  --warning-text: oklch(0.42 0.11 62);
   --danger: oklch(0.55 0.21 25);
   --danger-soft: oklch(0.96 0.04 25);
 
@@ -113,6 +118,8 @@
   --success: oklch(0.74 0.15 155);
   --success-soft: oklch(0.28 0.06 155);
   --warning: oklch(0.8 0.14 75);
+  --warning-soft: oklch(0.29 0.06 70);
+  --warning-text: oklch(0.86 0.11 78);
   --danger: oklch(0.68 0.19 25);
   --danger-soft: oklch(0.29 0.08 25);
 
@@ -155,6 +162,8 @@
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-text: var(--warning-text);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
 }

@@ -7,6 +7,8 @@ import { useToast } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/misc";
 import { cn } from "@/lib/utils/cn";
+import { ImageGeneration, StockSearch } from "./visual-sourcing";
+import { aiAvailability } from "@/lib/ai/client";
 import { formatBytes } from "@/lib/utils/format";
 
 interface LibraryAsset {
@@ -19,26 +21,58 @@ interface LibraryAsset {
   url: string;
 }
 
+type Tab = "upload" | "library" | "url" | "search" | "generate";
+
 /**
- * Media chooser: upload a new file, reuse one already in the project, or point
- * at an external URL. Drag-and-drop works anywhere on the panel.
+ * Media chooser: upload a new file, reuse one already in the project, point at
+ * an external URL, or — for images — find a photograph or generate one.
+ * Drag-and-drop works anywhere on the panel.
+ *
+ * Search and Generate are offered only where the deployment has the provider
+ * configured. An unbuilt path is absent rather than present-and-broken, which
+ * is why they are filtered out of the tab list rather than shown disabled.
  */
 export function AssetPicker({
   kind,
   currentUrl,
   onSelect,
+  presentationId = null,
+  prompt = "",
 }: {
   kind: "image" | "video" | "audio";
   currentUrl: string;
   onSelect: (asset: { id: string | null; url: string; alt: string }) => void;
+  presentationId?: string | null;
+  /** Seed for both fields — usually the prompt an AI-generated scene left behind. */
+  prompt?: string;
 }) {
   const { toast } = useToast();
-  const [tab, setTab] = useState<"upload" | "library" | "url">("upload");
+  const [tab, setTab] = useState<Tab>("upload");
   const [library, setLibrary] = useState<LibraryAsset[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [urlDraft, setUrlDraft] = useState(currentUrl.startsWith("/api/") ? "" : currentUrl);
   const inputRef = useRef<HTMLInputElement>(null);
+  /**
+   * Which sourcing tabs this deployment can actually serve.
+   *
+   * Starts closed and opens once the answer arrives, so a slow response shows
+   * three working tabs rather than five, two of which would fail. Cached
+   * across the session by `aiAvailability`, so this costs one request.
+   */
+  const [sourcing, setSourcing] = useState({ search: false, generate: false });
+  useEffect(() => {
+    if (kind !== "image") return;
+    let cancelled = false;
+    void aiAvailability().then((available) => {
+      if (!cancelled) {
+        setSourcing({ search: available.stockSearch, generate: available.imageGeneration });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [kind]);
 
   useEffect(() => {
     if (tab !== "library" || library) return;
@@ -91,9 +125,15 @@ export function AssetPicker({
         value={tab}
         onChange={setTab}
         options={[
-          { value: "upload", label: "Upload" },
-          { value: "library", label: "Library" },
-          { value: "url", label: "URL" },
+          { value: "upload" as Tab, label: "Upload" },
+          { value: "library" as Tab, label: "Library" },
+          { value: "url" as Tab, label: "URL" },
+          ...(kind === "image" && sourcing.search
+            ? [{ value: "search" as Tab, label: "Find" }]
+            : []),
+          ...(kind === "image" && sourcing.generate
+            ? [{ value: "generate" as Tab, label: "Generate" }]
+            : []),
         ]}
       />
 
@@ -220,6 +260,18 @@ export function AssetPicker({
               Use this URL
             </button>
           </div>
+        )}
+
+        {tab === "search" && (
+          <StockSearch initialQuery={prompt} presentationId={presentationId} onApply={onSelect} />
+        )}
+
+        {tab === "generate" && (
+          <ImageGeneration
+            initialPrompt={prompt}
+            presentationId={presentationId}
+            onApply={onSelect}
+          />
         )}
       </div>
     </div>
