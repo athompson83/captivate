@@ -44,6 +44,12 @@ fi
 if echo "$out" | grep -E "bob_sees_alice|bob_idor|bob_delete_alice|anon_sees" | grep -qvE "\|\s+0\s*$"; then
   echo "RLS LEAK DETECTED"; exit 1
 fi
+# The phone remote's channel gate. Every `remote_*` probe states a property
+# that must hold; its anon and cross-user probes are covered by the rule above.
+if echo "$out" | grep -E "remote_|alice_session_intact" | grep -qvE "\|\s+1\s*$"; then
+  echo "REMOTE CHANNEL TESTS FAILED"; exit 1
+fi
+
 # Every share-link assertion must hold (1 = the stated property was observed).
 if echo "$out" | grep -E "shared_link_" | grep -qvE "\|\s+1\s*$"; then
   echo "SHARE LINK TESTS FAILED"; exit 1

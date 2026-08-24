@@ -215,6 +215,123 @@ select 'shared_link_token_survives_lost_race' as check,
  where id = 'aaaaaaaa-0000-0000-0000-000000000001';
 reset role;
 
+-- ---- Phone remote channel -----------------------------------------------------
+-- The first transport that leaves the browser. Everything below is the
+-- authorisation story for it: a topic is joinable only by the session's owner,
+-- only while the session is live, and only before it expires — checked at the
+-- policy layer on realtime.messages rather than by a client that could skip it.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+
+insert into public.presentation_sessions (id, presentation_id) values
+  ('eeeeeeee-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001'),
+  ('eeeeeeee-0000-0000-0000-000000000002', 'aaaaaaaa-0000-0000-0000-000000000001'),
+  ('eeeeeeee-0000-0000-0000-000000000003', 'aaaaaaaa-0000-0000-0000-000000000001');
+update public.presentation_sessions
+   set status = 'ended', ended_at = now()
+ where id = 'eeeeeeee-0000-0000-0000-000000000002';
+update public.presentation_sessions
+   set expires_at = now() - interval '1 minute'
+ where id = 'eeeeeeee-0000-0000-0000-000000000003';
+
+-- Minting a session for a deck that is not ours is refused by the insert
+-- policy, so a row can never claim to control someone else's presentation.
+do $$
+begin
+  insert into public.presentation_sessions (presentation_id)
+  values ('bbbbbbbb-0000-0000-0000-000000000001');
+  raise exception 'FAIL: alice opened a remote session on bob''s deck';
+exception
+  when insufficient_privilege then
+    raise notice 'PASS: a remote session cannot name someone else''s deck';
+end $$;
+
+-- The owner may join and publish on a live session's topic.
+set "realtime.topic" = 'captivate-remote-eeeeeeee-0000-0000-0000-000000000001';
+select 'remote_owner_joins_live' as check,
+  (public.captivate_remote_topic_open(realtime.topic()))::int as n;
+insert into realtime.messages (topic, payload)
+  values (realtime.topic(), '{"probe":true}');
+select 'remote_owner_publishes_live' as check, (count(*) = 1)::int as n
+  from realtime.messages where topic = realtime.topic();
+
+-- An ended session is dead, and so is an expired one — for the real owner.
+set "realtime.topic" = 'captivate-remote-eeeeeeee-0000-0000-0000-000000000002';
+select 'remote_ended_session_closed' as check,
+  (not public.captivate_remote_topic_open(realtime.topic()))::int as n;
+set "realtime.topic" = 'captivate-remote-eeeeeeee-0000-0000-0000-000000000003';
+select 'remote_expired_session_closed' as check,
+  (not public.captivate_remote_topic_open(realtime.topic()))::int as n;
+
+-- A topic that resolves to no session, one whose id is not even a uuid, and
+-- one belonging to a different feature are all closed rather than erroring.
+set "realtime.topic" = 'captivate-remote-eeeeeeee-0000-0000-0000-0000000000ff';
+select 'remote_unknown_session_closed' as check,
+  (not public.captivate_remote_topic_open(realtime.topic()))::int as n;
+set "realtime.topic" = 'captivate-remote-not-a-uuid';
+select 'remote_malformed_topic_closed' as check,
+  (not public.captivate_remote_topic_open(realtime.topic()))::int as n;
+set "realtime.topic" = 'captivate-present-aaaaaaaa-0000-0000-0000-000000000001';
+select 'remote_foreign_topic_closed' as check,
+  (not public.captivate_remote_topic_open(realtime.topic()))::int as n;
+reset role;
+
+-- A different signed-in user is refused the live topic, and sees no session.
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+set "realtime.topic" = 'captivate-remote-eeeeeeee-0000-0000-0000-000000000001';
+select 'remote_non_owner_closed' as check,
+  (not public.captivate_remote_topic_open(realtime.topic()))::int as n;
+select 'bob_sees_alice_sessions' as check, count(*) as n
+  from public.presentation_sessions;
+-- And cannot end Alice's session out from under her.
+with u as (update public.presentation_sessions set status = 'ended'
+  where id = 'eeeeeeee-0000-0000-0000-000000000001' returning 1)
+select 'bob_delete_alice_session' as check, count(*) as n from u;
+
+-- The helper answering "no" is not the same as the channel refusing him. This
+-- is the policy on realtime.messages doing the work.
+do $$
+begin
+  insert into realtime.messages (topic, payload)
+  values ('captivate-remote-eeeeeeee-0000-0000-0000-000000000001', '{"injected":true}');
+  raise exception 'FAIL: bob published onto alice''s remote channel';
+exception
+  when insufficient_privilege then
+    raise notice 'PASS: bob blocked from publishing on another owner''s channel';
+end $$;
+select 'bob_publishes_on_alice_channel' as check, count(*) as n
+  from realtime.messages where payload ? 'injected';
+reset role;
+
+-- An anonymous visitor is refused outright: no session is ever open to anon,
+-- whatever the topic.
+-- The gate is not merely closed to anon; anon cannot even ask. Asserting the
+-- privilege rather than the answer, because calling it raises rather than
+-- returning false — which is the stronger outcome, and worth pinning as such.
+select 'remote_gate_closed_to_anon' as check,
+  (not has_function_privilege('anon', 'public.captivate_remote_topic_open(text)', 'execute'))::int as n;
+
+set role anon;
+do $$
+begin
+  insert into realtime.messages (topic, payload)
+  values ('captivate-remote-eeeeeeee-0000-0000-0000-000000000001', '{"anon":true}');
+  raise exception 'FAIL: an anonymous connection published on a remote channel';
+exception
+  when insufficient_privilege then
+    raise notice 'PASS: anon blocked from publishing on a remote channel';
+end $$;
+select 'anon_sees_sessions' as check, count(*) as n from public.presentation_sessions;
+select 'anon_sees_channel_messages' as check, count(*) as n from realtime.messages;
+reset role;
+
+-- Alice's live session survived all of it.
+select 'alice_session_intact' as check, count(*) as n
+  from public.presentation_sessions
+ where id = 'eeeeeeee-0000-0000-0000-000000000001' and status = 'active';
+reset "realtime.topic";
+
 -- ---- Shared-link assets ------------------------------------------------------
 -- A shared deck's scene content can reference uploaded media. The RPC that
 -- resolves it — and the storage read it depends on — must follow the same
