@@ -50,6 +50,12 @@ if echo "$out" | grep -E "image_" | grep -vE "bob_settles" | grep -qvE "\|\s+1\s
   echo "IMAGE BUDGET TESTS FAILED"; exit 1
 fi
 
+# The phone remote's channel gate. Every `remote_*` probe states a property
+# that must hold; its anon and cross-user probes are covered by the rule above.
+if echo "$out" | grep -E "remote_|alice_session_intact" | grep -qvE "\|\s+1\s*$"; then
+  echo "REMOTE CHANNEL TESTS FAILED"; exit 1
+fi
+
 # The reservation ticket: every probe states a property that must hold.
 # `bob_completes_alice_reservation` is the exception and is covered by the
 # cross-user rule above — it must come back 0.
