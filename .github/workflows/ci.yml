@@ -1,0 +1,76 @@
+name: CI
+
+# Runs the release-critical suites this repo already treats as the merge bar
+# (see AGENTS.md: "npm run verify is the gate"). Mirrors exactly what an
+# independent release-candidate audit ran by hand before this workflow
+# existed, so a future PR gets the same evidence automatically instead of
+# depending on someone re-running it manually.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify (typecheck, lint, unit tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+
+  rls:
+    name: RLS suite (all migrations, isolation + share-link assertions)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:rls
+
+  e2e-serverless:
+    name: "Playwright (server-free: shader + lifecycle)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # The "authenticated" and "smoke" projects need a running app and, for
+      # "authenticated", live credentials — deliberately out of scope here.
+      # shader/lifecycle need neither: see playwright.config.ts's SERVERLESS set.
+      - run: npx playwright test --project=shader --project=lifecycle
