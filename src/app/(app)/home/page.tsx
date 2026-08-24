@@ -40,7 +40,7 @@ export default async function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
       <header className="mb-8">
-        <h1 className="text-ink text-[26px] font-semibold tracking-tight">
+        <h1 className="text-ink text-[27px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
           {greeting()}, {firstName}
         </h1>
         <p className="text-ink-3 mt-1.5 text-[14px]">
@@ -84,7 +84,7 @@ export default async function HomePage() {
           <Plus className="text-accent size-4" aria-hidden />
           <h2 className="text-ink mt-3 text-[14px] font-semibold">New presentation</h2>
           <p className="text-ink-3 mt-1 text-[12.5px] leading-relaxed">
-            Start from a clear stage, or from one of {TEMPLATES.length - 1} structures.
+            Start from a clear stage, or from one of {TEMPLATES.length - 2} structures.
           </p>
           <span className="text-accent-text mt-3 inline-flex items-center gap-1 text-[12px] font-medium">
             Create{" "}
@@ -157,6 +157,12 @@ export default async function HomePage() {
                     className="bg-ai rounded-[var(--radius-md)] px-4 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
                   >
                     Create with AI
+                  </Link>
+                  <Link
+                    href="/new?template=example"
+                    className="border-line text-ink-2 hover:border-line-strong hover:text-ink rounded-[var(--radius-md)] border px-4 py-2 text-[13px] font-medium transition-colors"
+                  >
+                    See a finished example
                   </Link>
                   <Link
                     href="/new"

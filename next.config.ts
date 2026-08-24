@@ -25,7 +25,10 @@ const supabaseOrigin = (() => {
 
 const csp = [
   `default-src 'self'`,
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  // `wasm-unsafe-eval` admits WebAssembly compilation only — not JS eval. The
+  // camera background remover runs MediaPipe's segmenter on-device, and its
+  // wasm runtime is served from this origin (public/mediapipe/).
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""}`,
   `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `font-src 'self' https://fonts.gstatic.com data:`,
   // Stage media can be a remote https image, a signed Supabase URL, or a local

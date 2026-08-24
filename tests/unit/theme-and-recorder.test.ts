@@ -94,6 +94,27 @@ describe("templates", () => {
     expect(JSON.stringify(scenes[0].content)).not.toContain("{{TITLE}}");
   });
 
+  it("ships a worked example that is genuinely finished", () => {
+    const example = getTemplate("example");
+    expect(example).toBeDefined();
+    expect(example!.scenes.length).toBeGreaterThanOrEqual(10);
+
+    // Finished means written: every scene carries speakable notes, and none
+    // of the content is a prompt left for the author to fill in.
+    for (const scene of example!.scenes) {
+      expect(scene.speakerNotes.length, scene.title).toBeGreaterThan(40);
+    }
+    const text = JSON.stringify(example!.scenes.map((s) => s.content));
+    expect(text).not.toMatch(/\{\{(?!TITLE)/);
+
+    // The map's movements must be movements the scenes actually visit, or
+    // creation would file the example's moments under orphaned sections.
+    const sceneMovements = new Set(example!.scenes.map((s) => s.movement));
+    for (const movement of example!.shape ?? []) {
+      expect(sceneMovements.has(movement.label), movement.label).toBe(true);
+    }
+  });
+
   it("ships speaker notes with every template scene that teaches something", () => {
     const lecture = TEMPLATES.find((t) => t.id === "lecture")!;
     const withNotes = lecture.scenes.filter((s) => s.speakerNotes.trim().length > 0);

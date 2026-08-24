@@ -14,7 +14,9 @@
     "test:rls": "supabase/tests/run.sh",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "predev": "node scripts/copy-mediapipe-wasm.mjs",
+    "prebuild": "node scripts/copy-mediapipe-wasm.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
@@ -22,6 +24,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "clsx": "^2.1.1",

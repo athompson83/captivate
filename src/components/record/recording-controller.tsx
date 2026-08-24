@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Camera,
   CameraOff,
+  Captions,
   Circle,
   Download,
   Loader2,
@@ -28,6 +29,8 @@ import {
   type RecorderPhase,
   type RecorderResult,
 } from "@/lib/record/recorder";
+import type { CameraBackground } from "@/lib/media/segmentation";
+import { toWebVTT, transcriptSupported } from "@/lib/record/transcript";
 import { createRecording, finaliseRecording } from "@/lib/data/recordings";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { STORAGE_BUCKETS } from "@/lib/supabase/config";
@@ -77,6 +80,9 @@ export function RecordingController({
   const [micId, setMicId] = useState<string>("");
   const [cameraId, setCameraId] = useState<string>("");
   const [useCamera, setUseCamera] = useState(false);
+  const [cameraBackground, setCameraBackground] = useState<CameraBackground>("none");
+  const [transcribe, setTranscribe] = useState(true);
+  const [burnInCaptions, setBurnInCaptions] = useState(false);
   const [placement, setPlacement] = useState<CameraPlacement>({
     corner: "bottom-right",
     size: 0.18,
@@ -131,6 +137,9 @@ export function RecordingController({
         microphoneId: micId || null,
         cameraId: useCamera ? cameraId || null : null,
         camera: useCamera,
+        cameraBackground,
+        transcribe,
+        burnInCaptions,
         placement,
       });
       await recorder.start();
@@ -176,6 +185,7 @@ export function RecordingController({
       hasCamera: recorded.hasCamera,
       hasMicrophone: recorded.hasMicrophone,
       timeline: recorded.timeline,
+      transcript: recorded.transcript,
       status: "uploading",
     });
 
@@ -364,6 +374,7 @@ export function RecordingController({
               {formatDuration(result.durationMs / 1000)} · {formatBytes(result.blob.size)} ·{" "}
               {result.extension.toUpperCase()}
               {result.hasCamera && " · camera included"}
+              {result.transcript.length > 0 && " · transcript captured"}
             </p>
 
             <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-white/70">
@@ -391,6 +402,25 @@ export function RecordingController({
                 <Download className="size-3" aria-hidden />
                 Download
               </button>
+              {result.transcript.length > 0 && (
+                <button
+                  onClick={() => {
+                    const url = URL.createObjectURL(
+                      new Blob([toWebVTT(result.transcript)], { type: "text/vtt" }),
+                    );
+                    const anchor = document.createElement("a");
+                    anchor.href = url;
+                    anchor.download = `${sanitiseFilename(presentationTitle)}.vtt`;
+                    anchor.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                  }}
+                  aria-label="Download subtitles"
+                  className="flex items-center justify-center gap-1.5 rounded-[var(--radius-md)] border border-white/20 px-3 py-1.5 text-[12px] text-white/80 transition-colors hover:bg-white/10"
+                >
+                  <Captions className="size-3" aria-hidden />
+                  .vtt
+                </button>
+              )}
               <button
                 onClick={() => setResult(null)}
                 className="rounded-[var(--radius-md)] border border-white/20 px-3 py-1.5 text-[12px] text-white/80 transition-colors hover:bg-white/10"
@@ -415,6 +445,12 @@ export function RecordingController({
         setCameraId={setCameraId}
         useCamera={useCamera}
         setUseCamera={setUseCamera}
+        cameraBackground={cameraBackground}
+        setCameraBackground={setCameraBackground}
+        transcribe={transcribe}
+        setTranscribe={setTranscribe}
+        burnInCaptions={burnInCaptions}
+        setBurnInCaptions={setBurnInCaptions}
         placement={placement}
         setPlacement={setPlacement}
         format={support.extension.toUpperCase()}
@@ -467,6 +503,12 @@ function SetupDialog({
   setCameraId,
   useCamera,
   setUseCamera,
+  cameraBackground,
+  setCameraBackground,
+  transcribe,
+  setTranscribe,
+  burnInCaptions,
+  setBurnInCaptions,
   placement,
   setPlacement,
   format,
@@ -484,6 +526,12 @@ function SetupDialog({
   setCameraId: (v: string) => void;
   useCamera: boolean;
   setUseCamera: (v: boolean) => void;
+  cameraBackground: CameraBackground;
+  setCameraBackground: (b: CameraBackground) => void;
+  transcribe: boolean;
+  setTranscribe: (v: boolean) => void;
+  burnInCaptions: boolean;
+  setBurnInCaptions: (v: boolean) => void;
   placement: CameraPlacement;
   setPlacement: (p: CameraPlacement) => void;
   format: string;
@@ -604,16 +652,50 @@ function SetupDialog({
                 </div>
               </div>
 
+              <div>
+                <p className="text-ink-3 mb-1.5 text-[10px] font-medium tracking-wider uppercase">
+                  Background
+                </p>
+                <Segmented
+                  label="Camera background"
+                  size="sm"
+                  value={cameraBackground}
+                  onChange={(background) => {
+                    setCameraBackground(background);
+                    // A cut-out only makes sense with the background removed.
+                    if (background !== "remove" && placement.shape === "cutout") {
+                      setPlacement({ ...placement, shape: "circle" });
+                    }
+                  }}
+                  options={[
+                    { value: "none", label: "As is" },
+                    { value: "blur", label: "Blurred" },
+                    { value: "remove", label: "Removed" },
+                  ]}
+                />
+                <p className="text-ink-3 mt-1 text-[11px] leading-snug">
+                  Processed on this device — camera video never leaves it.
+                </p>
+              </div>
+
               <div className="flex items-center gap-3">
                 <Segmented
                   label="Camera shape"
                   size="sm"
                   value={placement.shape}
                   onChange={(shape) => setPlacement({ ...placement, shape })}
-                  options={[
-                    { value: "circle", label: "Circle" },
-                    { value: "rounded", label: "Rounded" },
-                  ]}
+                  options={
+                    cameraBackground === "remove"
+                      ? [
+                          { value: "circle", label: "Circle" },
+                          { value: "rounded", label: "Rounded" },
+                          { value: "cutout", label: "Cut-out" },
+                        ]
+                      : [
+                          { value: "circle", label: "Circle" },
+                          { value: "rounded", label: "Rounded" },
+                        ]
+                  }
                 />
                 <Segmented
                   label="Camera size"
@@ -628,6 +710,71 @@ function SetupDialog({
                 />
               </div>
             </div>
+          )}
+        </Field>
+
+        <Field label="Transcript" icon={Captions}>
+          {transcriptSupported() ? (
+            <div className="space-y-2.5">
+              <label className="flex cursor-pointer items-start gap-2.5">
+                <button
+                  role="switch"
+                  aria-checked={transcribe}
+                  onClick={() => setTranscribe(!transcribe)}
+                  className={cn(
+                    "relative mt-0.5 h-4.5 w-8 shrink-0 rounded-full transition-colors",
+                    transcribe ? "bg-accent" : "bg-[var(--border-strong)]",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "block size-3 rounded-full bg-white transition-transform",
+                      transcribe && "translate-x-3",
+                    )}
+                  />
+                </button>
+                <span className="text-ink text-[13px]">
+                  Live transcript
+                  <span className="text-ink-3 mt-0.5 block text-[11.5px] leading-snug">
+                    Written by this browser as you speak. Downloads as subtitles (.vtt) and powers
+                    captions during playback.
+                  </span>
+                </span>
+              </label>
+
+              {transcribe && (
+                <label className="border-line-subtle ml-0.5 flex cursor-pointer items-start gap-2.5 border-l-2 pl-3">
+                  <button
+                    role="switch"
+                    aria-checked={burnInCaptions}
+                    onClick={() => setBurnInCaptions(!burnInCaptions)}
+                    className={cn(
+                      "relative mt-0.5 h-4.5 w-8 shrink-0 rounded-full transition-colors",
+                      burnInCaptions ? "bg-accent" : "bg-[var(--border-strong)]",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "block size-3 rounded-full bg-white transition-transform",
+                        burnInCaptions && "translate-x-3",
+                      )}
+                    />
+                  </button>
+                  <span className="text-ink text-[13px]">
+                    Burn captions into the video
+                    <span className="text-ink-3 mt-0.5 block text-[11.5px] leading-snug">
+                      Subtitles become part of the picture — visible in any player, impossible to
+                      turn off. Leave this off to keep them as a separate track.
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
+          ) : (
+            <p className="text-ink-3 text-[12px] leading-relaxed">
+              Live transcripts aren&apos;t available in this browser — Chrome and Edge can write
+              subtitles as you speak.
+            </p>
           )}
         </Field>
 

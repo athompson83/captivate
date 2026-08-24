@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Staged third-party wasm runtime (see scripts/copy-mediapipe-wasm.mjs) —
+    // emscripten output, not this project's code.
+    "public/mediapipe/**",
   ]),
 ]);
 

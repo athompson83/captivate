@@ -40,6 +40,7 @@ function makeDocument(): PresentationDocument {
       isFavorite: false,
       thumbnailUrl: null,
       schemaVersion: 1,
+      shareToken: null,
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
       lastOpenedAt: null,

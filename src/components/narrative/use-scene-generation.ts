@@ -53,7 +53,7 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
     };
   }, []);
 
-  const generate = useCallback(async () => {
+  const generate = useCallback(async (depth: "outline" | "full" = "full") => {
     const state = useEditor.getState();
     const { sections, moments } = state.document;
     const unlocked = moments.filter((moment) => !moment.locked);
@@ -80,6 +80,7 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
           prompt: prompt || "Generate this presentation.",
           presentationId,
           briefs,
+          depth,
         }),
       });
       const body: unknown = await response.json();

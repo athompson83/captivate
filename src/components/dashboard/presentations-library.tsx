@@ -86,7 +86,7 @@ export function PresentationsLibrary({
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
       <header className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-ink text-[22px] font-semibold tracking-tight">Presentations</h1>
+        <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Presentations</h1>
         <div className="flex-1" />
         <Link href="/new">
           <Button variant="primary" size="sm">

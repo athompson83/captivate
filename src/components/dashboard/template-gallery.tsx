@@ -30,7 +30,7 @@ export function TemplateGallery({ templates }: { templates: TemplatePreview[] })
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
       <header className="mb-2">
-        <h1 className="text-ink text-[22px] font-semibold tracking-tight">Templates</h1>
+        <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Templates</h1>
         <p className="text-ink-3 mt-1.5 max-w-2xl text-[14px] leading-relaxed">
           Six structures rather than a hundred variations on a grid. Each one is a narrative shape
           that works — objectives and a case for teaching, problem and proof for a pitch — with

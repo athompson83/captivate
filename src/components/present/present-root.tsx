@@ -20,6 +20,12 @@ import {
 import { AnnotationLayer } from "./annotation-layer";
 import { PresenterBar } from "./presenter-bar";
 import { RecordingController } from "@/components/record/recording-controller";
+import {
+  PresenterCameraFeed,
+  loadCameraFeedSettings,
+  saveCameraFeedSettings,
+  type CameraFeedSettings,
+} from "./presenter-camera";
 
 /** How often pointer activity may restart the presenter bar's countdown. */
 const ACTIVITY_INTERVAL = 250;
@@ -87,6 +93,13 @@ export function PresentRoot({
   useWakeLock(true);
 
   const [tool, setTool] = useState<PresenterTool>("none");
+  const [cameraFeed, setCameraFeed] = useState<CameraFeedSettings>(() =>
+    loadCameraFeedSettings(presentation.id),
+  );
+  const updateCameraFeed = (next: CameraFeedSettings) => {
+    setCameraFeed(next);
+    saveCameraFeedSettings(presentation.id, next);
+  };
   const [color, setColor] = useState<string>(PRESENTER_COLORS[0].value);
   const [penWidth, setPenWidth] = useState(1);
   const [barVisible, setBarVisible] = useState(!audienceOnly);
@@ -210,6 +223,17 @@ export function PresentRoot({
           e.preventDefault();
           setTool((t) => (t === "erase" ? "none" : "erase"));
           break;
+        case "v":
+        case "V":
+          if (!audienceOnly) {
+            e.preventDefault();
+            setCameraFeed((feed) => {
+              const next = { ...feed, enabled: !feed.enabled };
+              saveCameraFeedSettings(presentation.id, next);
+              return next;
+            });
+          }
+          break;
         case "c":
         case "C":
           e.preventDefault();
@@ -239,7 +263,7 @@ export function PresentRoot({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [audienceOnly, fullscreen, scenes.length, session, tool]);
+  }, [audienceOnly, fullscreen, presentation.id, scenes.length, session, tool]);
 
   const advanceOnClick = (e: React.MouseEvent) => {
     if (tool !== "none" || audienceOnly) return;
@@ -306,6 +330,16 @@ export function PresentRoot({
         />
       )}
 
+      {/* The presenter, placed over the world. Hidden while blanked so a
+          black screen is genuinely black. */}
+      {!session.blanked && (
+        <PresenterCameraFeed
+          settings={cameraFeed}
+          onChange={updateCameraFeed}
+          interactive={!audienceOnly}
+        />
+      )}
+
       {/* Annotations sit above the world and below the presenter chrome. */}
       <AnnotationLayer
         annotations={session.annotations}
@@ -348,6 +382,8 @@ export function PresentRoot({
             onColorChange={setColor}
             penWidth={penWidth}
             onPenWidthChange={setPenWidth}
+            cameraFeed={cameraFeed}
+            onCameraFeedChange={updateCameraFeed}
             fullscreen={fullscreen}
           />
 

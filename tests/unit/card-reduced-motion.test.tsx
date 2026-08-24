@@ -45,6 +45,7 @@ const PRESENTATION: PresentationSummary = {
   isFavorite: false,
   thumbnailUrl: null,
   schemaVersion: 1,
+  shareToken: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   lastOpenedAt: null,

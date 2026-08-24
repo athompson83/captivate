@@ -1,7 +1,19 @@
 \set ON_ERROR_STOP on
 -- Grant the table privileges Supabase normally grants; RLS is the actual gate.
+-- anon gets the same select grants it holds on a real Supabase project: every
+-- policy is scoped `to authenticated`, so those grants must still yield
+-- nothing — which is exactly what the anon probes below assert.
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage on schema public to anon;
+grant select on all tables in schema public to anon;
+
+-- Same story for storage.objects: Supabase grants both roles table access by
+-- default, and its own RLS policies (migration 0002, plus 0011's share-link
+-- addition) are what actually decide who can read or write which object.
+grant usage on schema storage to authenticated, anon;
+grant select, insert, update, delete on storage.objects to authenticated, anon;
+grant select on storage.buckets to authenticated, anon;
 
 -- Two users, each with one presentation containing one scene and one note.
 insert into auth.users (id, email) values
@@ -119,6 +131,94 @@ insert into public.recordings (id, title) values
   ('aaaaaaaa-0000-0000-0000-00000000d001', 'Alice recording');
 insert into public.ai_generations (id, kind, prompt) values
   ('aaaaaaaa-0000-0000-0000-00000000e001', 'scene', 'ALICE PRIVATE PROMPT');
+
+-- ---- Share links ------------------------------------------------------------
+-- Alice shares her deck; the token is the whole of a link-holder's authority.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+update public.presentations
+   set share_token = 'cccccccc-0000-0000-0000-000000000001'
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+reset role;
+
+set role anon;
+
+-- Even with production-shaped grants, table policies give anon nothing —
+-- holding a token must not change that.
+select 'anon_sees_presentations' as check, count(*) as n from public.presentations;
+select 'anon_sees_scenes'        as check, count(*) as n from public.scenes;
+
+-- The right token resolves the deck through the one function anon may call…
+select 'shared_link_resolves' as check,
+  (public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001')
+     -> 'presentation' ->> 'title' = 'Alice deck')::int as n;
+
+-- …and the payload is the audience's: no speaker notes, no owner identity.
+select 'shared_link_omits_notes' as check,
+  (position('PRIVATE ALICE NOTES' in
+     coalesce(public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001')::text, ''))
+   = 0)::int as n;
+select 'shared_link_omits_owner' as check,
+  (position('11111111-1111-1111-1111-111111111111' in
+     coalesce(public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001')::text, ''))
+   = 0)::int as n;
+
+-- A wrong token is a dead link, not an error.
+select 'shared_link_wrong_token_dead' as check,
+  (public.captivate_shared_presentation('cccccccc-0000-0000-0000-0000000000ff') is null)::int as n;
+
+reset role;
+
+-- Revoking kills the link at once.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+update public.presentations set share_token = null
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+reset role;
+
+set role anon;
+select 'shared_link_revoked_dead' as check,
+  (public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001') is null)::int as n;
+reset role;
+
+-- The conditional write that enabling uses ("claim only where no token
+-- exists") must not replace a live token — it is what makes two concurrent
+-- enables collapse to one winner instead of killing each other's links.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+update public.presentations
+   set share_token = 'cccccccc-0000-0000-0000-000000000002'
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+
+with attempt as (
+  update public.presentations
+     set share_token = 'cccccccc-0000-0000-0000-000000000003'
+   where id = 'aaaaaaaa-0000-0000-0000-000000000001'
+     and share_token is null
+  returning 1
+)
+select 'shared_link_conditional_claim_blocked' as check, (count(*) = 0)::int as n from attempt;
+
+select 'shared_link_token_survives_lost_race' as check,
+  (share_token = 'cccccccc-0000-0000-0000-000000000002')::int as n
+  from public.presentations
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+reset role;
+
+-- ---- Shared-link assets ------------------------------------------------------
+-- A shared deck's scene content can reference uploaded media. The RPC that
+-- resolves it — and the storage read it depends on — must follow the same
+-- token-gated shape as the deck itself: readable while shared, dead the
+-- instant the link is revoked, and never reachable through someone else's
+-- unshared deck.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+insert into public.assets (id, presentation_id, storage_path, kind, mime_type, byte_size) values
+  ('dddddddd-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111/asset1.png', 'image', 'image/png', 1024);
+insert into storage.objects (bucket_id, name, owner) values
+  ('assets', '11111111-1111-1111-1111-111111111111/asset1.png', '11111111-1111-1111-1111-111111111111');
+
 reset role;
 
 set role authenticated;
@@ -184,6 +284,14 @@ begin
   raise notice 'PASS: generation ledger is append-only even for its owner';
 end $$;
 
+-- Bob's own asset and its object, inserted after the visibility counts
+-- above so they cannot inflate them. They exist to prove that holding a
+-- link to Alice's shared deck buys nothing on Bob's unshared one.
+insert into public.assets (id, presentation_id, storage_path, kind, mime_type, byte_size) values
+  ('dddddddd-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000001',
+   '22222222-2222-2222-2222-222222222222/asset2.png', 'image', 'image/png', 1024);
+insert into storage.objects (bucket_id, name, owner) values
+  ('assets', '22222222-2222-2222-2222-222222222222/asset2.png', '22222222-2222-2222-2222-222222222222');
 reset role;
 
 -- Alice's rows survived all of it.
@@ -191,3 +299,72 @@ select 'alice_assets_intact' as check, count(*) as n from public.assets
   where id = 'aaaaaaaa-0000-0000-0000-00000000a001';
 select 'alice_recordings_intact' as check, count(*) as n from public.recordings
   where id = 'aaaaaaaa-0000-0000-0000-00000000d001';
+
+
+set role anon;
+
+-- Alice's deck is shared (token '...002' from above): its asset resolves…
+select 'shared_asset_resolves' as check,
+  (exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000001')
+      where storage_path = '11111111-1111-1111-1111-111111111111/asset1.png'
+  ))::int as n;
+select 'shared_asset_storage_readable' as check,
+  (count(*) = 1)::int as n from storage.objects
+  where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/asset1.png';
+
+-- …and Bob's deck is not shared at all, so his asset resolves nowhere and its
+-- object is not readable — a link-holder for one deck gains nothing on another.
+select 'shared_asset_unshared_deck_dead' as check,
+  (not exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000002')
+  ))::int as n;
+select 'shared_asset_unshared_storage_unreadable' as check,
+  (count(*) = 0)::int as n from storage.objects
+  where bucket_id = 'assets' and name = '22222222-2222-2222-2222-222222222222/asset2.png';
+reset role;
+
+-- A signed-in visitor is not the owner either. RLS on `assets` matches none of
+-- Alice's rows for Bob, so if the content route only consulted the table for a
+-- logged-in caller, every image on a shared deck would 404 for Bob and resolve
+-- for a logged-out stranger. The token-gated resolver has to answer him too —
+-- granting an account exactly what the link alone grants, and no more.
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select 'shared_asset_signed_in_visitor_resolves' as check,
+  (exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000001')
+      where storage_path = '11111111-1111-1111-1111-111111111111/asset1.png'
+  ))::int as n;
+select 'shared_asset_signed_in_visitor_storage_readable' as check,
+  (count(*) = 1)::int as n from storage.objects
+  where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/asset1.png';
+reset role;
+
+-- Revoking kills asset access in the same instant it kills the deck.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+update public.presentations set share_token = null
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+reset role;
+
+set role anon;
+select 'shared_asset_revoked_dead' as check,
+  (not exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000001')
+  ))::int as n;
+select 'shared_asset_revoked_storage_unreadable' as check,
+  (count(*) = 0)::int as n from storage.objects
+  where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/asset1.png';
+reset role;
+
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select 'shared_asset_revoked_signed_in_dead' as check,
+  (not exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000001')
+  ))::int as n;
+select 'shared_asset_revoked_signed_in_storage_unreadable' as check,
+  (count(*) = 0)::int as n from storage.objects
+  where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/asset1.png';
+reset role;

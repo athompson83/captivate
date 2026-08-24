@@ -10,11 +10,13 @@ cd "$(dirname "$0")/../.."
 DB="${CAPTIVATE_TEST_DB:-cap_test}"
 psql -q -d postgres -c "drop database if exists ${DB};" -c "create database ${DB};"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/tests/_supabase_stub.sql
-# Every migration, in filename order — not only 0001_captivate_core.sql. A
-# harness that stopped at 0001 would let every RLS probe below "pass" while
-# silently testing a schema years out of date; supabase/tests/rls_isolation
-# .test.sql's migration-coverage checks exist to catch exactly that if this
-# loop is ever narrowed back down to a single file.
+# Every migration, in filename order — the same way production applies them,
+# and not only 0001_captivate_core.sql. A harness that stopped at 0001 would
+# let every RLS probe below "pass" while silently testing a schema years out
+# of date; rls_isolation.test.sql's migration-coverage checks exist to catch
+# exactly that if this loop is ever narrowed back down. Applying the whole set
+# in order also catches a migration that only works because an earlier run
+# left state behind, and one the stub cannot represent.
 for f in supabase/migrations/*.sql; do
   psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f"
 done
@@ -39,7 +41,15 @@ if echo "$out" | grep -E "alice_[a-z_]*intact" | grep -qE "\|\s+0\s*$"; then
 fi
 
 # Every cross-user visibility probe must return zero rows.
-if echo "$out" | grep -E "bob_sees_alice|bob_idor|bob_delete_alice" | grep -qvE "\|\s+0\s*$"; then
+if echo "$out" | grep -E "bob_sees_alice|bob_idor|bob_delete_alice|anon_sees" | grep -qvE "\|\s+0\s*$"; then
   echo "RLS LEAK DETECTED"; exit 1
+fi
+# Every share-link assertion must hold (1 = the stated property was observed).
+if echo "$out" | grep -E "shared_link_" | grep -qvE "\|\s+1\s*$"; then
+  echo "SHARE LINK TESTS FAILED"; exit 1
+fi
+# Same for the assets a shared deck can reference.
+if echo "$out" | grep -E "shared_asset_" | grep -qvE "\|\s+1\s*$"; then
+  echo "SHARED ASSET TESTS FAILED"; exit 1
 fi
 echo "RLS TESTS PASSED"

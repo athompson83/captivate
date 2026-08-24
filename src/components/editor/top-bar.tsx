@@ -12,6 +12,7 @@ import {
   PanelLeft,
   Play,
   Redo2,
+  Share2,
   Sparkles,
   Undo2,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import { updatePresentationMeta, useEditor } from "@/lib/editor/store";
 import { SHORTCUTS } from "@/lib/editor/shortcuts";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { ShareDialog } from "./share-dialog";
 import { Popover, Tooltip, Segmented } from "@/components/ui/misc";
 import { cn } from "@/lib/utils/cn";
 import { relativeTime } from "@/lib/utils/format";
@@ -70,6 +72,7 @@ export function EditorTopBar({
 
   const [themeOpen, setThemeOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   return (
     <header className="border-line-subtle bg-base flex h-14 shrink-0 items-center gap-2 border-b px-3">
@@ -261,6 +264,16 @@ export function EditorTopBar({
         </button>
       </Tooltip>
 
+      <Tooltip label="Share" side="bottom">
+        <button
+          onClick={() => setShareOpen(true)}
+          aria-label="Share"
+          className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors"
+        >
+          <Share2 className="size-4" aria-hidden />
+        </button>
+      </Tooltip>
+
       <Link href={`/present/${presentationId}`} onClick={onSave}>
         <Button variant="primary" size="sm">
           <Play className="size-3.5" aria-hidden />
@@ -269,6 +282,11 @@ export function EditorTopBar({
       </Link>
 
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ShareDialog
+        presentationId={presentationId}
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+      />
     </header>
   );
 }
