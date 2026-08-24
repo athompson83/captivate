@@ -59,6 +59,11 @@ export function PresentRoot({
   const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
   const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
 
+  const establishingMovement = session.establishing
+    ? (movements.find((m) => m.id === session.establishing) ?? null)
+    : null;
+  const establishingIndex = establishingMovement ? movements.indexOf(establishingMovement) : -1;
+
   // Memoised: `stageSize` returns a fresh object, and this is a dependency of
   // the placements below, which are a prop of `World` — so without it `World`'s
   // memo could never hold and every arrangement was resolved again on every
@@ -275,11 +280,20 @@ export function PresentRoot({
         />
       )}
 
-      {signpost && !session.overview && !session.blanked && (
+      {signpost && !session.overview && !session.blanked && !session.establishing && (
         <MovementSignpost
           movement={signpost}
           index={signpostIndex}
           sceneTitle={scenes[signpost.start]?.title ?? ""}
+        />
+      )}
+
+      {establishingMovement && !session.overview && !session.blanked && (
+        <MovementSignpost
+          movement={establishingMovement}
+          index={establishingIndex}
+          sceneTitle=""
+          kind="entering"
         />
       )}
 

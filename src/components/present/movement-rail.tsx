@@ -155,18 +155,27 @@ export function MovementSignpost({
   movement,
   index,
   sceneTitle,
+  kind = "next",
 }: {
   movement: Movement;
   index: number;
   sceneTitle: string;
+  kind?: "next" | "entering";
 }) {
+  const eyebrow =
+    kind === "next"
+      ? `Next movement · ${String(index + 1).padStart(2, "0")}`
+      : `Movement · ${String(index + 1).padStart(2, "0")}`;
+  const caption =
+    kind === "next" ? "The narrative continues without a break." : "Now, in this movement.";
+
   return (
     <div
       className="pointer-events-none absolute inset-x-0 bottom-[3.4vh] z-10 text-center"
       aria-hidden
     >
       <p className="text-[10px] font-medium tracking-[0.2em] text-[var(--stage-accent)] uppercase">
-        Next movement · {String(index + 1).padStart(2, "0")}
+        {eyebrow}
       </p>
       <p
         className="mt-1.5 text-[1.4vw] leading-tight font-medium"
@@ -179,7 +188,7 @@ export function MovementSignpost({
         className="mt-1 text-[0.72vw]"
         style={{ color: "color-mix(in oklab, var(--stage-ink) 42%, transparent)" }}
       >
-        The narrative continues without a break.
+        {caption}
       </p>
     </div>
   );
