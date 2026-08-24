@@ -138,7 +138,18 @@ export function deriveMap(
   const now = new Date().toISOString();
   const positionInMovement = new Map<string | null, number>();
 
-  const moments: Moment[] = scenes.map((scene, index) => {
+  /**
+   * A moment is a beat of the argument. An aside is not one.
+   *
+   * `inferRole` reads "open" and "close" from position, so a detail scene
+   * stored first or last was labelled the opening or the close of an argument
+   * it is not part of — and because `captivate_replace_moments` writes the map
+   * whole, those phantom beats became permanent the first time the author
+   * edited it.
+   */
+  const running = scenes.filter((scene) => scene.flowRole !== "detail");
+
+  const moments: Moment[] = running.map((scene, index) => {
     const key = scene.sectionId;
     const position = positionInMovement.get(key) ?? 0;
     positionInMovement.set(key, position + 1);
@@ -148,7 +159,7 @@ export function deriveMap(
       presentationId: scene.presentationId,
       movementId: scene.sectionId,
       title: scene.title || `Moment ${index + 1}`,
-      role: inferRole(scene, index, scenes.length),
+      role: inferRole(scene, index, running.length),
       purpose: "",
       takeaway: "",
       estimatedSeconds: scene.durationSeconds ?? estimateScene(scene),

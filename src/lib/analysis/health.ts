@@ -53,8 +53,24 @@ function mediaElements(elements: SceneElement[]) {
 }
 
 export function analyse(doc: PresentationDocument): Health {
-  const { scenes, sections, presentation } = doc;
-  const pacing = pacingOf(scenes, sections);
+  const { scenes: allScenes, sections, presentation } = doc;
+  const pacing = pacingOf(allScenes, sections);
+
+  /**
+   * Analysis says what it measured, and what it measures is the argument.
+   *
+   * A detail scene is an aside behind a hotspot: it may never be opened, it is
+   * not a beat of the running order, and it does not need speaker notes for a
+   * stretch of talk it is not part of. Counting asides made a deck report more
+   * scenes than it has, dragged the notes score down for notes nobody needed,
+   * and — because a detail scene can carry a different section id — split one
+   * movement into two in the structure check.
+   *
+   * Rendering checks that are about a scene in isolation (contrast, alt text,
+   * a wall of text) still look at every scene, aside or not: those are true of
+   * anything an audience can end up looking at.
+   */
+  const scenes = allScenes.filter((scene) => scene.flowRole !== "detail");
 
   /**
    * An empty presentation is not healthy, and most checks pass vacuously on
@@ -128,7 +144,9 @@ export function analyse(doc: PresentationDocument): Health {
 
   /* Density --------------------------------------------------------------- */
 
-  const dense = scenes.filter((scene) => wordsOn(scene.content.elements) > DENSE_WORDS);
+  // Every scene an audience can end up looking at, asides included — a wall of
+  // text is a wall of text whether it was reached by advancing or by clicking.
+  const dense = allScenes.filter((scene) => wordsOn(scene.content.elements) > DENSE_WORDS);
   checks.push({
     id: "density",
     label: "Readable scenes",
@@ -137,7 +155,7 @@ export function analyse(doc: PresentationDocument): Health {
       ? { status: "pass" as const, detail: "No scene is a wall of text." }
       : {
           status:
-            dense.length <= Math.max(1, scenes.length * 0.15)
+            dense.length <= Math.max(1, allScenes.length * 0.15)
               ? ("warn" as const)
               : ("fail" as const),
           detail: `${dense.length} scene${dense.length === 1 ? "" : "s"} over ${DENSE_WORDS} words.`,
@@ -174,7 +192,7 @@ export function analyse(doc: PresentationDocument): Health {
 
   /* Alt text -------------------------------------------------------------- */
 
-  const media = scenes.flatMap((scene) => mediaElements(scene.content.elements));
+  const media = allScenes.flatMap((scene) => mediaElements(scene.content.elements));
   const described = media.filter(
     (element) => (element.type === "image" || element.type === "video") && element.alt.trim(),
   );

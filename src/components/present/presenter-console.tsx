@@ -489,48 +489,57 @@ function SceneFilmstrip({
     >
       <div ref={stripRef} className="no-scrollbar h-full overflow-x-auto overflow-y-hidden p-2">
         <ol className="flex h-full items-start gap-2">
-          {scenes.map((scene, index) => {
-            const section = sections.find((s) => s.id === scene.sectionId);
-            const active = index === currentIndex;
-            return (
-              <li key={scene.id} className="shrink-0">
-                <button
-                  data-active={active}
-                  onClick={() => onSelect(index)}
-                  aria-current={active ? "true" : undefined}
-                  aria-label={`Go to scene ${index + 1}${scene.title ? `: ${scene.title}` : ""}`}
-                  className={cn(
-                    "block overflow-hidden rounded-[var(--radius-md)] border-2 text-left transition-colors",
-                    active
-                      ? "border-accent"
-                      : index < currentIndex
-                        ? "border-line-subtle opacity-55 hover:opacity-90"
-                        : "border-line-subtle hover:border-line-strong",
-                  )}
-                >
-                  <StageThumbnail
-                    content={scene.content}
-                    theme={theme}
-                    aspect={aspect}
-                    width={132}
-                  />
-                  <span className="flex items-baseline gap-1.5 px-1.5 py-1">
-                    <span
-                      className={cn(
-                        "text-[10px] tabular-nums",
-                        active ? "text-accent-text" : "text-ink-3",
-                      )}
-                    >
-                      {index + 1}
+          {/*
+            The running order, and its own numbering. The jumper on the same
+            console already filters asides out, with a comment saying why —
+            listing them offers the presenter a destination they can only leave
+            by going somewhere else. Both controls now answer the same way.
+          */}
+          {scenes
+            .map((scene, index) => ({ scene, index }))
+            .filter(({ scene }) => scene.flowRole !== "detail")
+            .map(({ scene, index }, ordinal) => {
+              const section = sections.find((s) => s.id === scene.sectionId);
+              const active = index === currentIndex;
+              return (
+                <li key={scene.id} className="shrink-0">
+                  <button
+                    data-active={active}
+                    onClick={() => onSelect(index)}
+                    aria-current={active ? "true" : undefined}
+                    aria-label={`Go to scene ${ordinal + 1}${scene.title ? `: ${scene.title}` : ""}`}
+                    className={cn(
+                      "block overflow-hidden rounded-[var(--radius-md)] border-2 text-left transition-colors",
+                      active
+                        ? "border-accent"
+                        : index < currentIndex
+                          ? "border-line-subtle opacity-55 hover:opacity-90"
+                          : "border-line-subtle hover:border-line-strong",
+                    )}
+                  >
+                    <StageThumbnail
+                      content={scene.content}
+                      theme={theme}
+                      aspect={aspect}
+                      width={132}
+                    />
+                    <span className="flex items-baseline gap-1.5 px-1.5 py-1">
+                      <span
+                        className={cn(
+                          "text-[10px] tabular-nums",
+                          active ? "text-accent-text" : "text-ink-3",
+                        )}
+                      >
+                        {ordinal + 1}
+                      </span>
+                      <span className="text-ink-2 max-w-[104px] truncate text-[10.5px]">
+                        {scene.title || section?.title || "Untitled"}
+                      </span>
                     </span>
-                    <span className="text-ink-2 max-w-[104px] truncate text-[10.5px]">
-                      {scene.title || section?.title || "Untitled"}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
+                  </button>
+                </li>
+              );
+            })}
         </ol>
       </div>
     </section>
