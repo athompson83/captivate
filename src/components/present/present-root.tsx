@@ -10,7 +10,13 @@ import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
 import { PRESENTER_COLORS, type PresenterTool } from "@/lib/present/protocol";
 import { World, type Focus } from "@/components/stage/world";
-import { MovementRail, MovementSignpost, movementsOf, nextMovement } from "./movement-rail";
+import {
+  MovementRail,
+  MovementSignpost,
+  movementAt,
+  movementsOf,
+  nextMovement,
+} from "./movement-rail";
 import { AnnotationLayer } from "./annotation-layer";
 import { PresenterBar } from "./presenter-bar";
 import { RecordingController } from "@/components/record/recording-controller";
@@ -59,8 +65,11 @@ export function PresentRoot({
   const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
   const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
 
+  // Located by scene, not by section id: a section the argument returns to
+  // produces two movements sharing one id, and looking up by id would name the
+  // first stretch while the room is standing in the second.
   const establishingMovement = session.establishing
-    ? (movements.find((m) => m.id === session.establishing) ?? null)
+    ? movementAt(movements, session.sceneIndex)
     : null;
   const establishingIndex = establishingMovement ? movements.indexOf(establishingMovement) : -1;
 
