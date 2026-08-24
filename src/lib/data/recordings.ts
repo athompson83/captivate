@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { STORAGE_BUCKETS, SIGNED_URL_TTL_SECONDS } from "@/lib/supabase/config";
-import { parseCues } from "@/lib/record/transcript";
+import { parseCues } from "@/lib/record/transcript-core";
 
 /**
  * Recording metadata.

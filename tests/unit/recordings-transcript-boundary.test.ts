@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * `listRecordings` reads `transcript` straight from the database. A legacy,
  * hand-edited, or corrupt row should not be able to hand a malformed cue to
  * the player — that boundary already exists (`parseCues` in
- * `lib/record/transcript.ts`) and this pins that `listRecordings` actually
+ * `lib/record/transcript-core.ts`) and this pins that `listRecordings` actually
  * uses it, rather than only checking the row is an array.
  */
 

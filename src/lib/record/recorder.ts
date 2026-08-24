@@ -21,12 +21,8 @@
  */
 
 import type { CameraBackground } from "@/lib/media/segmentation";
-import {
-  LiveTranscriber,
-  clampCues,
-  transcriptSupported,
-  type TranscriptCue,
-} from "@/lib/record/transcript";
+import { LiveTranscriber, transcriptSupported } from "@/lib/record/transcript";
+import { clampCues, type TranscriptCue } from "@/lib/record/transcript-core";
 
 export type RecorderPhase =
   "idle" | "requesting" | "ready" | "recording" | "paused" | "stopping" | "complete" | "error";

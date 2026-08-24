@@ -31,7 +31,8 @@ import {
 } from "@/lib/record/recorder";
 import type { CameraBackground } from "@/lib/media/segmentation";
 import type { CameraFeedSettings } from "@/components/present/presenter-camera";
-import { toWebVTT, transcriptSupported } from "@/lib/record/transcript";
+import { transcriptSupported } from "@/lib/record/transcript";
+import { toWebVTT } from "@/lib/record/transcript-core";
 import { createRecording, finaliseRecording } from "@/lib/data/recordings";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { STORAGE_BUCKETS } from "@/lib/supabase/config";

@@ -10,16 +10,16 @@ test.describe("public surface", () => {
   test("landing page renders and offers both entry points", async ({ page }) => {
     await page.goto("/");
 
-    await expect(
-      page.getByRole("heading", { name: /Presentations that hold a room/i }),
-    ).toBeVisible();
-    await expect(page.getByRole("link", { name: /Create your first deck/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /There is no slide.reel/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Start your first canvas/i })).toBeVisible();
     await expect(page.getByRole("link", { name: "Sign in", exact: true }).first()).toBeVisible();
 
-    // The feature grid must actually describe the product, not be empty chrome.
-    await expect(page.getByRole("heading", { name: "Presenter console" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Laser pointer" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Record it" })).toBeVisible();
+    // The feature sections must actually describe the product, not be empty
+    // chrome — and in this product's own vocabulary, since the landing page is
+    // where a reader first meets it.
+    await expect(page.getByRole("heading", { name: /A narrative map, not an outline/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /A camera, not a clicker/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Record the real thing/i })).toBeVisible();
   });
 
   test("sign-in page has a labelled, usable form", async ({ page }) => {
@@ -53,6 +53,49 @@ test.describe("public surface", () => {
 
     await expect(configured.or(setup).or(signIn)).toBeVisible();
   });
+
+  /**
+   * Every signed-in route, rendered by a real production server.
+   *
+   * /recordings answered 500 in production for a week: `lib/data/recordings.ts`
+   * is `"use server"` and imported a helper out of a `"use client"` module, so
+   * the server got a client reference where it expected a function. Typecheck,
+   * lint, the unit suite and `next build` were all green — the failure existed
+   * only in a running React Server Components runtime, which is precisely what
+   * this sweep is.
+   *
+   * A page and its layout render concurrently, so the layout's redirect to
+   * /sign-in does not save a page whose own module graph or render throws:
+   * that still surfaces as a 500 here. The status assertion is the test; what
+   * the page then says depends on whether the deployment has credentials.
+   */
+  const APP_ROUTES = [
+    "/home",
+    "/presentations",
+    "/templates",
+    "/assets",
+    "/recordings",
+    "/notes",
+    "/new",
+    "/settings",
+  ];
+
+  for (const route of APP_ROUTES) {
+    test(`${route} renders without a server error`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+
+      const response = await page.goto(route);
+      expect(response, `no response for ${route}`).not.toBeNull();
+      expect(response!.status(), `${route} answered ${response!.status()}`).toBeLessThan(500);
+
+      // Next renders its own error page on a caught server exception, so a
+      // 200 alone is not proof the route worked.
+      await expect(page.getByText(/A server error occurred/i)).toHaveCount(0);
+      await expect(page.getByText(/Application error/i)).toHaveCount(0);
+      expect(errors).toEqual([]);
+    });
+  }
 
   test("serves the expected security headers", async ({ request }) => {
     const response = await request.get("/");
