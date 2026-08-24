@@ -9,6 +9,7 @@ import {
   type NarrativeShape,
 } from "@/lib/schema/narrative";
 import { estimateScene } from "@/lib/analysis/pacing";
+import { runningOrder } from "@/lib/present/running-order";
 
 /**
  * Assembling and deriving the narrative map.
@@ -147,7 +148,7 @@ export function deriveMap(
    * whole, those phantom beats became permanent the first time the author
    * edited it.
    */
-  const running = scenes.filter((scene) => scene.flowRole !== "detail");
+  const running = runningOrder(scenes);
 
   const moments: Moment[] = running.map((scene, index) => {
     const key = scene.sectionId;

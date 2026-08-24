@@ -65,6 +65,7 @@ export function RecordingController({
   presentationId,
   presentationTitle,
   currentSceneIndex,
+  currentSceneOrdinal,
   currentSceneId,
   channel,
   cameraFeed,
@@ -73,6 +74,8 @@ export function RecordingController({
   presentationId: string;
   presentationTitle: string;
   currentSceneIndex: number;
+  /** The running-order position the presenter was on, asides folded in. */
+  currentSceneOrdinal: number;
   currentSceneId: string | null;
   channel: PresentChannel | null;
   /**
@@ -122,8 +125,9 @@ export function RecordingController({
 
   /* Keep the scene timeline in step with navigation. */
   useEffect(() => {
-    if (phase === "recording") recorderRef.current?.markScene(currentSceneId, currentSceneIndex);
-  }, [currentSceneIndex, currentSceneId, phase]);
+    if (phase === "recording")
+      recorderRef.current?.markScene(currentSceneId, currentSceneIndex, currentSceneOrdinal);
+  }, [currentSceneIndex, currentSceneId, currentSceneOrdinal, phase]);
 
   /* Elapsed clock and cross-window status badge. */
   useEffect(() => {
@@ -174,7 +178,7 @@ export function RecordingController({
         placement,
       });
       await recorder.start();
-      recorder.markScene(currentSceneId, currentSceneIndex);
+      recorder.markScene(currentSceneId, currentSceneIndex, currentSceneOrdinal);
       setCanPause(recorder.canPause);
       setSetupOpen(false);
       setResult(null);

@@ -7,6 +7,7 @@ import type { Scene, Section } from "@/lib/schema/presentation";
 import { getTheme } from "@/lib/schema/theme";
 import { StageThumbnail } from "@/components/stage/stage";
 import { plainText } from "@/lib/schema/presentation";
+import { jumpTargets } from "@/lib/present/running-order";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -51,17 +52,15 @@ export function SceneJumper({
 
   const searchable = useMemo(
     () =>
-      scenes
-        // Indexed before filtering, so what survives keeps its real index —
-        // `onSelect` hands that straight to `goto`, and renumbering here would
-        // jump the presenter to the wrong scene.
-        .map((scene, index) => ({ scene, index }))
-        // Detail scenes are reached by diving into a hotspot, not by jumping.
-        // Listing them would offer the presenter a destination with no way
-        // back into the argument.
-        .filter(({ scene }) => scene.flowRole !== "detail")
-        .map(({ scene, index }) => ({
+      // Detail scenes are reached by diving into a hotspot, not by jumping —
+      // listing them would offer the presenter a destination with no way back
+      // into the argument. `jumpTargets` carries both numbers: `index` for
+      // `onSelect`, which must stay the real array position, and `ordinal` for
+      // the label, which must match the progress bar beside it.
+      jumpTargets(scenes)
+        .map(({ scene, index, ordinal }) => ({
           index,
+          ordinal,
           scene,
           text: [
             scene.title,
@@ -133,7 +132,7 @@ export function SceneJumper({
               </p>
             ) : (
               <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {filtered.map(({ scene, index }) => (
+                {filtered.map(({ scene, index, ordinal }) => (
                   <li key={scene.id}>
                     <button
                       onClick={() => onSelect(index)}
@@ -152,7 +151,7 @@ export function SceneJumper({
                         theme={theme}
                       />
                       <span className="flex items-baseline gap-2 bg-black/50 px-2.5 py-1.5">
-                        <span className="text-[11px] text-white/50 tabular-nums">{index + 1}</span>
+                        <span className="text-[11px] text-white/50 tabular-nums">{ordinal}</span>
                         <span className="min-w-0 flex-1 truncate text-[12px] text-white/90">
                           {scene.title || "Untitled"}
                         </span>

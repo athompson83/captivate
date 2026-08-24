@@ -199,7 +199,7 @@ export function ImageGeneration({
     const response = await fetch("/api/ai/visuals/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, presentationId }),
     }).catch(() => null);
     setBusy(false);
 

@@ -2,6 +2,7 @@ import type { PresentationDocument, SceneElement } from "@/lib/schema/presentati
 import { getTheme } from "@/lib/schema/theme";
 import { contrastRatio } from "@/lib/utils/color";
 import { balance, pacingOf, wordsOn, type Pacing } from "./pacing";
+import { runningOrder } from "@/lib/present/running-order";
 
 /**
  * Presentation health.
@@ -70,7 +71,7 @@ export function analyse(doc: PresentationDocument): Health {
    * a wall of text) still look at every scene, aside or not: those are true of
    * anything an audience can end up looking at.
    */
-  const scenes = allScenes.filter((scene) => scene.flowRole !== "detail");
+  const scenes = runningOrder(allScenes);
 
   /**
    * An empty presentation is not healthy, and most checks pass vacuously on

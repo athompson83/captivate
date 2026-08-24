@@ -23,6 +23,15 @@ interface Asset {
   alt: string;
   filename: string;
   createdAt: string;
+  /** Where it came from. Absent on rows written before provenance existed. */
+  source: "upload" | "stock" | "generated";
+  creatorName: string | null;
+  creatorPageUrl: string | null;
+  originalPageUrl: string | null;
+  licenseRef: string | null;
+  provider: string | null;
+  model: string | null;
+  prompt: string | null;
   presentationTitle: string | null;
   url: string;
 }
@@ -341,6 +350,8 @@ function AssetDetail({
             hint="Read aloud by screen readers. Describe the meaning, not the file."
           />
 
+          <Provenance asset={asset} />
+
           {asset.presentationTitle && (
             <p className="text-ink-3 text-[12px]">First used in “{asset.presentationTitle}”.</p>
           )}
@@ -348,4 +359,72 @@ function AssetDetail({
       )}
     </Dialog>
   );
+}
+
+/**
+ * Where an image came from.
+ *
+ * The picker tells people "the photographer is credited in the asset library",
+ * and until now nothing in the asset library credited anybody: the columns were
+ * written by the stock ingestion and read by nothing. A credit that exists only
+ * in a database column has not been given, and a licence that obliges one has
+ * not been honoured.
+ *
+ * An upload says nothing, because "you uploaded this" is not information.
+ */
+function Provenance({ asset }: { asset: Asset }) {
+  if (asset.source === "stock") {
+    return (
+      <div className="border-line-subtle text-ink-2 space-y-1 rounded-[var(--radius-md)] border bg-[var(--surface-inset)] px-3 py-2.5 text-[12px]">
+        <p>
+          Photograph by{" "}
+          {asset.creatorPageUrl ? (
+            <a
+              href={asset.creatorPageUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-accent-text underline underline-offset-2"
+            >
+              {asset.creatorName || "an uncredited photographer"}
+            </a>
+          ) : (
+            <span className="text-ink">{asset.creatorName || "an uncredited photographer"}</span>
+          )}
+          {asset.provider && <> on {asset.provider}</>}.
+        </p>
+        <p className="text-ink-3 text-[11.5px]">
+          {asset.licenseRef || "Licence unrecorded"}
+          {asset.originalPageUrl && (
+            <>
+              {" · "}
+              <a
+                href={asset.originalPageUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline underline-offset-2"
+              >
+                original
+              </a>
+            </>
+          )}
+        </p>
+      </div>
+    );
+  }
+
+  if (asset.source === "generated") {
+    return (
+      <div className="border-line-subtle text-ink-2 space-y-1 rounded-[var(--radius-md)] border bg-[var(--surface-inset)] px-3 py-2.5 text-[12px]">
+        <p>
+          Generated{asset.model ? <> by {asset.model}</> : null}. Nobody photographed this — say so
+          if the room might assume otherwise.
+        </p>
+        {asset.prompt && (
+          <p className="text-ink-3 text-[11.5px] italic">&ldquo;{asset.prompt}&rdquo;</p>
+        )}
+      </div>
+    );
+  }
+
+  return null;
 }

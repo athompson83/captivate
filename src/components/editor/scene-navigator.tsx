@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import type { PresentationTheme } from "@/lib/schema/theme";
 import type { Scene } from "@/lib/schema/presentation";
+import { runningOrderOrdinals } from "@/lib/present/running-order";
 import {
   insertScene,
   insertSection,
@@ -182,6 +183,15 @@ export function SceneNavigator({
   const rows: (
     { kind: "section"; id: string; title: string } | { kind: "scene"; scene: Scene; index: number }
   )[] = [];
+  /*
+   * The rail is the author's picture of the shape of their talk, so the number
+   * beside a scene has to be the number the presenter's console, the progress
+   * bar and the handout will show — which means the same helper, not another
+   * copy of the same one-line filter.
+   */
+  const ordinals = runningOrderOrdinals(scenes);
+  const running = ordinals.size;
+
   let lastSection: string | null | undefined = undefined;
   scenes.forEach((scene, index) => {
     if (scene.sectionId !== lastSection) {
@@ -202,7 +212,12 @@ export function SceneNavigator({
     >
       <div className="flex items-center justify-between px-3 py-2.5">
         <span className="text-ink-3 text-[11px] font-medium tracking-wider uppercase">
-          {scenes.length} {scenes.length === 1 ? "scene" : "scenes"}
+          {running} {running === 1 ? "scene" : "scenes"}
+          {scenes.length > running && (
+            <span className="normal-case"> · {scenes.length - running} aside
+              {scenes.length - running === 1 ? "" : "s"}
+            </span>
+          )}
         </span>
         <Tooltip label="Add section" side="bottom">
           <button
@@ -248,6 +263,7 @@ export function SceneNavigator({
                     key={row.scene.id}
                     scene={row.scene}
                     index={row.index}
+                    ordinal={ordinals.get(row.scene.id) ?? null}
                     selected={row.scene.id === selectedId}
                     theme={theme}
                     aspect={aspect}
@@ -331,6 +347,7 @@ function SectionHeader({
 function SceneRow({
   scene,
   index,
+  ordinal,
   selected,
   theme,
   aspect,
@@ -342,6 +359,8 @@ function SceneRow({
 }: {
   scene: Scene;
   index: number;
+  /** Place in the running order, or null for an aside, which has none. */
+  ordinal: number | null;
   selected: boolean;
   theme: PresentationTheme;
   aspect: "16:9" | "16:10" | "4:3";
@@ -382,14 +401,31 @@ function SceneRow({
           aria-current={selected ? "true" : undefined}
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          <span
-            className={cn(
-              "w-4 shrink-0 text-right text-[10px] tabular-nums",
-              selected ? "text-accent-text" : "text-ink-3",
-            )}
-          >
-            {index + 1}
-          </span>
+          {/*
+            An aside is not numbered, because it has no place in the running
+            order — it is reached by clicking a hotspot and may never be opened.
+            Numbering it made the rail read 1, 2, 3, 4 for a four-scene talk
+            that is three scenes long, and gave the author no way to see which
+            of their scenes was the aside they had made.
+          */}
+          {ordinal === null ? (
+            <span
+              className="text-ink-3 flex w-4 shrink-0 justify-end"
+              title="An aside — reached from a hotspot, not by advancing"
+              aria-label="Aside"
+            >
+              <CornerDownRight className="size-3" aria-hidden />
+            </span>
+          ) : (
+            <span
+              className={cn(
+                "w-4 shrink-0 text-right text-[10px] tabular-nums",
+                selected ? "text-accent-text" : "text-ink-3",
+              )}
+            >
+              {ordinal}
+            </span>
+          )}
           <span
             className={cn(
               "shrink-0 overflow-hidden rounded-[3px] border",

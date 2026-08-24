@@ -352,7 +352,11 @@ export function PlaybackBody({
                       }}
                       className="border-line-subtle text-ink-2 hover:border-line-strong hover:text-ink rounded-full border px-2.5 py-1 text-[11.5px] transition-colors"
                     >
-                      Scene {mark.sceneIndex + 1} · {formatDuration(mark.atMs / 1000)}
+                      {/* Recordings made before the ordinal existed keep the
+                          label they already had, rather than being given a
+                          number nothing can justify. */}
+                      Scene {mark.ordinal ?? mark.sceneIndex + 1} ·{" "}
+                      {formatDuration(mark.atMs / 1000)}
                     </button>
                   </li>
                 ))}

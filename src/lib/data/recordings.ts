@@ -30,7 +30,7 @@ export interface RecordingSummary {
   status: "recording" | "uploading" | "ready" | "failed" | "local_only";
   hasCamera: boolean;
   hasMicrophone: boolean;
-  timeline: { sceneId: string | null; sceneIndex: number; atMs: number }[];
+  timeline: { sceneId: string | null; sceneIndex: number; ordinal?: number; atMs: number }[];
   transcript: { startMs: number; endMs: number; text: string }[];
   errorMessage: string | null;
   createdAt: string;
@@ -52,6 +52,7 @@ const CreateInput = z.object({
       z.object({
         sceneId: Uuid.nullable(),
         sceneIndex: z.number().int().min(0).max(999),
+        ordinal: z.number().int().min(1).max(999).optional(),
         atMs: z.number().min(0),
       }),
     )
