@@ -50,6 +50,22 @@ export interface StageProps {
    * atmosphere behind it belongs to the world.
    */
   surface?: "card" | "bare";
+  /**
+   * Dives to a scene when a hotspot element is activated.
+   *
+   * Absent on every surface that cannot dive — the editor canvas, thumbnails,
+   * dashboard previews. A hotspot only becomes a control where activating it
+   * means something; elsewhere the element renders as the author drew it.
+   */
+  onHotspot?: (targetSceneId: string) => void;
+  /**
+   * Accessible name for a hotspot whose author left the label empty.
+   *
+   * Derived from the target scene's title by the caller, which is the only
+   * place that has the rest of the deck. Falling back to something generic
+   * would announce "button" to a screen reader and nothing else.
+   */
+  hotspotName?: (targetSceneId: string) => string;
 }
 
 export const Stage = memo(function Stage({
@@ -64,6 +80,8 @@ export const Stage = memo(function Stage({
   onPointerDownCapture,
   fixedScale,
   surface = "card",
+  onHotspot,
+  hotspotName,
 }: StageProps) {
   const size = stageSize(aspect);
   const reduced = useReducedMotion();
@@ -175,6 +193,8 @@ export const Stage = memo(function Stage({
             step={step}
             index={index}
             elements={content.elements}
+            onHotspot={onHotspot}
+            hotspotName={hotspotName}
           />
         ))}
 
@@ -231,6 +251,8 @@ function ElementLayer({
   step,
   index,
   elements,
+  onHotspot,
+  hotspotName,
 }: {
   element: SceneElement;
   theme: PresentationTheme;
@@ -240,6 +262,8 @@ function ElementLayer({
   step: number;
   index: number;
   elements: SceneElement[];
+  onHotspot?: (targetSceneId: string) => void;
+  hotspotName?: (targetSceneId: string) => string;
 }) {
   if (element.hidden) return null;
 
@@ -292,15 +316,61 @@ function ElementLayer({
         ease: STAGE_EASE,
       }}
     >
-      <StaggeredElement
-        element={element}
-        theme={theme}
-        stageWidth={stageWidth}
-        stageHeight={stageHeight}
-        step={step}
-        play={play}
-      />
+      <HotspotTarget element={element} onHotspot={onHotspot} hotspotName={hotspotName}>
+        <StaggeredElement
+          element={element}
+          theme={theme}
+          stageWidth={stageWidth}
+          stageHeight={stageHeight}
+          step={step}
+          play={play}
+        />
+      </HotspotTarget>
     </motion.div>
+  );
+}
+
+/**
+ * Wraps a hotspot element in a real control.
+ *
+ * A button, not a clickable div: activating a hotspot is navigation, and a
+ * presenter driving from the keyboard — or anyone using a screen reader — has
+ * to be able to reach it. Where nothing can dive (the editor canvas, a
+ * thumbnail, a dashboard preview) the element renders exactly as authored,
+ * because a control that does nothing is worse than no control.
+ */
+function HotspotTarget({
+  element,
+  onHotspot,
+  hotspotName,
+  children,
+}: {
+  element: SceneElement;
+  onHotspot?: (targetSceneId: string) => void;
+  hotspotName?: (targetSceneId: string) => string;
+  children: React.ReactNode;
+}) {
+  const hotspot = element.hotspot;
+  if (!hotspot || !onHotspot) return <>{children}</>;
+
+  const target = hotspot.targetSceneId;
+  // An unlabelled hotspot still has to announce something. The caller derives
+  // a name from the target scene's title; the bare fallback is the last resort
+  // when even that is unavailable.
+  const name = hotspot.label.trim() || hotspotName?.(target) || "Expand this point";
+
+  return (
+    <button
+      type="button"
+      onClick={() => onHotspot(target)}
+      aria-label={name}
+      className="block size-full cursor-pointer text-left"
+      // The element's own styling is the affordance; the button contributes
+      // hit area, focus and semantics without painting a box over the scene.
+      style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit" }}
+    >
+      {children}
+    </button>
   );
 }
 

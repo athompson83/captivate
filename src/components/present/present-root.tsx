@@ -65,6 +65,21 @@ export function PresentRoot({
   const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
   const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
 
+  /**
+   * Names an unlabelled hotspot after the scene it leads to.
+   *
+   * Only this component has the rest of the deck, so the fallback is derived
+   * here rather than in the renderer. "Expand: The rhythm strip" tells a
+   * screen-reader user where the control goes; "button" does not.
+   */
+  const hotspotName = useMemo(() => {
+    const titles = new Map(scenes.map((scene) => [scene.id, scene.title.trim()]));
+    return (targetSceneId: string) => {
+      const title = titles.get(targetSceneId);
+      return title ? `Expand: ${title}` : "Expand this point";
+    };
+  }, [scenes]);
+
   // Where the current scene sits in the running order, ignoring asides — the
   // rail's progress spine measures the argument, not the array.
   const mainOrdinal = useMemo(
@@ -150,7 +165,11 @@ export function PresentRoot({
     const onKey = (e: KeyboardEvent) => {
       if (
         e.target instanceof HTMLElement &&
-        (e.target.isContentEditable || ["INPUT", "TEXTAREA"].includes(e.target.tagName))
+        // BUTTON as well as the text fields: Space and Enter advance the
+        // presentation, and they are also how a focused control is activated.
+        // Without this, activating a hotspot from the keyboard dived into the
+        // detail scene and advanced straight back out of it in one keystroke.
+        (e.target.isContentEditable || ["INPUT", "TEXTAREA", "BUTTON"].includes(e.target.tagName))
       ) {
         return;
       }
@@ -284,6 +303,10 @@ export function PresentRoot({
         showPath={journey.showPath && session.overview}
         className="absolute inset-0"
         onSceneSelect={session.overview && !audienceOnly ? session.goto : undefined}
+        // The audience window is a projector, not a control surface: a hotspot
+        // there would let anyone who reaches the machine drive the talk.
+        onHotspot={audienceOnly ? undefined : session.dive}
+        hotspotName={hotspotName}
       />
 
       {/* The argument's shape, shown to the room. Hidden while the camera is
