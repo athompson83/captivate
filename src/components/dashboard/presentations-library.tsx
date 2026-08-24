@@ -350,7 +350,7 @@ function FolderRow({
         <button
           onClick={onDelete}
           aria-label={`Delete folder ${label}`}
-          className="text-ink-3 hover:text-danger shrink-0 rounded p-1 opacity-0 transition-opacity group-hover/folder:opacity-100 focus-visible:opacity-100"
+          className="text-ink-3 hover:text-danger shrink-0 rounded p-2 opacity-0 transition-opacity group-hover/folder:opacity-100 focus-visible:opacity-100"
         >
           <X className="size-3" aria-hidden />
         </button>
