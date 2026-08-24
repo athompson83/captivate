@@ -201,15 +201,48 @@ export function deriveTitle(prompt: string): string {
  * where a partial phrase reads naturally.
  */
 export function fallbackScene(
-  momentBrief: { title: string; purpose: string; layout: GeneratedScene["layout"] },
+  momentBrief: {
+    title: string;
+    purpose: string;
+    layout: GeneratedScene["layout"];
+    /** What the audience must leave with — the beat's own words, when the map has them. */
+    takeaway?: string;
+    instructions?: string;
+    evidence?: { label: string }[];
+    movementTitle?: string;
+  },
   context: { title: string; prompt: string },
 ): GeneratedScene {
+  const takeaway = (momentBrief.takeaway ?? "").trim();
+  const purpose = momentBrief.purpose.trim();
+  const evidence = (momentBrief.evidence ?? []).map((item) => item.label).filter(Boolean);
+
+  // The author already wrote the argument — purpose, takeaway, evidence are
+  // theirs, from the map. A fallback that ignores them and prints "Key point"
+  // wastes the most valuable text in the document. So the takeaway leads, the
+  // purpose becomes prose, and the evidence becomes the support — real
+  // content, honestly derived, still labelled as written without a model.
+  // Each source field is valid on its own, but purpose (600) + takeaway (600)
+  // + instructions (1200) can jointly exceed the schema's 1500 cap.
+  const speakerNotes = clip(
+    [
+      purpose && `This moment exists to ${lowerFirst(purpose)}`,
+      takeaway && `Land it so the room leaves knowing: ${takeaway}`,
+      evidence.length > 0 && `Ground it in ${listSentence(evidence)}.`,
+      momentBrief.instructions,
+    ]
+      .filter(Boolean)
+      .map((line) => ensureSentence(String(line)))
+      .join(" "),
+    1500,
+  );
+
   const base: GeneratedScene = {
     title: momentBrief.title,
     layout: momentBrief.layout,
     heading: momentBrief.title,
     headingAccent: "",
-    subheading: "",
+    subheading: takeaway.length <= 220 ? takeaway : "",
     eyebrow: "",
     body: "",
     bullets: [],
@@ -221,7 +254,8 @@ export function fallbackScene(
     chart: null,
     code: null,
     imagePrompt: "",
-    speakerNotes: `${momentBrief.purpose} Replace this placeholder with what you'll actually say.`,
+    speakerNotes:
+      speakerNotes || `${purpose} Replace this placeholder with what you'll actually say.`,
   };
 
   switch (momentBrief.layout) {
@@ -238,41 +272,72 @@ export function fallbackScene(
         headingAccent: "",
         subheading: "The three things worth remembering.",
       };
-    case "statement":
-      // The claim turns on its second clause, which carries the accent.
+    case "statement": {
+      // The claim turns on its second clause, which carries the accent. The
+      // takeaway *is* the claim when the map has one.
+      if (takeaway && takeaway.length <= 60) {
+        return { ...base, heading: `${momentBrief.title} —`, headingAccent: takeaway, subheading: "" };
+      }
       return {
         ...base,
-        heading: `${momentBrief.title} —`,
-        headingAccent: "state the single idea here.",
+        heading: takeaway && takeaway.length <= 120 ? takeaway : `${momentBrief.title} —`,
+        headingAccent: takeaway && takeaway.length <= 120 ? "" : "state the single idea here.",
+        subheading: "",
       };
+    }
     case "quote":
-      return { ...base, quote: "A line worth repeating.", attribution: "Source" };
-    case "three-up":
-      return {
-        ...base,
-        cards: [
-          { title: "First", body: "What it is and why it matters." },
-          { title: "Second", body: "What it is and why it matters." },
-          { title: "Third", body: "What it is and why it matters." },
-        ],
-      };
+      return takeaway
+        ? {
+            ...base,
+            quote: clip(takeaway, 300),
+            // A movement title may run to 160 characters; attribution caps at 120.
+            attribution: clip(momentBrief.movementTitle ?? "", 120),
+            subheading: "",
+          }
+        : { ...base, quote: "A line worth repeating.", attribution: "Source" };
+    case "three-up": {
+      const cards = [
+        purpose && { title: "Why it matters", body: clip(purpose, 180) },
+        takeaway && { title: "What to remember", body: clip(takeaway, 180) },
+        evidence[0] && { title: "The evidence", body: clip(evidence.join(" · "), 180) },
+      ].filter(Boolean) as { title: string; body: string }[];
+      return cards.length >= 2
+        ? { ...base, cards: cards.slice(0, 3), subheading: "" }
+        : {
+            ...base,
+            cards: [
+              { title: "First", body: "What it is and why it matters." },
+              { title: "Second", body: "What it is and why it matters." },
+              { title: "Third", body: "What it is and why it matters." },
+            ],
+          };
+    }
     case "two-column":
       return {
         ...base,
-        bullets: ["First consideration", "Second consideration"],
-        bulletsB: ["First contrast", "Second contrast"],
+        bullets: bulletsFrom([purpose], ["First consideration", "Second consideration"]),
+        bulletsB: bulletsFrom(
+          [takeaway, ...evidence],
+          ["First contrast", "Second contrast"],
+        ),
+        subheading: "",
       };
     case "split-left":
     case "split-right":
       return {
         ...base,
-        bullets: ["Key point", "Supporting point", "What it means in practice"],
+        bullets: bulletsFrom(
+          [takeaway, purpose, ...evidence.map((label) => `Evidence: ${label}`)],
+          ["Key point", "Supporting point", "What it means in practice"],
+        ),
+        subheading: "",
         imagePrompt: `An illustrative image for ${momentBrief.title}`,
       };
     case "media-full":
       return {
         ...base,
-        caption: "Add a caption.",
+        caption: takeaway ? clip(takeaway, 160) : "Add a caption.",
+        subheading: "",
         imagePrompt: `A striking image for ${momentBrief.title}`,
       };
     case "chart":
@@ -326,4 +391,34 @@ export function fallbackRewrite(text: string, mode: string): string[] {
     default:
       return [trimmed];
   }
+}
+
+/* Small text helpers for composing honest fallback copy. */
+
+function lowerFirst(text: string): string {
+  return text ? text[0].toLowerCase() + text.slice(1) : text;
+}
+
+function ensureSentence(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function listSentence(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+function clip(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
+}
+
+/** Real material first, clipped to bullet length; placeholders only when empty. */
+function bulletsFrom(candidates: (string | undefined)[], placeholder: string[]): string[] {
+  const real = candidates
+    .map((item) => (item ?? "").trim())
+    .filter(Boolean)
+    .map((item) => clip(item, 140));
+  return real.length > 0 ? real.slice(0, 6) : placeholder;
 }

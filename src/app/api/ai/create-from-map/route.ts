@@ -19,6 +19,8 @@ const Input = z
     /** The map as the author edited it, still without ids. */
     map: ProposedMap,
     totalSeconds: z.number().int().min(60).max(14_400).default(900),
+    /** How much writing to do: the full talk, or a frame the author fills in. */
+    depth: z.enum(["outline", "full"]).default("full"),
     themeId: z.string().max(64).optional(),
     folderId: z.string().uuid().nullable().default(null),
   })
@@ -43,7 +45,7 @@ export async function POST(request: Request) {
   const guarded = await guard(request, Input, LIMITS.heavy, ["map", "presentation"]);
   if (!guarded.ok) return guarded.response;
 
-  const { prompt, map, totalSeconds, themeId, folderId, ...context } = guarded.input;
+  const { prompt, map, totalSeconds, depth, themeId, folderId, ...context } = guarded.input;
 
   const theme = THEMES.some((t) => t.id === themeId)
     ? themeId
@@ -128,6 +130,7 @@ export async function POST(request: Request) {
     prompt,
     context,
     presentationId,
+    depth,
   );
 
   // The map survives a failed generation: the author lands in the map view

@@ -44,6 +44,8 @@ const Input = z
     prompt: z.string().trim().min(1).max(4000),
     presentationId: z.string().uuid().nullable().default(null),
     briefs: z.array(Brief).min(1).max(60),
+    /** How much writing to do: the full talk, or a frame the author fills in. */
+    depth: z.enum(["outline", "full"]).default("full"),
   })
   .merge(AudienceInput);
 
@@ -52,8 +54,8 @@ export async function POST(request: Request) {
   const guarded = await guard(request, Input, LIMITS.heavy, ["scenes", "presentation"]);
   if (!guarded.ok) return guarded.response;
 
-  const { prompt, presentationId, briefs, ...context } = guarded.input;
-  const result = await buildScenesFromMap(briefs, prompt, context, presentationId);
+  const { prompt, presentationId, briefs, depth, ...context } = guarded.input;
+  const result = await buildScenesFromMap(briefs, prompt, context, presentationId, depth);
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
   return NextResponse.json(result.data);

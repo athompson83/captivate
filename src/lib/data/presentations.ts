@@ -62,6 +62,7 @@ export function toPresentationRecord(row: PresentationRow): PresentationRecord {
     isFavorite: row.is_favorite,
     thumbnailUrl: row.thumbnail_url,
     schemaVersion: row.schema_version,
+    shareToken: row.share_token,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastOpenedAt: row.last_opened_at,

@@ -37,6 +37,11 @@ create table if not exists storage.objects (
   owner uuid
 );
 alter table storage.objects enable row level security;
-create or replace function storage.foldername(name text) returns text[] language sql immutable as $$
-  select string_to_array(name, '/');
+-- Returns the folder components without the filename, which is what real
+-- Supabase Storage does. A stub that returned the whole split would still
+-- satisfy a `(foldername(name))[1] = uid` policy by luck, and would quietly
+-- disagree with production for any policy that looked past the first element.
+create or replace function storage.foldername(name text) returns text[]
+language sql immutable as $$
+  select (string_to_array(name, '/'))[1 : array_length(string_to_array(name, '/'), 1) - 1];
 $$;

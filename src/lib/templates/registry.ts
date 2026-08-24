@@ -6,10 +6,11 @@ import type { NarrativeShape } from "@/lib/schema/narrative";
 /**
  * A small, genuinely useful template set.
  *
- * Six templates that each solve a real presentation shape, rather than a
- * hundred variations on the same grid. Each one seeds a full narrative
- * skeleton with prompts in place of lorem ipsum, so the first thing a user
- * sees is a structure worth editing.
+ * One fully-written worked example, then six templates that each solve a real
+ * presentation shape, rather than a hundred variations on the same grid. The
+ * structures seed a full narrative skeleton with prompts in place of lorem
+ * ipsum, so the first thing a user sees is a structure worth editing; the
+ * example is a finished talk, so they can see where the structures lead.
  */
 
 export interface TemplateScene {
@@ -44,6 +45,288 @@ export interface Template {
 }
 
 export const TEMPLATES: Template[] = [
+  {
+    /**
+     * The worked example: a finished talk, not a structure with prompts.
+     *
+     * Every other template hands the author scaffolding; this one hands them a
+     * deck that is already *done* — written content, speakable notes, a real
+     * narrative map — so the first thing a new user opens can show them what
+     * finished looks like. The talk is about presenting, which means the deck
+     * demonstrates the product's argument while making it.
+     */
+    id: "example",
+    name: "Hold the room",
+    description:
+      "A finished ten-scene talk, fully written — open it to see what done looks like, then present it, print it, or pull it apart.",
+    audience: "Anyone opening Captivate for the first time",
+    themeId: "midnight",
+    shape: [
+      {
+        label: "DRIFT",
+        title: "The problem",
+        purpose: "Name the thing every presenter has watched happen.",
+        weight: 1,
+        moments: [
+          {
+            title: "The room leaves early",
+            role: "hook",
+            purpose: "Start inside a failure the audience has lived from both sides.",
+            takeaway: "Losing the room is normal, not a personal flaw.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+          {
+            title: "When attention goes",
+            role: "evidence",
+            purpose: "Show the shape of drifting attention rather than assert it.",
+            takeaway: "Attention decays on a curve, and the slide reel feeds the curve.",
+            visualIntent: "data",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "CAMERA",
+        title: "The idea",
+        purpose: "Replace the slide reel with a camera over one canvas.",
+        weight: 1.4,
+        moments: [
+          {
+            title: "An argument is a place",
+            role: "reframe",
+            purpose: "State the central idea everything else hangs off.",
+            takeaway: "Show people where they are, not just what is next.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+          {
+            title: "What a camera changes",
+            role: "claim",
+            purpose: "Make the reframe concrete in three claims.",
+            takeaway: "Travel carries meaning a cut never can.",
+            visualIntent: "enumeration",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "PROOF",
+        title: "Why it holds",
+        purpose: "Ground the idea in what rooms actually respond to.",
+        weight: 1.2,
+        moments: [
+          {
+            title: "Three things the room keeps",
+            role: "evidence",
+            purpose: "Name what survives the talk when the deck had a shape.",
+            takeaway: "Place, order and pace are what memory hangs on to.",
+            visualIntent: "enumeration",
+            weight: 1,
+          },
+          {
+            title: "Spending attention on purpose",
+            role: "contrast",
+            purpose: "Set the things that keep a room against the things that cost one.",
+            takeaway: "Attention is a budget, and most decks spend it by accident.",
+            visualIntent: "comparison",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "CRAFT",
+        title: "Doing it",
+        purpose: "Turn the idea into the way a talk gets built.",
+        weight: 1.2,
+        moments: [
+          {
+            title: "Build in movements",
+            role: "application",
+            purpose: "Give the working method, in the order it is used.",
+            takeaway: "Say what you are arguing before you make anything visible.",
+            visualIntent: "sequence",
+            weight: 1,
+          },
+          {
+            title: "One idea per scene",
+            role: "synthesis",
+            purpose: "Compress the craft into a rule that survives the talk.",
+            takeaway: "If a scene needs two ideas, it is two scenes.",
+            visualIntent: "statement",
+            weight: 0.8,
+          },
+        ],
+      },
+    ],
+    scenes: [
+      {
+        title: "Title",
+        layout: "title",
+        content: {
+          eyebrow: "A worked example",
+          heading: "{{TITLE}}",
+          subheading: "Why attention drifts — and the shape of a talk that keeps it.",
+        },
+        speakerNotes:
+          "Welcome. This talk is itself the demonstration: every scene you're about to see sits on one canvas, and we'll travel between them rather than flip through them. By the end you'll have seen the whole argument laid out as a place — and that's the point I'm going to make.",
+        movement: "OPEN",
+      },
+      {
+        title: "The room leaves early",
+        layout: "statement",
+        content: {
+          heading: "Ten minutes in, half the room",
+          headingAccent: "is somewhere else.",
+        },
+        speakerNotes:
+          "You've sat in that room. Slide fourteen of forty, and you've quietly opened your email. Nobody decided to stop listening — attention just drained away, one identical slide at a time. This isn't a character flaw in audiences. It's a design flaw in the format.",
+        movement: "DRIFT",
+      },
+      {
+        title: "When attention goes",
+        layout: "chart",
+        content: {
+          heading: "Attention doesn't fail — it drains",
+          chart: {
+            chart: "line",
+            data: [
+              { label: "Min 0", value: 95 },
+              { label: "Min 5", value: 80 },
+              { label: "Min 10", value: 55 },
+              { label: "Min 20", value: 40 },
+              { label: "Min 40", value: 30 },
+            ],
+            summary:
+              "Attention starts near full, drops steeply through the first ten minutes, and settles low for the rest of the hour.",
+          },
+          caption: "Illustrative curve — the shape every lecturer recognises from the podium.",
+        },
+        speakerNotes:
+          "This curve is illustrative, not a measurement — but you recognise it, because you've watched it happen from the front of the room. The steep part is the first ten minutes. Whatever you do about attention has to happen there, and a reel of look-alike slides is exactly the wrong tool for it.",
+        movement: "DRIFT",
+      },
+      {
+        title: "The idea",
+        layout: "section",
+        content: { eyebrow: "The idea", heading: "Stop flipping. Start travelling." },
+        speakerNotes:
+          "Here's the turn. Watch what the screen just did — we moved. You saw where that last idea sat and where this one begins. That feeling of arriving somewhere is what the next few scenes are about.",
+        movement: "CAMERA",
+      },
+      {
+        title: "An argument is a place",
+        layout: "statement",
+        content: {
+          heading: "An argument is a place.",
+          headingAccent: "Show people where they are.",
+        },
+        speakerNotes:
+          "This is the whole idea in one sentence. A good talk has a geography: the problem lives over here, the evidence next to it, the answer across the map. Slides destroy that geography by showing one rectangle at a time. A camera over one canvas keeps it — the room always knows where it is inside the argument.",
+        movement: "CAMERA",
+      },
+      {
+        title: "What a camera changes",
+        layout: "bullets",
+        content: {
+          heading: "What travel does that a cut can't",
+          bullets: [
+            "Distance carries meaning — a detail sits inside its context, an aside sits off to the side",
+            "Arrival resets attention — motion tells the room something new is starting",
+            "The map persists — pulling back shows the whole argument, any time you need it",
+          ],
+        },
+        speakerNotes:
+          "Three concrete things. First: where a scene sits says what it means — when we zoom into a detail, you see it's a detail of something. Second: every flight is a soft reset of the room's attention; movement is the oldest attention cue there is. Third: at any point I can pull back — press O and the whole argument appears — and everyone re-orients in a second.",
+        movement: "CAMERA",
+      },
+      {
+        title: "Three things the room keeps",
+        layout: "three-up",
+        content: {
+          heading: "What people actually remember",
+          cards: [
+            {
+              title: "Place",
+              body: "Ideas get remembered by where they happened — beside, inside, after.",
+              icon: "target",
+            },
+            {
+              title: "Order",
+              body: "A visible route from problem to answer is a story the room can retell.",
+              icon: "arrow_right",
+            },
+            {
+              title: "Pace",
+              body: "Long flights for big turns, short hops for details — rhythm the room can feel.",
+              icon: "clock",
+            },
+          ],
+        },
+        speakerNotes:
+          "Ask someone what they remember from a great talk a month later. It's rarely a bullet point. It's the shape: there was a problem, it turned here, it landed there. Place, order and pace are the three handles memory actually grips — and all three are things a canvas has and a reel doesn't.",
+        movement: "PROOF",
+      },
+      {
+        title: "Spending attention on purpose",
+        layout: "two-column",
+        content: {
+          heading: "Attention is a budget",
+          bullets: [
+            "One idea, stated large",
+            "A move that means something",
+            "A pause on the map",
+          ],
+          bulletsB: [
+            "Six bullets read aloud",
+            "A transition for its own sake",
+            "Slide 23 of 60",
+          ],
+        },
+        speakerNotes:
+          "Left column: things that buy attention. Right column: things that spend it. Every element on screen is a withdrawal from the same account. The discipline isn't decoration — it's deciding, for every scene, what the one thing worth paying for is.",
+        movement: "PROOF",
+      },
+      {
+        title: "Build in movements",
+        layout: "bullets",
+        content: {
+          heading: "How this deck was built",
+          bullets: [
+            "Say what you're arguing — each movement gets a one-word job",
+            "Give every moment a takeaway the room should leave with",
+            "Only then generate scenes — and place them so the layout is the argument",
+            "Rehearse the travel: the flights are the transitions",
+          ],
+        },
+        speakerNotes:
+          "This is the working order, and it's the order this very deck was written in. The map came first — movements, moments, takeaways. The scenes were generated from the map, then placed so that the geography means something. If you open this deck in the editor, the narrative view shows you that map, still editable.",
+        movement: "CRAFT",
+      },
+      {
+        title: "One idea per scene",
+        layout: "quote",
+        content: {
+          quote: "If a scene needs two ideas, it is two scenes.",
+          attribution: "The only layout rule in this deck",
+        },
+        speakerNotes:
+          "The one rule that survives contact with any topic. Scenes are cheap here — the canvas is infinite. Splitting an overloaded scene costs nothing and buys a cleaner flight, a clearer beat, and a map that reads honestly.",
+        movement: "CRAFT",
+      },
+      {
+        title: "Close",
+        layout: "closing",
+        content: {
+          heading: "The room follows the camera.",
+          subheading: "Give it somewhere worth going. Press O to see the whole argument.",
+        },
+        speakerNotes:
+          "Pull back one last time — there's the whole talk, every idea in its place. That view is the argument for the product: you just watched a room-sized idea get laid out as a place and travelled. Now open the editor and pull this deck apart, or start your own map.",
+        movement: "CLOSE",
+      },
+    ],
+  },
   {
     id: "lecture",
     shape: [

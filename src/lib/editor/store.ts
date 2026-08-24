@@ -168,6 +168,7 @@ const emptyDocument: EditorDocument = {
     isFavorite: false,
     thumbnailUrl: null,
     schemaVersion: 1,
+    shareToken: null,
     createdAt: "",
     updatedAt: "",
     lastOpenedAt: null,

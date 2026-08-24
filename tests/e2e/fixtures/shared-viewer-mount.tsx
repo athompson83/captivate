@@ -1,0 +1,119 @@
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { SharedViewer } from "@/components/present/shared-viewer";
+import type { SharedDeck } from "@/lib/data/shared-payload";
+import { JOURNEY_DEFAULTS, type Scene, type Section } from "@/lib/schema/presentation";
+import { buildTemplateScenes, getTemplate, templateMovements } from "@/lib/templates/registry";
+
+/**
+ * Mounts the share-link viewer on the worked-example deck.
+ *
+ * Two things are under test at once, both of which only a browser can see:
+ * that a link-holder can actually walk the deck — keys, builds, the closing
+ * pull-back — and that the shipped example renders without a single console
+ * error. The deck is built through the same template machinery creation uses,
+ * so a template edit that breaks rendering fails here, not in front of the
+ * first new user.
+ */
+
+const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+function exampleDeck(): SharedDeck {
+  const template = getTemplate("example");
+  if (!template) throw new Error("worked example template missing");
+
+  const built = buildTemplateScenes(template, "Hold the room");
+  const movements = templateMovements(built);
+
+  const sections: Section[] = movements.map((movement, i) => ({
+    id: uuid(100 + i),
+    presentationId: uuid(1),
+    title: movement.label,
+    label: movement.label,
+    purpose: "",
+    position: i,
+    createdAt: "",
+    updatedAt: "",
+  }));
+
+  const sectionForScene = (index: number) =>
+    movements.findIndex((m) => index >= m.start && index < m.end);
+
+  const scenes: Scene[] = built.map((scene, i) => {
+    const section = sectionForScene(i);
+    return {
+      id: uuid(200 + i),
+      presentationId: uuid(1),
+      sectionId: section >= 0 ? sections[section].id : null,
+      position: i,
+      title: scene.title,
+      content: scene.content,
+      placement: null,
+      momentId: null,
+      speakerNotes: "",
+      durationSeconds: null,
+      createdAt: "",
+      updatedAt: "",
+    };
+  });
+
+  return {
+    id: uuid(1),
+    title: "Hold the room",
+    description: "The worked example, shared.",
+    themeId: template.themeId,
+    aspectRatio: "16:9",
+    journey: JOURNEY_DEFAULTS,
+    scenes,
+    sections,
+  };
+}
+
+function mount(deck: SharedDeck): number {
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  createRoot(host).render(
+    <StrictMode>
+      <SharedViewer deck={deck} />
+    </StrictMode>,
+  );
+  return deck.scenes.length;
+}
+
+declare global {
+  interface Window {
+    sharedViewerFixture: {
+      mount: () => number;
+      /**
+       * Walks the deck with the same keydown the browser delivers, in-page.
+       *
+       * Every CDP round-trip costs the better part of a second against this
+       * page, so a forty-press walk driven one call at a time took longer than
+       * the whole suite's timeout. The listener under test is a plain
+       * `window` keydown handler, so dispatching here exercises exactly the
+       * same path; the specs still send real keys either side of this to prove
+       * trusted input reaches it.
+       *
+       * Returns how many presses it took to reach the pulled-back view, or
+       * null if `cap` presses never got there.
+       */
+      walk: (key: string, cap: number) => Promise<number | null>;
+    };
+  }
+}
+
+window.sharedViewerFixture = {
+  /** Renders the viewer; returns the number of scenes in the running order. */
+  mount: () => mount(exampleDeck()),
+
+  async walk(key: string, cap: number) {
+    for (let i = 0; i < cap; i += 1) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      if (document.querySelector("[data-view]")?.getAttribute("data-view") === "world") {
+        return i + 1;
+      }
+    }
+    return null;
+  },
+};
