@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import react from "@vitejs/plugin-react";
@@ -45,10 +45,27 @@ export async function bundleFixture(entry: string): Promise<string> {
   });
 
   const script = await readFile(join(outDir, "fixture.js"), "utf8");
+
+  /**
+   * Any stylesheet the entry imported, inlined too.
+   *
+   * A `lib` build emits CSS as a sibling asset rather than injecting it, and a
+   * fixture opened from `file://` will not fetch one. A component whose layout
+   * is Tailwind — as the presenter camera's is — then mounts with `absolute`,
+   * `size-6` and the rest as inert strings, and every geometry assertion
+   * measures a stretched block in normal flow instead of the thing the
+   * presenter sees.
+   */
+  const styles: string[] = [];
+  for (const entry of await readdir(outDir)) {
+    if (entry.endsWith(".css")) styles.push(await readFile(join(outDir, entry), "utf8"));
+  }
+
   const html = join(outDir, "index.html");
   await writeFile(
     html,
     `<!doctype html><meta charset="utf-8"><title>fixture</title>` +
+      (styles.length ? `<style>${styles.join("\n")}</style>` : "") +
       `<body style="margin:0;background:#000"><script>${script}</script></body>`,
   );
   return `file://${html}`;

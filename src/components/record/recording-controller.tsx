@@ -484,6 +484,7 @@ export function RecordingController({
         cameraFeed={cameraFeed}
         onCameraFeedChange={onCameraFeedChange}
         format={support.extension.toUpperCase()}
+        presentationTitle={presentationTitle}
         notice={notice}
       />
     </>
@@ -541,6 +542,7 @@ function SetupDialog({
   cameraFeed,
   onCameraFeedChange,
   format,
+  presentationTitle,
   notice,
 }: {
   open: boolean;
@@ -563,6 +565,8 @@ function SetupDialog({
   cameraFeed: CameraFeedSettings;
   onCameraFeedChange: (next: CameraFeedSettings) => void;
   format: string;
+  /** The deck's name, which is also the head of this tab's title. */
+  presentationTitle: string;
   notice: string | null;
 }) {
   return (
@@ -794,9 +798,12 @@ function SetupDialog({
         )}
 
         <p className="border-line-subtle text-ink-3 rounded-[var(--radius-md)] border bg-[var(--surface-inset)] px-3 py-2.5 text-[11.5px] leading-relaxed">
-          Your browser will ask which screen or tab to share — choose{" "}
-          <strong className="text-ink-2">this tab</strong> for the cleanest result. The file will be{" "}
-          {format}. It downloads to your device and uploads to your Recordings library.
+          Your browser will ask which screen or tab to share. Choose{" "}
+          <strong className="text-ink-2">This tab</strong> — it is offered first, and in the tab
+          list look for <strong className="text-ink-2">“{presentationTitle} · Captivate”</strong>.
+          Sharing a whole screen records everything on it and puts this page inside its own preview.
+          The file will be {format}. It downloads to your device and uploads to your Recordings
+          library.
         </p>
       </div>
     </Dialog>
