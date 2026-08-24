@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { isPublicPath } from "@/lib/auth/public-paths";
 
 /**
  * Refreshes the Supabase auth session on every navigation and gates the
@@ -9,12 +10,7 @@ import { createServerClient } from "@supabase/ssr";
  * long editing session never silently expires mid-edit.
  */
 
-const PUBLIC_PATHS = ["/", "/sign-in", "/sign-up", "/reset-password", "/update-password", "/auth"];
 const AUTH_PATHS = ["/sign-in", "/sign-up", "/reset-password"];
-
-function isPublic(pathname: string) {
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
 
 export default async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -49,7 +45,7 @@ export default async function proxy(request: NextRequest) {
 
   const { pathname, search } = request.nextUrl;
 
-  if (!user && !isPublic(pathname)) {
+  if (!user && !isPublicPath(pathname)) {
     const redirect = request.nextUrl.clone();
     redirect.pathname = "/sign-in";
     redirect.search = `?next=${encodeURIComponent(pathname + search)}`;
