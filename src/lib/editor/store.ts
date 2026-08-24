@@ -710,7 +710,10 @@ export function reorderElement(
 export function updateSceneMeta(
   sceneId: string,
   patch: Partial<
-    Pick<Scene, "title" | "speakerNotes" | "durationSeconds" | "sectionId" | "placement">
+    Pick<
+      Scene,
+      "title" | "speakerNotes" | "durationSeconds" | "sectionId" | "placement" | "flowRole"
+    >
   >,
   options: { label: string; coalesceKey?: string },
 ) {

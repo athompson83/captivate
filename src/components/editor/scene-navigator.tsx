@@ -18,7 +18,16 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Copy, FolderPlus, GripVertical, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import {
+  Copy,
+  CornerDownRight,
+  CornerUpLeft,
+  FolderPlus,
+  GripVertical,
+  MoreHorizontal,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import type { PresentationTheme } from "@/lib/schema/theme";
 import type { Scene } from "@/lib/schema/presentation";
 import {
@@ -27,6 +36,7 @@ import {
   moveScene,
   removeScene,
   removeSection,
+  updateSceneMeta,
   updateSectionLocal,
   useEditor,
 } from "@/lib/editor/store";
@@ -420,6 +430,22 @@ function SceneRow({
                 onClick={() => {
                   setMenuOpen(false);
                   onDuplicate();
+                }}
+              />
+              <div className="border-line-subtle my-1 border-t" />
+              <MenuItem
+                icon={scene.flowRole === "detail" ? CornerUpLeft : CornerDownRight}
+                label={scene.flowRole === "detail" ? "Return to the flow" : "Make a detail scene"}
+                onClick={() => {
+                  setMenuOpen(false);
+                  updateSceneMeta(
+                    scene.id,
+                    { flowRole: scene.flowRole === "detail" ? "main" : "detail" },
+                    {
+                      label:
+                        scene.flowRole === "detail" ? "Return scene to flow" : "Make detail scene",
+                    },
+                  );
                 }}
               />
               <div className="border-line-subtle my-1 border-t" />

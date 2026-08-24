@@ -47,6 +47,8 @@ const {
   removeMoment,
   replaceMap,
   updateSectionLocal,
+  updateSceneMeta,
+  editElement,
   useEditor,
 } = await import("@/lib/editor/store");
 const { JOURNEY_DEFAULTS } = await import("@/lib/schema/presentation");
@@ -507,5 +509,42 @@ describe("undo covers a movement rename", () => {
 
     expect(updateSection).toHaveBeenCalledTimes(1);
     expect(lastSection()).toMatchObject({ title: "OPEN" });
+  });
+});
+
+/**
+ * flowRole and hotspots have to survive a reload.
+ *
+ * Exactly the failure this file was written for: a field the editor can change
+ * that autosave never sends. Marking a scene as a detail scene, or pointing a
+ * hotspot at one, looks like it worked and is gone on refresh.
+ */
+describe("hotspot and flowRole persistence", () => {
+  it("sends flowRole when a scene is marked as a detail scene", async () => {
+    updateSceneMeta("scene-0", { flowRole: "detail" }, { label: "Make detail scene" });
+    await flushEditor(PRESENTATION, { force: true });
+
+    const sent = saveScene.mock.calls.at(-1)?.[0] as { flowRole?: string } | undefined;
+    expect(sent?.flowRole).toBe("detail");
+  });
+
+  it("sends the hotspot on an element when one is set", async () => {
+    const target = "00000000-0000-4000-8000-0000000000bb";
+    const scene = useEditor.getState().document.scenes[0];
+    const elementId = scene.content.elements[0].id;
+
+    editElement(
+      "scene-0",
+      elementId,
+      (el) => ({ ...el, hotspot: { targetSceneId: target, label: "See detail" } }),
+      { label: "Add hotspot" },
+    );
+    await flushEditor(PRESENTATION, { force: true });
+
+    const sent = saveScene.mock.calls.at(-1)?.[0] as
+      | { content?: { elements: { hotspot?: { targetSceneId: string } | null }[] } }
+      | undefined;
+    const written = sent?.content?.elements.find((el) => el.hotspot);
+    expect(written?.hotspot?.targetSceneId).toBe(target);
   });
 });

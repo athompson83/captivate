@@ -473,6 +473,7 @@ const SaveSceneInput = z.object({
   durationSeconds: z.number().int().min(0).max(7200).nullable().optional(),
   sectionId: Uuid.nullable().optional(),
   placement: ScenePlacement.nullable().optional(),
+  flowRole: z.enum(["main", "detail"]).optional(),
 });
 
 /**
@@ -497,6 +498,7 @@ export async function saveScene(input: unknown): Promise<Result<{ updatedAt: str
   if (rest.speakerNotes !== undefined) patch.speaker_notes = rest.speakerNotes;
   if (rest.durationSeconds !== undefined) patch.duration_seconds = rest.durationSeconds;
   if (rest.sectionId !== undefined) patch.section_id = rest.sectionId;
+  if (rest.flowRole !== undefined) patch.flow_role = rest.flowRole;
   if (rest.placement !== undefined) {
     patch.placement = rest.placement as unknown as SceneRow["placement"];
   }
