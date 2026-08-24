@@ -34,7 +34,10 @@ npm run format       # prettier --write .
 a number — from one makes _every_ action in that file fail at runtime with a 500, and
 the build says nothing. Shared constants go in a plain module;
 `src/lib/data/upload-limits.ts` exists for exactly this reason. The server-action files
-are `src/lib/{auth/actions,data/actions,data/assets,data/notes,data/recordings}.ts`.
+are `src/lib/{auth/actions,data/actions,data/assets,data/notes,data/recordings,
+data/remote-sessions,data/sourced-assets}.ts`. `sourced-assets.ts` wraps a cost
+constant in an async function for exactly this reason — check the list is still
+complete before adding another.
 
 **Modules that touch secrets import `server-only`.** That turns an accidental client
 import into a build error rather than a leaked key. Applies to the Supabase server and
@@ -136,10 +139,23 @@ There is no per-scene transition. Travel is set once per presentation
 
 ## Presenter-material safety
 
-The stage route (`/present/[id]`) never loads speaker notes, lecture notes, timers or
-the navigator. Those exist only in the console route. This is a load-boundary rule, not
-a rendering rule — private material cannot leak onto a projector through a state bug if
-it was never sent to that window. Don't "just pass it down" for convenience.
+The stage route (`/present/[id]`) never loads speaker notes or lecture notes. This is a
+load-boundary rule, not a rendering rule — private material cannot leak onto a projector
+through a state bug if it was never sent to that window. `forAudience` rebuilds each
+scene field by field rather than spreading it, so a new field on `Scene` fails typecheck
+until somebody has decided whether an audience may see it. Don't "just pass it down" for
+convenience.
+
+The timer and the scene jumper are a weaker case and are handled differently: single-
+screen presenting needs them in the same window as the stage, so they render there and
+are gated on `audienceOnly` — a rendering guard, driven by a query parameter. That is a
+deliberate exception for material that is merely *presenter-facing* rather than private.
+Notes are the thing the boundary exists for, and they are still never loaded.
+
+The phone remote (`/present/[id]/remote`) follows the strict rule, and more strictly: a
+phone is the device most likely to be handed to someone. `tests/unit/remote-load-boundary.test.ts`
+reads the route's source rather than rendering it, because the claim is about what the
+module imports at all.
 
 ## React Compiler
 
