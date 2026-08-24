@@ -4,12 +4,13 @@ import { TEMPLATES, buildTemplateScenes, templateMovements } from "@/lib/templat
 import { composeScene } from "@/lib/editor/layouts";
 import type { Scene, Section } from "@/lib/schema/presentation";
 
-function scene(i: number, sectionId: string | null): Scene {
+function scene(i: number, sectionId: string | null, flowRole: "main" | "detail" = "main"): Scene {
   return {
     id: `00000000-0000-4000-8000-00000000000${i}`,
     presentationId: "00000000-0000-4000-8000-000000000fff",
     sectionId,
     position: i,
+    flowRole,
     title: `Scene ${i}`,
     content: composeScene("statement", { heading: `Heading ${i}` }),
     placement: null,
@@ -146,5 +147,77 @@ describe("templates carry a shape", () => {
 
   it("drops unlabelled stretches rather than creating a nameless section", () => {
     expect(templateMovements([{ movement: "" }])).toEqual([]);
+  });
+});
+
+/**
+ * Detail scenes are asides, not part of the argument's shape. Counting them in
+ * the rail would tell the room a five-scene movement has eight, and the
+ * progress spine would never reach its end.
+ */
+describe("movements exclude detail scenes", () => {
+  const sections = [section("a", "Opening", "OPEN"), section("b", "The evidence", "")];
+
+  it("does not let a detail scene start or extend a movement", () => {
+    const scenes = [
+      scene(0, "a"),
+      scene(1, "a", "detail"),
+      scene(2, "a"),
+      scene(3, "b"),
+    ];
+    const movements = movementsOf(scenes, sections);
+    expect(movements).toHaveLength(2);
+    // The detail scene at index 1 sits inside movement "a" without splitting it.
+    expect(movements[0]).toMatchObject({ id: "a", start: 0, end: 3 });
+    expect(movements[1]).toMatchObject({ id: "b", start: 3, end: 4 });
+  });
+
+  it("does not create a movement for a detail scene in its own section", () => {
+    const scenes = [scene(0, "a"), scene(1, "b", "detail"), scene(2, "a")];
+    const movements = movementsOf(scenes, sections);
+    expect(movements.map((m) => m.id)).toEqual(["a"]);
+  });
+
+  it("still locates the movement a detail scene sits within", () => {
+    const scenes = [scene(0, "a"), scene(1, "a", "detail"), scene(2, "b")];
+    const movements = movementsOf(scenes, sections);
+    expect(movementAt(movements, 1)?.id).toBe("a");
+  });
+});
+
+/**
+ * The spine measures progress through the argument. Mixing a raw array index
+ * with a detail-excluded total ran the fill past its own end: on a deck of
+ * three main scenes interleaved with asides, the second main scene reported
+ * 3/3 and the rail showed the talk as finished.
+ */
+describe("rail progress counts the running order", () => {
+  const mainOrdinal = (scenes: Scene[], sceneIndex: number) =>
+    scenes.slice(0, sceneIndex + 1).filter((s) => s.flowRole !== "detail").length;
+
+  it("counts main scenes only, so the fill never overruns", () => {
+    // main, detail, main, detail, main -> 3 in the running order
+    const scenes = [
+      scene(0, "a"),
+      scene(1, "a", "detail"),
+      scene(2, "a"),
+      scene(3, "a", "detail"),
+      scene(4, "a"),
+    ];
+    const total = scenes.filter((s) => s.flowRole !== "detail").length;
+    expect(total).toBe(3);
+
+    expect(mainOrdinal(scenes, 0)).toBe(1);
+    expect(mainOrdinal(scenes, 2)).toBe(2); // sceneIndex + 1 would have said 3
+    expect(mainOrdinal(scenes, 4)).toBe(3);
+
+    for (const i of [0, 2, 4]) expect(mainOrdinal(scenes, i) / total).toBeLessThanOrEqual(1);
+  });
+
+  it("holds the ordinal while the presentation is inside an aside", () => {
+    const scenes = [scene(0, "a"), scene(1, "a", "detail"), scene(2, "a")];
+    // Diving into the aside at index 1 does not advance the argument.
+    expect(mainOrdinal(scenes, 0)).toBe(1);
+    expect(mainOrdinal(scenes, 1)).toBe(1);
   });
 });

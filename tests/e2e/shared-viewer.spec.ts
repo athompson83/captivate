@@ -20,7 +20,10 @@ function fixtureUrl(): Promise<string> {
   return pageUrl;
 }
 
-async function open(page: Page): Promise<{ problems: string[]; sceneCount: number }> {
+async function open(
+  page: Page,
+  variant: "mount" | "mountWithAside" = "mount",
+): Promise<{ problems: string[]; sceneCount: number }> {
   const problems: string[] = [];
   page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
   page.on("console", (message) => {
@@ -28,7 +31,10 @@ async function open(page: Page): Promise<{ problems: string[]; sceneCount: numbe
   });
 
   await page.goto(await fixtureUrl());
-  const sceneCount = await page.evaluate(() => window.sharedViewerFixture.mount());
+  const sceneCount = await page.evaluate(
+    (which) => window.sharedViewerFixture[which](),
+    variant,
+  );
   await page.waitForSelector("[data-view]");
   return { problems, sceneCount };
 }
@@ -50,16 +56,19 @@ test.describe("shared viewer", () => {
     expect(problems).toEqual([]);
   });
 
-  test("keys walk the whole deck and the last press pulls back to the world", async ({
-    page,
-  }) => {
+  test("keys walk the whole deck and the last press pulls back to the world", async ({ page }) => {
     const { problems, sceneCount } = await open(page);
 
-    // Enough presses for every scene and every build step the deck contains.
-    for (let i = 0; i < sceneCount * 4; i += 1) {
-      await page.keyboard.press("ArrowRight");
-      if ((await view(page)) === "world") break;
-    }
+    // A real key first, so the walk below is not the only evidence that
+    // trusted input reaches the handler at all.
+    await page.keyboard.press("ArrowRight");
+    expect(await view(page)).toBe("scene");
+
+    const presses = await page.evaluate(
+      (cap) => window.sharedViewerFixture.walk("ArrowRight", cap),
+      sceneCount * 4,
+    );
+    expect(presses, "never reached the pulled-back view").not.toBeNull();
 
     expect(await view(page)).toBe("world");
     await expect(status(page)).toContainText(`Scene ${sceneCount} of ${sceneCount}`);
@@ -81,5 +90,58 @@ test.describe("shared viewer", () => {
     expect(await view(page)).toBe("scene");
 
     expect(problems).toEqual([]);
+  });
+
+  test.describe("asides", () => {
+    test("the linear walk steps over the detail scene", async ({ page }) => {
+      const { problems, sceneCount } = await open(page, "mountWithAside");
+
+      // The deck has one more scene than the running order it reports.
+      await expect(status(page)).toContainText(`Scene 1 of ${sceneCount}`);
+
+      const presses = await page.evaluate(
+        (cap) => window.sharedViewerFixture.walk("ArrowRight", cap),
+        (sceneCount + 1) * 4,
+      );
+      expect(presses).not.toBeNull();
+
+      // Walking to the end never entered the aside: the reader who never
+      // clicked the hotspot saw only the argument.
+      await expect(status(page)).not.toContainText("Detail");
+      await expect(status(page)).toContainText(`Scene ${sceneCount} of ${sceneCount}`);
+      expect(problems).toEqual([]);
+    });
+
+    test("the keyboard dives into an aside without advancing back out of it", async ({ page }) => {
+      const { problems } = await open(page, "mountWithAside");
+
+      const hotspot = page.getByRole("button", { name: /^Expand: / });
+      await expect(hotspot).toBeVisible();
+
+      // The bug this pins: Enter both activates the focused button and is a
+      // global "next", so the dive and the advance out of it landed in one
+      // keystroke and the reader saw nothing change.
+      await hotspot.focus();
+      await page.keyboard.press("Enter");
+      await expect(status(page)).toContainText("Detail: The aside");
+      expect(await view(page)).toBe("scene");
+
+      // And the way out is the next press, once focus has left the control.
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await page.keyboard.press("ArrowRight");
+      await expect(status(page)).not.toContainText("Detail");
+
+      expect(problems).toEqual([]);
+    });
+
+    test("Space activates a hotspot without advancing either", async ({ page }) => {
+      const { problems } = await open(page, "mountWithAside");
+
+      await page.getByRole("button", { name: /^Expand: / }).focus();
+      await page.keyboard.press("Space");
+      await expect(status(page)).toContainText("Detail: The aside");
+
+      expect(problems).toEqual([]);
+    });
   });
 });

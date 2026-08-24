@@ -99,6 +99,17 @@ export interface WorldProps {
   /** Rendered above the world, unscaled (annotations, presenter chrome). */
   chrome?: React.ReactNode;
   onSceneSelect?: (index: number) => void;
+  /**
+   * Dives to a detail scene when a hotspot is activated.
+   *
+   * Live only on the scene the camera is actually on, and never while the
+   * overview is open — there, a click means "take me to this scene", and a
+   * hotspot competing for the same click would send the presenter somewhere
+   * they did not ask to go.
+   */
+  onHotspot?: (targetSceneId: string) => void;
+  /** Accessible name for a hotspot whose author left the label empty. */
+  hotspotName?: (targetSceneId: string) => string;
   /** Fired when a camera flight settles, so callers can re-enable input. */
   onArrive?: () => void;
 }
@@ -119,6 +130,8 @@ export const World = memo(function World({
   className,
   chrome,
   onSceneSelect,
+  onHotspot,
+  hotspotName,
   onArrive,
 }: WorldProps) {
   // Memoised because it is a dependency of four other memos — the flight
@@ -557,6 +570,10 @@ export const World = memo(function World({
           const scene = scenes[index];
           if (!scene) return null;
           const isActive = index === activeIndex;
+          // Only the scene the camera is on, and only when nothing else owns
+          // the click. A hotspot on a region the presenter is flying past is
+          // not something anyone is aiming at.
+          const hotspotsLive = Boolean(onHotspot) && isActive && !onSceneSelect;
 
           return (
             <div
@@ -571,7 +588,11 @@ export const World = memo(function World({
                 height: stage.height,
                 transform: `rotate(${placement.rotation}deg) scale(${placement.scale})`,
                 transformOrigin: "center center",
-                pointerEvents: onSceneSelect ? "auto" : "none",
+                // The scene layer is inert unless something on it can be
+                // clicked: selecting the scene in the overview, or a hotspot on
+                // the scene the camera is on. Left "auto" everywhere, a stray
+                // click on a neighbouring region would land on the wrong scene.
+                pointerEvents: onSceneSelect || hotspotsLive ? "auto" : "none",
                 cursor: onSceneSelect ? "pointer" : undefined,
               }}
             >
@@ -591,6 +612,8 @@ export const World = memo(function World({
                   // scene the camera is flying towards is not half-empty when
                   // it arrives.
                   step={isActive ? step : Number.MAX_SAFE_INTEGER}
+                  onHotspot={hotspotsLive ? onHotspot : undefined}
+                  hotspotName={hotspotName}
                 />
               ) : (
                 <SceneLandmark title={scene.title} stage={stage} accent={accentFor(index)} />

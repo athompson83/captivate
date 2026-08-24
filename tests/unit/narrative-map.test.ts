@@ -61,6 +61,7 @@ function moment(overrides: Partial<Moment> & { id: string }): Moment {
 
 function scene(i: number, overrides: Partial<Scene> = {}): Scene {
   return {
+    flowRole: "main" as const,
     id: uuid(i),
     presentationId: PRESENTATION,
     sectionId: null,

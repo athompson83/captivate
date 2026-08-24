@@ -68,6 +68,7 @@ function document_(): PresentationDocument {
         content: { ...content, elements: [element] },
         speakerNotes: "",
         durationSeconds: null,
+        flowRole: "main" as const,
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-01T00:00:00Z",
       },

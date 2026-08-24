@@ -86,6 +86,7 @@ export type SceneRow = Timestamps & {
   moment_id: string | null;
   speaker_notes: string;
   duration_seconds: number | null;
+  flow_role: "main" | "detail";
   schema_version: number;
 };
 

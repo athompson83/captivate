@@ -51,24 +51,33 @@ export function SceneJumper({
 
   const searchable = useMemo(
     () =>
-      scenes.map((scene, index) => ({
-        index,
-        scene,
-        text: [
-          scene.title,
-          ...scene.content.elements.map((el) =>
-            el.type === "heading" || el.type === "text" || el.type === "quote"
-              ? plainText(el.content)
-              : el.type === "list"
-                ? el.items.map((i) => plainText(i)).join(" ")
-                : el.type === "callout"
-                  ? el.title
-                  : "",
-          ),
-        ]
-          .join(" ")
-          .toLowerCase(),
-      })),
+      scenes
+        // Indexed before filtering, so what survives keeps its real index —
+        // `onSelect` hands that straight to `goto`, and renumbering here would
+        // jump the presenter to the wrong scene.
+        .map((scene, index) => ({ scene, index }))
+        // Detail scenes are reached by diving into a hotspot, not by jumping.
+        // Listing them would offer the presenter a destination with no way
+        // back into the argument.
+        .filter(({ scene }) => scene.flowRole !== "detail")
+        .map(({ scene, index }) => ({
+          index,
+          scene,
+          text: [
+            scene.title,
+            ...scene.content.elements.map((el) =>
+              el.type === "heading" || el.type === "text" || el.type === "quote"
+                ? plainText(el.content)
+                : el.type === "list"
+                  ? el.items.map((i) => plainText(i)).join(" ")
+                  : el.type === "callout"
+                    ? el.title
+                    : "",
+            ),
+          ]
+            .join(" ")
+            .toLowerCase(),
+        })),
     [scenes],
   );
 

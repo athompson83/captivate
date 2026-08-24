@@ -36,7 +36,21 @@ export interface SessionState {
   sceneIndex: number;
   step: number;
   stepsInScene: number;
+  /**
+   * How many scenes are in the running order.
+   *
+   * Detail scenes are excluded: they are asides reached from a hotspot, and
+   * counting them would tell the room a twelve-scene talk has twenty.
+   */
   totalScenes: number;
+  /**
+   * The main scenes dived from, innermost last.
+   *
+   * A dive is a return trip, so the way back has to be remembered — the scene
+   * that launched it is not necessarily the previous one in the array. Empty
+   * means the presentation is in the main argument.
+   */
+  divePath: number[];
   startedAt: number | null;
   sceneEnteredAt: number;
   paused: boolean;
@@ -92,11 +106,14 @@ export type SessionCommand =
   | "overview";
 
 function initialState(scenes: Scene[], stepCounts: number[]): SessionState {
+  const firstMain = scenes.findIndex((scene) => scene.flowRole !== "detail");
+  const start = firstMain === -1 ? 0 : firstMain;
   return {
-    sceneIndex: 0,
+    sceneIndex: start,
     step: 0,
-    stepsInScene: stepCounts[0] ?? 1,
-    totalScenes: scenes.length,
+    stepsInScene: stepCounts[start] ?? 1,
+    totalScenes: scenes.filter((scene) => scene.flowRole !== "detail").length,
+    divePath: [],
     startedAt: null,
     sceneEnteredAt: Date.now(),
     paused: false,
@@ -118,6 +135,8 @@ export interface SessionApi {
   /** Starts the channel and the clock; returns a teardown function. */
   attach: () => () => void;
   send: (command: SessionCommand, index?: number) => void;
+  /** Enters a detail scene from the current one, recording the way back. */
+  dive: (targetSceneId: string) => void;
   setAnnotations: (sceneIndex: number, annotations: SceneAnnotations) => void;
   clearScene: () => void;
   clearAll: () => void;
@@ -156,6 +175,7 @@ export function createSession({
       step: state.step,
       stepsInScene: state.stepsInScene,
       totalScenes: state.totalScenes,
+      divePath: state.divePath,
       startedAt: state.startedAt,
       sceneEnteredAt: state.sceneEnteredAt,
       paused: state.paused,
@@ -215,6 +235,36 @@ export function createSession({
       };
     });
 
+  /**
+   * Scene roles, resolved once.
+   *
+   * Detail scenes keep their real index — the stage, the console and the camera
+   * all address scenes by index, and a parallel "main-only" index space would
+   * be one more thing to fall out of step. So the walk skips them in place
+   * rather than moving through a filtered copy.
+   */
+  const isDetail = scenes.map((scene) => scene.flowRole === "detail");
+
+  const nextMain = (from: number): number | null => {
+    for (let i = from + 1; i < scenes.length; i += 1) if (!isDetail[i]) return i;
+    return null;
+  };
+  const prevMain = (from: number): number | null => {
+    for (let i = from - 1; i >= 0; i -= 1) if (!isDetail[i]) return i;
+    return null;
+  };
+
+  /** Lands on a scene fully built, the way returning to it should look. */
+  const land = (index: number, current: SessionState, built: boolean) => ({
+    sceneIndex: index,
+    step: built ? (stepCounts[index] ?? 1) - 1 : 0,
+    stepsInScene: stepCounts[index] ?? 1,
+    sceneEnteredAt: clock(current),
+    startedAt: current.startedAt ?? clock(current),
+    blanked: false,
+    overview: false,
+  });
+
   const next = () =>
     update((current) => {
       // From the pulled-back view — mid-talk or the closing image — any
@@ -232,21 +282,24 @@ export function createSession({
           overview: false,
         };
       }
-      // Past the final step of the final scene, the camera pulls back: the
-      // whole argument at once is the closing image, and one more press is
-      // the natural way to ask for it. `prev` returns to the last scene.
-      if (current.sceneIndex >= scenes.length - 1) return { blanked: false, overview: true };
 
-      const nextIndex = current.sceneIndex + 1;
-      return {
-        sceneIndex: nextIndex,
-        step: 0,
-        stepsInScene: stepCounts[nextIndex] ?? 1,
-        sceneEnteredAt: clock(current),
-        startedAt: current.startedAt ?? clock(current),
-        blanked: false,
-        overview: false,
-      };
+      // Inside a detail scene, "next" is the way back rather than the way on.
+      // Walking forward from an aside would drop the room into whatever scene
+      // happened to be stored after it, which is not part of this argument.
+      if (current.divePath.length > 0) {
+        const path = current.divePath.slice(0, -1);
+        const back = current.divePath[current.divePath.length - 1];
+        return { ...land(back, current, true), divePath: path };
+      }
+
+      // Past the final main scene the camera pulls back: the whole argument at
+      // once is the closing image, and one more press is the natural way to ask
+      // for it. `prev` returns to the last scene. This asks `nextMain` rather
+      // than comparing against `scenes.length`, because detail scenes share the
+      // array — the last scene of the running order is rarely the last row.
+      const target = nextMain(current.sceneIndex);
+      if (target === null) return { blanked: false, overview: true };
+      return land(target, current, false);
     });
 
   const prev = () =>
@@ -255,18 +308,36 @@ export function createSession({
       // not skip a scene behind the map's back.
       if (current.overview) return { blanked: false, overview: false };
       if (current.step > 0) return { step: current.step - 1, blanked: false, overview: false };
-      if (current.sceneIndex === 0) return { blanked: false, overview: false };
 
-      const prevIndex = current.sceneIndex - 1;
-      const steps = stepCounts[prevIndex] ?? 1;
+      // Same return trip as `next`, and it takes precedence over the linear
+      // walk: the way out of an aside is back to what launched it.
+      if (current.divePath.length > 0) {
+        const path = current.divePath.slice(0, -1);
+        const back = current.divePath[current.divePath.length - 1];
+        return { ...land(back, current, true), divePath: path };
+      }
+
+      const target = prevMain(current.sceneIndex);
+      if (target === null) return { blanked: false, overview: false };
+      // Returning to a scene shows it fully built, not rewound.
+      return land(target, current, true);
+    });
+
+  /**
+   * Enters a detail scene from the current one.
+   *
+   * Silently ignores an unknown target: a hotspot can outlive the scene it
+   * points at, and the repair on load does not cover a deck edited in another
+   * tab. Doing nothing is the right failure in front of a room — better than
+   * diving to a blank.
+   */
+  const dive = (targetSceneId: string) =>
+    update((current) => {
+      const target = scenes.findIndex((scene) => scene.id === targetSceneId);
+      if (target === -1 || target === current.sceneIndex) return {};
       return {
-        sceneIndex: prevIndex,
-        // Returning to a scene shows it fully built, not rewound.
-        step: steps - 1,
-        stepsInScene: steps,
-        sceneEnteredAt: clock(current),
-        blanked: false,
-        overview: false,
+        ...land(target, current, false),
+        divePath: [...current.divePath, current.sceneIndex],
       };
     });
 
@@ -311,11 +382,16 @@ export function createSession({
         if (typeof index === "number") navigate(() => goTo(index));
         break;
       case "first":
-        navigate(() => goTo(0));
+        // The running order's ends, not the array's: a deck may open or close
+        // with a detail scene stored beside its main one.
+        navigate(() => goTo(isDetail.findIndex((d) => !d)));
         break;
-      case "last":
-        navigate(() => goTo(scenes.length - 1));
+      case "last": {
+        let end = scenes.length - 1;
+        while (end >= 0 && isDetail[end]) end -= 1;
+        navigate(() => goTo(end));
         break;
+      }
       case "toggle-pause":
         update((c) => {
           if (!c.paused) return { paused: true, pausedAt: Date.now() };
@@ -434,6 +510,9 @@ export function createSession({
           nowMs: message.paused && message.pausedAt !== null ? message.pausedAt : Date.now(),
           overview: message.overview,
           establishing: message.establishing,
+          // Mirrored so the console can tell the presenter they are inside an
+          // aside, and which scene the way back leads to.
+          divePath: message.divePath,
         });
         break;
 
@@ -486,7 +565,17 @@ export function createSession({
     };
   };
 
-  return { store, channel, attach, send, setAnnotations, clearScene, clearAll, broadcastPointer };
+  return {
+    store,
+    channel,
+    attach,
+    send,
+    dive,
+    setAnnotations,
+    clearScene,
+    clearAll,
+    broadcastPointer,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -499,6 +588,7 @@ export interface PresentSession extends Omit<SessionState, "annotationsByScene" 
   channelAvailable: boolean;
 
   next: () => void;
+  dive: (targetSceneId: string) => void;
   prev: () => void;
   goto: (index: number) => void;
   first: () => void;
@@ -550,6 +640,7 @@ export function usePresentSession({
       step: state.step,
       stepsInScene: state.stepsInScene,
       totalScenes: state.totalScenes,
+      divePath: state.divePath,
       startedAt: state.startedAt,
       sceneEnteredAt: state.sceneEnteredAt,
       paused: state.paused,
@@ -562,10 +653,16 @@ export function usePresentSession({
       peerConnected: state.peerConnected,
 
       scene: scenes[state.sceneIndex] ?? null,
-      nextScene: scenes[state.sceneIndex + 1] ?? null,
+      // The next scene in the *argument*. `sceneIndex + 1` would show the
+      // console a detail scene the presenter is not about to walk into.
+      nextScene:
+        scenes.find(
+          (candidate, i) => i > state.sceneIndex && candidate.flowRole !== "detail",
+        ) ?? null,
       channelAvailable: api.channel.available,
 
       next: () => api.send("next"),
+      dive: (targetSceneId: string) => api.dive(targetSceneId),
       prev: () => api.send("prev"),
       goto: (index: number) => api.send("goto", index),
       first: () => api.send("first"),

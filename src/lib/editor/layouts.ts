@@ -207,6 +207,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
       hidden: false,
       locked: false,
       opacity: 1,
+      hotspot: null,
       animation: {
         entrance: "fade",
         delay: nextDelay(),
@@ -249,6 +250,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
       hidden: false,
       locked: false,
       opacity: 1,
+      hotspot: null,
       animation: {
         entrance: isBackdrop ? "fade" : "scale",
         delay: 0,
@@ -278,6 +280,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
             hidden: false,
             locked: false,
             opacity: 1,
+            hotspot: null,
             animation: {
               entrance: "rise",
               delay: nextDelay(),
@@ -316,6 +319,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
             hidden: false,
             locked: false,
             opacity: 1,
+            hotspot: null,
             animation: {
               entrance: "rise",
               delay: nextDelay(),
@@ -396,6 +400,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
       hidden: false,
       locked: false,
       opacity: 1,
+      hotspot: null,
       animation: {
         entrance: "fade",
         delay: nextDelay(),
@@ -432,6 +437,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
       hidden: false,
       locked: false,
       opacity: 1,
+      hotspot: null,
       animation: {
         entrance: "rise",
         delay: nextDelay(),
@@ -455,6 +461,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
         hidden: false,
         locked: false,
         opacity: 1,
+        hotspot: null,
         animation: {
           entrance: "rise",
           delay: nextDelay(),
@@ -507,6 +514,7 @@ function textElement(
     hidden: false,
     locked: false,
     opacity: 1,
+    hotspot: null,
     animation: { entrance: "rise", delay, duration: 0.5, emphasis: "none", onAdvance: false },
     style: {
       size: opts.size ?? 0.55,
@@ -545,6 +553,7 @@ function listElement(
     hidden: false,
     locked: false,
     opacity: 1,
+    hotspot: null,
     animation: { entrance: "rise", delay, duration: 0.5, emphasis: "none", onAdvance: false },
     style: {
       size: 0.56,

@@ -58,6 +58,10 @@ const SharedPayload = z.object({
       title: z.string(),
       content: z.unknown(),
       placement: z.unknown(),
+      // Absent from a deck shared before detail scenes existed; "main" is the
+      // right reading of that silence — every scene in an older deck is part
+      // of its running order by definition.
+      flowRole: z.unknown().optional(),
     }),
   ),
 });
@@ -100,6 +104,7 @@ export function parseSharedPayload(raw: unknown): SharedDeck | null {
         title: row.title,
         content: parseSceneContent(row.content).content,
         placement: placement.success ? placement.data : null,
+        flowRole: row.flowRole === "detail" ? "detail" : "main",
         momentId: null,
         // Never present in the payload; the empty string keeps the shared
         // shape identical to the audience window's.

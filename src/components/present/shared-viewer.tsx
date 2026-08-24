@@ -26,6 +26,12 @@ import { MovementRail, movementsOf } from "./movement-rail";
  * advance through the same build steps, O pulls the camera back over the whole
  * argument, and advancing past the final scene lands there too — the shape of
  * the whole thing is the closing image.
+ *
+ * Detail scenes are asides reached by clicking a hotspot, so they are skipped
+ * by the linear walk here exactly as they are on the stage, and the way out of
+ * one is the next press. A reader who walked into an aside because the shared
+ * viewer counted array positions instead of the running order would be reading
+ * a different argument than the room heard.
  */
 export function SharedViewer({ deck }: { deck: SharedDeck }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,7 +53,58 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
   const [step, setStep] = useState(0);
   const [overview, setOverview] = useState(false);
   const [started, setStarted] = useState(false);
+  /** Scene indices dived through to get here; the way back out, innermost last. */
+  const [divePath, setDivePath] = useState<number[]>([]);
   const fullscreen = useFullscreen(containerRef);
+
+  const isDetail = useMemo(() => scenes.map((scene) => scene.flowRole === "detail"), [scenes]);
+  const running = useMemo(
+    () => scenes.map((_, i) => i).filter((i) => !isDetail[i]),
+    [scenes, isDetail],
+  );
+  const nextMain = (from: number) => running.find((i) => i > from) ?? null;
+  const prevMain = (from: number) => {
+    const earlier = running.filter((i) => i < from);
+    return earlier.length ? earlier[earlier.length - 1] : null;
+  };
+
+  /** Lands on a scene, fully built when returning to it, at step 0 going on. */
+  const land = (index: number, built: boolean) => {
+    setSceneIndex(index);
+    setStep(built ? (stepCounts[index] ?? 1) - 1 : 0);
+    setOverview(false);
+  };
+
+  /** The way back out of an aside, shared by `next` and `prev`. */
+  const surface = () => {
+    const back = divePath[divePath.length - 1];
+    setDivePath(divePath.slice(0, -1));
+    land(back, true);
+  };
+
+  const dive = (targetSceneId: string) => {
+    const target = scenes.findIndex((scene) => scene.id === targetSceneId);
+    if (target < 0 || target === sceneIndex) return;
+    setStarted(true);
+    setDivePath([...divePath, sceneIndex]);
+    land(target, false);
+  };
+
+  /**
+   * The accessible name for a hotspot, resolved against the rest of the deck.
+   * "Expand: The rhythm strip" says where the control goes; "button" does not.
+   */
+  const hotspotName = useMemo(() => {
+    const titles = new Map(scenes.map((scene) => [scene.id, scene.title.trim()]));
+    return (targetSceneId: string) => {
+      const title = titles.get(targetSceneId);
+      return title ? `Expand: ${title}` : "Expand this point";
+    };
+  }, [scenes]);
+
+  // Position within the running order, so the rail and the progress hairline
+  // measure the argument rather than the array.
+  const mainOrdinal = scenes.slice(0, sceneIndex + 1).filter((_, i) => !isDetail[i]).length;
 
   const next = () => {
     setStarted(true);
@@ -58,14 +115,20 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     const steps = stepCounts[sceneIndex] ?? 1;
     if (step < steps - 1) {
       setStep(step + 1);
-    } else if (sceneIndex < scenes.length - 1) {
-      setSceneIndex(sceneIndex + 1);
-      setStep(0);
-    } else {
-      // Past the end, the camera pulls back: the whole argument at once is
-      // the last thing a reader sees.
-      setOverview(true);
+      return;
     }
+    // Inside an aside, "next" is the way back rather than the way on: walking
+    // forward would drop the reader into whatever scene happens to be stored
+    // after it, which is not part of this argument.
+    if (divePath.length > 0) {
+      surface();
+      return;
+    }
+    const target = nextMain(sceneIndex);
+    // Past the final scene of the running order, the camera pulls back: the
+    // whole argument at once is the last thing a reader sees.
+    if (target === null) setOverview(true);
+    else land(target, false);
   };
 
   const prev = () => {
@@ -76,23 +139,33 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     }
     if (step > 0) {
       setStep(step - 1);
-    } else if (sceneIndex > 0) {
-      const prevIndex = sceneIndex - 1;
-      setSceneIndex(prevIndex);
-      // Returning to a scene shows it fully built, not rewound.
-      setStep((stepCounts[prevIndex] ?? 1) - 1);
+      return;
     }
+    if (divePath.length > 0) {
+      surface();
+      return;
+    }
+    const target = prevMain(sceneIndex);
+    // Returning to a scene shows it fully built, not rewound.
+    if (target !== null) land(target, true);
   };
 
   const goto = (index: number) => {
     setStarted(true);
-    setOverview(false);
-    setSceneIndex(Math.max(0, Math.min(scenes.length - 1, index)));
-    setStep(0);
+    // Jumping is a move within the argument, so it abandons any aside rather
+    // than leaving a return path pointing at a scene the reader has left.
+    setDivePath([]);
+    land(Math.max(0, Math.min(scenes.length - 1, index)), false);
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A hotspot is a real button, and Space and Enter both activate a focused
+      // control *and* advance the deck. Without this the keyboard route into an
+      // aside dived and advanced straight back out of it in one keystroke,
+      // while the mouse route worked — the stage guards the same way.
+      if (e.target instanceof HTMLElement && e.target.tagName === "BUTTON") return;
+
       switch (e.key) {
         case "ArrowRight":
         case "PageDown":
@@ -109,11 +182,13 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
           break;
         case "Home":
           e.preventDefault();
-          goto(0);
+          // The ends of the running order, not of the array: an aside stored
+          // last is not the closing scene.
+          goto(running[0] ?? 0);
           break;
         case "End":
           e.preventDefault();
-          goto(scenes.length - 1);
+          goto(running[running.length - 1] ?? 0);
           break;
         case "o":
         case "O":
@@ -178,10 +253,17 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
         showPath={journey.showPath && overview}
         className="absolute inset-0"
         onSceneSelect={overview ? goto : undefined}
+        onHotspot={dive}
+        hotspotName={hotspotName}
       />
 
       {journey.showMovements && !overview && (
-        <MovementRail movements={movements} sceneIndex={sceneIndex} totalScenes={scenes.length} />
+        <MovementRail
+          movements={movements}
+          sceneIndex={sceneIndex}
+          totalScenes={running.length}
+          mainOrdinal={mainOrdinal}
+        />
       )}
 
       {/* The invitation. One card, gone on the first advance. */}
@@ -207,7 +289,7 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-0.5 bg-white/10" aria-hidden>
         <div
           className="h-full bg-white/45 transition-[width] duration-500 ease-[var(--ease-out-quint)]"
-          style={{ width: `${((sceneIndex + 1) / scenes.length) * 100}%` }}
+          style={{ width: `${(mainOrdinal / Math.max(1, running.length)) * 100}%` }}
         />
       </div>
 
@@ -222,8 +304,11 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
       </Link>
 
       <p className="sr-only" aria-live="polite">
-        Scene {sceneIndex + 1} of {scenes.length}
-        {scenes[sceneIndex]?.title ? `: ${scenes[sceneIndex].title}` : ""}
+        {isDetail[sceneIndex]
+          ? `Detail${scenes[sceneIndex]?.title ? `: ${scenes[sceneIndex].title}` : ""}`
+          : `Scene ${mainOrdinal} of ${running.length}${
+              scenes[sceneIndex]?.title ? `: ${scenes[sceneIndex].title}` : ""
+            }`}
       </p>
     </div>
   );

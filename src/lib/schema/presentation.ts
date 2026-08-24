@@ -181,6 +181,28 @@ const elementBase = {
   hidden: z.boolean().default(false),
   locked: z.boolean().default(false),
   opacity: z.number().min(0).max(1).default(1),
+  /**
+   * Turns this element into a control: activating it in present mode dives the
+   * camera to `targetSceneId` instead of advancing the argument.
+   *
+   * `label` names the control for assistive technology. Empty is normal and
+   * not a defect — the render falls back to a name derived from the target
+   * scene's title, so an author who never wrote a label still ships something
+   * a screen reader can announce.
+   *
+   * `targetSceneId` must not be the scene this element sits on, and must name
+   * a scene that exists. Neither can be checked here: this schema sees one
+   * element, not the scene around it or the deck around that. Both are
+   * enforced where the context exists — self-targets in `parseSceneContent`,
+   * dangling targets in `getPresentationDocument`.
+   */
+  hotspot: z
+    .object({
+      targetSceneId: z.string().min(1).max(64),
+      label: z.string().max(120).default(""),
+    })
+    .nullable()
+    .default(null),
 };
 
 /** Inline rich-text runs. Deliberately *not* HTML: no sanitisation surface. */
@@ -554,6 +576,18 @@ export const Scene = z.object({
   speakerNotes: z.string().max(20000),
   /** Rehearsal target in seconds; drives the presenter pacing indicator. */
   durationSeconds: z.number().int().min(0).max(7200).nullable(),
+  /**
+   * Whether this scene is part of the argument or an aside reached from it.
+   *
+   * `main` scenes are the running order: next/prev walk them, the movement
+   * rail counts them, the scene jumper lists them. A `detail` scene is only
+   * reachable by diving into a hotspot, and is skipped by all of that.
+   *
+   * Absent means `main` on purpose. Every scene stored before hotspots
+   * existed is part of its deck's running order, and a default of `detail`
+   * would silently empty out decks that predate this field.
+   */
+  flowRole: z.enum(["main", "detail"]).default("main"),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -643,12 +677,23 @@ export type PresentationDocument = z.infer<typeof PresentationDocument>;
  * throwing. A single corrupt scene must never make a whole deck unopenable —
  * the user's other 40 scenes are more important than strictness here.
  */
-export function parseSceneContent(raw: unknown): {
+export function parseSceneContent(
+  raw: unknown,
+  /**
+   * The id of the scene this content belongs to, when the caller knows it.
+   *
+   * Only used to drop hotspots that point at their own scene — a loop that
+   * dives to where the room already is and leaves the return path with
+   * nowhere to go. The field-level schema cannot see this, because it
+   * validates one element without the scene around it.
+   */
+  sceneId?: string,
+): {
   content: SceneContent;
   recovered: boolean;
 } {
   const result = SceneContent.safeParse(raw);
-  if (result.success) return { content: result.data, recovered: false };
+  if (result.success) return stripSelfTargets(result.data, sceneId, false);
 
   // Salvage whatever individual elements are still valid.
   const salvaged: SceneElement[] = [];
@@ -659,10 +704,67 @@ export function parseSceneContent(raw: unknown): {
     }
   }
 
-  return {
-    content: SceneContent.parse({ elements: salvaged }),
-    recovered: true,
-  };
+  return stripSelfTargets(SceneContent.parse({ elements: salvaged }), sceneId, true);
+}
+
+/**
+ * Clears hotspots that target their own scene, keeping the element.
+ *
+ * The element is the author's work; only the link is broken. Dropping the
+ * whole element to punish a bad reference would lose a heading they wrote.
+ */
+function stripSelfTargets(
+  content: SceneContent,
+  sceneId: string | undefined,
+  recovered: boolean,
+): { content: SceneContent; recovered: boolean } {
+  if (!sceneId) return { content, recovered };
+
+  let changed = false;
+  const elements = content.elements.map((element) => {
+    if (element.hotspot?.targetSceneId !== sceneId) return element;
+    changed = true;
+    return { ...element, hotspot: null };
+  });
+
+  if (!changed) return { content, recovered };
+  return { content: { ...content, elements }, recovered: true };
+}
+
+/**
+ * Clears hotspots whose target scene no longer exists.
+ *
+ * A hotspot outlives the scene it points at: delete the detail scene and the
+ * link is left dangling, and activating it in front of a room would dive to
+ * nothing. This is the one check that needs the whole deck at once, so it
+ * cannot live in `parseSceneContent` — that sees a single scene's content and
+ * has no way to know which ids are real.
+ *
+ * The element survives; only the broken link is cleared. Returns the input
+ * array unchanged when nothing needed repair, so callers can skip work.
+ */
+export function repairDanglingHotspots(scenes: Scene[]): {
+  scenes: Scene[];
+  repaired: string[];
+} {
+  const ids = new Set(scenes.map((scene) => scene.id));
+  const repaired: string[] = [];
+
+  const next = scenes.map((scene) => {
+    let changed = false;
+    const elements = scene.content.elements.map((element) => {
+      const target = element.hotspot?.targetSceneId;
+      if (!target || ids.has(target)) return element;
+      changed = true;
+      return { ...element, hotspot: null };
+    });
+
+    if (!changed) return scene;
+    repaired.push(scene.id);
+    return { ...scene, content: { ...scene.content, elements } };
+  });
+
+  return repaired.length ? { scenes: next, repaired } : { scenes, repaired };
 }
 
 export function emptySceneContent(layout: SceneLayout = "custom"): SceneContent {

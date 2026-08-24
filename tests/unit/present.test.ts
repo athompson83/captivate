@@ -547,3 +547,130 @@ describe("session command routing", () => {
     expect(Object.keys(api.store.getState().annotationsByScene)).toHaveLength(0);
   });
 });
+
+/**
+ * Detail scenes sit in the same array as the argument but are not part of it.
+ *
+ * They keep their real index — the stage, the console and the camera all
+ * address scenes by index, and a second "main-only" index space would be one
+ * more thing to get out of step. So navigation skips them in place rather than
+ * walking a filtered copy.
+ */
+describe("flowRole-aware navigation", () => {
+  const PRESENTATION = "00000000-0000-4000-8000-000000000fff";
+
+  function scene(i: number, flowRole: "main" | "detail" = "main"): Scene {
+    return {
+      id: `00000000-0000-4000-8000-0000000000${String(i).padStart(2, "0")}`,
+      presentationId: PRESENTATION,
+      sectionId: null,
+      position: i,
+      title: `Scene ${i}`,
+      content: composeScene("statement", { heading: `Heading ${i}` }),
+      placement: null,
+      momentId: null,
+      speakerNotes: "",
+      durationSeconds: null,
+      flowRole,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    };
+  }
+
+  // 0 main, 1 detail, 2 main, 3 detail, 4 main
+  const mixed = () => [
+    scene(0),
+    scene(1, "detail"),
+    scene(2),
+    scene(3, "detail"),
+    scene(4),
+  ];
+
+  const session = (scenes: Scene[]) =>
+    createSession({ presentationId: PRESENTATION, scenes, role: "stage", establishSections: false });
+
+  const at = (s: ReturnType<typeof session>) => s.store.getState().sceneIndex;
+
+  it("next skips detail scenes, keeping real indices", () => {
+    const s = session(mixed());
+    expect(at(s)).toBe(0);
+    s.send("next");
+    expect(at(s)).toBe(2); // not 1
+    s.send("next");
+    expect(at(s)).toBe(4); // not 3
+  });
+
+  it("next stops at the last main scene rather than walking into a trailing detail", () => {
+    const s = session([scene(0), scene(1), scene(2, "detail")]);
+    s.send("next");
+    expect(at(s)).toBe(1);
+    s.send("next");
+    expect(at(s)).toBe(1);
+  });
+
+  it("prev skips detail scenes", () => {
+    const s = session(mixed());
+    s.send("goto", 4);
+    expect(at(s)).toBe(4);
+    s.send("prev");
+    expect(at(s)).toBe(2);
+    s.send("prev");
+    expect(at(s)).toBe(0);
+  });
+
+  it("first and last land on main scenes", () => {
+    const s = session([scene(0, "detail"), scene(1), scene(2), scene(3, "detail")]);
+    s.send("last");
+    expect(at(s)).toBe(2);
+    s.send("first");
+    expect(at(s)).toBe(1);
+  });
+
+  it("totalScenes counts only the running order", () => {
+    const s = session(mixed());
+    expect(s.store.getState().totalScenes).toBe(3);
+  });
+
+  it("dive enters a detail scene and records where it came from", () => {
+    const s = session(mixed());
+    s.send("next"); // at 2
+    s.dive(mixed()[3].id);
+    expect(at(s)).toBe(3);
+    expect(s.store.getState().divePath).toEqual([2]);
+  });
+
+  it("prev returns from a dive to the scene that launched it", () => {
+    const s = session(mixed());
+    s.send("next"); // at 2
+    s.dive(mixed()[3].id);
+    expect(at(s)).toBe(3);
+    s.send("prev");
+    expect(at(s)).toBe(2);
+    expect(s.store.getState().divePath).toEqual([]);
+  });
+
+  it("next from inside a detail scene also returns, rather than walking on", () => {
+    const s = session(mixed());
+    s.send("next"); // at 2
+    s.dive(mixed()[3].id);
+    s.send("next");
+    expect(at(s)).toBe(2);
+    expect(s.store.getState().divePath).toEqual([]);
+  });
+
+  it("ignores a dive to an unknown scene", () => {
+    const s = session(mixed());
+    s.dive("00000000-0000-4000-8000-0000000000zz");
+    expect(at(s)).toBe(0);
+    expect(s.store.getState().divePath).toEqual([]);
+  });
+
+  it("a deck of only main scenes is unaffected", () => {
+    const s = session([scene(0), scene(1), scene(2)]);
+    s.send("next");
+    expect(at(s)).toBe(1);
+    s.send("next");
+    expect(at(s)).toBe(2);
+    expect(s.store.getState().totalScenes).toBe(3);
+  });
+});

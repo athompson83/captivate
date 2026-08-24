@@ -27,6 +27,7 @@ function textElement(id: string, f: Frame): SceneElement {
     hidden: false,
     locked: false,
     opacity: 1,
+    hotspot: null,
     animation: { entrance: "fade", delay: 0, duration: 0.5, emphasis: "none", onAdvance: false },
     style: {
       size: 1,
