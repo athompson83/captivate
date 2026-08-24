@@ -69,6 +69,17 @@ export const RecordingStatus = z.enum([
 ]);
 export type RecordingStatus = z.infer<typeof RecordingStatus>;
 
+/**
+ * The shape of the messages on this channel.
+ *
+ * Bumped when a change is not backward compatible. Additive fields are not:
+ * they carry a `.default()` so an older peer keeps working, which is why every
+ * camera field above has one. This exists so a transport that spans processes
+ * — the phone remote, rather than two tabs of the same build — can refuse a
+ * peer it genuinely cannot talk to instead of silently misreading it.
+ */
+export const PROTOCOL_VERSION = 1;
+
 export const PresentMessage = z.discriminatedUnion("type", [
   /** Console announces itself; the stage replies with a full state snapshot. */
   z.object({ type: z.literal("hello"), role: z.enum(["stage", "console"]) }),
@@ -92,6 +103,14 @@ export const PresentMessage = z.discriminatedUnion("type", [
      * simply keeps its own clock rather than refusing the message.
      */
     pausedAt: z.number().nullable().default(null),
+    /**
+     * Main scenes dived from, innermost last — empty in the main argument.
+     *
+     * Defaulted like the camera fields: a console from an older build that has
+     * never heard of hotspots keeps working, it simply cannot tell the
+     * presenter they are inside an aside.
+     */
+    divePath: z.array(z.number().int().min(0).max(999)).max(16).default([]),
     fullscreen: z.boolean(),
     /**
      * Camera pulled back to show the whole world rather than one scene.

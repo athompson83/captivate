@@ -29,6 +29,8 @@ insert into public.sections (id, presentation_id, title) values
   ('aaaaaaaa-0000-0000-0000-00000000000a', 'aaaaaaaa-0000-0000-0000-000000000001', 'Alice section');
 insert into public.scenes (id, presentation_id, title, speaker_notes) values
   ('aaaaaaaa-0000-0000-0000-00000000000b', 'aaaaaaaa-0000-0000-0000-000000000001', 'Alice scene', 'PRIVATE ALICE NOTES');
+insert into public.scenes (id, presentation_id, title, flow_role) values
+  ('aaaaaaaa-0000-0000-0000-00000000000d', 'aaaaaaaa-0000-0000-0000-000000000001', 'Alice aside', 'detail');
 insert into public.lecture_notes (id, presentation_id, title, body) values
   ('aaaaaaaa-0000-0000-0000-00000000000c', 'aaaaaaaa-0000-0000-0000-000000000001', 'Alice note', 'secret');
 reset role;
@@ -162,6 +164,14 @@ select 'shared_link_omits_owner' as check,
   (position('11111111-1111-1111-1111-111111111111' in
      coalesce(public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001')::text, ''))
    = 0)::int as n;
+
+-- The payload has to say which scenes are the argument and which are asides.
+-- Without it the shared viewer counts array positions, and a reader walks into
+-- a detail scene the room never saw in sequence.
+select 'shared_link_marks_asides' as check,
+  (public.captivate_shared_presentation('cccccccc-0000-0000-0000-000000000001')
+     #> '{scenes}' @> '[{"title":"Alice scene","flowRole":"main"},
+                        {"title":"Alice aside","flowRole":"detail"}]'::jsonb)::int as n;
 
 -- A wrong token is a dead link, not an error.
 select 'shared_link_wrong_token_dead' as check,

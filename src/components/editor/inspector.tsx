@@ -104,6 +104,81 @@ function labelFor(element: SceneElement): string {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Turns an element into a hotspot.
+ *
+ * A hotspot dives to a detail scene instead of advancing the argument, so this
+ * offers only scenes that are actually asides — pointing one at a main scene
+ * would put a shortcut through the middle of the talk, and returning from it
+ * would land somewhere the presenter never left.
+ */
+function HotspotControls({ element, sceneId }: { element: SceneElement; sceneId: string }) {
+  const scenes = useEditor((s) => s.document.scenes);
+  const hotspot = element.hotspot;
+
+  const candidates = scenes.filter((s) => s.id !== sceneId && s.flowRole === "detail");
+  const targetMissing = Boolean(hotspot) && !scenes.some((s) => s.id === hotspot!.targetSceneId);
+
+  const set = (patch: { targetSceneId?: string; label?: string } | null) =>
+    editElement(
+      sceneId,
+      element.id,
+      (el) => ({
+        ...el,
+        hotspot: patch
+          ? {
+              targetSceneId: patch.targetSceneId ?? el.hotspot?.targetSceneId ?? "",
+              label: patch.label ?? el.hotspot?.label ?? "",
+            }
+          : null,
+      }),
+      { label: patch ? "Set hotspot" : "Remove hotspot", coalesceKey: `hotspot:${element.id}` },
+    );
+
+  return (
+    <Field label="Hotspot">
+      {candidates.length === 0 && !hotspot ? (
+        <p className="text-ink-3 text-[11.5px] leading-relaxed">
+          Mark a scene as a detail scene in the navigator, then link to it from here.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <select
+            value={hotspot?.targetSceneId ?? ""}
+            onChange={(e) => set(e.target.value ? { targetSceneId: e.target.value } : null)}
+            aria-label="Hotspot destination"
+            className="border-line text-ink-2 w-full appearance-none rounded-[var(--radius-sm)] border bg-[var(--surface-inset)] px-2 py-1.5 text-[11.5px] outline-none"
+          >
+            <option value="">Not a hotspot</option>
+            {candidates.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title.trim() || "Untitled detail scene"}
+              </option>
+            ))}
+          </select>
+
+          {targetMissing && (
+            <p className="text-danger text-[11.5px] leading-relaxed">
+              This hotspot points at a scene that no longer exists. It will be cleared next time
+              the deck is opened.
+            </p>
+          )}
+
+          {hotspot && (
+            <Input
+              value={hotspot.label}
+              onChange={(e) => set({ label: e.target.value })}
+              aria-label="Hotspot label"
+              placeholder={"Describe where it goes"}
+              className="text-[11.5px]"
+            />
+          )}
+        </div>
+      )}
+    </Field>
+  );
+}
+
 function StyleControls({
   element,
   sceneId,
@@ -124,6 +199,8 @@ function StyleControls({
   return (
     <>
       {hasText && <TextStyleControls element={element} sceneId={sceneId} />}
+
+      <HotspotControls element={element} sceneId={sceneId} />
 
       {element.type === "heading" && (
         <Field label="Level">

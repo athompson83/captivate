@@ -93,7 +93,11 @@ export function PresenterConsole({
     const onKey = (e: KeyboardEvent) => {
       if (
         e.target instanceof HTMLElement &&
-        (e.target.isContentEditable || ["INPUT", "TEXTAREA"].includes(e.target.tagName))
+        // BUTTON as well as the text fields: Space and Enter advance the
+        // presentation, and they are also how a focused control is activated.
+        // Without this, activating a hotspot from the keyboard dived into the
+        // detail scene and advanced straight back out of it in one keystroke.
+        (e.target.isContentEditable || ["INPUT", "TEXTAREA", "BUTTON"].includes(e.target.tagName))
       ) {
         return;
       }

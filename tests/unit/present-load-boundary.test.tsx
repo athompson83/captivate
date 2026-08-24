@@ -26,6 +26,7 @@ function scene(overrides: Partial<Scene> = {}): Scene {
     presentationId: "22222222-2222-4222-8222-222222222222",
     sectionId: null,
     position: 0,
+    flowRole: "main" as const,
     title: "Opening",
     content: { layout: "title", elements: [] } as unknown as Scene["content"],
     placement: { x: 0, y: 0, scale: 1, rotation: 0 },

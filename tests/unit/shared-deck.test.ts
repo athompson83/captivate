@@ -104,6 +104,25 @@ describe("parseSharedPayload", () => {
     expect(deck!.journey.travel).toBe(JOURNEY_DEFAULTS.travel);
   });
 
+  it("carries flowRole through, so the viewer can tell an aside from a beat", () => {
+    const deck = parseSharedPayload(
+      payload({ scenes: [sceneRow(3), sceneRow(4, { flowRole: "detail" })] }),
+    );
+    expect(deck!.scenes.map((s) => s.flowRole)).toEqual(["main", "detail"]);
+  });
+
+  it("reads a scene with no flowRole as part of the running order", () => {
+    // A deck shared before detail scenes existed. Defaulting the other way
+    // would empty out its running order and strand the reader on scene one.
+    const deck = parseSharedPayload(payload({ scenes: [sceneRow(3)] }));
+    expect(deck!.scenes[0].flowRole).toBe("main");
+  });
+
+  it("reads an unrecognised flowRole as part of the running order", () => {
+    const deck = parseSharedPayload(payload({ scenes: [sceneRow(3, { flowRole: "sidebar" })] }));
+    expect(deck!.scenes[0].flowRole).toBe("main");
+  });
+
   it("drops an unusable placement rather than the scene", () => {
     const deck = parseSharedPayload(
       payload({ scenes: [sceneRow(3, { placement: { x: "wide", y: [] } })] }),

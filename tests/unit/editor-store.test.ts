@@ -31,6 +31,7 @@ function makeScene(id: string, position: number, title = `Scene ${position + 1}`
     content: composeScene("bullets", { heading: title, bullets: ["a", "b"] }),
     speakerNotes: "",
     durationSeconds: null,
+    flowRole: "main" as const,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
   };

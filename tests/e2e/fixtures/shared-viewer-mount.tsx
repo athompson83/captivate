@@ -14,6 +14,12 @@ import { buildTemplateScenes, getTemplate, templateMovements } from "@/lib/templ
  * error. The deck is built through the same template machinery creation uses,
  * so a template edit that breaks rendering fails here, not in front of the
  * first new user.
+ *
+ * `mountWithAside` builds the same deck with one detail scene hung off a
+ * hotspot, because two of the rules that matter about asides are only
+ * observable in a browser: the linear walk must step over the detail scene,
+ * and activating the hotspot from the keyboard must dive without the same
+ * keystroke advancing straight back out of it.
  */
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -49,6 +55,7 @@ function exampleDeck(): SharedDeck {
       title: scene.title,
       content: scene.content,
       placement: null,
+      flowRole: "main",
       momentId: null,
       speakerNotes: "",
       durationSeconds: null,
@@ -69,6 +76,36 @@ function exampleDeck(): SharedDeck {
   };
 }
 
+/**
+ * The same deck with an aside: one detail scene, reached by a hotspot on the
+ * heading of the first scene and reachable no other way.
+ */
+function deckWithAside(): SharedDeck {
+  const deck = exampleDeck();
+  const detailId = uuid(900);
+  const [first, ...rest] = deck.scenes;
+
+  const detail: Scene = {
+    ...first,
+    id: detailId,
+    position: deck.scenes.length,
+    title: "The aside",
+    flowRole: "detail",
+  };
+
+  const withHotspot: Scene = {
+    ...first,
+    content: {
+      ...first.content,
+      elements: first.content.elements.map((element, i) =>
+        i === 0 ? { ...element, hotspot: { targetSceneId: detailId, label: "" } } : element,
+      ),
+    },
+  };
+
+  return { ...deck, scenes: [withHotspot, ...rest, detail] };
+}
+
 function mount(deck: SharedDeck): number {
   const host = document.createElement("div");
   document.body.appendChild(host);
@@ -77,13 +114,14 @@ function mount(deck: SharedDeck): number {
       <SharedViewer deck={deck} />
     </StrictMode>,
   );
-  return deck.scenes.length;
+  return deck.scenes.filter((scene) => scene.flowRole !== "detail").length;
 }
 
 declare global {
   interface Window {
     sharedViewerFixture: {
       mount: () => number;
+      mountWithAside: () => number;
       /**
        * Walks the deck with the same keydown the browser delivers, in-page.
        *
@@ -105,6 +143,7 @@ declare global {
 window.sharedViewerFixture = {
   /** Renders the viewer; returns the number of scenes in the running order. */
   mount: () => mount(exampleDeck()),
+  mountWithAside: () => mount(deckWithAside()),
 
   async walk(key: string, cap: number) {
     for (let i = 0; i < cap; i += 1) {

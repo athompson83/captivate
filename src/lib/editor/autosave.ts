@@ -100,6 +100,7 @@ export async function flushEditor(
           durationSeconds: scene.durationSeconds,
           sectionId: scene.sectionId,
           placement: scene.placement,
+          flowRole: scene.flowRole,
         });
 
         if (result.ok) {

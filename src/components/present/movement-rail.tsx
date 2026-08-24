@@ -42,6 +42,15 @@ export function movementsOf(scenes: Scene[], sections: Section[]): Movement[] {
     const current = movements[movements.length - 1];
     const id = scene.sectionId ?? "";
 
+    // A detail scene is an aside, not a beat of the argument. It neither starts
+    // a movement nor splits the one it sits inside — but it is still *within*
+    // that movement, so the run is extended over it and `movementAt` keeps
+    // answering while the presentation is down in the aside.
+    if (scene.flowRole === "detail") {
+      if (current) current.end = index + 1;
+      return;
+    }
+
     if (current && current.id === id) {
       current.end = index + 1;
       return;
@@ -82,17 +91,28 @@ export const MovementRail = memo(function MovementRail({
   movements,
   sceneIndex,
   totalScenes,
+  mainOrdinal,
 }: {
   movements: Movement[];
+  /** Real index into the scene array — what decides the lit movement. */
   sceneIndex: number;
+  /** How many scenes are in the running order, detail scenes excluded. */
   totalScenes: number;
+  /**
+   * 1-based position of the current scene within the running order.
+   *
+   * Not derivable from `sceneIndex` here: detail scenes hold real indices in
+   * the array, so `sceneIndex + 1` counts asides the spine is not measuring
+   * and would run the fill past its own end.
+   */
+  mainOrdinal: number;
 }) {
   // One movement is not a structure, and a rail describing it says nothing.
   const meaningful = useMemo(() => movements.filter((m) => m.label.length > 0), [movements]);
   if (meaningful.length < 2 || totalScenes === 0) return null;
 
   const activeIndex = movements.findIndex((m) => sceneIndex >= m.start && sceneIndex < m.end);
-  const progress = Math.min(1, Math.max(0, (sceneIndex + 1) / totalScenes));
+  const progress = totalScenes > 0 ? Math.min(1, Math.max(0, mainOrdinal / totalScenes)) : 0;
 
   return (
     <div

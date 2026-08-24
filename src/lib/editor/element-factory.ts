@@ -14,6 +14,8 @@ export function createElement(type: SceneElementType, at?: { x: number; y: numbe
     hidden: false,
     locked: false,
     opacity: 1,
+    // A new element is not a control until an author makes it one.
+    hotspot: null,
     animation: {
       entrance: "fade" as const,
       delay: 0,
