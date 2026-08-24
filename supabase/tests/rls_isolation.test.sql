@@ -475,11 +475,25 @@ select 'image_cost_survived_bob' as check,
 -- unshared deck.
 set role authenticated;
 set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
-insert into public.assets (id, presentation_id, storage_path, kind, mime_type, byte_size) values
-  ('dddddddd-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
+-- Deliberately no `presentation_id`, because that is what the application
+-- actually writes: the uploader never passed one, so every asset in the real
+-- database has null there. The old probes set it by hand and so proved a join
+-- the product could never satisfy — every uploaded image on a shared deck
+-- returned 404 while this suite reported PASS.
+insert into public.assets (id, storage_path, kind, mime_type, byte_size) values
+  ('dddddddd-0000-0000-0000-000000000001',
    '11111111-1111-1111-1111-111111111111/asset1.png', 'image', 'image/png', 1024);
 insert into storage.objects (bucket_id, name, owner) values
   ('assets', '11111111-1111-1111-1111-111111111111/asset1.png', '11111111-1111-1111-1111-111111111111');
+
+-- What makes it shared is that a scene of a shared deck refers to it.
+update public.scenes
+   set content = jsonb_build_object(
+     'version', 1,
+     'elements', jsonb_build_array(jsonb_build_object(
+       'type', 'image',
+       'url', '/api/assets/dddddddd-0000-0000-0000-000000000001/content')))
+ where id = 'aaaaaaaa-0000-0000-0000-00000000000b';
 
 reset role;
 
@@ -549,8 +563,8 @@ end $$;
 -- Bob's own asset and its object, inserted after the visibility counts
 -- above so they cannot inflate them. They exist to prove that holding a
 -- link to Alice's shared deck buys nothing on Bob's unshared one.
-insert into public.assets (id, presentation_id, storage_path, kind, mime_type, byte_size) values
-  ('dddddddd-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000001',
+insert into public.assets (id, storage_path, kind, mime_type, byte_size) values
+  ('dddddddd-0000-0000-0000-000000000002',
    '22222222-2222-2222-2222-222222222222/asset2.png', 'image', 'image/png', 1024);
 insert into storage.objects (bucket_id, name, owner) values
   ('assets', '22222222-2222-2222-2222-222222222222/asset2.png', '22222222-2222-2222-2222-222222222222');

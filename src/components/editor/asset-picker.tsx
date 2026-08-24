@@ -103,7 +103,7 @@ export function AssetPicker({
       if (!file) return;
 
       setBusy(true);
-      const result = await uploadFile(file);
+      const result = await uploadFile(file, { presentationId });
       setBusy(false);
 
       if (!result.ok) {
