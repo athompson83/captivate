@@ -15,10 +15,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const OK_IMAGE = { data: [{ b64_json: "aGVsbG8=" }] };
 
 function mockDb(reserve: { id: string | null; refusal: string | null }) {
-  const rpc = vi.fn(async (_name: string, _args: Record<string, unknown>) => ({
-    data: [reserve],
-    error: null,
-  }));
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    void name;
+    void args;
+    return { data: [reserve], error: null };
+  });
   vi.doMock("@/lib/supabase/server", () => ({
     supabaseServer: vi.fn(async () => ({ rpc })),
   }));

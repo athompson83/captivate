@@ -51,7 +51,7 @@ export function CreateFlow({
   const [mode, setMode] = useState<"ai" | "template">(initialMode);
 
   return (
-    <div className="mx-auto max-w-4xl px-5 py-8 sm:px-8 sm:py-12">
+    <div className="mx-auto w-full max-w-4xl px-5 py-8 sm:px-8 sm:py-12 [@media(width>=110rem)]:max-w-6xl">
       <Link
         href="/home"
         className="text-ink-3 hover:text-ink-2 mb-6 inline-flex items-center gap-1.5 text-[13px] transition-colors"
@@ -78,16 +78,25 @@ export function CreateFlow({
         />
       </div>
 
+      {/*
+        Both paths stay mounted, and the inactive one is hidden rather than
+        unmounted. Switching used to destroy everything typed on the way out —
+        including, on the AI side, a narrative map that took a model call and a
+        round of editing to get right. `hidden` is display:none, so the hidden
+        path is out of the tab order and out of the accessibility tree; it is
+        not a private-material boundary, it is one author's own draft.
+      */}
       <div className="mt-6">
-        {mode === "template" ? (
+        <div hidden={mode !== "template"}>
           <TemplatePath
             folders={folders}
             folderId={folderId}
             initialTemplateId={initialTemplateId}
           />
-        ) : (
+        </div>
+        <div hidden={mode !== "ai"}>
           <AiPath folderId={folderId} />
-        )}
+        </div>
       </div>
     </div>
   );

@@ -38,7 +38,7 @@ export default async function HomePage() {
   const continueDeck = recent[0];
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
+    <div className="app-page">
       <header className="mb-8">
         <h1 className="text-ink text-[27px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
           {greeting()}, {firstName}

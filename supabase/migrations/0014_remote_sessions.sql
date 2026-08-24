@@ -112,7 +112,17 @@ begin
     return;
   end if;
 
-  execute 'alter table realtime.messages enable row level security';
+  -- Only where it is not already on. Supabase enables RLS on this table itself
+  -- and does not make the migration role its owner, so an unconditional ALTER
+  -- fails with `must be owner of table messages` — against the one target that
+  -- matters. The local stub arrives with RLS off, so the branch is real there.
+  if not (select c.relrowsecurity
+            from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'realtime' and c.relname = 'messages') then
+    execute 'alter table realtime.messages enable row level security';
+  end if;
+
   execute 'drop policy if exists captivate_remote_join on realtime.messages';
   execute 'drop policy if exists captivate_remote_publish on realtime.messages';
   execute $p$

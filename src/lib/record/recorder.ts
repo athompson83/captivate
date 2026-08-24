@@ -9,16 +9,18 @@
  *    the audience really sees — including live annotations, video elements and
  *    CSS animation — is `getDisplayMedia`, where the user picks this tab. That
  *    is what Captivate does, and the UI says so rather than implying magic.
- *  - Camera picture-in-picture is a genuine composite: the screen frame and the
- *    camera frame are drawn onto an offscreen canvas each animation frame, and
- *    `canvas.captureStream()` feeds the recorder. The camera is therefore baked
- *    into the resulting file, not overlaid at playback time.
+ *  - The camera is not composited here, and deliberately so. The presenter's
+ *    feed is already on the stage, in the tab being captured, where they put
+ *    it and at the size they made it. Drawing it a second time put two of the
+ *    presenter in the file, overlapping. What you see is what is recorded.
+ *  - Burn-in captions *are* composited, because they are the one thing that
+ *    exists only in the recording and never on the stage.
  *  - Container support is not universal. Chromium produces WebM; Safari
  *    produces MP4. The recorder asks the browser what it supports rather than
  *    assuming, and reports the real container to the user.
  */
 
-import { sharedPersonSegmenter, type CameraBackground, type PersonSegmenter } from "@/lib/media/segmentation";
+import type { CameraBackground } from "@/lib/media/segmentation";
 import {
   LiveTranscriber,
   clampCues,
@@ -183,6 +185,28 @@ export async function listDevices(): Promise<{
   };
 }
 
+/**
+ * Bitrate for what is actually being encoded.
+ *
+ * A flat 4 Mbit/s was fine for a 720p webcam and wrong for a deck: screen
+ * capture is mostly flat colour with hard-edged text, and text is exactly what
+ * a codec spends its bits on when it has them and smears when it does not. At
+ * 1440p that budget worked out at under a tenth of a bit per pixel, which is
+ * why a sharp presentation came back soft.
+ *
+ * Scaled by pixels and frame rate instead, with a floor so a small capture is
+ * not starved and a ceiling so a 4K screen does not produce a file nobody can
+ * upload.
+ */
+function videoBitrateFor(stream: MediaStream, fps: number): number {
+  const settings = stream.getVideoTracks()[0]?.getSettings();
+  const width = settings?.width ?? 1920;
+  const height = settings?.height ?? 1080;
+  const perFramePerPixel = 0.14;
+  const scaled = width * height * fps * perFramePerPixel;
+  return Math.round(Math.min(40_000_000, Math.max(6_000_000, scaled)));
+}
+
 export class PermissionError extends Error {
   constructor(
     public readonly kind: "screen" | "microphone" | "camera",
@@ -198,14 +222,11 @@ export class PresentationRecorder {
   private chunks: Blob[] = [];
   private screenStream: MediaStream | null = null;
   private micStream: MediaStream | null = null;
-  private cameraStream: MediaStream | null = null;
   private compositeStream: MediaStream | null = null;
   private rafId: number | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private screenVideo: HTMLVideoElement | null = null;
-  private cameraVideo: HTMLVideoElement | null = null;
 
-  private segmenter: PersonSegmenter | null = null;
   private transcriber: LiveTranscriber | null = null;
 
   private startedAt = 0;
@@ -218,10 +239,6 @@ export class PresentationRecorder {
   onPhaseChange?: (phase: RecorderPhase, detail?: string) => void;
   /** Fires when the user stops the share from the browser's own control. */
   onExternalStop?: () => void;
-
-  get cameraPreviewStream(): MediaStream | null {
-    return this.cameraStream;
-  }
 
   get mimeType(): string | null {
     return this.support.mimeType;
@@ -250,12 +267,32 @@ export class PresentationRecorder {
       this.screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           frameRate: { ideal: options.frameRate ?? 30 },
-          width: { ideal: options.targetWidth ?? 1920 },
+          // `ideal` on a display capture is a *ceiling* the browser scales
+          // down to, so 1920 meant a 2560-wide screen was resampled before it
+          // ever reached the canvas — which on a deck that is mostly text
+          // reads as a blurry recording of a sharp presentation. Ask for more
+          // than any current display and take whatever the browser actually
+          // has; `settings.width` below then sizes the canvas to match, so
+          // nothing is scaled at any point in the pipeline.
+          width: { ideal: options.targetWidth ?? 3840 },
+          height: { ideal: Math.round((options.targetWidth ?? 3840) * (9 / 16)) },
         },
         // System audio is inconsistent across platforms and easily produces
         // feedback; microphone audio is captured separately and reliably.
         audio: false,
-      });
+        // Put *this* tab in front of the presenter in the picker, and offer it
+        // as the default. Without these two, Chrome opens on a list of every
+        // tab that happens to be open and the one they are presenting from is
+        // somewhere in it — which is exactly the moment a recording gets
+        // pointed at the wrong window. Both are Chromium-only and both are
+        // ignored elsewhere, so no capability check is needed.
+        preferCurrentTab: true,
+        selfBrowserSurface: "include",
+        // Nothing here needs the presenter's other windows, and offering them
+        // is how a private tab ends up in a published recording.
+        systemAudio: "exclude",
+        surfaceSwitching: "exclude",
+      } as DisplayMediaStreamOptions);
     } catch (error) {
       this.cleanup();
       throw new PermissionError(
@@ -291,37 +328,19 @@ export class PresentationRecorder {
       );
     }
 
-    if (options.camera) {
-      try {
-        this.cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: options.cameraId
-            ? {
-                deviceId: { exact: options.cameraId },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              }
-            : { width: { ideal: 1280 }, height: { ideal: 720 } },
-        });
-      } catch {
-        // A missing camera must not cost the presenter their recording; carry
-        // on without it and let the caller surface the downgrade.
-        this.cameraStream = null;
-        this.onPhaseChange?.(
-          "ready",
-          "The camera couldn't be opened, so this will record screen and microphone only.",
-        );
-      }
-
-      if (this.cameraStream && options.cameraBackground && options.cameraBackground !== "none") {
-        this.segmenter = await sharedPersonSegmenter();
-        if (!this.segmenter) {
-          this.onPhaseChange?.(
-            "ready",
-            "Background removal isn't available in this browser, so the camera records as-is.",
-          );
-        }
-      }
-    }
+    // The camera is deliberately *not* opened here.
+    //
+    // It used to be: the recorder took its own camera stream and composited it
+    // into the canvas, while the presenter's on-stage feed carried on rendering
+    // in the tab being captured. Both ended up in the file, so a presenter who
+    // could see themselves got two of themselves in the recording, overlapping.
+    //
+    // The camera on the stage is the camera. It is already in the captured tab,
+    // already where the presenter dragged it, already the size they made it and
+    // already carrying whatever background treatment they chose — so recording
+    // it is a matter of not drawing it a second time. This also halves the work:
+    // one segmenter running on one feed rather than two of each, on a machine
+    // that is presenting and encoding at the same time.
 
     this.onPhaseChange?.("ready");
   }
@@ -333,7 +352,7 @@ export class PresentationRecorder {
 
     const wantsBurnIn = Boolean(this.options.transcribe && this.options.burnInCaptions);
     const stream =
-      this.cameraStream || wantsBurnIn
+      wantsBurnIn
         ? await this.buildCompositeStream()
         : new MediaStream([
             ...this.screenStream.getVideoTracks(),
@@ -342,7 +361,7 @@ export class PresentationRecorder {
 
     this.recorder = new MediaRecorder(stream, {
       mimeType: this.support.mimeType,
-      videoBitsPerSecond: 4_000_000,
+      videoBitsPerSecond: videoBitrateFor(stream, this.options.frameRate ?? 30),
       audioBitsPerSecond: 128_000,
     });
 
@@ -438,7 +457,9 @@ export class PresentationRecorder {
       durationMs,
       timeline: this.timeline,
       transcript,
-      hasCamera: Boolean(this.cameraStream),
+      // True when the presenter had their feed on the stage, which is where
+      // the camera in this file came from.
+      hasCamera: Boolean(this.options?.camera),
       hasMicrophone: Boolean(this.micStream),
     };
 
@@ -456,17 +477,14 @@ export class PresentationRecorder {
     for (const stream of [
       this.screenStream,
       this.micStream,
-      this.cameraStream,
       this.compositeStream,
     ]) {
       stream?.getTracks().forEach((track) => track.stop());
     }
     this.screenStream = null;
     this.micStream = null;
-    this.cameraStream = null;
     this.compositeStream = null;
     this.screenVideo = null;
-    this.cameraVideo = null;
     this.canvas = null;
     this.recorder = null;
     // Fire-and-forget: cleanup is the abandon path, and the cues are unwanted.
@@ -495,10 +513,6 @@ export class PresentationRecorder {
     if (!context) throw new Error("This browser couldn't create the compositing canvas.");
 
     this.screenVideo = await attachStream(this.screenStream!);
-    this.cameraVideo = this.cameraStream ? await attachStream(this.cameraStream) : null;
-
-    const inset = Math.round(width * options.placement.size);
-    const margin = Math.round(width * 0.022);
 
     // Composite at the rate actually being captured. This ran at the
 
@@ -521,12 +535,9 @@ export class PresentationRecorder {
 
       lastDrawn = now;
       const screen = this.screenVideo;
-      const camera = this.cameraVideo;
       if (!screen) return;
 
       context.drawImage(screen, 0, 0, canvas.width, canvas.height);
-
-      if (camera) this.drawCameraInset(context, canvas, camera, options, inset, margin, width, now);
 
       // Captions are drawn last so they sit above the camera if the two meet.
       if (options.transcribe && options.burnInCaptions) {
@@ -543,99 +554,6 @@ export class PresentationRecorder {
     return canvasStream;
   }
 
-  /** The camera inset, with its background treated per-frame, on-device. */
-  private drawCameraInset(
-    context: CanvasRenderingContext2D,
-    canvas: HTMLCanvasElement,
-    camera: HTMLVideoElement,
-    options: RecorderOptions,
-    inset: number,
-    margin: number,
-    width: number,
-    now: number,
-  ): void {
-    {
-      // Background treatment happens per-frame, on-device. When the segmenter
-      // has no answer for a frame (warm-up, a hiccup) the raw camera is drawn —
-      // a flickering feed is worse than one frame of background.
-      const background = options.cameraBackground ?? "none";
-      const treated =
-        background !== "none" && this.segmenter ? this.segmenter.render(camera, now, background) : null;
-      const source: CanvasImageSource = treated ?? camera;
-      const srcW = treated ? treated.width : camera.videoWidth;
-      const srcH = treated ? treated.height : camera.videoHeight;
-      const transparent = background === "remove" && treated !== null;
-
-      const camW = inset;
-      const camH = Math.round(inset * (srcH / srcW || 0.5625));
-      const x = options.placement.corner.endsWith("right") ? canvas.width - camW - margin : margin;
-      const y = options.placement.corner.startsWith("bottom")
-        ? canvas.height - camH - margin
-        : margin;
-
-      const shape = options.placement.shape;
-      if (shape === "cutout") {
-        // The presenter alone, floating over the stage. Without a working
-        // segmenter this falls back to a rounded card rather than stamping a
-        // rectangle of wall over the slide.
-        if (transparent) {
-          context.drawImage(source, x, y, camW, camH);
-        } else {
-          context.save();
-          roundedRect(context, x, y, camW, camH, Math.round(camW * 0.06));
-          context.clip();
-          context.drawImage(source, x, y, camW, camH);
-          context.restore();
-        }
-      } else {
-        context.save();
-        context.beginPath();
-        if (shape === "circle") {
-          const radius = Math.min(camW, camH) / 2;
-          context.arc(x + camW / 2, y + camH / 2, radius, 0, Math.PI * 2);
-          context.clip();
-          // Centre-crop the camera frame into the circle so faces are not squashed.
-          const side = Math.min(srcW, srcH);
-          const sx = (srcW - side) / 2;
-          const sy = (srcH - side) / 2;
-          context.drawImage(
-            source,
-            sx,
-            sy,
-            side,
-            side,
-            x + camW / 2 - radius,
-            y + camH / 2 - radius,
-            radius * 2,
-            radius * 2,
-          );
-        } else {
-          const radius = Math.round(camW * 0.06);
-          roundedRect(context, x, y, camW, camH, radius);
-          context.clip();
-          context.drawImage(source, x, y, camW, camH);
-        }
-        context.restore();
-
-        // A hairline keeps the inset legible against a light slide — except a
-        // transparent cut-out, where it would outline empty air.
-        if (!transparent) {
-          context.save();
-          context.strokeStyle = "rgba(255,255,255,0.35)";
-          context.lineWidth = Math.max(2, width * 0.0015);
-          if (shape === "circle") {
-            context.beginPath();
-            context.arc(x + camW / 2, y + camH / 2, Math.min(camW, camH) / 2, 0, Math.PI * 2);
-            context.stroke();
-          } else {
-            roundedRect(context, x, y, camW, camH, Math.round(camW * 0.06));
-            context.stroke();
-          }
-          context.restore();
-        }
-      }
-    }
-  }
 }
 
 async function attachStream(stream: MediaStream): Promise<HTMLVideoElement> {

@@ -90,7 +90,12 @@ export function PresenterCameraFeed({
     let acquired: MediaStream | null = null;
 
     navigator.mediaDevices
-      ?.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } })
+      ?.getUserMedia({
+        // The stage feed is what the recording contains now, and the stage is
+        // captured at up to the display's full resolution — a 720p source
+        // scaled up into that is soft in a way it never was as a small inset.
+        video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+      })
       .then((media) => {
         if (cancelled) {
           media.getTracks().forEach((t) => t.stop());
@@ -134,9 +139,11 @@ export function PresenterCameraFeed({
 
       const draw = (now: number) => {
         raf = requestAnimationFrame(draw);
-        // 24fps is plenty for an inset and keeps the main thread honest while
-        // the world is also flying a camera.
-        if (now - lastDrawn < 1000 / 24) return;
+        // 30fps, matching what the recorder encodes: at 24 the inset visibly
+        // judders against a page running at the display's rate, and since the
+        // stage feed is now the one that gets recorded, anything below the
+        // capture rate shows up in the file too.
+        if (now - lastDrawn < 1000 / 30) return;
         lastDrawn = now;
 
         const video = videoRef.current;

@@ -449,6 +449,8 @@ export function PresentRoot({
             currentSceneIndex={session.sceneIndex}
             currentSceneId={session.scene?.id ?? null}
             channel={session.channel}
+            cameraFeed={cameraFeed}
+            onCameraFeedChange={updateCameraFeed}
           />
         </>
       )}

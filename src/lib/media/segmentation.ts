@@ -34,6 +34,15 @@ const MODEL_URL = "/models/selfie_segmenter.tflite";
 /** Frames below this confidence are background. Chosen by eye on the model's own demo. */
 const PERSON_THRESHOLD = 0.55;
 
+/**
+ * How much of each new mask to believe, against the frame before it.
+ *
+ * Low enough that a boundary pixel stops flickering, high enough that real
+ * movement is not smeared: at 0.45 a genuinely changed pixel is most of the way
+ * there within three frames, an eighth of a second.
+ */
+const MASK_RESPONSIVENESS = 0.45;
+
 let shared: Promise<PersonSegmenter | null> | null = null;
 
 /**
@@ -70,6 +79,18 @@ export async function createPersonSegmenter(): Promise<PersonSegmenter | null> {
     }
 
     let maskImage: ImageData | null = null;
+    /**
+     * The previous frame's alpha, blended into this one.
+     *
+     * The model is run per frame and has no memory, so a pixel near the
+     * decision boundary — the edge of a shoulder, a strand of hair, anything
+     * moving — flips in and out between frames. Each frame is defensible on its
+     * own; the sequence shimmers, which is what "clunky" background removal
+     * actually looks like. Carrying most of the previous frame's answer forward
+     * costs one array and removes nearly all of it. Motion still gets through:
+     * a genuinely changed pixel converges within a few frames.
+     */
+    let previousAlpha: Float32Array | null = null;
     let lastTimestamp = -1;
     let closed = false;
 
@@ -102,8 +123,16 @@ export async function createPersonSegmenter(): Promise<PersonSegmenter | null> {
         // step, which is what keeps hair from becoming a hard sticker edge.
         const confidence = mask.getAsFloat32Array();
         const px = maskImage.data;
+        if (!previousAlpha || previousAlpha.length !== confidence.length) {
+          previousAlpha = new Float32Array(confidence.length);
+          previousAlpha.set(confidence);
+        }
+        const prev = previousAlpha;
         for (let i = 0; i < confidence.length; i++) {
-          const c = confidence[i];
+          // Smoothed first, then thresholded — the other order would ramp an
+          // already-hard edge and leave the flicker underneath it.
+          const c = prev[i] * (1 - MASK_RESPONSIVENESS) + confidence[i] * MASK_RESPONSIVENESS;
+          prev[i] = c;
           const a =
             c <= PERSON_THRESHOLD - 0.15
               ? 0

@@ -47,7 +47,7 @@ export function RecordingsLibrary({
   const [pending, start] = useTransition();
 
   return (
-    <div className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-10">
+    <div className="app-page">
       <header className="mb-6">
         <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Recordings</h1>
         <p className="text-ink-3 mt-1.5 max-w-2xl text-[13px] leading-relaxed">

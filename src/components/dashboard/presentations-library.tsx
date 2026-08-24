@@ -84,7 +84,7 @@ export function PresentationsLibrary({
   const hasFilters = Boolean(filters.q || filters.folder || filters.tag || filters.view !== "all");
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
+    <div className="app-page">
       <header className="mb-6 flex flex-wrap items-center gap-3">
         <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Presentations</h1>
         <div className="flex-1" />
@@ -271,7 +271,7 @@ export function PresentationsLibrary({
           ) : inTrash ? (
             <TrashList items={items} onChanged={() => router.refresh()} />
           ) : (
-            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 [@media(width>=110rem)]:grid-cols-4">
               {items.map((p) => (
                 <li key={p.id}>
                   <PresentationCard presentation={p} preview={previews[p.id] ?? null} />

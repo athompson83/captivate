@@ -83,7 +83,7 @@ export function AssetLibrary({ assets }: { assets: Asset[] }) {
 
   return (
     <div
-      className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10"
+      className="app-page"
       onDragOver={(e) => {
         e.preventDefault();
         setDragging(true);
@@ -171,7 +171,7 @@ export function AssetLibrary({ assets }: { assets: Asset[] }) {
           />
         </div>
       ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 [@media(width>=110rem)]:grid-cols-7">
           {shown.map((asset) => (
             <li key={asset.id}>
               <button
