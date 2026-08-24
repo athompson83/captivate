@@ -286,6 +286,25 @@ describe("backward conversion from existing presentations", () => {
     expect(map.movements.map((m) => m.label)).toEqual(["OPEN", "PROVE"]);
   });
 
+  it("does not turn an aside into a beat of the argument", () => {
+    // A moment is a pre-generation beat; a detail scene is an aside reached by
+    // clicking a hotspot. Worse, `inferRole` reads "open" and "close" from
+    // position, so an aside stored last was labelled the close of an argument
+    // it is not part of — and because the map is written whole, that phantom
+    // beat became permanent the first time the author edited it.
+    const withAside = [
+      ...scenes,
+      scene(4, { sectionId: "m2", flowRole: "detail", title: "The aside" }),
+    ];
+    const { moments } = deriveMap(withAside, sections);
+
+    expect(moments).toHaveLength(3);
+    expect(moments.map((m) => m.title)).not.toContain("The aside");
+    // The real closing scene keeps the closing role rather than losing it to
+    // an aside that happened to be stored after it.
+    expect(moments[moments.length - 1].id).toBe(scenes[scenes.length - 1].id);
+  });
+
   it("derives the same ids every time, so nothing has to be written to be stable", () => {
     const first = deriveMap(scenes, sections).moments.map((m) => m.id);
     const second = deriveMap(scenes, sections).moments.map((m) => m.id);

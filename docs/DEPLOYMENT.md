@@ -8,6 +8,10 @@
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes           | Yes                 | Publishable key                 |
 | `ANTHROPIC_API_KEY`             | No            | **No**              | Enables AI authoring            |
 | `CAPTIVATE_AI_MODEL`            | No            | No                  | Overrides the model id          |
+| `PEXELS_API_KEY`                | No            | **No**              | Enables the picker's Find tab   |
+| `OPENAI_API_KEY`                | No            | **No**              | Enables the picker's Generate tab |
+| `CAPTIVATE_IMAGE_BUDGET_USD`    | No            | No                  | Shared monthly image spend ceiling (default 100) |
+| `CAPTIVATE_IMAGE_DAILY_MAX`     | No            | No                  | Per-user daily generations (default 25) |
 | `NEXT_PUBLIC_SITE_URL`          | In production | Yes                 | Absolute origin for email links |
 | `SUPABASE_SERVICE_ROLE_KEY`     | No            | **No**              | Not needed by any current route |
 
@@ -24,7 +28,14 @@ modules marked `server-only`, so importing them into a client component is a
 build error rather than a silent leak.
 
 Without Supabase configuration the app renders an actionable setup screen naming
-the missing variables, rather than throwing on every request.
+the missing variables, rather than throwing on every request. The three optional
+provider keys degrade the same way in miniature: a deployment without
+`PEXELS_API_KEY` or `OPENAI_API_KEY` simply does not show that tab in the image
+picker, rather than showing one that fails when used.
+
+The two image budget figures are read at call time, so changing them takes
+effect without a deploy. They bound a real bill — see the reservation section in
+[SECURITY.md](SECURITY.md).
 
 ---
 
@@ -38,15 +49,33 @@ supabase link --project-ref <ref>
 supabase db push
 ```
 
-| Migration                 | Contents                                                 |
-| ------------------------- | -------------------------------------------------------- |
-| `0001_captivate_core.sql` | Tables, indexes, triggers, and RLS on all nine tables    |
-| `0002_storage.sql`        | Three private buckets and their per-user object policies |
+| Migration                        | Contents                                                       |
+| -------------------------------- | -------------------------------------------------------------- |
+| `0001_captivate_core.sql`        | Tables, indexes, triggers, and RLS on the core tables          |
+| `0002_storage.sql`               | Three private buckets and their per-user object policies       |
+| `0003`–`0004` journey            | World-canvas placement and its defaults                        |
+| `0005_movements.sql`             | `sections.label` — the movement name shown to the audience     |
+| `0006_narrative_map.sql`         | `moments`, `sections.purpose`, `scenes.moment_id`              |
+| `0007_target_duration.sql`       | `presentations.target_seconds`                                 |
+| `0008_search_path.sql`           | `search_path` pinned on every function; EXECUTE revoked from client roles on the trigger functions, which Supabase otherwise exposes at `/rest/v1/rpc/<name>` |
+| `0009_transcripts.sql`           | `recordings.transcript`                                        |
+| `0010_share_links.sql`           | `presentations.share_token` and the one resolver a link-holder may call |
+| `0011_shared_assets.sql`         | Asset access for a shared deck, and the storage policy behind it |
+| `0012_scene_flow_role.sql`       | `scenes.flow_role`, and `flowRole` in the shared payload       |
+| `0013_generation_reservation.sql`| Reserve-before-spend for AI calls                              |
+| `0014_remote_sessions.sql`       | `presentation_sessions` and the phone remote's channel gate    |
+| `0015_sourced_visuals.sql`       | Asset provenance, and the image-generation budget              |
+| `0016_shared_asset_by_reference.sql` | Resolves a shared deck's images by what the deck references |
 
-A third hardening step is applied on top in the live project and is folded into
-`0001`: `search_path` pinned on every function, and EXECUTE revoked from `anon`
-and `authenticated` on the trigger functions, which Supabase otherwise exposes
-at `/rest/v1/rpc/<name>`.
+Every one is additive: new columns carry defaults and new tables carry their own
+policies, so applying them ahead of a deploy is safe and is the right order.
+
+**`0014` touches `realtime.messages`, which Supabase owns.** The migration
+enables RLS on it only if it is not already enabled, because Supabase enables it
+itself and does not make the migration role the table's owner — an unconditional
+`ALTER` fails with `must be owner of table messages`. The policies it creates are
+what authorise the phone remote's channel; without them that feature does not
+work, and the block is skipped entirely where Realtime is not installed.
 
 ### Verify it worked
 

@@ -142,7 +142,16 @@ export function pacingOf(scenes: Scene[], sections: Section[]): Pacing {
     sections.map((section) => [section.id, section.label.trim() || section.title.trim()]),
   );
 
-  const paced: ScenePace[] = scenes.map((scene) => {
+  // The talk is the running order. A detail scene is an aside behind a
+  // hotspot: it may never be opened, and counting it inflates the estimate
+  // that exists precisely so the length reported is close to the real one.
+  // The rail's `movementsOf` extends a movement *over* an aside rather than
+  // letting it split one, and the grouping below has to do the same — a detail
+  // scene with a different (or null) section id sitting between two scenes of
+  // one movement would otherwise report that movement twice.
+  const running = scenes.filter((scene) => scene.flowRole !== "detail");
+
+  const paced: ScenePace[] = running.map((scene) => {
     const authored = scene.durationSeconds;
     return {
       sceneId: scene.id,
@@ -157,7 +166,7 @@ export function pacingOf(scenes: Scene[], sections: Section[]): Pacing {
   // Movements follow the same consecutive-run grouping the rail uses: two
   // separate stretches of one section are two movements, not one.
   const movements: MovementPace[] = [];
-  scenes.forEach((scene, index) => {
+  running.forEach((scene, index) => {
     const current = movements[movements.length - 1];
     const sectionId = scene.sectionId;
 

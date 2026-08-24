@@ -211,6 +211,55 @@ describe("health", () => {
     expect(health.checks[0].fix).toBeTruthy();
   });
 
+  it("measures the argument, not the asides hanging off it", () => {
+    // Detail scenes sit behind hotspots and may never be opened. Counting them
+    // reported a longer talk than the deck runs, and marked a deck down for
+    // notes on a stretch of talk that is not part of the running order.
+    const spine = [
+      scene(0, { sectionId: "a", speakerNotes: "Open with the question.", durationSeconds: 60 }),
+      scene(1, { sectionId: "a", speakerNotes: "Land the stakes.", durationSeconds: 60 }),
+      scene(2, { sectionId: "b", speakerNotes: "The mechanism.", durationSeconds: 60 }),
+    ];
+    const withAsides = [
+      spine[0],
+      // A different section id, deliberately: the aside must not split
+      // movement "a" into two the way an ordinary scene would.
+      scene(9, { sectionId: "z", flowRole: "detail", durationSeconds: 600 }),
+      spine[1],
+      spine[2],
+    ];
+
+    const plain = analyse(doc(spine, [section("a", "OPEN"), section("b", "EVIDENCE")]));
+    const asides = analyse(
+      doc(withAsides, [section("a", "OPEN"), section("b", "EVIDENCE"), section("z", "ASIDE")]),
+    );
+
+    expect(asides.pacing.totalSeconds).toBe(plain.pacing.totalSeconds);
+    expect(asides.pacing.movements.map((m) => m.sectionId)).toEqual(
+      plain.pacing.movements.map((m) => m.sectionId),
+    );
+
+    const notes = (h: typeof plain) => h.checks.find((c) => c.id === "notes")?.detail;
+    expect(notes(asides)).toBe(notes(plain));
+    expect(notes(asides)).toContain("3 of 3");
+  });
+
+  it("still judges an aside's own readability", () => {
+    // Scoping the counts to the running order must not stop looking at what an
+    // audience can end up seeing: a wall of text is one however it is reached.
+    const wall = composeScene("statement", {
+      heading: Array.from({ length: 200 }, (_, i) => `word${i}`).join(" "),
+    });
+    const health = analyse(
+      doc([
+        scene(0, { sectionId: "a", speakerNotes: "Open." }),
+        scene(1, { sectionId: "a", flowRole: "detail", content: wall }),
+      ]),
+    );
+    const readable = health.checks.find((c) => c.id === "density");
+    expect(readable?.status).not.toBe("pass");
+  });
+
   it("scores a well-formed presentation well", () => {
     const scenes = [
       scene(0, { sectionId: "a", speakerNotes: "Open with the question." }),
