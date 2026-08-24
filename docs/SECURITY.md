@@ -180,6 +180,61 @@ re-implementation wrong. `EXECUTE` is revoked from `public` and granted only to
 Verified: the function updates rows only where `presentation_id` matches _and_
 RLS admits them, so a caller passing another owner's scene ids updates nothing.
 
+## The phone remote is the first transport that leaves the browser
+
+Console-to-stage sync is `BroadcastChannel`: same origin, same browser, no
+network for anyone to reach. A phone is a different device, so the remote is the
+first thing here that needs an authorisation story rather than inheriting one.
+
+**The topic is named after the session, not the presentation.** A presentation id
+is long-lived and appears in ordinary shareable-looking URLs; a channel named
+after one would be addressable by anyone who ever saw it, for the life of the
+deck. A session id is minted when the presenter asks for a remote and dies when
+they disconnect, so most of the time the channel does not exist at all. This is
+defence in depth, not the control.
+
+**The control is the policy.** The channel is opened with `config.private: true`,
+which makes Realtime check RLS on `realtime.messages` for every join and every
+publish rather than admitting anyone who knows the topic name. Both policies
+call one function, `captivate_remote_topic_open`, so join and publish cannot
+drift apart: the topic must resolve to a session that is the caller's, `active`,
+and unexpired. A name that is not ours in shape, a session that does not exist,
+one that has ended, one that has expired, and one belonging to someone else all
+answer false without saying which.
+
+**The QR code is not a credential.** It encodes the remote route and a session
+id, and nothing else. Opening it still requires being signed in as the
+presentation's owner, and joining still requires the session to be live — so a
+photograph of the code, or a phone someone else picks up, grants nothing. A
+token in the code would have been a bearer credential that a photograph leaks;
+there is deliberately none to leak.
+
+**The remote route loads no presenter material.** Same load-boundary rule as the
+stage, and for a stronger reason: a phone is the device most likely to be handed
+to someone. The route loads the deck's title and the session; it does not import
+`getPresentationDocument`, `listNotes`, or the console. `tests/unit/
+remote-load-boundary.test.ts` reads the module rather than rendering it, because
+the claim is about what is imported at all.
+
+**Inbound messages are checked even though the channel should be clean.** A
+network can deliver a message twice, late, or after a reconnect flushes a queue
+— a duplicated `command` advances two scenes in front of a room, and a flushed
+backlog walks the deck forward on its own. `RemoteInbox` rejects a foreign
+session, an unrecognised protocol version, a malformed payload, the sender's own
+echo, a duplicate id, and anything sent more than thirty seconds ago. Ids are
+forgotten by age rather than by count, so the memory and the staleness window
+line up exactly and a duplicate cannot slip through by being crowded out — which
+a fixed ring would allow, since the laser streams envelopes at frame rate.
+
+**The stage never joins.** A phone's command is applied in the presenter's own
+window, through the same session API a keypress uses, and reaches the stage over
+the channel that already carries one. The projector gains no network listener,
+and presenter-only material gains nowhere new to go.
+
+Fifteen probes in `supabase/tests/rls_isolation.test.sql` cover this, and each of
+the gate's three conditions is mutation-checked: removing the owner check, the
+`active` check or the expiry check each turns a different probe red.
+
 ## AI spend is bounded by a reservation, not a count
 
 Model calls are metered against the caller's own rows in `ai_generations`, and

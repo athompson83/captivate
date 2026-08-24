@@ -19,6 +19,9 @@ import {
 } from "./movement-rail";
 import { AnnotationLayer } from "./annotation-layer";
 import { PresenterBar } from "./presenter-bar";
+import { ConnectPhone } from "./connect-phone";
+import { useRemoteBridge } from "@/lib/present/use-remote-bridge";
+import type { RemoteSession } from "@/lib/data/remote-sessions";
 import { RecordingController } from "@/components/record/recording-controller";
 import {
   PresenterCameraFeed,
@@ -122,6 +125,17 @@ export function PresentRoot({
     setCameraFeed(next);
     saveCameraFeedSettings(presentation.id, next);
   };
+  /**
+   * The phone remote, when one has been paired.
+   *
+   * Lives here rather than on the stage: a command from a phone is applied
+   * through the same session API a keypress uses, and reaches the stage over
+   * the channel that already carries one. The projector gains no network
+   * listener, and no presenter-only material has anywhere new to leak to.
+   */
+  const [remoteSession, setRemoteSession] = useState<RemoteSession | null>(null);
+  const remoteConnected = useRemoteBridge(audienceOnly ? null : remoteSession, session);
+
   const [color, setColor] = useState<string>(PRESENTER_COLORS[0].value);
   const [penWidth, setPenWidth] = useState(1);
   const [barVisible, setBarVisible] = useState(!audienceOnly);
@@ -419,6 +433,14 @@ export function PresentRoot({
             cameraFeed={cameraFeed}
             onCameraFeedChange={updateCameraFeed}
             fullscreen={fullscreen}
+            remote={
+              <ConnectPhone
+                presentationId={presentation.id}
+                session={remoteSession}
+                connected={remoteConnected}
+                onSession={setRemoteSession}
+              />
+            }
           />
 
           <RecordingController

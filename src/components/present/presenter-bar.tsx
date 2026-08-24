@@ -51,6 +51,7 @@ export function PresenterBar({
   cameraFeed,
   onCameraFeedChange,
   fullscreen,
+  remote,
 }: {
   visible: boolean;
   presentationId: string;
@@ -72,6 +73,8 @@ export function PresenterBar({
     denied: boolean;
     toggle: () => Promise<boolean>;
   };
+  /** The phone-remote control, or null where pairing is not offered. */
+  remote: React.ReactNode;
 }) {
   const [jumperOpen, setJumperOpen] = useState(false);
 
@@ -286,6 +289,8 @@ export function PresenterBar({
                 <MonitorPlay className="size-4" aria-hidden />
               </a>
             </Tooltip>
+
+            {remote}
 
             {fullscreen.supported && (
               <BarButton

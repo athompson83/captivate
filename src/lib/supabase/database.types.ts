@@ -134,6 +134,17 @@ export type RecordingRow = Timestamps & {
   error_message: string | null;
 };
 
+/** A phone-remote pairing. The Realtime topic is derived from `id`. */
+export type PresentationSessionRow = {
+  id: string;
+  owner_id: string;
+  presentation_id: string;
+  status: "active" | "ended";
+  created_at: string;
+  expires_at: string;
+  ended_at: string | null;
+};
+
 export type AiGenerationRow = {
   id: string;
   owner_id: string;
@@ -169,6 +180,7 @@ export type Database = {
       assets: Table<AssetRow>;
       recordings: Table<RecordingRow>;
       ai_generations: Table<AiGenerationRow>;
+      presentation_sessions: Table<PresentationSessionRow>;
     };
     Views: Record<never, never>;
     Functions: {
@@ -191,6 +203,10 @@ export type Database = {
       captivate_shared_asset: {
         Args: { p_asset_id: string };
         Returns: { storage_path: string; mime_type: string }[];
+      };
+      captivate_remote_topic_open: {
+        Args: { p_topic: string };
+        Returns: boolean;
       };
       captivate_reserve_generation: {
         Args: {

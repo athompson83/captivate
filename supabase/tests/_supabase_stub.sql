@@ -45,3 +45,33 @@ create or replace function storage.foldername(name text) returns text[]
 language sql immutable as $$
   select (string_to_array(name, '/'))[1 : array_length(string_to_array(name, '/'), 1) - 1];
 $$;
+
+-- ---------------------------------------------------------------------------
+-- realtime — enough of Supabase's Realtime schema to exercise the policies
+-- that gate the phone remote's channel.
+--
+-- `realtime.messages` is the table Realtime checks RLS against on every join
+-- and every publish of a private channel, and `realtime.topic()` is how a
+-- policy reads the topic name being joined. Stubbing them means the remote
+-- channel's authorisation rule is tested the same way every other policy is,
+-- rather than being the one security boundary nobody runs.
+-- ---------------------------------------------------------------------------
+create schema if not exists realtime;
+
+create table if not exists realtime.messages (
+  id         uuid primary key default gen_random_uuid(),
+  topic      text not null,
+  extension  text not null default 'broadcast',
+  payload    jsonb,
+  inserted_at timestamptz not null default now()
+);
+
+grant usage on schema realtime to anon, authenticated;
+grant select, insert on realtime.messages to anon, authenticated;
+
+-- Realtime sets the topic per connection; here it is a session setting the
+-- probes assign before attempting a join or a publish.
+create or replace function realtime.topic() returns text
+language sql stable as $$
+  select nullif(current_setting('realtime.topic', true), '');
+$$;

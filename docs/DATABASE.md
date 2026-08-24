@@ -83,6 +83,13 @@ WebVTT is derived from it on demand rather than stored.
 An audit row per model call: kind, prompt, status, model, token counts and any
 error. It is what makes cost visible, and it is also the rate limiter's counter.
 
+### `presentation_sessions`
+
+One row per phone-remote pairing: the deck, the owner, whether it is still
+active, and when it expires. Its `id` is what the Realtime topic is named after,
+which is why the row is the thing that says whether a channel may be joined at
+all — see "Remote sessions" below.
+
 ---
 
 ## Movements
@@ -160,13 +167,43 @@ these tables stays private until someone selects it here deliberately.
 database, including that anon sees zero table rows under production-shaped
 grants.
 
+## Remote sessions
+
+Migration `0014_remote_sessions.sql` adds `presentation_sessions` and
+`captivate_remote_topic_open(text)`, the function both Realtime policies call.
+
+The phone remote is the first transport in Captivate that leaves the browser, so
+it is the first channel that needs authorising rather than inheriting the
+same-origin guarantee `BroadcastChannel` gives for free. The channel is joined
+with `config.private: true`, which makes Realtime check RLS on
+`realtime.messages` for every join and every publish; both policies delegate to
+the one function so they cannot drift apart.
+
+The topic is named after the session, never the presentation: a deck id is
+long-lived and appears in shareable-looking URLs, so a channel named after one
+would stay addressable forever. A session id is minted on pairing and dies on
+disconnect.
+
+`realtime.messages` exists only where Supabase's Realtime extension is
+installed, so the policy block is guarded on `to_regclass` and skipped
+otherwise. The local harness stubs the schema (`_supabase_stub.sql`) so this
+boundary is tested the same way every other policy is, rather than being the one
+nobody runs.
+
 ## Row-level security
 
 Every table has RLS enabled. Two shapes:
 
 **Owner-scoped** (`profiles`, `folders`, `presentations`, `lecture_notes`,
-`assets`, `recordings`, `ai_generations`) compare `owner_id = auth.uid()`, with
-`WITH CHECK` on writes so ownership cannot be forged.
+`assets`, `recordings`, `ai_generations`, `presentation_sessions`) compare
+`owner_id = auth.uid()`, with `WITH CHECK` on writes so ownership cannot be
+forged.
+
+`presentation_sessions` adds one condition to that: its insert policy also
+requires `captivate_owns_presentation(presentation_id)`. Owning the row is not
+enough — without this a signed-in user could mint a session naming someone
+else's deck, and while that would not let them join that deck's stage, it would
+put a row into circulation claiming to control it.
 
 **Delegated** (`sections`, `scenes`) call `captivate_owns_presentation(uuid)`, a
 `SECURITY DEFINER` function with a pinned `search_path`. Writing the rule once
