@@ -84,7 +84,9 @@ Authenticated, rate limited, and validated before a single token is spent.
 Rate limiting counts the caller's own `ai_generations` rows in a rolling hour:
 30 heavy generations, 200 light ones. It is database-backed rather than
 in-memory because serverless instances make per-instance counters close to
-meaningless.
+meaningless — and the row is *reserved* before the call rather than recorded
+after it, which is what makes the number a limit rather than an average. See
+"AI spend is bounded by a reservation, not a count" below.
 
 The speaker-notes route reads the scene from the database rather than from the
 request body, so it cannot be used as a general-purpose summariser.
@@ -139,6 +141,14 @@ must be callable, because the RLS policies on `sections`, `scenes` and
 user own this presentation?" — and is already scoped to `auth.uid()`, so it
 leaks nothing. `anon` has been revoked; the trigger functions have had EXECUTE
 revoked from all client roles.
+
+The linter's suggested remediation — revoke `EXECUTE`, or switch to `SECURITY
+INVOKER` — is not available here, and this was checked rather than assumed:
+revoking it against the test database makes every read of `scenes`, `sections`
+and `lecture_notes` fail with `permission denied for function
+captivate_owns_presentation`. A policy expression is evaluated with the
+querying role's privileges, so the grant is load-bearing. Acting on that
+warning would not harden anything; it would take the application down.
 
 **`'unsafe-inline'` in `style-src`.** The stage positions every element with
 inline styles, which is what makes normalised geometry work. A nonce-based CSP
@@ -225,6 +235,43 @@ Fifteen probes in `supabase/tests/rls_isolation.test.sql` cover this, and each o
 the gate's three conditions is mutation-checked: removing the owner check, the
 `active` check or the expiry check each turns a different probe red.
 
+## AI spend is bounded by a reservation, not a count
+
+Model calls are metered against the caller's own rows in `ai_generations`, and
+the order of operations is the control. Counting the rows and *then* letting the
+request through leaves the whole model call — seconds of it — as a window in
+which the count does not move: a user one call below the limit could fire fifty
+requests at once, have all fifty read the same count, and spend all fifty. The
+limit bounded sequential use and nothing else.
+
+`captivate_reserve_generation` counts and writes the row in a single
+transaction, under a per-user advisory lock, and returns nothing rather than a
+ticket when the limit is reached. It fails closed on both sides: no `auth.uid()`
+means no ticket, and a client that cannot obtain one does not call the model.
+
+Recording the outcome is a second function rather than an `UPDATE` policy on the
+table, because the table deliberately has none — the limiter counts exactly
+these rows, so being able to edit them is how a caller would erase their own
+spend. `captivate_complete_generation` moves a row from `pending` to a terminal
+status and no other way, only for the caller's own row, only once, and never
+touches `kind`, `prompt`, `owner_id` or `created_at`. A completed row still
+counts.
+
+Both properties are asserted in `supabase/tests/rls_isolation.test.sql`, and the
+concurrency property — the one no single-connection probe can show — in
+`supabase/tests/reservation_race.sh`, which parks two dozen sessions on a shared
+advisory lock and releases them together. Against a limit of one it issues one
+ticket; with the lock removed from the function it issues nineteen.
+
+`checkRateLimit` still runs ahead of the reservation in `guard`. It is a cheap
+read whose only job is to turn an obviously-over-limit request into a `429` with
+a `Retry-After` before the body is parsed; it may fail open, because being wrong
+there only means a request is not rejected early. The reservation is the
+authoritative one. A request that slips past the pre-filter and is then refused
+a ticket currently surfaces as a `502` carrying the correct message rather than
+a `429` — the client renders the message either way, but the status is wrong for
+that narrow concurrent-burst path.
+
 ## Known gaps
 
 - **Email confirmation uses Supabase's built-in SMTP**, which is rate limited to
@@ -234,3 +281,12 @@ the gate's three conditions is mutation-checked: removing the owner check, the
   level; no UI exposes them.
 - **No audit log of sign-ins.** Supabase records them; Captivate does not
   surface them.
+- **No global AI spend ceiling.** The limits are per user per hour (30 heavy, 200
+  light), so total spend scales with the number of accounts. Bounding it needs an
+  owner-set figure and a global counter beside the per-user one in
+  `captivate_reserve_generation`, which is the right place for it — the locking
+  and fail-closed behaviour are already there.
+- **Leaked-password protection is disabled on the Supabase project.** Supabase
+  Auth can check new passwords against HaveIBeenPwned; it is off. This is a
+  project setting rather than a code change, and turning it on is strictly a
+  hardening step.

@@ -332,6 +332,86 @@ select 'alice_session_intact' as check, count(*) as n
  where id = 'eeeeeeee-0000-0000-0000-000000000001' and status = 'active';
 reset "realtime.topic";
 
+-- ---- AI spend reservation -----------------------------------------------------
+-- The limiter counts ai_generations rows, so the row has to exist before the
+-- model is called, not after. These probe the two properties that makes the
+-- ticket worth anything: it stops counting up past the limit, and it cannot be
+-- rewound to buy the caller more.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+
+-- Two reservations against a limit of two: both issued.
+select 'reserve_within_limit' as check,
+  (public.captivate_reserve_generation('probe', array['probe'], 'first', null, 60, 2)
+     is not null)::int as n;
+select 'reserve_second_within_limit' as check,
+  (public.captivate_reserve_generation('probe', array['probe'], 'second', null, 60, 2)
+     is not null)::int as n;
+
+-- The third is refused, and refused *before* anything is spent — the point of
+-- reserving rather than recording.
+select 'reserve_beyond_limit_refused' as check,
+  (public.captivate_reserve_generation('probe', array['probe'], 'third', null, 60, 2)
+     is null)::int as n;
+
+-- Naming someone else's deck attributes the row to no deck rather than to
+-- theirs: the function runs as definer, so RLS is not there to catch it.
+select public.captivate_reserve_generation(
+  'probe_other', array['probe_other'], 'foreign-deck',
+  'bbbbbbbb-0000-0000-0000-000000000001', 60, 5) \gset foreign_
+select 'reserve_foreign_deck_unattributed' as check,
+  (presentation_id is null)::int as n
+  from public.ai_generations where id = :'foreign_captivate_reserve_generation';
+
+-- …and naming its own owner's deck is attributed normally, so the check above
+-- is about ownership rather than the parameter being ignored.
+select public.captivate_reserve_generation(
+  'probe_other', array['probe_other'], 'own-deck',
+  'aaaaaaaa-0000-0000-0000-000000000001', 60, 5) \gset own_
+select 'reserve_own_deck_attributed' as check,
+  (presentation_id = 'aaaaaaaa-0000-0000-0000-000000000001')::int as n
+  from public.ai_generations where id = :'own_captivate_reserve_generation';
+
+-- Completing moves pending to terminal, once.
+select 'complete_own_pending' as check,
+  (public.captivate_complete_generation(
+     (select id from public.ai_generations
+       where kind = 'probe' and prompt = 'first'),
+     'succeeded', 'test-model', 10, 20, null))::int as n;
+select 'complete_is_not_replayable' as check,
+  (not public.captivate_complete_generation(
+     (select id from public.ai_generations
+       where kind = 'probe' and prompt = 'first'),
+     'succeeded', 'test-model', 10, 20, null))::int as n;
+
+-- And it cannot rewind a row to pending, which is how you would stop it
+-- counting against you.
+select 'complete_cannot_reopen' as check,
+  (not public.captivate_complete_generation(
+     (select id from public.ai_generations
+       where kind = 'probe' and prompt = 'second'),
+     'pending', null, null, null, null))::int as n;
+
+-- A completed row still counts, so the limit holds after the work is done.
+select 'reserve_still_refused_after_completing' as check,
+  (public.captivate_reserve_generation('probe', array['probe'], 'fourth', null, 60, 2)
+     is null)::int as n;
+reset role;
+
+-- Bob cannot complete Alice's reservation, and cannot see it either.
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select 'bob_completes_alice_reservation' as check,
+  (public.captivate_complete_generation(
+     (select id from public.ai_generations
+       where kind = 'probe' and prompt = 'second'),
+     'succeeded', 'stolen', 1, 1, null))::int as n;
+reset role;
+
+select 'alice_reservation_still_pending' as check,
+  (select (status = 'pending')::int from public.ai_generations
+    where kind = 'probe' and prompt = 'second') as n;
+
 -- ---- Shared-link assets ------------------------------------------------------
 -- A shared deck's scene content can reference uploaded media. The RPC that
 -- resolves it — and the storage read it depends on — must follow the same

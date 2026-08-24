@@ -41,13 +41,20 @@ if echo "$out" | grep -E "alice_[a-z_]*intact" | grep -qE "\|\s+0\s*$"; then
 fi
 
 # Every cross-user visibility probe must return zero rows.
-if echo "$out" | grep -E "bob_sees_alice|bob_idor|bob_delete_alice|anon_sees" | grep -qvE "\|\s+0\s*$"; then
+if echo "$out" | grep -E "bob_sees_alice|bob_idor|bob_delete_alice|anon_sees|bob_completes" | grep -qvE "\|\s+0\s*$"; then
   echo "RLS LEAK DETECTED"; exit 1
 fi
 # The phone remote's channel gate. Every `remote_*` probe states a property
 # that must hold; its anon and cross-user probes are covered by the rule above.
 if echo "$out" | grep -E "remote_|alice_session_intact" | grep -qvE "\|\s+1\s*$"; then
   echo "REMOTE CHANNEL TESTS FAILED"; exit 1
+fi
+
+# The reservation ticket: every probe states a property that must hold.
+# `bob_completes_alice_reservation` is the exception and is covered by the
+# cross-user rule above — it must come back 0.
+if echo "$out" | grep -E "reserve_|complete_|alice_reservation" | grep -vE "bob_completes" | grep -qvE "\|\s+1\s*$"; then
+  echo "AI RESERVATION TESTS FAILED"; exit 1
 fi
 
 # Every share-link assertion must hold (1 = the stated property was observed).
@@ -58,4 +65,8 @@ fi
 if echo "$out" | grep -E "shared_asset_" | grep -qvE "\|\s+1\s*$"; then
   echo "SHARED ASSET TESTS FAILED"; exit 1
 fi
+# The one property no single-connection probe can show: that the reservation
+# limit holds when the callers arrive together, which is the case it exists for.
+"$(dirname "$0")/reservation_race.sh"
+
 echo "RLS TESTS PASSED"
