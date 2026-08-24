@@ -22,7 +22,7 @@ import { EmptyState, Badge, Spinner } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils/cn";
 import { formatBytes, formatDuration, relativeTime } from "@/lib/utils/format";
-import { toWebVTT } from "@/lib/record/transcript";
+import { toWebVTT } from "@/lib/record/transcript-core";
 
 /**
  * Recordings library.
@@ -272,9 +272,15 @@ export function PlaybackBody({
     };
   }, [recording.id]);
 
-  const saveTitle = async () => {
-    if (title.trim() === recording.title || !title.trim()) return;
-    const result = await renameRecording(recording.id, title.trim());
+  /**
+   * Takes the value from the field rather than from state, so that Escape can
+   * restore the stored title and blur in the same gesture without racing a
+   * `setTitle` that has not re-rendered yet.
+   */
+  const saveTitle = async (next: string) => {
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === recording.title) return;
+    const result = await renameRecording(recording.id, trimmed);
     if (result.ok) onRenamed();
     else toast({ tone: "error", title: "Couldn't rename", description: result.error });
   };
@@ -286,7 +292,21 @@ export function PlaybackBody({
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            onBlur={saveTitle}
+            onBlur={(e) => void saveTitle(e.currentTarget.value)}
+            // Blur alone is not the gesture people use in a single-line title
+            // field: they type, press Enter, and find nothing happened. Escape
+            // abandons the edit — restoring the stored title first means the
+            // save that blur triggers has nothing left to write.
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" && e.key !== "Escape") return;
+              const field = e.currentTarget;
+              e.preventDefault();
+              if (e.key === "Escape") {
+                setTitle(recording.title);
+                field.value = recording.title;
+              }
+              field.blur();
+            }}
             aria-label="Recording title"
             className="text-ink hover:border-line-subtle focus:border-line w-full rounded-[var(--radius-sm)] border border-transparent bg-transparent px-2 py-1 text-[14px] font-medium transition-colors focus:bg-[var(--surface-inset)]"
           />

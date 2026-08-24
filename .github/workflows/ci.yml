@@ -70,7 +70,26 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      # The "authenticated" and "smoke" projects need a running app and, for
-      # "authenticated", live credentials — deliberately out of scope here.
-      # shader/lifecycle need neither: see playwright.config.ts's SERVERLESS set.
+      # The "authenticated" project needs live credentials — deliberately out
+      # of scope here. shader/lifecycle need no server at all: see
+      # playwright.config.ts's SERVERLESS set. "smoke" needs a server but no
+      # account, and has its own job below.
       - run: npx playwright test --project=shader --project=lifecycle
+
+  smoke:
+    name: "Playwright (production server: every route renders)"
+    runs-on: ubuntu-latest
+    # The one suite that exercises a real React Server Components runtime.
+    # `next build` succeeds on a server module that imports a `"use client"`
+    # helper; the route then answers 500 for every visitor. Nothing else in
+    # this workflow can see that, because nothing else runs the server.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npx playwright test --project=smoke

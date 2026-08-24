@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { LiveTranscriber } from "@/lib/record/transcript";
 import {
   clampCues,
   cueAt,
@@ -7,8 +8,7 @@ import {
   toWebVTT,
   vttTimestamp,
   wrapCueText,
-  LiveTranscriber,
-} from "@/lib/record/transcript";
+} from "@/lib/record/transcript-core";
 
 describe("cueFromFinalResult", () => {
   it("estimates a start from the word count", () => {
