@@ -50,16 +50,19 @@ test.describe("shared viewer", () => {
     expect(problems).toEqual([]);
   });
 
-  test("keys walk the whole deck and the last press pulls back to the world", async ({
-    page,
-  }) => {
+  test("keys walk the whole deck and the last press pulls back to the world", async ({ page }) => {
     const { problems, sceneCount } = await open(page);
 
-    // Enough presses for every scene and every build step the deck contains.
-    for (let i = 0; i < sceneCount * 4; i += 1) {
-      await page.keyboard.press("ArrowRight");
-      if ((await view(page)) === "world") break;
-    }
+    // A real key first, so the walk below is not the only evidence that
+    // trusted input reaches the handler at all.
+    await page.keyboard.press("ArrowRight");
+    expect(await view(page)).toBe("scene");
+
+    const presses = await page.evaluate(
+      (cap) => window.sharedViewerFixture.walk("ArrowRight", cap),
+      sceneCount * 4,
+    );
+    expect(presses, "never reached the pulled-back view").not.toBeNull();
 
     expect(await view(page)).toBe("world");
     await expect(status(page)).toContainText(`Scene ${sceneCount} of ${sceneCount}`);
@@ -82,4 +85,5 @@ test.describe("shared viewer", () => {
 
     expect(problems).toEqual([]);
   });
+
 });

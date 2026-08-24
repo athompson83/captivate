@@ -69,25 +69,51 @@ function exampleDeck(): SharedDeck {
   };
 }
 
+function mount(deck: SharedDeck): number {
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  createRoot(host).render(
+    <StrictMode>
+      <SharedViewer deck={deck} />
+    </StrictMode>,
+  );
+  return deck.scenes.length;
+}
+
 declare global {
   interface Window {
     sharedViewerFixture: {
       mount: () => number;
+      /**
+       * Walks the deck with the same keydown the browser delivers, in-page.
+       *
+       * Every CDP round-trip costs the better part of a second against this
+       * page, so a forty-press walk driven one call at a time took longer than
+       * the whole suite's timeout. The listener under test is a plain
+       * `window` keydown handler, so dispatching here exercises exactly the
+       * same path; the specs still send real keys either side of this to prove
+       * trusted input reaches it.
+       *
+       * Returns how many presses it took to reach the pulled-back view, or
+       * null if `cap` presses never got there.
+       */
+      walk: (key: string, cap: number) => Promise<number | null>;
     };
   }
 }
 
 window.sharedViewerFixture = {
-  /** Renders the viewer and returns the number of scenes mounted. */
-  mount() {
-    const deck = exampleDeck();
-    const host = document.createElement("div");
-    document.body.appendChild(host);
-    createRoot(host).render(
-      <StrictMode>
-        <SharedViewer deck={deck} />
-      </StrictMode>,
-    );
-    return deck.scenes.length;
+  /** Renders the viewer; returns the number of scenes in the running order. */
+  mount: () => mount(exampleDeck()),
+
+  async walk(key: string, cap: number) {
+    for (let i = 0; i < cap; i += 1) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      if (document.querySelector("[data-view]")?.getAttribute("data-view") === "world") {
+        return i + 1;
+      }
+    }
+    return null;
   },
 };
