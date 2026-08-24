@@ -65,6 +65,13 @@ export function PresentRoot({
   const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
   const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
 
+  // Where the current scene sits in the running order, ignoring asides — the
+  // rail's progress spine measures the argument, not the array.
+  const mainOrdinal = useMemo(
+    () => scenes.slice(0, session.sceneIndex + 1).filter((s) => s.flowRole !== "detail").length,
+    [scenes, session.sceneIndex],
+  );
+
   // Located by scene, not by section id: a section the argument returns to
   // produces two movements sharing one id, and looking up by id would name the
   // first stretch while the room is standing in the second.
@@ -285,7 +292,11 @@ export function PresentRoot({
         <MovementRail
           movements={movements}
           sceneIndex={session.sceneIndex}
-          totalScenes={scenes.length}
+          // The running order, not the array: the spine measures progress
+          // through the argument, and detail scenes would stop it ever
+          // reaching the end.
+          totalScenes={session.totalScenes}
+          mainOrdinal={mainOrdinal}
         />
       )}
 
