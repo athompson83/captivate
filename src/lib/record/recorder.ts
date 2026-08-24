@@ -68,10 +68,32 @@ export interface RecorderResult {
   hasMicrophone: boolean;
 }
 
-/** Preference order: quality first, then compatibility. */
+/**
+ * Preference order: quality first, then compatibility.
+ *
+ * The profile in an `avc1` string is a request, not decoration, and this list
+ * used to lead with `avc1.42E01E` — H.264 **Baseline**, level 3.0. Baseline
+ * has no CABAC and no B-frames, and it was being asked to encode a 1440p deck
+ * of hard-edged text: the one kind of content that shows the difference. High
+ * profile is asked for first now, at descending levels, with Baseline kept as
+ * the fallback for an encoder that genuinely has nothing else.
+ *
+ * MP4 stays ahead of WebM because it is the file a presenter can hand to
+ * anyone, and because H.264 is the codec most likely to have a hardware
+ * encoder behind it — which matters when the same machine is also segmenting
+ * a camera and driving a presentation. A browser without H.264 (Chromium
+ * builds without proprietary codecs) falls through to VP9, which is excellent
+ * on screen content.
+ *
+ * `MediaRecorder.isTypeSupported` decides; nothing here is assumed.
+ */
 const CANDIDATE_TYPES = [
-  "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+  "video/mp4;codecs=avc1.640033,mp4a.40.2", // High @ 5.1 — 4K
+  "video/mp4;codecs=avc1.64002A,mp4a.40.2", // High @ 4.2 — 1440p
+  "video/mp4;codecs=avc1.640029,mp4a.40.2", // High @ 4.1 — 1080p60
+  "video/mp4;codecs=avc1.640028,mp4a.40.2", // High @ 4.0
   "video/webm;codecs=vp9,opus",
+  "video/mp4;codecs=avc1.42E01E,mp4a.40.2", // Baseline: last resort, not first choice.
   "video/webm;codecs=vp8,opus",
   "video/webm",
   "video/mp4",
@@ -115,6 +137,19 @@ export function serverSupportSnapshot(): SupportInfo {
   return SERVER_SUPPORT;
 }
 
+/**
+ * The best container and codec this browser will actually record.
+ *
+ * Exported so the preference order can be checked against a stubbed
+ * `isTypeSupported` — the order is the whole decision, and it is not visible
+ * anywhere in the output until someone plays a soft recording.
+ */
+export function pickMimeType(
+  supported: (type: string) => boolean = (type) => MediaRecorder.isTypeSupported(type),
+): string | null {
+  return CANDIDATE_TYPES.find((type) => supported(type)) ?? null;
+}
+
 export function detectSupport(): SupportInfo {
   if (typeof window === "undefined") {
     return { supported: false, displayCapture: false, mimeType: null, extension: "webm" };
@@ -145,7 +180,7 @@ export function detectSupport(): SupportInfo {
     };
   }
 
-  const mimeType = CANDIDATE_TYPES.find((t) => MediaRecorder.isTypeSupported(t)) ?? null;
+  const mimeType = pickMimeType();
   if (!mimeType) {
     return {
       supported: false,
@@ -194,14 +229,20 @@ export async function listDevices(): Promise<{
  * not starved and a ceiling so a 4K screen does not produce a file nobody can
  * upload.
  */
-function videoBitrateFor(stream: MediaStream, fps: number): number {
+export function videoBitrateFor(stream: MediaStream, fps: number): number {
   const settings = stream.getVideoTracks()[0]?.getSettings();
-  const width = settings?.width ?? 1920;
-  const height = settings?.height ?? 1080;
+  return bitrateForFrame(settings?.width ?? 1920, settings?.height ?? 1080, fps);
+}
+
+/** The same decision, on plain numbers, so it can be checked without a stream. */
+export function bitrateForFrame(width: number, height: number, fps: number): number {
   const perFramePerPixel = 0.14;
   const scaled = width * height * fps * perFramePerPixel;
   return Math.round(Math.min(40_000_000, Math.max(6_000_000, scaled)));
 }
+
+/** What `getDisplayMedia` says the presenter actually picked. */
+type DisplaySurface = "browser" | "window" | "monitor";
 
 export class PermissionError extends Error {
   constructor(
@@ -220,6 +261,8 @@ export class PresentationRecorder {
   private micStream: MediaStream | null = null;
   private compositeStream: MediaStream | null = null;
   private rafId: number | null = null;
+  /** Which scheduler owns `rafId`, so the right cancel is called. */
+  private usingVideoFrameCallback = false;
   private canvas: HTMLCanvasElement | null = null;
   private screenVideo: HTMLVideoElement | null = null;
 
@@ -304,6 +347,28 @@ export class PresentationRecorder {
       this.onExternalStop?.();
     });
 
+    /*
+     * Say something if they shared the wrong thing.
+     *
+     * The browser's picker cannot be chosen for them — Chrome requires the
+     * selection, and no flag bypasses it — so `preferCurrentTab` puts this tab
+     * in front of them and this catches the case where they picked past it. A
+     * whole screen or another window is not merely a worse recording: sharing
+     * the screen this tab is on puts the preview inside its own capture, which
+     * is the mirrored-tunnel effect, and it captures whatever else is on that
+     * screen. Better to hear it in the first second than at the end of a talk.
+     */
+    const surface = this.screenStream.getVideoTracks()[0]?.getSettings().displaySurface as
+      DisplaySurface | undefined;
+    if (surface && surface !== "browser") {
+      this.onPhaseChange?.(
+        "requesting",
+        surface === "monitor"
+          ? "You shared a whole screen. Everything on it is being recorded, and this tab will appear inside its own preview — stop and choose this tab instead for a clean capture."
+          : "You shared a window rather than this tab. Stop and choose this tab if you meant to record the presentation.",
+      );
+    }
+
     try {
       this.micStream = await navigator.mediaDevices.getUserMedia({
         audio: options.microphoneId
@@ -347,13 +412,12 @@ export class PresentationRecorder {
     }
 
     const wantsBurnIn = Boolean(this.options.transcribe && this.options.burnInCaptions);
-    const stream =
-      wantsBurnIn
-        ? await this.buildCompositeStream()
-        : new MediaStream([
-            ...this.screenStream.getVideoTracks(),
-            ...this.micStream.getAudioTracks(),
-          ]);
+    const stream = wantsBurnIn
+      ? await this.buildCompositeStream()
+      : new MediaStream([
+          ...this.screenStream.getVideoTracks(),
+          ...this.micStream.getAudioTracks(),
+        ]);
 
     this.recorder = new MediaRecorder(stream, {
       mimeType: this.support.mimeType,
@@ -467,14 +531,12 @@ export class PresentationRecorder {
   /** Releases every device. Safe to call at any point. */
   cleanup(): void {
     if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId);
+      if (this.usingVideoFrameCallback) this.screenVideo?.cancelVideoFrameCallback?.(this.rafId);
+      else cancelAnimationFrame(this.rafId);
       this.rafId = null;
+      this.usingVideoFrameCallback = false;
     }
-    for (const stream of [
-      this.screenStream,
-      this.micStream,
-      this.compositeStream,
-    ]) {
+    for (const stream of [this.screenStream, this.micStream, this.compositeStream]) {
       stream?.getTracks().forEach((track) => track.stop());
     }
     this.screenStream = null;
@@ -510,31 +572,24 @@ export class PresentationRecorder {
 
     this.screenVideo = await attachStream(this.screenStream!);
 
-    // Composite at the rate actually being captured. This ran at the
-
-    // display's rate, so a 120Hz laptop drew a full 1080p frame plus the
-
-    // camera inset four times for every frame the encoder took — while the
-
-    // machine was already presenting and encoding.
-
+    /*
+     * Composite once per captured frame.
+     *
+     * This ran on `requestAnimationFrame` with a time check, so a 120Hz laptop
+     * woke four times for every frame the encoder took, and on a display
+     * slower than the capture rate it missed frames outright. The capture
+     * track produces frames; `requestVideoFrameCallback` fires on exactly
+     * those, so the copy happens once per frame that exists, no more and no
+     * fewer. The timed fallback stays for browsers without it.
+     */
     const fps = options.frameRate ?? 30;
-
     const interval = 1000 / fps;
+    let lastDrawn = -Infinity;
 
-    let lastDrawn = 0;
-
-    const draw = (now: number) => {
-      this.rafId = requestAnimationFrame(draw);
-
-      if (now - lastDrawn < interval) return;
-
-      lastDrawn = now;
+    const paint = () => {
       const screen = this.screenVideo;
       if (!screen) return;
-
       context.drawImage(screen, 0, 0, canvas.width, canvas.height);
-
       // Captions are drawn last so they sit above the camera if the two meet.
       if (options.transcribe && options.burnInCaptions) {
         const caption = this.transcriber?.displayText() ?? "";
@@ -542,14 +597,29 @@ export class PresentationRecorder {
       }
     };
 
-    this.rafId = requestAnimationFrame(draw);
+    const perVideoFrame = typeof this.screenVideo.requestVideoFrameCallback === "function";
+    const draw = (now: number) => {
+      if (perVideoFrame) {
+        this.rafId = this.screenVideo!.requestVideoFrameCallback(draw);
+        paint();
+        return;
+      }
+      this.rafId = requestAnimationFrame(draw);
+      if (now - lastDrawn < interval) return;
+      lastDrawn = now;
+      paint();
+    };
+
+    this.rafId = perVideoFrame
+      ? this.screenVideo.requestVideoFrameCallback(draw)
+      : requestAnimationFrame(draw);
+    this.usingVideoFrameCallback = perVideoFrame;
 
     const canvasStream = canvas.captureStream(fps);
     for (const track of this.micStream!.getAudioTracks()) canvasStream.addTrack(track);
     this.compositeStream = canvasStream;
     return canvasStream;
   }
-
 }
 
 async function attachStream(stream: MediaStream): Promise<HTMLVideoElement> {

@@ -92,12 +92,20 @@ export default defineConfig({
       // across a StrictMode remount, and a contentEditable's caret across a
       // store write. Neither needs a server or an account.
       name: "lifecycle",
-      testMatch: /(atmosphere-lifecycle|inline-editing|shared-viewer)\.spec\.ts/,
+      testMatch:
+        /(atmosphere-lifecycle|inline-editing|shared-viewer|presenter-camera|recording-quality)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         launchOptions: {
           executablePath,
-          args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
+          args: [
+            "--use-gl=swiftshader",
+            "--enable-unsafe-swiftshader",
+            // A camera, without hardware: the presenter-camera spec drives a
+            // real getUserMedia track through real pointer capture.
+            "--use-fake-ui-for-media-stream",
+            "--use-fake-device-for-media-stream",
+          ],
         },
       },
     },

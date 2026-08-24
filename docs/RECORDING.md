@@ -16,9 +16,21 @@ by capturing this browser tab." Choosing this tab gives the cleanest result. A
 picker appears because the browser insists on one, and no amount of engineering
 removes it.
 
-**Container support is not universal.** Chromium produces WebM; Safari produces
-MP4. The recorder asks `MediaRecorder.isTypeSupported` rather than assuming, and
-tells the user which format they will get.
+What engineering _can_ do is make the right choice the easy one, and notice a
+wrong one. `preferCurrentTab` and `selfBrowserSurface: "include"` put this tab
+in front of the presenter; `surfaceSwitching` and `systemAudio` are excluded
+because nothing here needs the presenter's other windows and offering them is
+how a private tab ends up in a published recording. The setup dialog names the
+tab to look for — the deck's own title. And once the share exists, the recorder
+reads `displaySurface` from the track: a whole screen or another window earns
+an immediate warning, because sharing the screen this tab is on puts the
+preview inside its own capture, and hearing that in the first second is better
+than at the end of a talk.
+
+**Container support is not universal.** Chromium with proprietary codecs and
+Safari produce MP4; a Chromium built without them produces WebM. The recorder
+asks `MediaRecorder.isTypeSupported` down an explicit preference order rather
+than assuming, and tells the user which format they will get.
 
 **There is no in-browser transcoding here.** Shipping ffmpeg.wasm to convert
 WebM to MP4 would add tens of megabytes and minutes of CPU. If MP4 is required
@@ -31,25 +43,105 @@ UI says this rather than implying otherwise.
 
 ```
 getDisplayMedia ──┐
-                  ├─→ (camera off) MediaStream ──→ MediaRecorder ──→ Blob
-getUserMedia ─────┘   audio track
+                  ├─→ MediaStream ──→ MediaRecorder ──→ Blob
+getUserMedia ─────┘   (audio only)
 
 getDisplayMedia ──┐
-getUserMedia ─────┼─→ canvas.captureStream + audio ──→ MediaRecorder ──→ Blob
- (camera)      ───┘   drawn each animation frame
+                  ├─→ canvas.captureStream + audio ──→ MediaRecorder ──→ Blob
+getUserMedia ─────┘   only when captions are burnt in
 ```
 
-With the camera off, the screen video track and the microphone audio track go
-straight into one `MediaStream`.
+**The recorder does not open a camera.** It takes the display and the
+microphone, and nothing else. The presenter's camera is already on the stage —
+`PresenterCameraFeed` in `src/components/present/presenter-camera.tsx` — and
+the stage is what is being captured, so the camera is in the file because it is
+in the tab.
 
-With the camera on, both video elements are drawn onto an offscreen canvas every
-animation frame — screen full-bleed, camera inset into the chosen corner, either
-circle-clipped with a centre crop (so faces are not squashed) or rounded, with a
-hairline so the inset stays legible against a light slide. The canvas is
-captured at 30fps and the microphone track added.
+It used to open its own camera and composite an inset, while the on-stage feed
+carried on rendering. Both ended up in the recording: the presenter, twice,
+overlapping. There is now exactly one `getUserMedia({ video })` in the whole
+application, and a test asserts a single video track is opened.
 
-The result is that the camera is genuinely **in** the file, not overlaid at
-playback time.
+The consequence worth knowing: **where the presenter puts the feed on the stage
+is where it is in the file.** Dragging it, resizing it and choosing its
+background are the same act as arranging the recording.
+
+The canvas path exists only for burnt-in captions, which have to be drawn into
+the pixels. It sizes itself to the capture's own dimensions — never a fixed
+1920 — and copies once per captured frame via `requestVideoFrameCallback`,
+falling back to a timed `requestAnimationFrame` loop where that is unavailable.
+
+---
+
+## Quality
+
+Three things decide whether a sharp presentation comes back sharp, and all
+three were wrong at some point.
+
+**The capture resolution.** `ideal` on a display capture is a _ceiling_ the
+browser scales down to, not a target it scales up to. Asking for
+`width: { ideal: 1920 }` meant a 2560-wide screen was resampled before it
+reached the encoder. The recorder now asks for more than any current display
+and takes whatever the browser gives, then sizes everything downstream from
+`track.getSettings()`.
+
+**The budget.** A flat 4 Mbit/s is fine for a webcam and wrong for a deck:
+screen capture is flat colour and hard-edged text, and text is what a codec
+spends its bits on when it has them and smears when it does not. At 1440p that
+budget worked out under a tenth of a bit per pixel. `bitrateForFrame` scales
+with pixels and frame rate at 0.14 bits per pixel per frame, with a 6 Mbit/s
+floor so a small capture is not starved and a 40 Mbit/s ceiling so a 4K screen
+does not produce a file nobody can upload.
+
+| capture       | budget             |
+| ------------- | ------------------ |
+| 1280×720 @30  | 6.0 Mbit/s (floor) |
+| 1920×1080 @30 | 8.7 Mbit/s         |
+| 2560×1440 @30 | 15.5 Mbit/s        |
+| 3840×2160 @30 | 34.8 Mbit/s        |
+
+**The profile.** The candidate list led with `avc1.42E01E` — H.264 _Baseline_,
+level 3.0, which has neither CABAC nor B-frames — so every Chrome with H.264
+took the weakest profile available for exactly the content that shows the
+difference. `pickMimeType` now asks for High profile first at descending
+levels, keeps VP9 ahead of Baseline, and keeps Baseline only as a last resort.
+`MediaRecorder.isTypeSupported` decides; nothing is assumed.
+
+`tests/e2e/recording-quality.spec.ts` encodes a page of text at 1440p and
+1080p in a real browser and decodes the result back, so "no silent downscale"
+is measured rather than asserted.
+
+---
+
+## Background removal
+
+MediaPipe's selfie segmenter, in wasm served from this origin, against a model
+committed to this repo. **No frame of camera video leaves the machine**, which
+is not an optimisation: a presenter's face is the most personal pixel stream
+the application touches.
+
+- **Scheduling** is `requestVideoFrameCallback`, so the model runs once per
+  decoded camera frame rather than once per display refresh. On a 120 Hz screen
+  with a 30 fps camera the old animation-frame loop woke four times per frame
+  that existed.
+- **Temporal smoothing** carries 55% of the previous frame's confidence
+  forward, before thresholding rather than after. The model has no memory, so a
+  pixel at the edge of a shoulder flips between frames — each frame defensible,
+  the sequence shimmering. That shimmer is what "clunky" background removal
+  looks like.
+- **Feathering** happens on the composite that applies the mask, drawn a blur
+  radius oversized so the edge of frame does not fade. A 256-wide mask on a
+  1920-wide frame otherwise decides the whole boundary inside about five source
+  pixels, which reads as a cut-out sticker.
+- **The delegate** is GPU, falling back to CPU if that fails. A blocked WebGL
+  context or a blacklisted driver used to take the feature out entirely.
+- **Under load** the segmenter steps 30 → 20 → 12 fps, and past that stops and
+  hands back the raw camera. A stuttering presentation is worse than a visible
+  room, and a nicety never gets to spend the frame budget the talk needs.
+
+`tests/bench/run.mts` measures the real cost in a real browser against the real
+model; `nextRung` in `src/lib/media/segmentation.ts` is the policy, unit-tested
+without needing any of it.
 
 ---
 
