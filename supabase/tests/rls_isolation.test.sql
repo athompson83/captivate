@@ -72,3 +72,28 @@ reset role;
 -- Alice's data is intact.
 select 'alice_data_intact' as check, count(*) as n from public.presentations
   where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+
+-- ---- Migration coverage ----------------------------------------------------
+-- run.sh must apply every migration in supabase/migrations/, not only
+-- 0001_captivate_core.sql. If it silently stopped at 0001 again, every RLS
+-- probe above would still "pass" while testing a schema years out of date —
+-- these checks fail loudly instead, against objects only later migrations
+-- create.
+do $$
+begin
+  if to_regclass('public.moments') is null then
+    raise exception 'FAIL: public.moments (added by 0006_narrative_map.sql) is missing — later migrations were not applied';
+  end if;
+  raise notice 'PASS: public.moments exists (0006_narrative_map.sql applied)';
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'presentations' and column_name = 'target_seconds'
+  ) then
+    raise exception 'FAIL: presentations.target_seconds (added by 0007_target_duration.sql) is missing — later migrations were not applied';
+  end if;
+  raise notice 'PASS: presentations.target_seconds exists (0007_target_duration.sql applied)';
+end $$;
