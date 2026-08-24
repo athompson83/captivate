@@ -68,6 +68,11 @@
   --success: oklch(0.54 0.14 155);
   --success-soft: oklch(0.95 0.04 155);
   --warning: oklch(0.66 0.15 75);
+  /* A warning needs a surface to sit on and text that reads on it. Same hue
+     family as --warning so the tone is recognisable, and both halves are
+     contrast-checked against each other in tests/unit/theme-contrast.test.ts. */
+  --warning-soft: oklch(0.95 0.045 78);
+  --warning-text: oklch(0.42 0.11 62);
   --danger: oklch(0.55 0.21 25);
   --danger-soft: oklch(0.96 0.04 25);
 
@@ -113,6 +118,8 @@
   --success: oklch(0.74 0.15 155);
   --success-soft: oklch(0.28 0.06 155);
   --warning: oklch(0.8 0.14 75);
+  --warning-soft: oklch(0.29 0.06 70);
+  --warning-text: oklch(0.86 0.11 78);
   --danger: oklch(0.68 0.19 25);
   --danger-soft: oklch(0.29 0.08 25);
 
@@ -155,6 +162,8 @@
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-text: var(--warning-text);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
 }
@@ -225,6 +234,35 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/**
+ * The shell's content column.
+ *
+ * A fixed 72rem cap put a third of a wide display into empty margin, with the
+ * widest gap sitting between the sidebar and the content — the one place a
+ * gap reads as a mistake rather than as breathing room. The cap still exists,
+ * because a line of prose stretched across two thousand pixels is unreadable;
+ * it just stops being the same cap on every display.
+ */
+@utility app-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 72rem;
+  padding-inline: 1.25rem;
+  padding-block: 2rem;
+
+  @media (width >= 40rem) {
+    padding-inline: 2rem;
+    padding-block: 2.5rem;
+  }
+  @media (width >= 90rem) {
+    max-width: 84rem;
+  }
+  @media (width >= 110rem) {
+    max-width: 100rem;
+    padding-inline: 3rem;
   }
 }
 

@@ -449,6 +449,8 @@ export function PresentRoot({
             currentSceneIndex={session.sceneIndex}
             currentSceneId={session.scene?.id ?? null}
             channel={session.channel}
+            cameraFeed={cameraFeed}
+            onCameraFeedChange={updateCameraFeed}
           />
         </>
       )}
@@ -461,14 +463,21 @@ export function PresentRoot({
         <div
           className="h-full bg-white/45 transition-[width] duration-500 ease-[var(--ease-out-quint)]"
           style={{
-            width: `${scenes.length ? ((session.sceneIndex + 1) / scenes.length) * 100 : 0}%`,
+            // The argument, not the array — the same measure the rail eight
+            // lines above already uses. Counting asides here meant the two
+            // read differently on the same screen, and the hairline could not
+            // reach its end on a deck with any.
+            width: `${session.totalScenes ? (mainOrdinal / session.totalScenes) * 100 : 0}%`,
           }}
         />
       </div>
 
       <p className="sr-only" aria-live="polite">
-        Scene {session.sceneIndex + 1} of {scenes.length}
-        {session.scene?.title ? `: ${session.scene.title}` : ""}
+        {session.scene?.flowRole === "detail"
+          ? `Detail${session.scene.title ? `: ${session.scene.title}` : ""}`
+          : `Scene ${mainOrdinal} of ${session.totalScenes}${
+              session.scene?.title ? `: ${session.scene.title}` : ""
+            }`}
       </p>
     </div>
   );

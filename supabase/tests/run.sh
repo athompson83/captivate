@@ -41,9 +41,15 @@ if echo "$out" | grep -E "alice_[a-z_]*intact" | grep -qE "\|\s+0\s*$"; then
 fi
 
 # Every cross-user visibility probe must return zero rows.
-if echo "$out" | grep -E "bob_sees_alice|bob_idor|bob_delete_alice|anon_sees|bob_completes" | grep -qvE "\|\s+0\s*$"; then
+if echo "$out" | grep -E "bob_sees_alice|bob_idor|bob_delete_alice|anon_sees|bob_completes|bob_settles" | grep -qvE "\|\s+0\s*$"; then
   echo "RLS LEAK DETECTED"; exit 1
 fi
+# The image budget. `bob_settles_alice_image` must be 0 and is covered by the
+# cross-user rule above; every other image_* probe states a property that holds.
+if echo "$out" | grep -E "image_" | grep -vE "bob_settles" | grep -qvE "\|\s+1\s*$"; then
+  echo "IMAGE BUDGET TESTS FAILED"; exit 1
+fi
+
 # The phone remote's channel gate. Every `remote_*` probe states a property
 # that must hold; its anon and cross-user probes are covered by the rule above.
 if echo "$out" | grep -E "remote_|alice_session_intact" | grep -qvE "\|\s+1\s*$"; then

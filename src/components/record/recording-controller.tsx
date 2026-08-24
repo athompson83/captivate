@@ -30,6 +30,7 @@ import {
   type RecorderResult,
 } from "@/lib/record/recorder";
 import type { CameraBackground } from "@/lib/media/segmentation";
+import type { CameraFeedSettings } from "@/components/present/presenter-camera";
 import { toWebVTT, transcriptSupported } from "@/lib/record/transcript";
 import { createRecording, finaliseRecording } from "@/lib/data/recordings";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -51,18 +52,38 @@ import { formatDuration, formatBytes } from "@/lib/utils/format";
  * recording is marked `local_only` and the UI says exactly that, instead of
  * showing a library entry that plays nothing.
  */
+/** Which size preset a freely-dragged feed is closest to. */
+function nearestSize(size: number): string {
+  const options = ["0.13", "0.2", "0.3"];
+  return options.reduce((best, option) =>
+    Math.abs(Number(option) - size) < Math.abs(Number(best) - size) ? option : best,
+  );
+}
+
 export function RecordingController({
   presentationId,
   presentationTitle,
   currentSceneIndex,
   currentSceneId,
   channel,
+  cameraFeed,
+  onCameraFeedChange,
 }: {
   presentationId: string;
   presentationTitle: string;
   currentSceneIndex: number;
   currentSceneId: string | null;
   channel: PresentChannel | null;
+  /**
+   * The camera on the stage — the same one the recording will contain.
+   *
+   * The recorder no longer opens a camera of its own. Turning the camera on
+   * here turns on the feed the presenter can see and drag, and that feed is
+   * what the tab capture records. Two cameras is how a presenter ended up in
+   * their own recording twice.
+   */
+  cameraFeed: CameraFeedSettings;
+  onCameraFeedChange: (next: CameraFeedSettings) => void;
 }) {
   const { toast } = useToast();
   const recorderRef = useRef<PresentationRecorder | null>(null);
@@ -79,15 +100,24 @@ export function RecordingController({
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [micId, setMicId] = useState<string>("");
   const [cameraId, setCameraId] = useState<string>("");
-  const [useCamera, setUseCamera] = useState(false);
-  const [cameraBackground, setCameraBackground] = useState<CameraBackground>("none");
+  // Reads and writes the stage feed rather than a second set of settings: the
+  // camera the presenter sees is the camera that gets recorded.
+  const useCamera = cameraFeed.enabled;
+  const setUseCamera = (enabled: boolean) => onCameraFeedChange({ ...cameraFeed, enabled });
+  const cameraBackground = cameraFeed.background;
   const [transcribe, setTranscribe] = useState(true);
   const [burnInCaptions, setBurnInCaptions] = useState(false);
-  const [placement, setPlacement] = useState<CameraPlacement>({
+  /**
+   * Still handed to the recorder, and no longer describing anything it draws.
+   * The stage feed owns position, size and shape now; this exists because
+   * `RecorderOptions` still carries the field, and it is filled from the stage
+   * so a reader comparing the two does not find two different answers.
+   */
+  const placement: CameraPlacement = {
     corner: "bottom-right",
-    size: 0.18,
-    shape: "circle",
-  });
+    size: cameraFeed.size,
+    shape: cameraFeed.shape,
+  };
 
   /* Keep the scene timeline in step with navigation. */
   useEffect(() => {
@@ -446,13 +476,12 @@ export function RecordingController({
         useCamera={useCamera}
         setUseCamera={setUseCamera}
         cameraBackground={cameraBackground}
-        setCameraBackground={setCameraBackground}
         transcribe={transcribe}
         setTranscribe={setTranscribe}
         burnInCaptions={burnInCaptions}
         setBurnInCaptions={setBurnInCaptions}
-        placement={placement}
-        setPlacement={setPlacement}
+        cameraFeed={cameraFeed}
+        onCameraFeedChange={onCameraFeedChange}
         format={support.extension.toUpperCase()}
         notice={notice}
       />
@@ -504,13 +533,12 @@ function SetupDialog({
   useCamera,
   setUseCamera,
   cameraBackground,
-  setCameraBackground,
   transcribe,
   setTranscribe,
   burnInCaptions,
   setBurnInCaptions,
-  placement,
-  setPlacement,
+  cameraFeed,
+  onCameraFeedChange,
   format,
   notice,
 }: {
@@ -527,13 +555,12 @@ function SetupDialog({
   useCamera: boolean;
   setUseCamera: (v: boolean) => void;
   cameraBackground: CameraBackground;
-  setCameraBackground: (b: CameraBackground) => void;
   transcribe: boolean;
   setTranscribe: (v: boolean) => void;
   burnInCaptions: boolean;
   setBurnInCaptions: (v: boolean) => void;
-  placement: CameraPlacement;
-  setPlacement: (p: CameraPlacement) => void;
+  cameraFeed: CameraFeedSettings;
+  onCameraFeedChange: (next: CameraFeedSettings) => void;
   format: string;
   notice: string | null;
 }) {
@@ -621,36 +648,10 @@ function SetupDialog({
                 ))}
               </select>
 
-              <div>
-                <p className="text-ink-3 mb-1.5 text-[10px] font-medium tracking-wider uppercase">
-                  Corner
-                </p>
-                <div className="grid w-[104px] grid-cols-2 gap-1">
-                  {(["top-left", "top-right", "bottom-left", "bottom-right"] as const).map(
-                    (corner) => (
-                      <button
-                        key={corner}
-                        onClick={() => setPlacement({ ...placement, corner })}
-                        aria-label={corner.replace("-", " ")}
-                        aria-pressed={placement.corner === corner}
-                        className={cn(
-                          "flex h-8 items-center justify-center rounded-[var(--radius-sm)] border transition-colors",
-                          placement.corner === corner
-                            ? "border-accent bg-[var(--accent-soft)]"
-                            : "border-line-subtle hover:border-line",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "size-2 rounded-full",
-                            placement.corner === corner ? "bg-accent" : "bg-[var(--border-strong)]",
-                          )}
-                        />
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
+              <p className="text-ink-3 text-[11px] leading-snug">
+                Drag the camera on the stage to move it, and pull its corner to resize. What you
+                arrange there is what the recording contains — it is the same feed, not a copy.
+              </p>
 
               <div>
                 <p className="text-ink-3 mb-1.5 text-[10px] font-medium tracking-wider uppercase">
@@ -661,11 +662,15 @@ function SetupDialog({
                   size="sm"
                   value={cameraBackground}
                   onChange={(background) => {
-                    setCameraBackground(background);
                     // A cut-out only makes sense with the background removed.
-                    if (background !== "remove" && placement.shape === "cutout") {
-                      setPlacement({ ...placement, shape: "circle" });
-                    }
+                    onCameraFeedChange({
+                      ...cameraFeed,
+                      background,
+                      shape:
+                        background !== "remove" && cameraFeed.shape === "cutout"
+                          ? "circle"
+                          : cameraFeed.shape,
+                    });
                   }}
                   options={[
                     { value: "none", label: "As is" },
@@ -682,8 +687,8 @@ function SetupDialog({
                 <Segmented
                   label="Camera shape"
                   size="sm"
-                  value={placement.shape}
-                  onChange={(shape) => setPlacement({ ...placement, shape })}
+                  value={cameraFeed.shape}
+                  onChange={(shape) => onCameraFeedChange({ ...cameraFeed, shape })}
                   options={
                     cameraBackground === "remove"
                       ? [
@@ -700,12 +705,12 @@ function SetupDialog({
                 <Segmented
                   label="Camera size"
                   size="sm"
-                  value={String(placement.size)}
-                  onChange={(v) => setPlacement({ ...placement, size: Number(v) })}
+                  value={nearestSize(cameraFeed.size)}
+                  onChange={(v) => onCameraFeedChange({ ...cameraFeed, size: Number(v) })}
                   options={[
                     { value: "0.13", label: "S" },
-                    { value: "0.18", label: "M" },
-                    { value: "0.26", label: "L" },
+                    { value: "0.2", label: "M" },
+                    { value: "0.3", label: "L" },
                   ]}
                 />
               </div>

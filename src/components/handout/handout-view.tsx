@@ -33,6 +33,13 @@ export function HandoutView({
   const theme = getTheme(presentation.themeId);
   const sectionById = new Map(sections.map((s) => [s.id, s]));
 
+  // The running order and each main scene's place in it. Detail scenes are
+  // asides reached by clicking a hotspot, so they belong in the handout as
+  // material and not in its numbering as pages of the talk.
+  const running = scenes.filter((scene) => scene.flowRole !== "detail");
+  const asides = scenes.length - running.length;
+  const ordinalOf = new Map(running.map((scene, i) => [scene.id, i + 1]));
+
   return (
     <div className="handout bg-base min-h-screen print:bg-white">
       {/* Screen-only controls; the printed page carries none of this. */}
@@ -93,17 +100,24 @@ export function HandoutView({
           )}
 
           <p className="text-ink-3 mt-8 text-[12px]">
-            {scenes.length} scene{scenes.length === 1 ? "" : "s"} · made with Captivate
+            {running.length} scene{running.length === 1 ? "" : "s"}
+            {asides > 0 && ` · ${asides} aside${asides === 1 ? "" : "s"}`} · made with Captivate
           </p>
         </section>
 
-        {scenes.map((scene, index) => {
+        {scenes.map((scene) => {
           const section = scene.sectionId ? sectionById.get(scene.sectionId) : null;
+          const detail = scene.flowRole === "detail";
+          // Asides are printed — they are part of the talk's material — but
+          // they are not numbered as pages of it. A deck with three of them
+          // used to print "12 scenes" and pages reading 5 / 12 where scene 5
+          // was something the room only saw if a hotspot was clicked.
+          const ordinal = detail ? null : ordinalOf.get(scene.id);
           return (
             <section key={scene.id} className="handout-page mb-12 print:mb-0">
               <div className="mb-3 flex items-baseline gap-3">
                 <span className="text-ink-3 text-[12px] tabular-nums">
-                  {index + 1} / {scenes.length}
+                  {detail ? "Aside" : `${ordinal} / ${running.length}`}
                 </span>
                 {section?.label && (
                   <span className="text-accent-text text-[10.5px] font-medium tracking-[0.14em] uppercase">

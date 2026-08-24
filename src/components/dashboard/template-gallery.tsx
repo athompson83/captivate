@@ -28,7 +28,7 @@ export function TemplateGallery({ templates }: { templates: TemplatePreview[] })
   const [chosen, setChosen] = useState<TemplatePreview | null>(null);
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
+    <div className="app-page">
       <header className="mb-2">
         <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Templates</h1>
         <p className="text-ink-3 mt-1.5 max-w-2xl text-[14px] leading-relaxed">
@@ -38,7 +38,7 @@ export function TemplateGallery({ templates }: { templates: TemplatePreview[] })
         </p>
       </header>
 
-      <ul className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 [@media(width>=110rem)]:grid-cols-4">
         {templates.map((template) => (
           <li key={template.id}>
             <button

@@ -591,6 +591,43 @@ describe("flowRole-aware navigation", () => {
 
   const at = (s: ReturnType<typeof session>) => s.store.getState().sceneIndex;
 
+  it("jumping does not turn the running-order count back into the array length", () => {
+    // `goTo` used to write `scenes.length`, undoing what the initial state had
+    // filtered. The first jump — the scene jumper, a number key, a click in the
+    // overview, the phone's first/last — silently changed what the movement
+    // rail's spine was measuring against, so it could no longer reach its own
+    // end and the phone's counter changed denominator mid-talk.
+    const api = session(mixed());
+    expect(api.store.getState().totalScenes).toBe(3);
+
+    api.send("goto", 2);
+    expect(api.store.getState().totalScenes).toBe(3);
+
+    api.send("last");
+    expect(api.store.getState().totalScenes).toBe(3);
+
+    api.send("first");
+    expect(api.store.getState().totalScenes).toBe(3);
+  });
+
+  it("jumping abandons an aside rather than leaving a way back into it", () => {
+    // Otherwise the return path points at a scene the presenter has left, and
+    // the next end-of-scene advance teleports backwards instead of going on.
+    const api = session(mixed());
+    api.dive("00000000-0000-4000-8000-000000000001");
+    expect(at(api)).toBe(1);
+    expect(api.store.getState().divePath).toEqual([0]);
+
+    api.send("goto", 4);
+    expect(at(api)).toBe(4);
+    expect(api.store.getState().divePath).toEqual([]);
+
+    // From the last scene of the running order, "next" pulls the camera back
+    // rather than jumping to where the abandoned aside had been launched from.
+    api.send("next");
+    expect(api.store.getState().overview).toBe(true);
+  });
+
   it("next skips detail scenes, keeping real indices", () => {
     const s = session(mixed());
     expect(at(s)).toBe(0);
