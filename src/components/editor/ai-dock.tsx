@@ -331,6 +331,7 @@ function SceneTools({
         momentId: null,
         speakerNotes: generated.speakerNotes,
         durationSeconds: null,
+        flowRole: "main" as const,
         createdAt: now,
         updatedAt: now,
       },

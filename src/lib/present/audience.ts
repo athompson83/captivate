@@ -35,6 +35,10 @@ export function forAudience(scenes: Scene[]): Scene[] {
       // required field would be a parse failure rather than a privacy win.
       speakerNotes: "",
       durationSeconds: scene.durationSeconds,
+      // Carried, not stripped: the stage indexes the same scene array the
+      // console does, so dropping this would make the two windows disagree
+      // about which scenes are in the running order.
+      flowRole: scene.flowRole,
       createdAt: scene.createdAt,
       updatedAt: scene.updatedAt,
     }),

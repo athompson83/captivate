@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   SCENE_SCHEMA_VERSION,
+  Scene,
   SceneContent,
   SceneElement,
   emptySceneContent,
@@ -225,5 +226,44 @@ describe("URL safety", () => {
       url: "javascript:alert(1)",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+/**
+ * `flowRole` separates the main argument from detail scenes reached by diving
+ * into a hotspot. Existing decks predate the field, so absence has to mean
+ * "main" — a stored scene that suddenly became a detail scene would vanish
+ * from the deck's own running order.
+ */
+describe("Scene.flowRole", () => {
+  const base = {
+    id: "00000000-0000-4000-8000-000000000001",
+    presentationId: "00000000-0000-4000-8000-000000000002",
+    sectionId: null,
+    position: 0,
+    title: "Untitled",
+    content: {},
+    placement: null,
+    momentId: null,
+    speakerNotes: "",
+    durationSeconds: null,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("defaults to main when absent", () => {
+    const parsed = Scene.safeParse(base);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.flowRole).toBe("main");
+  });
+
+  it("accepts an explicit detail role", () => {
+    const parsed = Scene.safeParse({ ...base, flowRole: "detail" });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.flowRole).toBe("detail");
+  });
+
+  it("rejects an unknown flow role", () => {
+    expect(Scene.safeParse({ ...base, flowRole: "nonsense" }).success).toBe(false);
   });
 });

@@ -128,6 +128,9 @@ export function toScene(row: SceneRow): { scene: Scene; recovered: boolean } {
       momentId: row.moment_id,
       speakerNotes: row.speaker_notes,
       durationSeconds: row.duration_seconds,
+      // Rows written before 0009 have no column at all through a stale client;
+      // "main" keeps those scenes in the running order rather than hiding them.
+      flowRole: row.flow_role ?? "main",
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     },

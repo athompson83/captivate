@@ -10,6 +10,7 @@ function scene(i: number, sectionId: string | null): Scene {
     presentationId: "00000000-0000-4000-8000-000000000fff",
     sectionId,
     position: i,
+    flowRole: "main" as const,
     title: `Scene ${i}`,
     content: composeScene("statement", { heading: `Heading ${i}` }),
     placement: null,

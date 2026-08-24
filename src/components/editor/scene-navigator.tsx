@@ -112,6 +112,7 @@ export function SceneNavigator({
         },
         speakerNotes: "",
         durationSeconds: null,
+        flowRole: "main" as const,
         createdAt: now,
         updatedAt: now,
       };

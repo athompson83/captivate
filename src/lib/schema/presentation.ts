@@ -554,6 +554,18 @@ export const Scene = z.object({
   speakerNotes: z.string().max(20000),
   /** Rehearsal target in seconds; drives the presenter pacing indicator. */
   durationSeconds: z.number().int().min(0).max(7200).nullable(),
+  /**
+   * Whether this scene is part of the argument or an aside reached from it.
+   *
+   * `main` scenes are the running order: next/prev walk them, the movement
+   * rail counts them, the scene jumper lists them. A `detail` scene is only
+   * reachable by diving into a hotspot, and is skipped by all of that.
+   *
+   * Absent means `main` on purpose. Every scene stored before hotspots
+   * existed is part of its deck's running order, and a default of `detail`
+   * would silently empty out decks that predate this field.
+   */
+  flowRole: z.enum(["main", "detail"]).default("main"),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

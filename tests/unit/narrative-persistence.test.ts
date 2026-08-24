@@ -93,6 +93,7 @@ function moment(overrides: Partial<Moment> & { id: string }): Moment {
 
 function scene(id: string, position: number): Scene {
   return {
+    flowRole: "main" as const,
     id,
     presentationId: PRESENTATION,
     sectionId: null,
