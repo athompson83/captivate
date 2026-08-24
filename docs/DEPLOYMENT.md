@@ -79,6 +79,10 @@ work, and the block is skipped entirely where Realtime is not installed.
 
 ### Verify it worked
 
+Two different questions, and both need asking.
+
+**Does the isolation hold?**
+
 ```bash
 # Against a local Postgres, with a Supabase-shaped stub:
 PGHOST=/tmp PGPORT=55432 PGUSER=postgres ./supabase/tests/run.sh
@@ -87,6 +91,35 @@ PGHOST=/tmp PGPORT=55432 PGUSER=postgres ./supabase/tests/run.sh
 This creates two users and asserts that neither can read, write, update or
 delete the other's presentations, scenes or notes, and that neither can forge
 `owner_id`. It exits non-zero on any leak.
+
+**Does the database you are about to serve users from have everything?**
+
+```bash
+SUPABASE_DB_URL='postgres://...' npm run migrations:check
+```
+
+Run this against the *target* database, as the last gate before a deploy is
+called done. It asks that database directly for every object the application
+needs — `supabase/schema_required.sql` — and names the feature each missing one
+breaks.
+
+This exists because the same failure has now happened twice, and both times it
+read as a code bug rather than a deploy that had not finished:
+
+| what was missing | what users saw |
+| --- | --- |
+| `0009`–`0014` | "Couldn't reserve an AI call just now." Every AI call, for everyone. |
+| `0015` | Image generation and stock search would have failed the same way. |
+
+Nothing else catches it. The build is green, the unit suite is green, and the
+RLS suite is green *because* it applies every migration to a scratch database
+first — every check ran against a database that was not the one serving users.
+
+It asserts objects rather than comparing migration filenames, because the
+ledger does not record them: Supabase splits `0001` into two rows and `0004`
+into two more, and records `0008_search_path` as `captivate_harden_functions`.
+Matching those by name produces false alarms, and a check that cries wolf is
+worse than no check at all.
 
 ---
 

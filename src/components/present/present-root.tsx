@@ -29,6 +29,7 @@ import {
   saveCameraFeedSettings,
   type CameraFeedSettings,
 } from "./presenter-camera";
+import { ordinalAt } from "@/lib/present/running-order";
 
 /** How often pointer activity may restart the presenter bar's countdown. */
 const ACTIVITY_INTERVAL = 250;
@@ -92,7 +93,7 @@ export function PresentRoot({
   // Where the current scene sits in the running order, ignoring asides — the
   // rail's progress spine measures the argument, not the array.
   const mainOrdinal = useMemo(
-    () => scenes.slice(0, session.sceneIndex + 1).filter((s) => s.flowRole !== "detail").length,
+    () => ordinalAt(scenes, session.sceneIndex),
     [scenes, session.sceneIndex],
   );
 
@@ -447,6 +448,7 @@ export function PresentRoot({
             presentationId={presentation.id}
             presentationTitle={presentation.title}
             currentSceneIndex={session.sceneIndex}
+            currentSceneOrdinal={mainOrdinal}
             currentSceneId={session.scene?.id ?? null}
             channel={session.channel}
             cameraFeed={cameraFeed}

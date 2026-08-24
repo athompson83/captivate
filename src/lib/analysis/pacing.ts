@@ -1,4 +1,5 @@
 import type { Scene, SceneElement, Section } from "@/lib/schema/presentation";
+import { runningOrder } from "@/lib/present/running-order";
 
 /**
  * How long a presentation actually takes.
@@ -149,7 +150,7 @@ export function pacingOf(scenes: Scene[], sections: Section[]): Pacing {
   // letting it split one, and the grouping below has to do the same — a detail
   // scene with a different (or null) section id sitting between two scenes of
   // one movement would otherwise report that movement twice.
-  const running = scenes.filter((scene) => scene.flowRole !== "detail");
+  const running = runningOrder(scenes);
 
   const paced: ScenePace[] = running.map((scene) => {
     const authored = scene.durationSeconds;

@@ -9,6 +9,7 @@ import { StageThumbnail } from "@/components/stage/stage";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/misc";
 import { cn } from "@/lib/utils/cn";
+import { runningOrder } from "@/lib/present/running-order";
 
 /**
  * Every scene, one to a page, through the same renderer the room saw.
@@ -36,7 +37,7 @@ export function HandoutView({
   // The running order and each main scene's place in it. Detail scenes are
   // asides reached by clicking a hotspot, so they belong in the handout as
   // material and not in its numbering as pages of the talk.
-  const running = scenes.filter((scene) => scene.flowRole !== "detail");
+  const running = runningOrder(scenes);
   const asides = scenes.length - running.length;
   const ordinalOf = new Map(running.map((scene, i) => [scene.id, i + 1]));
 

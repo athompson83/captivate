@@ -5,7 +5,10 @@ import { generateImage, isImageGenerationConfigured } from "@/lib/ai/visual-sour
 
 export const maxDuration = 120;
 
-const Input = z.object({ prompt: z.string().min(1).max(1000) });
+const Input = z.object({
+  prompt: z.string().min(1).max(1000),
+  presentationId: z.uuid().nullish(),
+});
 
 /**
  * One image, medium quality, 16:9.
@@ -30,7 +33,7 @@ export async function POST(request: Request) {
   const parsed = Input.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Describe the image you want." }, { status: 400 });
 
-  const result = await generateImage(parsed.data.prompt);
+  const result = await generateImage(parsed.data.prompt, parsed.data.presentationId ?? null);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
   return NextResponse.json({ image: result.data });
 }

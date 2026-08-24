@@ -168,7 +168,10 @@ const IMAGE_MODEL = "gpt-image-2";
  * deployment is out of budget" and "you have used your day's allowance" are
  * different situations for the person reading them.
  */
-export async function generateImage(prompt: string): Promise<Sourced<GeneratedImage>> {
+export async function generateImage(
+  prompt: string,
+  presentationId: string | null = null,
+): Promise<Sourced<GeneratedImage>> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { ok: false, error: "Image generation isn't configured on this deployment." };
 
@@ -182,7 +185,11 @@ export async function generateImage(prompt: string): Promise<Sourced<GeneratedIm
     "captivate_reserve_image_generation",
     {
       p_prompt: trimmed,
-      p_presentation_id: null,
+      // Attributed to the deck it was made for, so the ledger can answer which
+      // presentation an image cost money for. The reservation runs as definer
+      // and nulls a deck the caller does not own, so naming someone else's here
+      // buys nothing.
+      p_presentation_id: presentationId,
       p_estimate_usd: IMAGE_COST_ESTIMATE_USD,
       p_monthly_budget: limits.monthly,
       p_daily_max: limits.daily,

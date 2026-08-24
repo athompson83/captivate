@@ -58,6 +58,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:rls
+      # The assertions in supabase/schema_required.sql are what a deploy runs
+      # against the real database. Running them here, against a scratch
+      # database that has had every migration applied, is what keeps them from
+      # drifting: an object the app needs that no migration creates fails here.
+      - run: |
+          createdb -h localhost -U postgres schemacheck
+          psql -q -h localhost -U postgres -d schemacheck -v ON_ERROR_STOP=1 \
+            -f supabase/tests/_supabase_stub.sql
+          for f in supabase/migrations/*.sql; do
+            psql -q -h localhost -U postgres -d schemacheck -v ON_ERROR_STOP=1 -f "$f"
+          done
+          SUPABASE_DB_URL="postgres://postgres:postgres@localhost:5432/schemacheck" \
+            npm run migrations:check
 
   e2e-serverless:
     name: "Playwright (server-free: shader + lifecycle)"

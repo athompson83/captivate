@@ -11,6 +11,7 @@ import {
   type PresenterTool,
   type SceneAnnotations,
 } from "./protocol";
+import { runningOrderLength } from "@/lib/present/running-order";
 
 /**
  * Presentation session.
@@ -112,7 +113,7 @@ function initialState(scenes: Scene[], stepCounts: number[]): SessionState {
     sceneIndex: start,
     step: 0,
     stepsInScene: stepCounts[start] ?? 1,
-    totalScenes: scenes.filter((scene) => scene.flowRole !== "detail").length,
+    totalScenes: runningOrderLength(scenes),
     divePath: [],
     startedAt: null,
     sceneEnteredAt: Date.now(),

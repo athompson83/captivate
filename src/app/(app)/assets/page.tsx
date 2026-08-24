@@ -24,6 +24,14 @@ export default async function AssetsPage() {
       alt_text: string;
       original_filename: string;
       created_at: string;
+      source: "upload" | "stock" | "generated" | null;
+      creator_name: string | null;
+      creator_page_url: string | null;
+      original_page_url: string | null;
+      license_ref: string | null;
+      provider: string | null;
+      model: string | null;
+      prompt: string | null;
       presentations: { title: string } | null;
     };
     return {
@@ -36,6 +44,22 @@ export default async function AssetsPage() {
       alt: row.alt_text,
       filename: row.original_filename,
       createdAt: row.created_at,
+      /*
+       * Where this image came from.
+       *
+       * The picker tells people "the photographer is credited in the asset
+       * library", and nothing in the asset library credited anybody — the
+       * columns were written and never read. A licence obligation that exists
+       * only in the database is not discharged.
+       */
+      source: row.source ?? "upload",
+      creatorName: row.creator_name,
+      creatorPageUrl: row.creator_page_url,
+      originalPageUrl: row.original_page_url,
+      licenseRef: row.license_ref,
+      provider: row.provider,
+      model: row.model,
+      prompt: row.prompt,
       presentationTitle: row.presentations?.title ?? null,
       url: `/api/assets/${row.id}/content`,
     };

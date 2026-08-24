@@ -160,6 +160,11 @@ export async function listPresentations(opts: ListOptions = {}): Promise<Present
   let query = supabase
     .from("presentations")
     .select("*, folders(name), scenes(count)")
+    // The count a reader cares about is how long the talk is, and an aside is
+    // not a beat of it — it is reached by clicking a hotspot and may never be
+    // opened at all. Filtering the embedded rows rather than the parents, so a
+    // deck that is *only* asides still lists, showing none.
+    .eq("scenes.flow_role", "main")
     .is("deleted_at", null);
 
   if (opts.search?.trim()) {
@@ -313,6 +318,11 @@ export async function listTrashed(): Promise<PresentationSummary[]> {
   const { data, error } = await supabase
     .from("presentations")
     .select("*, folders(name), scenes(count)")
+    // The count a reader cares about is how long the talk is, and an aside is
+    // not a beat of it — it is reached by clicking a hotspot and may never be
+    // opened at all. Filtering the embedded rows rather than the parents, so a
+    // deck that is *only* asides still lists, showing none.
+    .eq("scenes.flow_role", "main")
     .not("deleted_at", "is", null)
     .order("deleted_at", { ascending: false });
   if (error) throw new Error(error.message);

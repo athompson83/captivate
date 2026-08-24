@@ -53,7 +53,18 @@ export interface RecorderOptions {
 
 export interface SceneMark {
   sceneId: string | null;
+  /** Where the scene lives in the array — what seeking and diffing need. */
   sceneIndex: number;
+  /**
+   * Where the presenter was in the *argument*: the running-order position of
+   * the main scene, which is the number the console, the progress bar and the
+   * handout all show. A chapter labelled from the array index called an aside
+   * stored seventh "Scene 7" of a talk with five scenes in it.
+   *
+   * Optional because recordings made before this existed have no answer, and
+   * inventing one for them would be worse than the label they already carry.
+   */
+  ordinal?: number;
   atMs: number;
 }
 
@@ -457,12 +468,12 @@ export class PresentationRecorder {
     this.onPhaseChange?.("recording");
   }
 
-  markScene(sceneId: string | null, sceneIndex: number): void {
+  markScene(sceneId: string | null, sceneIndex: number, ordinal?: number): void {
     if (!this.startedAt || this.recorder?.state !== "recording") return;
     const atMs = this.elapsedMs;
     const last = this.timeline[this.timeline.length - 1];
     if (last && last.sceneIndex === sceneIndex) return;
-    this.timeline.push({ sceneId, sceneIndex, atMs });
+    this.timeline.push({ sceneId, sceneIndex, ordinal, atMs });
   }
 
   get canPause(): boolean {

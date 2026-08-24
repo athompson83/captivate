@@ -80,6 +80,21 @@ test.describe("public surface", () => {
     "/settings",
   ];
 
+  test("a shared deck's image URL answers without a session", async ({ request }) => {
+    /*
+     * Public by design — a share link's images cannot require an account — so
+     * this is one of the few routes an anonymous request reaches at all. It
+     * must answer 404 for an id it cannot resolve, including on a deployment
+     * with no database, where the client it would otherwise build throws.
+     */
+    const response = await request.get(
+      "/api/assets/00000000-0000-4000-8000-000000000000/content",
+      { maxRedirects: 0 },
+    );
+    expect(response.status(), `answered ${response.status()}`).toBeLessThan(500);
+    expect(response.status()).not.toBe(307);
+  });
+
   for (const route of APP_ROUTES) {
     test(`${route} renders without a server error`, async ({ page }) => {
       const errors: string[] = [];
