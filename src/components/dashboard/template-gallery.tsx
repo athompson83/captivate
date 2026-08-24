@@ -47,6 +47,7 @@ export function TemplateGallery({ templates }: { templates: TemplatePreview[] })
                 "group border-line-subtle bg-raised w-full overflow-hidden rounded-[var(--radius-lg)] border text-left",
                 "transition-[border-color,transform,box-shadow] duration-[var(--duration-base)]",
                 "hover:border-line hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]",
+                "motion-reduce:transition-none motion-reduce:transform-none",
               )}
             >
               <span className="bg-sunken relative flex aspect-video items-center justify-center overflow-hidden">

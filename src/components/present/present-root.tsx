@@ -10,7 +10,13 @@ import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
 import { PRESENTER_COLORS, type PresenterTool } from "@/lib/present/protocol";
 import { World, type Focus } from "@/components/stage/world";
-import { MovementRail, MovementSignpost, movementsOf, nextMovement } from "./movement-rail";
+import {
+  MovementRail,
+  MovementSignpost,
+  movementAt,
+  movementsOf,
+  nextMovement,
+} from "./movement-rail";
 import { AnnotationLayer } from "./annotation-layer";
 import { PresenterBar } from "./presenter-bar";
 import { RecordingController } from "@/components/record/recording-controller";
@@ -58,6 +64,14 @@ export function PresentRoot({
   const movements = useMemo(() => movementsOf(scenes, sections), [scenes, sections]);
   const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
   const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
+
+  // Located by scene, not by section id: a section the argument returns to
+  // produces two movements sharing one id, and looking up by id would name the
+  // first stretch while the room is standing in the second.
+  const establishingMovement = session.establishing
+    ? movementAt(movements, session.sceneIndex)
+    : null;
+  const establishingIndex = establishingMovement ? movements.indexOf(establishingMovement) : -1;
 
   // Memoised: `stageSize` returns a fresh object, and this is a dependency of
   // the placements below, which are a prop of `World` — so without it `World`'s
@@ -275,11 +289,20 @@ export function PresentRoot({
         />
       )}
 
-      {signpost && !session.overview && !session.blanked && (
+      {signpost && !session.overview && !session.blanked && !session.establishing && (
         <MovementSignpost
           movement={signpost}
           index={signpostIndex}
           sceneTitle={scenes[signpost.start]?.title ?? ""}
+        />
+      )}
+
+      {establishingMovement && !session.overview && !session.blanked && (
+        <MovementSignpost
+          movement={establishingMovement}
+          index={establishingIndex}
+          sceneTitle=""
+          kind="entering"
         />
       )}
 

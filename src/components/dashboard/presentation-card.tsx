@@ -87,6 +87,7 @@ export function PresentationCard({
         "group border-line-subtle bg-raised relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border",
         "transition-[border-color,box-shadow,transform] duration-[var(--duration-base)]",
         "hover:border-line hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]",
+        "motion-reduce:transition-none motion-reduce:transform-none",
         pending && "opacity-70",
       )}
     >
@@ -141,7 +142,7 @@ export function PresentationCard({
           aria-label={favorite ? "Remove from favourites" : "Add to favourites"}
           aria-pressed={favorite}
           className={cn(
-            "rounded p-1 transition-colors",
+            "rounded p-2 transition-colors",
             favorite
               ? "text-accent"
               : "text-ink-3 hover:text-ink-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
@@ -156,7 +157,7 @@ export function PresentationCard({
             aria-label={`Actions for ${presentation.title}`}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            className="text-ink-3 hover:text-ink rounded p-1 opacity-0 transition-colors group-hover:opacity-100 focus-visible:opacity-100"
+            className="text-ink-3 hover:text-ink rounded p-2 opacity-0 transition-colors group-hover:opacity-100 focus-visible:opacity-100"
           >
             <MoreHorizontal className="size-3.5" aria-hidden />
           </button>
