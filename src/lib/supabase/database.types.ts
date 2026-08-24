@@ -192,6 +192,28 @@ export type Database = {
         Args: { p_asset_id: string };
         Returns: { storage_path: string; mime_type: string }[];
       };
+      captivate_reserve_generation: {
+        Args: {
+          p_kind: string;
+          p_count_kinds: string[];
+          p_prompt: string;
+          p_presentation_id: string | null;
+          p_window_minutes: number;
+          p_max: number;
+        };
+        Returns: string | null;
+      };
+      captivate_complete_generation: {
+        Args: {
+          p_id: string;
+          p_status: string;
+          p_model: string | null;
+          p_input_tokens: number | null;
+          p_output_tokens: number | null;
+          p_error: string | null;
+        };
+        Returns: boolean;
+      };
       captivate_asset_object_is_shared: {
         Args: { p_storage_path: string };
         Returns: boolean;
