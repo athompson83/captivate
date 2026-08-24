@@ -227,7 +227,17 @@ export function createSession({
         sceneIndex: clamped,
         step: Math.max(0, Math.min((stepCounts[clamped] ?? 1) - 1, step)),
         stepsInScene: stepCounts[clamped] ?? 1,
-        totalScenes: scenes.length,
+        // The running order, not the array. This used to write `scenes.length`
+        // and undo what `initialState` had carefully filtered, so the first
+        // time a presenter used the jumper, a number key or the overview, the
+        // movement rail's spine could no longer reach its own end and the
+        // phone's counter changed denominator mid-talk.
+        totalScenes: current.totalScenes,
+        // Jumping is a move within the argument, so it abandons any aside
+        // rather than leaving a return path pointing at a scene the presenter
+        // has left — from which the next end-of-scene "next" teleports
+        // backwards instead of advancing.
+        divePath: [],
         startedAt: current.startedAt ?? clock(current),
         sceneEnteredAt: clamped === current.sceneIndex ? current.sceneEnteredAt : clock(current),
         blanked: false,

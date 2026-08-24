@@ -114,7 +114,7 @@ export function AssetPicker({
       setLibrary(null); // Refresh the library next time it is opened.
       toast({ tone: "success", title: "Uploaded", description: file.name });
     },
-    [toast, applyAsset],
+    [toast, applyAsset, presentationId],
   );
 
   return (
