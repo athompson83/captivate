@@ -11,6 +11,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * The other direction matters just as much: the fallback must stay gated. It
  * resolves only what the RPC returns, so an id whose deck is not shared is a
  * 404 for owner and visitor alike, and revoking kills it for both.
+ *
+ * A deployment with no database is its own case, at the bottom: this route is
+ * one of the few an anonymous request reaches at all, so it must answer 404
+ * rather than throwing on a client it cannot build.
  */
 
 const PATH = "11111111-1111-1111-1111-111111111111/asset1.png";
@@ -40,6 +44,15 @@ function mockSupabase(opts: {
     data: opts.ownedPath ? { storage_path: opts.ownedPath } : null,
     error: null,
   });
+
+  // The route is reachable without a session — a share link's images have to
+  // be — so it checks configuration before building a client that would throw
+  // without one. Under vitest there are no environment variables, so without
+  // this every case below short-circuits to 404 and proves nothing.
+  vi.doMock("@/lib/supabase/config", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/supabase/config")>()),
+    isSupabaseConfigured: true,
+  }));
 
   vi.doMock("@/lib/supabase/server", () => ({
     supabaseServer: vi.fn(async () => ({
@@ -111,5 +124,26 @@ describe("shared asset content route", () => {
     const { rpc } = mockSupabase({ user: null, sharedPath: PATH });
     expect((await get("not-a-uuid")).status).toBe(404);
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("a deployment with no database", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("answers 404 rather than throwing on a client it cannot build", async () => {
+    vi.doMock("@/lib/supabase/config", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/lib/supabase/config")>()),
+      isSupabaseConfigured: false,
+    }));
+    vi.doMock("@/lib/supabase/server", () => ({
+      supabaseServer: vi.fn(async () => {
+        throw new Error("Supabase is not configured");
+      }),
+    }));
+    const res = await get(ASSET);
+    // There is no such asset, which is exactly what 404 means.
+    expect(res.status).toBe(404);
   });
 });

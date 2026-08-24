@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { STORAGE_BUCKETS, SIGNED_URL_TTL_SECONDS } from "@/lib/supabase/config";
+import {
+  STORAGE_BUCKETS,
+  SIGNED_URL_TTL_SECONDS,
+  isSupabaseConfigured,
+} from "@/lib/supabase/config";
 
 /**
  * Serves a private asset.
@@ -22,6 +26,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuid.test(id)) return new NextResponse("Not found", { status: 404 });
+
+  // This route is reachable without a session, because a share link's images
+  // have to be. On a deployment with no database that means it is reached
+  // before anything can be looked up — and `supabaseServer()` throws rather
+  // than returning empty. There is no such asset, so say so.
+  if (!isSupabaseConfigured) return new NextResponse("Not found", { status: 404 });
 
   const supabase = await supabaseServer();
   const {
