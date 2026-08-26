@@ -74,22 +74,44 @@ describe("light theme contrast after the warmth bump", () => {
     ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
   });
 
+  it("keeps muted body text readable on every light surface", () => {
+    for (const surface of [
+      "surface-base",
+      "surface-sunken",
+      "surface-raised",
+      "surface-overlay",
+      "surface-inset",
+    ]) {
+      expect(
+        contrastRatio(hex(token("text-muted")), hex(token(surface))),
+        `text-muted on ${surface}`,
+      ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+    }
+  });
+
+  it("keeps success body text readable on its tinted and recessed surfaces", () => {
+    for (const surface of ["success-soft", "surface-sunken", "surface-inset"]) {
+      expect(
+        contrastRatio(hex(token("success")), hex(token(surface))),
+        `success on ${surface}`,
+      ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+    }
+  });
+
   /**
-   * `--surface-raised` and `--surface-overlay` are the only two surfaces whose
-   * *lightness* the warmth bump touched — both came off pure white (L 1 → 0.99),
-   * and that costs contrast against every foreground drawn on them. `--success`
-   * sat at 4.54 against pure white and fell to 4.42, below AA, on real body
-   * text: a success toast renders `text-success` on `bg-overlay`
-   * (`src/components/ui/toast.tsx`).
-   *
-   * Only these two surfaces are asserted. `--surface-base`, `--surface-sunken`
-   * and `--surface-inset` kept their lightness and gained only chroma, so their
-   * ratios are within 0.01 of what they were before — any sub-AA pair there
-   * (`--text-muted` throughout, `--success` on sunken/inset) is pre-existing
-   * palette debt that the warmth bump neither caused nor is the place to fix.
+   * `--surface-raised` and `--surface-overlay` are the two surfaces whose
+   * lightness the warmth bump changed. Keep the full status/accent set guarded
+   * there in addition to the targeted body-text pairings above.
    */
   it("keeps every status and accent tone AA-legible on the two surfaces that were lightened", () => {
-    const foregrounds = ["text-primary", "text-secondary", "accent-text", "ai-text", "danger", "success"];
+    const foregrounds = [
+      "text-primary",
+      "text-secondary",
+      "accent-text",
+      "ai-text",
+      "danger",
+      "success",
+    ];
 
     for (const fg of foregrounds) {
       for (const surface of ["surface-raised", "surface-overlay"]) {

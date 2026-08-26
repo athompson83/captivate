@@ -42,7 +42,7 @@
 
   --text-primary: oklch(0.22 0.012 265);
   --text-secondary: oklch(0.44 0.012 265);
-  --text-muted: oklch(0.6 0.012 265);
+  --text-muted: oklch(0.52 0.012 265);
   --text-inverse: oklch(0.98 0.003 90);
 
   --border-subtle: oklch(0.91 0.005 265);
@@ -62,10 +62,9 @@
   --record: oklch(0.56 0.22 25);
   --record-soft: oklch(0.96 0.04 25);
 
-  /* L is 0.54, not 0.55: warming --surface-raised/--surface-overlay off pure
-     white cost this tone 0.12 of contrast and pushed a success toast's body
-     text below WCAG AA. */
-  --success: oklch(0.54 0.14 155);
+  /* Body-sized success labels appear on the tinted success surface as well as
+     neutral surfaces, so this foreground clears AA against both. */
+  --success: oklch(0.51 0.14 155);
   --success-soft: oklch(0.95 0.04 155);
   --warning: oklch(0.66 0.15 75);
   /* A warning needs a surface to sit on and text that reads on it. Same hue

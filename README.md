@@ -100,6 +100,9 @@ settings that need attention.
 | [FILE_STRUCTURE.md](docs/FILE_STRUCTURE.md)           | Where things live                                      |
 | [CONNECTIONS.md](docs/CONNECTIONS.md)                 | External services and how they are wired               |
 | [MVP_STATUS.md](docs/MVP_STATUS.md)                   | Honest status of every MVP requirement                 |
+| [PROJECT_CHECKLIST.md](PROJECT_CHECKLIST.md)          | Executive roadmap, acceptance criteria and evidence    |
+| [PROGRESS.md](PROGRESS.md)                            | Concise current state and session handoff               |
+| [APP_PROJECT_CONTROL_STANDARD.md](APP_PROJECT_CONTROL_STANDARD.md) | Standing delivery authority and closeout rules |
 | [AGENTS.md](AGENTS.md)                                | Conventions for anyone (or anything) editing this repo |
 
 ---

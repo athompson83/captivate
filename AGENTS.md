@@ -14,6 +14,28 @@ Captivate is an AI-native presentation, lecture and recording tool. `docs/ARCHIT
 explains how the pieces fit together; `docs/FILE_STRUCTURE.md` says where things live.
 This file is the short version of what you need to know before changing code.
 
+## Session control
+
+The Product Owner has preauthorized autonomous delivery until Captivate is explicitly
+declared shipped and live. At the start of every material session, read and reconcile:
+
+1. `AGENTS.md`
+2. `APP_PROJECT_CONTROL_STANDARD.md`
+3. `PROJECT_CHECKLIST.md`
+4. `PROGRESS.md`
+
+The control standard governs authority, fix-as-found behavior, GitHub/Vercel/Supabase
+use, browser and Playwright testing, Production delivery, infrastructure reuse,
+stale-code and branch cleanup, issue closeout, and the required session report. This
+file remains the repository-specific technical layer. If status prose conflicts with
+GitHub, deployment, database, or test evidence, refresh the prose and follow primary
+evidence.
+
+Before ending a material session, update `PROJECT_CHECKLIST.md` and `PROGRESS.md` once
+near closeout, update the existing detailed status or release document when the product
+state changed, and finish all safe recovery edges rather than assigning routine
+engineering work to the Product Owner.
+
 ## Commands
 
 ```bash
@@ -149,7 +171,7 @@ convenience.
 The timer and the scene jumper are a weaker case and are handled differently: single-
 screen presenting needs them in the same window as the stage, so they render there and
 are gated on `audienceOnly` — a rendering guard, driven by a query parameter. That is a
-deliberate exception for material that is merely *presenter-facing* rather than private.
+deliberate exception for material that is merely _presenter-facing_ rather than private.
 Notes are the thing the boundary exists for, and they are still never loaded.
 
 The phone remote (`/present/[id]/remote`) follows the strict rule, and more strictly: a
