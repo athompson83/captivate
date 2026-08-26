@@ -85,9 +85,8 @@ it. Each has a fallback.
 Designed for Vercel; nothing in the code is Vercel-specific. There is no custom
 server, no edge runtime requirement, and no platform-specific API.
 
-At the time of writing the project has **not** been created on Vercel: the
-connection available to this workspace returns `403 forbidden` on project
-creation, so the repository has to be imported once by hand. See
+The canonical Vercel project is connected and builds Preview deployments on push.
+Reuse that project and its Preview environments for branch isolation. See
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---

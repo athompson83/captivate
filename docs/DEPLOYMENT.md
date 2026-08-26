@@ -173,10 +173,9 @@ variables.
 4. **Add the resulting origin** to Supabase's redirect URL allowlist, and set
    `NEXT_PUBLIC_SITE_URL`.
 
-> **Note.** This step could not be completed automatically. The Vercel
-> connection available to this workspace returns
-> `403 forbidden … resource: project` on project creation, so the project has to
-> be imported once by hand. Everything after that is automatic on push.
+The canonical Vercel project is already connected and builds a Preview deployment on
+every push. Reuse that project and its Preview environments; do not create a second
+Vercel project for branch isolation.
 
 ### Build characteristics
 

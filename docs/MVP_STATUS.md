@@ -307,6 +307,6 @@ them exists:
    of the narrative map that a deterministic fallback cannot stand in for.
 5. Branching playback, then the node-and-edge editor it makes necessary.
 6. Lecture-note anchoring to moments.
-7. Sharing — a read-only link is the most-requested thing this does not do.
+7. Continue hardening the read-only sharing workflow now implemented on `main`.
 8. Speaker view on a phone, using the same BroadcastChannel protocol over a
    relay.
