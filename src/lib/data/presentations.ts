@@ -199,7 +199,7 @@ export async function listPresentations(opts: ListOptions = {}): Promise<Present
       query = query.order("updated_at", { ascending: false });
   }
 
-  const { data, error } = await query.limit(opts.limit ?? 60);
+  const { data, error } = await readTwice(() => query.limit(opts.limit ?? 60));
   if (error) throw new Error(`Could not load presentations: ${error.message}`);
 
   type Joined = PresentationRow & {
@@ -214,6 +214,30 @@ export async function listPresentations(opts: ListOptions = {}): Promise<Present
   }));
 }
 
+/**
+ * Runs a read, and runs it once more before giving up.
+ *
+ * The moment this exists for is the redirect straight after sign-in: the
+ * session cookie is milliseconds old, the serverless function may be cold,
+ * and a single refused or dropped PostgREST request at that instant was
+ * reaching the page as a thrown error — a full-page "This page didn't load"
+ * over a database that was perfectly healthy one retry later. One retry with
+ * a short pause absorbs exactly that class of blip; a database that is
+ * genuinely down still fails, into the same error boundary, with a Try again
+ * that now means something.
+ *
+ * Takes a closure rather than a builder because a PostgREST builder is a
+ * one-shot thenable — re-awaiting the same object is not a fresh request.
+ */
+async function readTwice<T extends { error: { message: string } | null }>(
+  run: () => PromiseLike<T>,
+): Promise<T> {
+  const first = await run();
+  if (!first.error) return first;
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return run();
+}
+
 /** Loads a full deck. Returns null when the id does not exist *or* is not ours. */
 export async function getPresentationDocument(
   id: string,
@@ -221,10 +245,12 @@ export async function getPresentationDocument(
   const supabase = await supabaseServer();
 
   const [presentationRes, sectionsRes, scenesRes, momentsRes] = await Promise.all([
-    supabase.from("presentations").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
-    supabase.from("sections").select("*").eq("presentation_id", id).order("position"),
-    supabase.from("scenes").select("*").eq("presentation_id", id).order("position"),
-    supabase.from("moments").select("*").eq("presentation_id", id).order("position"),
+    readTwice(() =>
+      supabase.from("presentations").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
+    ),
+    readTwice(() => supabase.from("sections").select("*").eq("presentation_id", id).order("position")),
+    readTwice(() => supabase.from("scenes").select("*").eq("presentation_id", id).order("position")),
+    readTwice(() => supabase.from("moments").select("*").eq("presentation_id", id).order("position")),
   ]);
 
   if (presentationRes.error || !presentationRes.data) return null;
@@ -269,11 +295,9 @@ export async function getPresentationMeta(id: string): Promise<PresentationRecor
 
 export async function listFolders() {
   const supabase = await supabaseServer();
-  const { data, error } = await supabase
-    .from("folders")
-    .select("*, presentations(count)")
-    .order("position")
-    .order("created_at");
+  const { data, error } = await readTwice(() =>
+    supabase.from("folders").select("*, presentations(count)").order("position").order("created_at"),
+  );
   if (error) throw new Error(error.message);
 
   return (data ?? []).map((f) => {
@@ -315,16 +339,18 @@ export async function listAllTags(): Promise<{ tag: string; count: number }[]> {
 
 export async function listTrashed(): Promise<PresentationSummary[]> {
   const supabase = await supabaseServer();
-  const { data, error } = await supabase
-    .from("presentations")
-    .select("*, folders(name), scenes(count)")
-    // The count a reader cares about is how long the talk is, and an aside is
-    // not a beat of it — it is reached by clicking a hotspot and may never be
-    // opened at all. Filtering the embedded rows rather than the parents, so a
-    // deck that is *only* asides still lists, showing none.
-    .eq("scenes.flow_role", "main")
-    .not("deleted_at", "is", null)
-    .order("deleted_at", { ascending: false });
+  const { data, error } = await readTwice(() =>
+    supabase
+      .from("presentations")
+      .select("*, folders(name), scenes(count)")
+      // The count a reader cares about is how long the talk is, and an aside
+      // is not a beat of it — it is reached by clicking a hotspot and may
+      // never be opened at all. Filtering the embedded rows rather than the
+      // parents, so a deck that is *only* asides still lists, showing none.
+      .eq("scenes.flow_role", "main")
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false }),
+  );
   if (error) throw new Error(error.message);
 
   type Joined = PresentationRow & {
