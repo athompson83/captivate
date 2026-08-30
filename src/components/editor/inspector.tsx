@@ -15,6 +15,7 @@ import {
 } from "@/lib/editor/store";
 import { Input, Textarea } from "@/components/ui/input";
 import { Field, Segmented, Slider, Toggle, Tooltip } from "@/components/ui/misc";
+import { DrawingControls } from "./drawing-panel";
 import { AssetPicker } from "./asset-picker";
 import { cn } from "@/lib/utils/cn";
 
@@ -90,6 +91,7 @@ function labelFor(element: SceneElement): string {
     quote: "Quote",
     list: "List",
     image: "Image",
+    drawing: "Drawing",
     video: "Video",
     audio: "Audio",
     shape: "Shape",
@@ -270,6 +272,14 @@ function StyleControls({
             placeholder="Who said it"
           />
         </Field>
+      )}
+
+      {element.type === "drawing" && (
+        <DrawingControls
+          element={element}
+          presentationId={presentationId}
+          onPatch={(update, label, key) => patch(update, label, key)}
+        />
       )}
 
       {(element.type === "image" || element.type === "video") && (

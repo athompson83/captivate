@@ -58,13 +58,25 @@ export const STAGE_EASE = [0.22, 1, 0.36, 1] as const;
  * a staggered list. Presenter navigation walks these before moving on.
  */
 export function buildStepCount(
-  elements: { animation: ElementAnimation; type: string; items?: unknown[]; staggered?: boolean }[],
+  elements: {
+    animation: ElementAnimation;
+    type: string;
+    items?: unknown[];
+    staggered?: boolean;
+    paths?: { stage: number }[];
+  }[],
 ): number {
   let steps = 1;
   for (const el of elements) {
     if (el.animation.onAdvance) steps += 1;
     if (el.type === "list" && el.staggered && Array.isArray(el.items)) {
       steps += Math.max(0, el.items.length - 1);
+    }
+    // A drawing's stages are builds, exactly as a staggered list's items are:
+    // each press of "next" sketches the next stage. A drawing whose paths are
+    // all stage 0 costs nothing and sketches itself on arrival.
+    if (el.type === "drawing" && Array.isArray(el.paths)) {
+      steps += el.paths.reduce((top, path) => Math.max(top, path.stage), 0);
     }
   }
   return steps;

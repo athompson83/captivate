@@ -23,6 +23,7 @@ import {
   type Size,
 } from "@/lib/present/camera";
 import { smoothPath } from "@/lib/present/path";
+import { measureDrawnPath } from "./drawn-picture";
 import { ambientAt, paletteOf, scenePalettes } from "@/lib/present/ambient";
 import { oklabCss } from "@/lib/utils/color";
 import { Stage } from "./stage";
@@ -544,24 +545,33 @@ export const World = memo(function World({
             viewBox={`${worldBounds.x} ${worldBounds.y} ${worldBounds.width} ${worldBounds.height}`}
           >
             {/* Two strokes: a wide soft one that reads as a trodden path,
-                and a fine dotted one over it that reads as direction. */}
+                and a fine dotted one over it that reads as direction. The
+                wide one draws itself in when the overview opens — the same
+                sketch mechanism as a drawing element, measured once and
+                animated by the browser — and the dots fade up behind it. A
+                dotted stroke cannot be dash-animated (the dashes *are* the
+                dots), which is why the draw-in belongs to the solid one. */}
             <path
+              ref={measureDrawnPath}
               d={route}
-              fill="none"
+              className="dp-path dp-drawn"
               stroke="var(--stage-accent)"
               strokeWidth={stage.width * 0.05}
               strokeLinecap="round"
               strokeLinejoin="round"
               opacity={0.06}
+              style={{ "--dp-dur": "1.4s" } as React.CSSProperties}
             />
             <path
               d={route}
+              className="dp-fade"
               fill="none"
               stroke="var(--stage-accent)"
               strokeWidth={stage.width * 0.006}
               strokeLinecap="round"
               strokeDasharray={`${stage.width * 0.002} ${stage.width * 0.028}`}
               opacity={0.45}
+              style={{ animationDelay: "0.9s" }}
             />
           </svg>
         )}

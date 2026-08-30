@@ -11,6 +11,7 @@ import {
 } from "@/lib/schema/theme";
 import { STAGE_BASE_WIDTH, fitScale, stageSize } from "@/lib/present/stage";
 import { STAGE_EASE, entranceFrom, entranceTo } from "@/lib/present/motion";
+import { DrawnPicture } from "./drawn-picture";
 import { ElementView } from "./element-view";
 import { cn } from "@/lib/utils/cn";
 
@@ -390,6 +391,12 @@ function StaggeredElement({
   step: number;
   play: boolean;
 }) {
+  // A drawing while presenting is performed, not shown: paths whose stage has
+  // been reached are sketched, the rest wait for the next advance. Everywhere
+  // else (editor, thumbnails) ElementView renders it complete.
+  if (element.type === "drawing" && play) {
+    return <DrawnPicture element={element} step={step} />;
+  }
   if (element.type === "list" && element.staggered && play) {
     const visible = Math.max(1, Math.min(element.items.length, step + 1));
     return (

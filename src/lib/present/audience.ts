@@ -1,4 +1,4 @@
-import type { Scene } from "@/lib/schema/presentation";
+import type { Scene, SceneContent } from "@/lib/schema/presentation";
 
 /**
  * What the audience window is allowed to receive.
@@ -27,7 +27,7 @@ export function forAudience(scenes: Scene[]): Scene[] {
       sectionId: scene.sectionId,
       position: scene.position,
       title: scene.title,
-      content: scene.content,
+      content: contentForAudience(scene.content),
       placement: scene.placement,
       momentId: scene.momentId,
       // The one presenter-only field on a scene. Emptied, not omitted: the
@@ -43,4 +43,23 @@ export function forAudience(scenes: Scene[]): Scene[] {
       updatedAt: scene.updatedAt,
     }),
   );
+}
+
+/**
+ * The element-level half of the same boundary.
+ *
+ * A drawing carries two authoring fields the room has no use for: the stage
+ * labels the author navigated by, and the prompt that generated the picture.
+ * Neither is presenter-private the way notes are, but the cheap default is
+ * the strict one. Emptied rather than omitted, for the same schema-sharing
+ * reason as `speakerNotes` above.
+ */
+function contentForAudience(content: SceneContent): SceneContent {
+  if (!content.elements.some((element) => element.type === "drawing")) return content;
+  return {
+    ...content,
+    elements: content.elements.map((element) =>
+      element.type === "drawing" ? { ...element, stageLabels: [], prompt: "" } : element,
+    ),
+  };
 }

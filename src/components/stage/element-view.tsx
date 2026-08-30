@@ -3,6 +3,7 @@
 import { createElement, memo } from "react";
 import * as Icons from "lucide-react";
 import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
+import { DrawnPicture } from "./drawn-picture";
 import { embedSandbox } from "@/lib/utils/embed";
 import { categoricalHues, resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
@@ -677,6 +678,12 @@ export const ElementView = memo(function ElementView({
 
     case "chart":
       return <ChartView element={element} theme={theme} rem={rem} />;
+
+    case "drawing":
+      // Complete, not animated: this path serves the editor canvas, thumbnails
+      // and previews, where the picture is being looked at rather than
+      // performed. The stage swaps in the step-driven version while presenting.
+      return <DrawnPicture element={element} step={Number.POSITIVE_INFINITY} />;
 
     case "embed":
       return (

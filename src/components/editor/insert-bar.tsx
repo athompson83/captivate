@@ -17,6 +17,7 @@ import {
   Star,
   Type,
   Video as VideoIcon,
+  PenTool,
 } from "lucide-react";
 import type { SceneElementType, SceneLayout } from "@/lib/schema/presentation";
 import { ALL_LAYOUTS, relayoutScene } from "@/lib/editor/layouts";
@@ -33,6 +34,7 @@ const ICONS: Record<SceneElementType, React.ComponentType<{ className?: string }
   callout: Lightbulb,
   code: Code2,
   image: ImageIcon,
+  drawing: PenTool,
   video: VideoIcon,
   audio: Music,
   embed: Layout,

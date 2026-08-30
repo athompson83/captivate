@@ -219,6 +219,28 @@ export function createElement(type: SceneElementType, at?: { x: number; y: numbe
         radius: 1.5,
       };
 
+    case "drawing":
+      // A real three-stage sample rather than an empty box: the element shows
+      // what it is the moment it lands, and Generate replaces it wholesale.
+      return {
+        ...base,
+        type: "drawing",
+        frame: centred(48, 34),
+        viewBox: { width: 240, height: 140 },
+        paths: [
+          { d: "M 30 70 A 22 22 0 1 0 74 70 A 22 22 0 1 0 30 70", stage: 0 },
+          { d: "M 84 70 L 148 70", stage: 1 },
+          { d: "M 138 62 L 150 70 L 138 78", stage: 1 },
+          { d: "M 158 48 L 218 48 L 218 92 L 158 92 Z", stage: 2 },
+        ],
+        stageLabels: ["The starting point", "What it leads to", "Where it lands"],
+        ink: "ink",
+        strokeWidth: 2,
+        paceSeconds: 1.6,
+        prompt: "",
+        alt: "A sample diagram: a circle leading to a box",
+      };
+
     default: {
       const exhaustive: never = type;
       throw new Error(`Unhandled element type: ${String(exhaustive)}`);
@@ -234,6 +256,7 @@ export const INSERTABLE: { type: SceneElementType; label: string; group: string 
   { type: "callout", label: "Callout", group: "Text" },
   { type: "code", label: "Code", group: "Text" },
   { type: "image", label: "Image", group: "Media" },
+  { type: "drawing", label: "Drawing", group: "Media" },
   { type: "video", label: "Video", group: "Media" },
   { type: "audio", label: "Audio", group: "Media" },
   { type: "embed", label: "Embed", group: "Media" },
