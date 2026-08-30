@@ -1,0 +1,80 @@
+import type { DrawnPath, SceneContent, SceneElement } from "@/lib/schema/presentation";
+import { elementId } from "./layouts";
+
+/**
+ * Swaps a generated scene's empty media placeholder for a drawing.
+ *
+ * A deck written by the model used to arrive with image slots that were
+ * *empty* — the placeholder waited for a photograph that needed a paid
+ * provider key the deployment may not have. A drawing needs only the text
+ * model that just wrote the deck, so the media slot can arrive with a real
+ * staged illustration in it instead of a grey box.
+ *
+ * Pure and narrow on purpose: it touches exactly one element — the untouched
+ * placeholder the layout composer created (an image with no url and no
+ * asset) — and returns null rather than guessing when there isn't one. An
+ * author's own image, however it got there, is never replaced.
+ */
+export function replaceMediaWithDrawing(
+  content: SceneContent,
+  drawing: {
+    viewBox: { width: number; height: number };
+    paths: DrawnPath[];
+    stageLabels: string[];
+    alt: string;
+  },
+  prompt: string,
+): SceneContent | null {
+  const index = content.elements.findIndex(
+    (element) => element.type === "image" && !element.url && !element.assetId,
+  );
+  if (index === -1) return null;
+
+  const placeholder = content.elements[index] as Extract<SceneElement, { type: "image" }>;
+  const element: SceneElement = {
+    id: elementId("drawing"),
+    type: "drawing",
+    frame: placeholder.frame,
+    viewBox: drawing.viewBox,
+    paths: drawing.paths,
+    stageLabels: drawing.stageLabels,
+    ink: "ink",
+    strokeWidth: 2,
+    paceSeconds: 1.6,
+    prompt: prompt.slice(0, 1000),
+    alt: drawing.alt || placeholder.alt,
+    hidden: false,
+    locked: false,
+    opacity: 1,
+    hotspot: null,
+    animation: placeholder.animation,
+  };
+
+  const elements = [...content.elements];
+  elements[index] = element;
+  return { ...content, elements };
+}
+
+/**
+ * Which generated scenes deserve a drawing.
+ *
+ * Side-by-side layouts with an untouched placeholder and a real prompt, at
+ * most `cap` of them: a full-bleed backdrop wants a photograph rather than
+ * line art under text, a slot that already has media belongs to its author,
+ * and every drawing is a model call someone is paying for.
+ */
+export function drawableScenes<T extends { content: SceneContent; imagePrompt: string }>(
+  scenes: T[],
+  cap = 3,
+): T[] {
+  return scenes
+    .filter(
+      (scene) =>
+        scene.imagePrompt.trim().length > 0 &&
+        scene.content.layout !== "media-full" &&
+        scene.content.elements.some(
+          (element) => element.type === "image" && !element.url && !element.assetId,
+        ),
+    )
+    .slice(0, cap);
+}

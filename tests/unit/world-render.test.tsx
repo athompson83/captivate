@@ -361,3 +361,60 @@ describe("empty state", () => {
     expect(document.querySelector("svg")).not.toBeNull();
   });
 });
+
+describe("the movement rail's strip", () => {
+  /**
+   * The rail overlays 132px on the left of the present viewport, and the
+   * camera framed scenes into the full window — so a wide scene ran under
+   * it. With `safeInsetLeft` the camera centres and fits within the clear
+   * area instead: the frame's origin shifts right by the inset and its
+   * centre sits at inset + (width − inset) / 2.
+   */
+  it("frames the scene into the clear area, not under the rail", () => {
+    const { container } = renderWorld(4, { safeInsetLeft: 132 });
+    const world = container.querySelector<HTMLElement>("[data-world]") ?? findWorld(container);
+    expect(world!.style.transform.startsWith("translate(132px, 0px)")).toBe(true);
+    // (1600 − 132) / 2 = 734: the centre of what the rail leaves clear.
+    expect(world!.style.transform).toContain("translate(734px, 450px)");
+  });
+
+  it("reserves nothing when no rail is shown", () => {
+    const { container } = renderWorld(4);
+    const world = findWorld(container);
+    expect(world!.style.transform.startsWith("translate(800px, 450px)")).toBe(true);
+  });
+
+  it("reserves nothing below the rail's own breakpoint, where it hides itself", () => {
+    const wide = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function () {
+      return {
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: 600,
+        bottom: 900,
+        width: 600,
+        height: 900,
+        toJSON: () => ({}),
+      } as DOMRect;
+    };
+    try {
+      const { container } = renderWorld(4, { safeInsetLeft: 132 });
+      const world = findWorld(container);
+      // Centre of the full 600px window — the hidden rail must cost nothing.
+      expect(world!.style.transform.startsWith("translate(300px, 450px)")).toBe(true);
+    } finally {
+      Element.prototype.getBoundingClientRect = wide;
+    }
+  });
+});
+
+/** The transformed element: the one carrying a style.transform translate. */
+function findWorld(container: HTMLElement): HTMLElement | null {
+  return (
+    [...container.querySelectorAll<HTMLElement>("div")].find((el) =>
+      el.style.transform.includes("translate"),
+    ) ?? null
+  );
+}

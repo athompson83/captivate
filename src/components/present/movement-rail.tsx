@@ -87,6 +87,22 @@ export function nextMovement(movements: Movement[], sceneIndex: number): Movemen
   return movements[index + 1] ?? null;
 }
 
+/**
+ * The strip of viewport the rail occupies, exported so the world's camera can
+ * frame scenes into the space that is actually clear. Matches the w-[132px]
+ * below — change them together.
+ */
+export const MOVEMENT_RAIL_WIDTH = 132;
+
+/**
+ * Mirrors the rail's own render decision, for callers that must know *before*
+ * rendering whether the strip will be occupied. Kept beside the component so
+ * the two cannot drift apart silently.
+ */
+export function movementRailVisible(movements: Movement[], totalScenes: number): boolean {
+  return movements.filter((m) => m.label.length > 0).length >= 2 && totalScenes > 0;
+}
+
 export const MovementRail = memo(function MovementRail({
   movements,
   sceneIndex,

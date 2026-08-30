@@ -2,6 +2,7 @@ import "server-only";
 
 import { complete, LIMITS, reserve, type RateLimit } from "./rate-limit";
 import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
+import { drawableScenes, replaceMediaWithDrawing } from "@/lib/editor/place-drawing";
 import type { SceneContent } from "@/lib/schema/presentation";
 import { BASE_SYSTEM, generateStructured, isAiConfigured, type StructuredResult } from "./provider";
 import {
@@ -368,7 +369,13 @@ ${
 
 Transitions: where a beat ends a movement, let the last line carry the room into what follows — from this argument, in its own words. Do not announce the next section by name, and do not add a transition sentence to scenes that are not ending a movement.
 
-Where a moment names evidence, write only what that evidence supports. Never introduce a statistic, study or citation that was not given to you.`,
+Where a moment names evidence, write only what that evidence supports. Never introduce a statistic, study or citation that was not given to you.
+
+Craft, not template-filling:
+- Use the whole instrument. An eyebrow situates ("Module 2 · Airway"), a headingAccent carries the clause the claim turns on, cards give a three-up its three ideas, a chart's data uses the evidence's real magnitudes. A scene that uses only heading and bullets when its layout offers more reads as a form letter.
+- Never open with throat-clearing ("In this presentation...", "Let's explore...", "It's important to note"). Open inside the material.
+- Bullets are parallel in grammar and each one is a claim, not a topic. Two strong bullets beat five thin ones.
+- For a scene with an image slot, imagePrompt describes a single clear line drawing that would teach the moment — a mechanism, a pathway, a before-and-after — not a mood photograph. It will be sketched as staged line art in front of the audience.`,
         prompt: `Original request:
 ${prompt}
 
@@ -376,7 +383,7 @@ ${contextLine(context)}
 
 The accepted narrative map:
 ${plan}`,
-        maxTokens: 8000,
+        maxTokens: 12000,
       }),
   );
 
@@ -409,38 +416,74 @@ ${plan}`,
 
   // The model may return the wrong count; the map decides how many there are.
   const written = result.data.scenes;
-  return {
-    ok: true,
-    data: {
-      source: "model",
-      scenes: briefs.map((brief, index) => {
-        const scene = written[index];
-        if (!scene) {
-          return {
-            momentId: brief.momentId,
-            ...materialise(
-              fallbackScene(
-                {
-                  title: brief.title,
-                  purpose: brief.purpose,
-                  layout: layouts[index],
-                  takeaway: brief.takeaway,
-                  instructions: brief.instructions,
-                  evidence: brief.evidence,
-                  movementTitle: brief.movementTitle,
-                },
-                { title: brief.movementTitle, prompt },
-              ),
-            ),
-          };
-        }
-        return {
-          momentId: brief.momentId,
-          ...materialise({ ...scene, layout: layouts[index] }),
-        };
+  const scenes = briefs.map((brief, index) => {
+    const scene = written[index];
+    if (!scene) {
+      return {
+        momentId: brief.momentId,
+        ...materialise(
+          fallbackScene(
+            {
+              title: brief.title,
+              purpose: brief.purpose,
+              layout: layouts[index],
+              takeaway: brief.takeaway,
+              instructions: brief.instructions,
+              evidence: brief.evidence,
+              movementTitle: brief.movementTitle,
+            },
+            { title: brief.movementTitle, prompt },
+          ),
+        ),
+      };
+    }
+    return {
+      momentId: brief.momentId,
+      ...materialise({ ...scene, layout: layouts[index] }),
+    };
+  });
+
+  await drawSceneVisuals(scenes, presentationId);
+
+  return { ok: true, data: { source: "model", scenes } };
+}
+
+/**
+ * Fills a generated deck's empty media slots with staged drawings.
+ *
+ * The deck used to arrive with image placeholders waiting for a photograph —
+ * which needs a paid image provider the deployment may not have configured,
+ * so "generate a presentation" produced a deck with grey boxes in it. A
+ * drawing needs only the text model that just wrote the deck.
+ *
+ * Deliberately bounded: at most three drawings, side-by-side layouts only
+ * (a full-bleed backdrop wants a photograph, not line art under text), in
+ * parallel, and every failure leaves the placeholder exactly as it was —
+ * the author can still source an image by hand. Each drawing passes the
+ * same reservation and schema boundary a hand-prompted one does.
+ */
+async function drawSceneVisuals(
+  scenes: { title: string; content: SceneContent; imagePrompt: string }[],
+  presentationId: string | null,
+): Promise<void> {
+  const candidates = drawableScenes(scenes);
+  if (candidates.length === 0) return;
+
+  // The pass is a bonus, not the deliverable: past this bound the deck ships
+  // with its placeholders and the author draws by hand. Mutation inside the
+  // race is safe — a late drawing that loses simply finds its scene already
+  // returned and its write is never read.
+  await Promise.race([
+    Promise.allSettled(
+      candidates.map(async (scene) => {
+        const drawn = await generateDrawing(scene.imagePrompt, presentationId);
+        if (!drawn.ok) return;
+        const replaced = replaceMediaWithDrawing(scene.content, drawn.drawing, scene.imagePrompt);
+        if (replaced) scene.content = replaced;
       }),
-    },
-  };
+    ),
+    new Promise((resolve) => setTimeout(resolve, 55_000)),
+  ]);
 }
 
 export async function buildSingleScene(
