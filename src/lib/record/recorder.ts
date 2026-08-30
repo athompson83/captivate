@@ -23,6 +23,7 @@
 import type { CameraBackground } from "@/lib/media/segmentation";
 import { LiveTranscriber, transcriptSupported } from "@/lib/record/transcript";
 import { clampCues, type TranscriptCue } from "@/lib/record/transcript-core";
+import { restrictCaptureToSurface, type CaptureMode } from "@/lib/record/capture-surface";
 
 export type RecorderPhase =
   "idle" | "requesting" | "ready" | "recording" | "paused" | "stopping" | "complete" | "error";
@@ -269,6 +270,8 @@ export class PresentationRecorder {
   private recorder: MediaRecorder | null = null;
   private chunks: Blob[] = [];
   private screenStream: MediaStream | null = null;
+  /** What the file contains: the stage subtree, the tab, or a whole screen. */
+  captureMode: CaptureMode = "tab";
   private micStream: MediaStream | null = null;
   private compositeStream: MediaStream | null = null;
   private rafId: number | null = null;
@@ -371,6 +374,11 @@ export class PresentationRecorder {
      */
     const surface = this.screenStream.getVideoTracks()[0]?.getSettings().displaySurface as
       DisplaySurface | undefined;
+    // Where the browser supports Element Capture, narrow the recording to the
+    // registered stage subtree: the file then contains the show alone — no
+    // presenter bar, no timer, no toast that happened to fire. Anything less
+    // than full support falls back to exactly the tab capture we had.
+    this.captureMode = await restrictCaptureToSurface(this.screenStream);
     if (surface && surface !== "browser") {
       this.onPhaseChange?.(
         "requesting",

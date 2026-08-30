@@ -10,12 +10,15 @@ import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
 import { PRESENTER_COLORS, type PresenterTool } from "@/lib/present/protocol";
 import { World, type Focus } from "@/components/stage/world";
+import { setCaptureSurface } from "@/lib/record/capture-surface";
 import {
   MovementRail,
   MovementSignpost,
   movementAt,
   movementsOf,
   nextMovement,
+  MOVEMENT_RAIL_WIDTH,
+  movementRailVisible,
 } from "./movement-rail";
 import { AnnotationLayer } from "./annotation-layer";
 import { PresenterBar } from "./presenter-bar";
@@ -72,6 +75,15 @@ export function PresentRoot({
   });
 
   const movements = useMemo(() => movementsOf(scenes, sections), [scenes, sections]);
+
+  // Decided once, here, because two things depend on it agreeing: whether the
+
+  // rail renders, and whether the camera reserves the strip it stands in.
+
+  const railShown =
+    journey.showMovements &&
+    !session.overview &&
+    movementRailVisible(movements, session.totalScenes);
   const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
   const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
 
@@ -327,80 +339,88 @@ export function PresentRoot({
       onPointerMove={showBar}
       onClick={advanceOnClick}
     >
-      <World
-        scenes={scenes}
-        placements={placements}
-        theme={theme}
-        aspect={presentation.aspectRatio}
-        focus={focus}
-        activeIndex={session.sceneIndex}
-        step={session.step}
-        play
-        travel={journey.travel}
-        pace={journey.pace}
-        depth={journey.depth}
-        showPath={journey.showPath && session.overview}
-        className="absolute inset-0"
-        onSceneSelect={session.overview && !audienceOnly ? session.goto : undefined}
-        // The audience window is a projector, not a control surface: a hotspot
-        // there would let anyone who reaches the machine drive the talk.
-        onHotspot={audienceOnly ? undefined : session.dive}
-        hotspotName={hotspotName}
-      />
+      {/* The show: everything the room sees, and exactly what a recording
+          restricted by Element Capture contains. Presenter chrome stays
+          outside — a wrapper with no z-index and no transform creates no
+          stacking context, so the layers inside stack against the chrome
+          exactly as they did unwrapped. */}
+      <div ref={setCaptureSurface} className="absolute inset-0">
+        <World
+          scenes={scenes}
+          placements={placements}
+          theme={theme}
+          aspect={presentation.aspectRatio}
+          focus={focus}
+          activeIndex={session.sceneIndex}
+          step={session.step}
+          play
+          travel={journey.travel}
+          pace={journey.pace}
+          depth={journey.depth}
+          showPath={journey.showPath && session.overview}
+          safeInsetLeft={railShown ? MOVEMENT_RAIL_WIDTH : 0}
+          className="absolute inset-0"
+          onSceneSelect={session.overview && !audienceOnly ? session.goto : undefined}
+          // The audience window is a projector, not a control surface: a hotspot
+          // there would let anyone who reaches the machine drive the talk.
+          onHotspot={audienceOnly ? undefined : session.dive}
+          hotspotName={hotspotName}
+        />
 
-      {/* The argument's shape, shown to the room. Hidden while the camera is
+        {/* The argument's shape, shown to the room. Hidden while the camera is
           pulled back, where the whole world is already the answer. */}
-      {journey.showMovements && !session.overview && (
-        <MovementRail
-          movements={movements}
-          sceneIndex={session.sceneIndex}
-          // The running order, not the array: the spine measures progress
-          // through the argument, and detail scenes would stop it ever
-          // reaching the end.
-          totalScenes={session.totalScenes}
-          mainOrdinal={mainOrdinal}
-        />
-      )}
+        {railShown && (
+          <MovementRail
+            movements={movements}
+            sceneIndex={session.sceneIndex}
+            // The running order, not the array: the spine measures progress
+            // through the argument, and detail scenes would stop it ever
+            // reaching the end.
+            totalScenes={session.totalScenes}
+            mainOrdinal={mainOrdinal}
+          />
+        )}
 
-      {signpost && !session.overview && !session.blanked && !session.establishing && (
-        <MovementSignpost
-          movement={signpost}
-          index={signpostIndex}
-          sceneTitle={scenes[signpost.start]?.title ?? ""}
-        />
-      )}
+        {signpost && !session.overview && !session.blanked && !session.establishing && (
+          <MovementSignpost
+            movement={signpost}
+            index={signpostIndex}
+            sceneTitle={scenes[signpost.start]?.title ?? ""}
+          />
+        )}
 
-      {establishingMovement && !session.overview && !session.blanked && (
-        <MovementSignpost
-          movement={establishingMovement}
-          index={establishingIndex}
-          sceneTitle=""
-          kind="entering"
-        />
-      )}
+        {establishingMovement && !session.overview && !session.blanked && (
+          <MovementSignpost
+            movement={establishingMovement}
+            index={establishingIndex}
+            sceneTitle=""
+            kind="entering"
+          />
+        )}
 
-      {/* The presenter, placed over the world. Hidden while blanked so a
+        {/* The presenter, placed over the world. Hidden while blanked so a
           black screen is genuinely black. */}
-      {!session.blanked && (
-        <PresenterCameraFeed
-          settings={cameraFeed}
-          onChange={updateCameraFeed}
-          interactive={!audienceOnly}
-        />
-      )}
+        {!session.blanked && (
+          <PresenterCameraFeed
+            settings={cameraFeed}
+            onChange={updateCameraFeed}
+            interactive={!audienceOnly}
+          />
+        )}
 
-      {/* Annotations sit above the world and below the presenter chrome. */}
-      <AnnotationLayer
-        annotations={session.annotations}
-        tool={audienceOnly ? "none" : tool}
-        color={color}
-        width={penWidth}
-        interactive={!audienceOnly}
-        onChange={(next) => session.setAnnotations(session.sceneIndex, next)}
-        onPointer={(point) => session.broadcastPointer(point, "laser", color)}
-        pointer={session.pointer}
-        pointerColor={session.pointerColor}
-      />
+        {/* Annotations sit above the world and below the presenter chrome. */}
+        <AnnotationLayer
+          annotations={session.annotations}
+          tool={audienceOnly ? "none" : tool}
+          color={color}
+          width={penWidth}
+          interactive={!audienceOnly}
+          onChange={(next) => session.setAnnotations(session.sceneIndex, next)}
+          onPointer={(point) => session.broadcastPointer(point, "laser", color)}
+          pointer={session.pointer}
+          pointerColor={session.pointerColor}
+        />
+      </div>
 
       {/* Blank: takes the room's attention off the screen without stopping. */}
       <AnimatePresence>

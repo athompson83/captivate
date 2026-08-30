@@ -4,7 +4,10 @@ import { buildScenesFromMap } from "@/lib/ai/service";
 import { AudienceInput, guard, LIMITS } from "@/lib/ai/route-helpers";
 import { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 
-export const maxDuration = 120;
+// The platform ceiling: one scenes call at full depth plus the parallel
+// drawing pass is minutes of model time, and a duration cap that fires
+// mid-generation bills the tokens and saves nothing.
+export const maxDuration = 300;
 
 /**
  * A brief per moment, validated on the way in.

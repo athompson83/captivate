@@ -11,7 +11,10 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { THEMES } from "@/lib/schema/theme";
 import type { MomentRow, SceneRow } from "@/lib/supabase/database.types";
 
-export const maxDuration = 120;
+// The platform ceiling: one scenes call at full depth plus the parallel
+// drawing pass is minutes of model time, and a duration cap that fires
+// mid-generation bills the tokens and saves nothing.
+export const maxDuration = 300;
 
 const Input = z
   .object({

@@ -96,6 +96,14 @@ export interface WorldProps {
   pace: number;
   depth: number;
   showPath?: boolean;
+  /**
+   * Viewport pixels on the left the camera must treat as occupied — the
+   * movement rail overlays the world there, and without this the camera
+   * framed scenes into space the rail was standing in. Applied only at
+   * widths where the rail actually renders (its own `sm:` breakpoint);
+   * below that it hides itself and the whole viewport is clear.
+   */
+  safeInsetLeft?: number;
   className?: string;
   /** Rendered above the world, unscaled (annotations, presenter chrome). */
   chrome?: React.ReactNode;
@@ -128,6 +136,7 @@ export const World = memo(function World({
   pace,
   depth,
   showPath = false,
+  safeInsetLeft = 0,
   className,
   chrome,
   onSceneSelect,
@@ -217,8 +226,15 @@ export const World = memo(function World({
     return () => observer.disconnect();
   }, []);
 
+  // 640 is the rail's own `sm:` breakpoint. The coupling is deliberate and
+  // named at the prop; a rail that hides itself must also stop reserving room.
+  const inset = safeInsetLeft > 0 && viewport.width >= 640 ? safeInsetLeft : 0;
+  const effective = useMemo(
+    () => ({ width: Math.max(1, viewport.width - inset), height: viewport.height }),
+    [viewport.width, viewport.height, inset],
+  );
   const aspectRatio =
-    viewport.height > 0 ? viewport.width / viewport.height : stage.width / stage.height;
+    viewport.height > 0 ? effective.width / viewport.height : stage.width / stage.height;
 
   const target = useMemo(
     () => cameraFor(focus, scenes, placements, stage, aspectRatio),
@@ -246,7 +262,10 @@ export const World = memo(function World({
 
     const apply = (camera: Camera) => {
       cameraRef.current = camera;
-      node.style.transform = worldTransform(camera, viewport);
+      // Prepending the inset shifts the frame's centre into the clear area;
+      // `worldTransform` then fits and centres within what remains.
+      node.style.transform =
+        (inset > 0 ? `translate(${inset}px, 0px) ` : "") + worldTransform(camera, effective);
 
       // The room's colour follows the camera. Written as custom properties on
       // one element rather than through React: this runs sixty times a second.
@@ -358,6 +377,8 @@ export const World = memo(function World({
   }, [
     target,
     viewport,
+    inset,
+    effective,
     travel,
     pace,
     depth,
@@ -410,7 +431,7 @@ export const World = memo(function World({
         // landmark path exists to avoid.
         const judged = seenFrom.length ? seenFrom : [target];
         const widest = Math.max(
-          ...judged.map((camera) => stage.width * placement.scale * cameraScale(camera, viewport)),
+          ...judged.map((camera) => stage.width * placement.scale * cameraScale(camera, effective)),
         );
 
         return { index, placement, detailed: widest >= DETAIL_THRESHOLD };
@@ -418,7 +439,7 @@ export const World = memo(function World({
       .filter((entry): entry is { index: number; placement: ScenePlacement; detailed: boolean } =>
         Boolean(entry),
       );
-  }, [placements, origin, target, viewport, aspectRatio, stage, activeIndex]);
+  }, [placements, origin, target, viewport, effective, aspectRatio, stage, activeIndex]);
 
   const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
 

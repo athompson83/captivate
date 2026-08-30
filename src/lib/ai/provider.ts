@@ -18,8 +18,17 @@ import { z } from "zod";
 
 export const AI_MODEL = process.env.CAPTIVATE_AI_MODEL ?? "claude-sonnet-5";
 
-/** Ceiling on any single generation, as a guard against runaway cost. */
-const MAX_OUTPUT_TOKENS = 8000;
+/**
+ * Ceiling on any single generation, as a guard against runaway cost.
+ *
+ * 12000, up from 8000: a full deck is up to 24 scenes each carrying finished
+ * prose and a spoken script, and at 8000 the model learned to compress —
+ * thinner bodies, clipped notes — long before the schema's own field caps
+ * were near. The client timeout below rises with it, because a bigger answer
+ * is a longer wait and a timeout that fires mid-generation bills the tokens
+ * and delivers nothing.
+ */
+const MAX_OUTPUT_TOKENS = 12_000;
 
 export function isAiConfigured(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
@@ -39,7 +48,7 @@ function anthropic(): Anthropic {
   client ??= new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
     maxRetries: 2,
-    timeout: 90_000,
+    timeout: 150_000,
   });
   return client;
 }

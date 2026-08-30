@@ -11,7 +11,12 @@ import { useFullscreen } from "@/lib/present/fullscreen";
 import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
 import { World, type Focus } from "@/components/stage/world";
-import { MovementRail, movementsOf } from "./movement-rail";
+import {
+  MovementRail,
+  movementsOf,
+  MOVEMENT_RAIL_WIDTH,
+  movementRailVisible,
+} from "./movement-rail";
 
 /**
  * A shared deck, self-driven.
@@ -62,6 +67,8 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     () => scenes.map((_, i) => i).filter((i) => !isDetail[i]),
     [scenes, isDetail],
   );
+  const railShown =
+    journey.showMovements && !overview && movementRailVisible(movements, running.length);
   const nextMain = (from: number) => running.find((i) => i > from) ?? null;
   const prevMain = (from: number) => {
     const earlier = running.filter((i) => i < from);
@@ -251,13 +258,14 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
         pace={journey.pace}
         depth={journey.depth}
         showPath={journey.showPath && overview}
+        safeInsetLeft={railShown ? MOVEMENT_RAIL_WIDTH : 0}
         className="absolute inset-0"
         onSceneSelect={overview ? goto : undefined}
         onHotspot={dive}
         hotspotName={hotspotName}
       />
 
-      {journey.showMovements && !overview && (
+      {railShown && (
         <MovementRail
           movements={movements}
           sceneIndex={sceneIndex}
@@ -286,7 +294,10 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
       </AnimatePresence>
 
       {/* Progress: the same hairline the room reads as pacing. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-0.5 bg-white/10" aria-hidden>
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-0.5 bg-white/10"
+        aria-hidden
+      >
         <div
           className="h-full bg-white/45 transition-[width] duration-500 ease-[var(--ease-out-quint)]"
           style={{ width: `${(mainOrdinal / Math.max(1, running.length)) * 100}%` }}
