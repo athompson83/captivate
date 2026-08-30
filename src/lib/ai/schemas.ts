@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SceneContent, SceneLayout } from "@/lib/schema/presentation";
+import { SceneContent, SceneLayout, DrawnPath } from "@/lib/schema/presentation";
 import { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 
 /**
@@ -207,6 +207,25 @@ export const FlowReview = z.object({
     .default([]),
 });
 
+
+/**
+ * A drawing the model sketches as vector paths, in drawing order.
+ *
+ * Deliberately the same shape the DrawingElement stores, so validated output
+ * maps 1:1 onto the document with no translation layer to get wrong. Path
+ * data passes the same grammar user input would — geometry only, no markup.
+ */
+export const GeneratedDrawing = z.object({
+  viewBox: z.object({
+    width: z.number().positive().max(4000),
+    height: z.number().positive().max(4000),
+  }),
+  paths: z.array(DrawnPath).min(1).max(400),
+  stageLabels: z.array(z.string().max(120)).max(20).default([]),
+  alt: z.string().max(600).default(""),
+});
+export type GeneratedDrawing = z.infer<typeof GeneratedDrawing>;
+
 export const AI_KINDS = [
   "map",
   "moment",
@@ -217,6 +236,7 @@ export const AI_KINDS = [
   "rewrite",
   "visuals",
   "flow",
+  "drawing",
 ] as const;
 export type AiKind = (typeof AI_KINDS)[number];
 

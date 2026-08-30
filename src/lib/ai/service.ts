@@ -15,6 +15,7 @@ import {
   REWRITE_LABELS,
   type AiKind,
   type RewriteMode,
+  GeneratedDrawing,
 } from "./schemas";
 import { deriveTitle, fallbackRewrite, fallbackScene, subjectOf } from "./fallback";
 import { fallbackMap } from "./narrative-fallback";
@@ -667,6 +668,53 @@ function toRecord<T>(result: StructuredResult<T>) {
           result.reason === "invalid_output" ? ("invalid_output" as const) : ("failed" as const),
         error: result.error,
       };
+}
+
+/**
+ * A picture the model draws as ordered vector strokes, cut into stages the
+ * presenter walks through with "next".
+ *
+ * The prompt work is all in the staging: a drawing that arrives as one
+ * undifferentiated pile of paths animates fine and *teaches* nothing. Each
+ * stage must add one idea, in the order a person at a whiteboard would build
+ * it, because the stage boundaries become the presenter's pauses.
+ */
+export async function generateDrawing(
+  prompt: string,
+  presentationId: string | null,
+): Promise<{ ok: true; drawing: GeneratedDrawing } | { ok: false; error: string }> {
+  if (!isAiConfigured()) {
+    return {
+      ok: false,
+      error: "AI isn't configured on this deployment, so drawings can't be generated.",
+    };
+  }
+
+  const result = await spend("drawing", ["drawing"], prompt, presentationId, LIMITS.heavy, () =>
+    generateStructured({
+      schema: GeneratedDrawing,
+      toolName: "draw_picture",
+      toolDescription:
+        "Return a line drawing as SVG path data, staged in the order a person would sketch it.",
+      system: `${BASE_SYSTEM}
+
+You draw single-colour line art that will be sketched stroke by stroke in front of an audience, one stage per press of "next". Rules:
+
+- Return only SVG path data (the d attribute) — absolute commands preferred. No markup, no colours, no fills: strokes on nothing.
+- Plan the stages first. Each stage adds exactly one idea, in the order a teacher at a whiteboard would build the picture; 2 to 8 stages, labelled. Number stages from 0; stage 0 is what appears on arrival.
+- Within a stage, order paths as they would be drawn by hand.
+- Aim for 20 to 120 paths total. Prefer fewer, longer, confident strokes over many fragments.
+- Never render words as paths — lettering drawn at stroke weight is illegible. Leave space for the author's own text instead, and say what goes where in the stage label.
+- Use a viewBox around 800×500 unless the subject wants otherwise, and keep the drawing clear of the very edges.
+- The alt text describes the finished picture for someone who cannot see it.`,
+      prompt: `Draw: ${prompt}`,
+      temperature: 0.7,
+      maxTokens: 16000,
+    }),
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, drawing: result.data };
 }
 
 export { isAiConfigured };

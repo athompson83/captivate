@@ -365,6 +365,50 @@ export const EmbedElement = z.object({
   radius: z.number().min(0).max(50).default(0),
 });
 
+/**
+ * Only the SVG path grammar. Model output and hand-edited rows alike pass
+ * through this, and it is the whole sanitisation story: we store path *data*,
+ * never markup, so there is no script, no foreignObject, no href — nothing to
+ * sanitise. React builds the <path> itself.
+ */
+const PATH_DATA = /^[MmLlHhVvCcSsQqTtAaZz0-9eE,.\-+\s]+$/;
+
+export const DrawnPath = z.object({
+  d: z.string().min(1).max(20_000).regex(PATH_DATA),
+  /** Which press of "next" sketches this path. Stage 0 draws on arrival. */
+  stage: z.number().int().min(0).max(19).default(0),
+});
+export type DrawnPath = z.infer<typeof DrawnPath>;
+
+/**
+ * A picture that sketches itself, stroke by stroke, one stage per advance.
+ *
+ * The paths live in the drawing's own viewBox coordinates; the element's
+ * frame places that box on the stage like any other element. `ink` is a theme
+ * token rather than a colour on purpose: the model supplies geometry and
+ * Captivate supplies the ink, so a drawing reads correctly in every theme and
+ * a generation cannot smuggle colour in.
+ */
+export const DrawingElement = z.object({
+  ...elementBase,
+  type: z.literal("drawing"),
+  viewBox: z.object({
+    width: z.number().positive().max(4000),
+    height: z.number().positive().max(4000),
+  }),
+  paths: z.array(DrawnPath).min(1).max(400),
+  /** Authoring aid naming what each stage adds. Never sent to the audience. */
+  stageLabels: z.array(z.string().max(120)).max(20).default([]),
+  ink: z.enum(["ink", "accent", "muted"]).default("ink"),
+  strokeWidth: z.number().min(0.1).max(12).default(2),
+  /** Seconds one stage takes to sketch itself. */
+  paceSeconds: z.number().min(0.2).max(10).default(1.6),
+  /** What produced the picture, kept so regeneration can seed from it. */
+  prompt: z.string().max(1000).default(""),
+  alt: z.string().max(600).default(""),
+});
+export type DrawingElement = z.infer<typeof DrawingElement>;
+
 export const SceneElement = z.discriminatedUnion("type", [
   HeadingElement,
   TextElement,
@@ -380,6 +424,7 @@ export const SceneElement = z.discriminatedUnion("type", [
   CodeElement,
   ChartElement,
   EmbedElement,
+  DrawingElement,
 ]);
 export type SceneElement = z.infer<typeof SceneElement>;
 export type SceneElementType = SceneElement["type"];
@@ -399,6 +444,7 @@ export const SCENE_ELEMENT_TYPES = [
   "code",
   "chart",
   "embed",
+  "drawing",
 ] as const satisfies readonly SceneElementType[];
 
 /* -------------------------------------------------------------------------- */
@@ -700,11 +746,37 @@ export function parseSceneContent(
   if (raw && typeof raw === "object" && Array.isArray((raw as { elements?: unknown }).elements)) {
     for (const candidate of (raw as { elements: unknown[] }).elements) {
       const el = SceneElement.safeParse(candidate);
-      if (el.success) salvaged.push(el.data);
+      if (el.success) {
+        salvaged.push(el.data);
+        continue;
+      }
+      // A drawing is hundreds of paths; one corrupt path must cost that path,
+      // not the picture. Filter to the paths that still parse and try again.
+      const repaired = repairDrawingPaths(candidate);
+      if (repaired) salvaged.push(repaired);
     }
   }
 
   return stripSelfTargets(SceneContent.parse({ elements: salvaged }), sceneId, true);
+}
+
+/**
+ * Drops the invalid paths from a drawing that failed to parse whole.
+ *
+ * Returns the drawing rebuilt from its surviving paths, or null when the
+ * failure was not path-level (or nothing survives) — the caller then drops
+ * the element, which is still cheaper than dropping the scene.
+ */
+function repairDrawingPaths(candidate: unknown): SceneElement | null {
+  if (!candidate || typeof candidate !== "object") return null;
+  const raw = candidate as { type?: unknown; paths?: unknown };
+  if (raw.type !== "drawing" || !Array.isArray(raw.paths)) return null;
+
+  const paths = raw.paths.filter((p) => DrawnPath.safeParse(p).success);
+  if (paths.length === 0) return null;
+
+  const retry = SceneElement.safeParse({ ...candidate, paths });
+  return retry.success ? retry.data : null;
 }
 
 /**

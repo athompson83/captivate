@@ -179,6 +179,48 @@
   * {
     border-color: var(--border-subtle);
   }
+
+  /* ------------------------------------------------------------------ */
+  /* Drawn pictures (see components/stage/drawn-picture.tsx).            */
+  /* --dp-len is measured per path and set from a ref callback; its 0   */
+  /* fallback makes an unmeasured stroke render *complete*, so a page   */
+  /* without JavaScript shows the picture rather than a blank.          */
+  /* ------------------------------------------------------------------ */
+  .dp-path {
+    fill: none;
+    stroke-dasharray: var(--dp-len, 0);
+    stroke-dashoffset: var(--dp-len, 0);
+  }
+  .dp-path.dp-drawn {
+    stroke-dashoffset: 0;
+    animation: dp-sketch var(--dp-dur, 1s) ease-out var(--dp-del, 0s) both;
+  }
+  @keyframes dp-sketch {
+    from {
+      stroke-dashoffset: var(--dp-len, 0);
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  /* The global reduce rule zeroes durations but not delays; without this a
+     stage's later strokes would pop in one by one on their schedule. Under
+     reduce a stage appears whole, instantly — the pacing survives (stages
+     still wait for the presenter), only the sweep goes. */
+  @media (prefers-reduced-motion: reduce) {
+    .dp-path.dp-drawn {
+      animation-delay: 0s;
+    }
+  }
+  /* The journey route's direction dots, arriving after the path has drawn. */
+  .dp-fade {
+    animation: dp-fade 0.6s ease-out both;
+  }
+  @keyframes dp-fade {
+    from {
+      opacity: 0;
+    }
+  }
 }
 
 html,
