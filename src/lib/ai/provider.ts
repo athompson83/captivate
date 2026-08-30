@@ -52,8 +52,6 @@ export interface GenerateOptions<T> {
   system: string;
   prompt: string;
   maxTokens?: number;
-  /** Lower for structural work, higher for prose variation. */
-  temperature?: number;
 }
 
 export async function generateStructured<T>(
@@ -80,10 +78,14 @@ export async function generateStructured<T>(
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let response: Anthropic.Message;
     try {
+      // No sampling parameters. `temperature`/`top_p`/`top_k` are removed on
+      // the Claude 5 family — the API answers 400 `invalid_request_error`,
+      // which took every AI feature down at once when the deployed model
+      // started rejecting them. Variation between drafts is the model's own;
+      // nothing replaces the knob.
       response = await anthropic().messages.create({
         model: AI_MODEL,
         max_tokens: maxTokens,
-        temperature: options.temperature ?? 0.6,
         system: options.system,
         tools: [
           {
