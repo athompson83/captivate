@@ -162,7 +162,6 @@ ${evidenceLines}
 
 Request:
 ${prompt}`,
-      temperature: 0.75,
       maxTokens: 4000,
     }),
   );
@@ -224,7 +223,6 @@ Current beat
   takeaway: ${input.takeaway || "(not stated)"}
 
 Propose a sharper version.`,
-      temperature: 0.8,
       maxTokens: 800,
     }),
   );
@@ -378,7 +376,6 @@ ${contextLine(context)}
 
 The accepted narrative map:
 ${plan}`,
-        temperature: 0.7,
         maxTokens: 8000,
       }),
   );
@@ -487,7 +484,6 @@ ${context.neighbouring?.length ? `\nSurrounding scenes, for continuity:\n${conte
 
 Write a scene that does this:
 ${instruction}`,
-      temperature: 0.7,
       maxTokens: 2000,
     }),
   );
@@ -568,7 +564,6 @@ ${contextLine(context)}
 
 Text:
 ${text}`,
-        temperature: mode === "alternatives" ? 0.9 : 0.6,
         maxTokens: 1200,
       }),
   );
@@ -612,7 +607,6 @@ What is on the scene:
 ${scene.text || "(empty scene)"}
 
 ${scene.existingNotes.trim() ? `Improve these existing notes rather than starting over:\n${scene.existingNotes}` : "There are no notes yet."}`,
-        temperature: 0.7,
         maxTokens: 1200,
       }),
   );
@@ -651,7 +645,6 @@ Suggest images only where a picture does work that words cannot. Describe each o
 
 Scene: ${scene.title}
 ${scene.text}`,
-        temperature: 0.8,
         maxTokens: 1000,
       }),
   );
@@ -708,7 +701,6 @@ You draw single-colour line art that will be sketched stroke by stroke in front 
 - Use a viewBox around 800×500 unless the subject wants otherwise, and keep the drawing clear of the very edges.
 - The alt text describes the finished picture for someone who cannot see it.`,
       prompt: `Draw: ${prompt}`,
-      temperature: 0.7,
       maxTokens: 16000,
     }),
   );
