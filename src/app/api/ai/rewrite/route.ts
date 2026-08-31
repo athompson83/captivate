@@ -15,7 +15,7 @@ const Input = z
   .merge(AudienceInput);
 
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, "light", ["rewrite"]);
+  const guarded = await guard(request, Input, "light");
   if (!guarded.ok) return guarded.response;
 
   const { text, mode, presentationId, ...context } = guarded.input;

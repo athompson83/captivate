@@ -2,7 +2,7 @@ import "server-only";
 
 import { complete, reserve } from "./rate-limit";
 import { limitForCaller } from "@/lib/billing/entitlement";
-import type { BudgetGroup } from "@/lib/billing/plans";
+import { BUDGET_KINDS, type BudgetGroup } from "@/lib/billing/plans";
 import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
 import {
   drawableScenes,
@@ -60,7 +60,6 @@ export interface AudienceContext {
  */
 async function spend<T>(
   kind: AiKind,
-  countKinds: string[],
   prompt: string,
   presentationId: string | null,
   group: BudgetGroup,
@@ -68,7 +67,10 @@ async function spend<T>(
 ): Promise<StructuredResult<T>> {
   const ticket = await reserve(
     kind,
-    countKinds,
+    // The group says what this draws on. Passing the kinds separately let a
+    // caller count one pool and charge another, which is how drafting an
+    // argument came to spend a deck.
+    BUDGET_KINDS[group],
     prompt,
     presentationId,
     await limitForCaller(group),
@@ -146,7 +148,7 @@ export async function buildNarrativeMap(
     ? context.available.map((item) => `- ${item.id} (${item.kind}): ${item.label}`).join("\n")
     : "None available.";
 
-  const result = await spend("map", ["map", "presentation"], prompt, null, "draft", () =>
+  const result = await spend("map", prompt, null, "draft", () =>
     generateStructured({
       schema: ProposedMap,
       toolName: "propose_narrative_map",
@@ -178,7 +180,16 @@ ${evidenceLines}
 
 Request:
 ${prompt}`,
-      maxTokens: 4000,
+      // 10000, up from 4000. A map is short prose per beat, but there can be
+      // eighty beats: the live ledger recorded successful maps at 4820 and
+      // 5543 output tokens, which are two-attempt totals — the first attempt
+      // had hit the 4000 ceiling and been cut off. When both attempts hit it,
+      // the author was told their answer "didn't match the required shape"
+      // and handed the structural fallback instead of their argument.
+      maxTokens: 10_000,
+      // /api/ai/map runs with a 300-second ceiling; two attempts fit inside it
+      // with room for the reservation and the write.
+      attemptTimeoutMs: 120_000,
     }),
   );
 
@@ -220,7 +231,7 @@ export async function rewriteMoment(input: {
     };
   }
 
-  const result = await spend("moment", ["moment", "rewrite"], input.title, null, "light", () =>
+  const result = await spend("moment", input.title, null, "light", () =>
     generateStructured({
       schema: RewrittenMoment,
       toolName: "rewrite_moment",
@@ -240,6 +251,8 @@ Current beat
 
 Propose a sharper version.`,
       maxTokens: 800,
+      // /api/ai/moment runs with a 30-second ceiling.
+      attemptTimeoutMs: 12_000,
     }),
   );
 
@@ -367,7 +380,6 @@ export async function buildScenesFromMap(
 
   const result = await spend(
     "scenes",
-    ["scenes", "presentation"],
     prompt,
     presentationId,
     "deck",
@@ -413,6 +425,9 @@ ${contextLine(context)}
 The accepted narrative map:
 ${plan}`,
         maxTokens: 14000,
+        // Both scene routes run at the 300-second platform ceiling, and this
+        // call is followed by the drawing and photo pass.
+        attemptTimeoutMs: 100_000,
       }),
   );
 
@@ -580,7 +595,7 @@ export async function buildSingleScene(
     };
   }
 
-  const result = await spend("scene", ["scene"], instruction, presentationId, "draft", () =>
+  const result = await spend("scene", instruction, presentationId, "draft", () =>
     generateStructured({
       schema: GeneratedScene,
       toolName: "write_scene",
@@ -595,6 +610,8 @@ ${context.neighbouring?.length ? `\nSurrounding scenes, for continuity:\n${conte
 Write a scene that does this:
 ${instruction}`,
       maxTokens: 2000,
+      // /api/ai/scene runs with a 60-second ceiling.
+      attemptTimeoutMs: 25_000,
     }),
   );
 
@@ -671,7 +688,6 @@ export async function rewriteText(
 
   const result = await spend(
     "rewrite",
-    ["rewrite"],
     `${mode}: ${text.slice(0, 200)}`,
     presentationId,
     "light",
@@ -690,6 +706,8 @@ ${contextLine(context)}
 Text:
 ${text}`,
         maxTokens: 1200,
+        // /api/ai/rewrite runs with a 45-second ceiling.
+        attemptTimeoutMs: 18_000,
       }),
   );
 
@@ -712,7 +730,6 @@ export async function writeSpeakerNotes(
 
   const result = await spend(
     "speaker_notes",
-    ["speaker_notes"],
     scene.title,
     presentationId,
     "light",
@@ -733,6 +750,8 @@ ${scene.text || "(empty scene)"}
 
 ${scene.existingNotes.trim() ? `Improve these existing notes rather than starting over:\n${scene.existingNotes}` : "There are no notes yet."}`,
         maxTokens: 1200,
+        // /api/ai/notes runs with a 45-second ceiling.
+        attemptTimeoutMs: 18_000,
       }),
   );
 
@@ -752,7 +771,7 @@ export async function suggestVisuals(
     return { ok: false, error: "AI isn't configured on this deployment." };
   }
 
-  const result = await spend("visuals", ["visuals"], scene.title, presentationId, "light", () =>
+  const result = await spend("visuals", scene.title, presentationId, "light", () =>
     generateStructured({
       schema: VisualSuggestion,
       toolName: "suggest_visuals",
@@ -765,6 +784,8 @@ Suggest images only where a picture does work that words cannot. Describe each o
 Scene: ${scene.title}
 ${scene.text}`,
       maxTokens: 1000,
+      // /api/ai/visuals runs with a 45-second ceiling.
+      attemptTimeoutMs: 18_000,
     }),
   );
 
@@ -779,6 +800,11 @@ function toRecord<T>(result: StructuredResult<T>) {
         status:
           result.reason === "invalid_output" ? ("invalid_output" as const) : ("failed" as const),
         error: result.error,
+        // A near-miss and a truncated answer bill two full model calls. The
+        // ledger recorded nothing for them, which made real spend invisible in
+        // the cost record and left the limiter unable to tell a generation
+        // that burned twenty thousand tokens from one the provider refused.
+        usage: result.usage,
       };
 }
 
@@ -802,7 +828,7 @@ export async function generateDrawing(
     };
   }
 
-  const result = await spend("drawing", ["drawing"], prompt, presentationId, "drawing", () =>
+  const result = await spend("drawing", prompt, presentationId, "drawing", () =>
     generateStructured({
       schema: GeneratedDrawing,
       toolName: "draw_picture",
@@ -821,6 +847,9 @@ You draw single-colour line art that will be sketched stroke by stroke in front 
 - The alt text describes the finished picture for someone who cannot see it.`,
       prompt: `Draw: ${prompt}`,
       maxTokens: 16000,
+      // /api/ai/visuals/draw runs with a 120-second ceiling, and the deck
+      // pass runs several of these against its own 55-second race.
+      attemptTimeoutMs: 50_000,
     }),
   );
 

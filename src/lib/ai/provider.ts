@@ -39,17 +39,37 @@ export type StructuredResult<T> =
   | { ok: true; data: T; usage: { input: number; output: number }; model: string }
   | {
       ok: false;
-      reason: "not_configured" | "invalid_output" | "provider_error" | "overloaded";
+      reason: "not_configured" | "invalid_output" | "provider_error" | "overloaded" | "truncated";
       error: string;
+      /**
+       * What the failed attempts cost, when they reached the model at all.
+       *
+       * A schema near-miss and a truncated answer both bill two full calls,
+       * and the ledger row for them recorded nothing — so the spend was
+       * invisible in the cost record, and the limiter could not tell a
+       * generation that burned twenty thousand tokens from one that never
+       * left the building. Absent means nothing was spent.
+       */
+      usage?: { input: number; output: number };
     };
 
 let client: Anthropic | null = null;
 
+/**
+ * How long one attempt may take when the caller does not say.
+ *
+ * Short enough that two of them — this function retries once on a schema
+ * near-miss — fit inside the 45-second budget every light route runs with.
+ */
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 20_000;
+
 function anthropic(): Anthropic {
   client ??= new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
-    maxRetries: 2,
-    timeout: 180_000,
+    // One, not two. This function already makes a second call to correct a
+    // schema near-miss; SDK-level retries multiply that, and the worst case
+    // has to stay inside the route's own ceiling.
+    maxRetries: 1,
   });
   return client;
 }
@@ -62,6 +82,18 @@ export interface GenerateOptions<T> {
   system: string;
   prompt: string;
   maxTokens?: number;
+  /**
+   * How long one attempt may take, in milliseconds.
+   *
+   * The number that matters is not how long a model might take but how long
+   * the function it runs inside is allowed to live. `/api/ai/map` ran with a
+   * 60-second ceiling while the client was built with a 180-second timeout,
+   * so the timeout could never fire — the platform killed the function first
+   * and the owner got a bare 504: no message, no toast, no completed ledger
+   * row. Callers state a budget that leaves room for the corrective retry,
+   * so a slow model fails as an error the user can read.
+   */
+  attemptTimeoutMs?: number;
 }
 
 export async function generateStructured<T>(
@@ -93,20 +125,23 @@ export async function generateStructured<T>(
       // which took every AI feature down at once when the deployed model
       // started rejecting them. Variation between drafts is the model's own;
       // nothing replaces the knob.
-      response = await anthropic().messages.create({
-        model: AI_MODEL,
-        max_tokens: maxTokens,
-        system: options.system,
-        tools: [
-          {
-            name: options.toolName,
-            description: options.toolDescription,
-            input_schema: jsonSchema as Anthropic.Tool.InputSchema,
-          },
-        ],
-        tool_choice: { type: "tool", name: options.toolName },
-        messages,
-      });
+      response = await anthropic().messages.create(
+        {
+          model: AI_MODEL,
+          max_tokens: maxTokens,
+          system: options.system,
+          tools: [
+            {
+              name: options.toolName,
+              description: options.toolDescription,
+              input_schema: jsonSchema as Anthropic.Tool.InputSchema,
+            },
+          ],
+          tool_choice: { type: "tool", name: options.toolName },
+          messages,
+        },
+        { timeout: options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS },
+      );
     } catch (error) {
       const status = (error as { status?: number }).status;
       if (status === 429 || status === 529) {
@@ -129,6 +164,22 @@ export async function generateStructured<T>(
     totalInput += response.usage.input_tokens;
     totalOutput += response.usage.output_tokens;
 
+    // The model ran out of room mid-answer. Its tool input is cut off, so the
+    // schema rejects it and — with no other check — the author was told their
+    // answer "didn't match the required shape", which is both wrong and
+    // unactionable: nothing about the prompt was malformed, the ceiling was
+    // simply too low. The retry cannot help either, since it re-answers under
+    // the same ceiling with a longer conversation in front of it. Say what
+    // happened and stop.
+    if (response.stop_reason === "max_tokens") {
+      return {
+        ok: false,
+        reason: "truncated",
+        usage: { input: totalInput, output: totalOutput },
+        error: `The answer was longer than the ${maxTokens.toLocaleString()}-token limit for this step and was cut off, so nothing was applied. Ask for a shorter piece — fewer minutes, or fewer moments — and try again.`,
+      };
+    }
+
     const toolUse = response.content.find(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
     );
@@ -147,6 +198,7 @@ export async function generateStructured<T>(
       return {
         ok: false,
         reason: "invalid_output",
+        usage: { input: totalInput, output: totalOutput },
         error: "The model didn't return usable structured output. Nothing was changed.",
       };
     }
@@ -193,6 +245,7 @@ export async function generateStructured<T>(
     return {
       ok: false,
       reason: "invalid_output",
+      usage: { input: totalInput, output: totalOutput },
       error:
         "The model's answer didn't match the required shape, so nothing was applied. Try again, or rephrase your prompt.",
     };
@@ -201,6 +254,7 @@ export async function generateStructured<T>(
   return {
     ok: false,
     reason: "invalid_output",
+    usage: { input: totalInput, output: totalOutput },
     error: "The model's answer couldn't be validated. Nothing was changed.",
   };
 }

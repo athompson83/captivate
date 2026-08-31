@@ -1,8 +1,10 @@
 import "server-only";
 
 import { supabaseServer } from "@/lib/supabase/server";
+import { usedGenerations } from "@/lib/ai/rate-limit";
 import { isBillingConfigured } from "./stripe";
 import {
+  BUDGET_KINDS,
   PLAN_BUDGETS,
   limitFor,
   planFromSubscription,
@@ -106,9 +108,11 @@ export async function subscriptionSummary(): Promise<SubscriptionSummary | null>
 /**
  * How much of the free allowance the caller has spent.
  *
- * Counted the same way the limiter counts it — one `scenes` row per generated
- * presentation, over the same rolling window — so the number shown in settings
- * and the number enforced at the gate can never disagree.
+ * Counted the same way the limiter counts it — the same kinds, the same
+ * window, the same database function — so the number shown in settings and the
+ * number enforced at the gate can never disagree. It did: settings read three
+ * of ten while the gate refused at ten, because the two were counting
+ * different kinds.
  *
  * It lives here rather than in the page because reading the clock during a
  * component render is impure, and because how an allowance is counted is this
@@ -125,15 +129,8 @@ export async function deckUsage(): Promise<{ decksUsed: number; deckAllowance: n
     } = await supabase.auth.getUser();
     if (!user) return allowance;
 
-    const since = new Date(Date.now() - budget.windowMinutes * 60_000).toISOString();
-    const { count } = await supabase
-      .from("ai_generations")
-      .select("id", { count: "exact", head: true })
-      .eq("owner_id", user.id)
-      .in("kind", ["scenes"])
-      .gte("created_at", since);
-
-    return { decksUsed: count ?? 0, deckAllowance: budget.max };
+    const used = await usedGenerations(BUDGET_KINDS.deck, budget.windowMinutes);
+    return { decksUsed: used ?? 0, deckAllowance: budget.max };
   } catch {
     return allowance;
   }

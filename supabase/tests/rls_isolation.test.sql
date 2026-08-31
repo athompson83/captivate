@@ -396,6 +396,57 @@ select 'complete_cannot_reopen' as check,
 select 'reserve_still_refused_after_completing' as check,
   (public.captivate_reserve_generation('probe', array['probe'], 'fourth', null, 60, 2)
      is null)::int as n;
+
+-- ---- What a reservation is allowed to cost the caller --------------------------
+-- Two things were being charged to an allowance that were never delivered.
+--
+-- A reservation abandoned by a killed function: `/api/ai/map` ran with a
+-- 60-second ceiling while the model call was given three minutes, so the
+-- platform killed the function mid-generation and nothing ever settled the
+-- row. It stayed pending, and on the free plan — ten decks in thirty days —
+-- each such 504 took one of them away for the full thirty days.
+select public.captivate_reserve_generation('stale', array['stale'], 'abandoned', null, 60, 5)
+  \gset stale_
+reset role;
+-- Aged from outside the caller's own privileges: a user must not be able to
+-- edit their ledger, which is why `complete` exists at all. This is the test
+-- harness standing in for thirty minutes passing.
+update public.ai_generations set created_at = now() - interval '30 minutes'
+ where id = :'stale_captivate_reserve_generation';
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+
+select 'reserve_abandoned_pending_stops_counting' as check,
+  (public.captivate_count_generations(array['stale'], 60) = 0)::int as n;
+
+-- …but one still in flight holds its place, or the lock would be pointless.
+-- Each of these reserves in its own statement: the counter is `stable`, so
+-- within one statement it reads the snapshot taken before the insert and would
+-- report zero however the rule was written.
+select public.captivate_reserve_generation('fresh', array['fresh'], 'running', null, 60, 5)
+  \gset fresh_
+select 'reserve_in_flight_pending_still_counts' as check,
+  (public.captivate_count_generations(array['fresh'], 60) = 1)::int as n;
+
+-- A call that never reached the model spent nothing and made nothing, so it is
+-- not charged. Billing it is charging the author for our own downtime.
+select public.captivate_reserve_generation('dud', array['dud'], 'provider down', null, 60, 5)
+  \gset dud_
+select public.captivate_complete_generation(
+  :'dud_captivate_reserve_generation', 'failed', null, null, null,
+  'the model could not be reached') \gset dud_settled_
+select 'failed_without_spend_does_not_count' as check,
+  (public.captivate_count_generations(array['dud'], 60) = 0)::int as n;
+
+-- A near-miss did reach it, twice, and is charged. The provider records the
+-- usage on the failure for exactly this reason.
+select public.captivate_reserve_generation('spent', array['spent'], 'truncated', null, 60, 5)
+  \gset spent_
+select public.captivate_complete_generation(
+  :'spent_captivate_reserve_generation', 'failed', 'test-model', 9000, 9000,
+  'the answer was cut off') \gset spent_settled_
+select 'failed_with_spend_counts' as check,
+  (public.captivate_count_generations(array['spent'], 60) = 1)::int as n;
 reset role;
 
 -- Bob cannot complete Alice's reservation, and cannot see it either.

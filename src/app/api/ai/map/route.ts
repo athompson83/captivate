@@ -4,7 +4,12 @@ import { buildNarrativeMap } from "@/lib/ai/service";
 import { AudienceInput, guard } from "@/lib/ai/route-helpers";
 import { listEvidence } from "@/lib/data/evidence";
 
-export const maxDuration = 60;
+// 300, up from 60. Proposing an argument for a long talk is one large answer
+// plus a corrective retry, and 60 seconds could not hold both: the platform
+// killed the function mid-generation and the browser got a bare 504 — no
+// message, no toast, and a reservation left pending that counted against the
+// author's allowance for the next thirty days.
+export const maxDuration = 300;
 
 const Input = z
   .object({
@@ -27,7 +32,7 @@ const Input = z
  * somebody else's material.
  */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, "draft", ["map", "presentation"]);
+  const guarded = await guard(request, Input, "draft");
   if (!guarded.ok) return guarded.response;
 
   const { prompt, totalSeconds, recommendedShape, ...context } = guarded.input;

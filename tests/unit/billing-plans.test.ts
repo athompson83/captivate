@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUDGET_KINDS,
   PLAN_BUDGETS,
   allowsImageGeneration,
   limitFor,
   planFromSubscription,
 } from "@/lib/billing/plans";
+import { AI_KINDS } from "@/lib/ai/schemas";
 
 const NOW = Date.parse("2026-09-01T00:00:00Z");
 const FUTURE = Date.parse("2026-10-01T00:00:00Z");
@@ -17,7 +19,26 @@ describe("plan budgets", () => {
 
   it("gives pro the hourly ceilings the app shipped with", () => {
     expect(limitFor("pro", "deck")).toEqual({ windowMinutes: 60, max: 30 });
-    expect(limitFor("pro", "light")).toEqual({ windowMinutes: 60, max: 200 });
+    expect(limitFor("pro", "light")).toEqual({ windowMinutes: 60, max: 300 });
+  });
+
+  it("gives every group its counted kinds, and every kind exactly one group", () => {
+    const groups = ["deck", "draft", "drawing", "light"] as const;
+    const seen = new Set<string>();
+    for (const group of groups) {
+      expect(BUDGET_KINDS[group].length).toBeGreaterThan(0);
+      for (const kind of BUDGET_KINDS[group]) {
+        // Two groups counting one kind is how drafting an argument came to
+        // spend a deck the author had not created.
+        expect(seen.has(kind)).toBe(false);
+        seen.add(kind);
+      }
+    }
+    // Every kind the app can record draws on some budget. A kind in no group
+    // is an unmetered side door.
+    for (const kind of AI_KINDS) {
+      expect(seen.has(kind)).toBe(true);
+    }
   });
 
   it("bounds every free group, so no side door is unmetered", () => {

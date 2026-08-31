@@ -10,11 +10,10 @@ vi.mock("@/lib/supabase/server", () => ({
   getCurrentUser: async () => ({ id: "user-1" }),
   supabaseServer: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: "user-1" } } }) },
-    from: () => ({
-      select: () => ({
-        eq: () => ({ in: () => ({ gte: async () => ({ count: 99, error: null }) }) }),
-      }),
-    }),
+    // The count is the database's to define — a reservation abandoned by a
+    // killed function is not spend — so the gate asks for it rather than
+    // assembling a query of its own.
+    rpc: async () => ({ data: 99, error: null }),
   }),
 }));
 
@@ -26,7 +25,7 @@ describe("the AI gate is plan-aware", () => {
       method: "POST",
       body: JSON.stringify({ prompt: "x" }),
     });
-    const result = await guard(request, z.object({ prompt: z.string() }), "deck", ["scenes"]);
+    const result = await guard(request, z.object({ prompt: z.string() }), "deck");
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -47,7 +46,7 @@ describe("the AI gate is plan-aware", () => {
       method: "POST",
       body: JSON.stringify({ prompt: "x" }),
     });
-    await guard(request, z.object({ prompt: z.string() }), "drawing", ["drawing"]);
+    await guard(request, z.object({ prompt: z.string() }), "drawing");
     expect(limitForCaller).toHaveBeenCalledWith("drawing");
   });
 });

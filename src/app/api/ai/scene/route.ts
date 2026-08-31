@@ -16,7 +16,7 @@ const Input = z
 
 /** Generates one scene. The client decides where to insert it. */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, "draft", ["scene"]);
+  const guarded = await guard(request, Input, "draft");
   if (!guarded.ok) return guarded.response;
 
   const { instruction, presentationId, ...context } = guarded.input;

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { checkRateLimit } from "./rate-limit";
 import { limitForCaller } from "@/lib/billing/entitlement";
-import type { BudgetGroup } from "@/lib/billing/plans";
+import { BUDGET_KINDS, type BudgetGroup } from "@/lib/billing/plans";
 
 /**
  * Shared guard for every AI route: authenticated, rate limited, and validated
@@ -14,12 +14,16 @@ import type { BudgetGroup } from "@/lib/billing/plans";
  * The budget comes from the caller's plan rather than a fixed constant, so a
  * route says which *kind* of work it is doing and the plan decides how much of
  * it is allowed.
+ *
+ * A route names its group and nothing else. It used to name the ledger kinds
+ * too, and one of them named the wrong ones: the create route charged the deck
+ * budget for `map` rows, so drafting an argument twice spent a deck an author
+ * had not created.
  */
 export async function guard<T>(
   request: Request,
   schema: z.ZodType<T>,
   group: BudgetGroup,
-  kinds: string[],
 ): Promise<{ ok: true; input: T } | { ok: false; response: NextResponse }> {
   const user = await getCurrentUser();
   if (!user) {
@@ -32,7 +36,7 @@ export async function guard<T>(
     };
   }
 
-  const verdict = await checkRateLimit(await limitForCaller(group), kinds);
+  const verdict = await checkRateLimit(await limitForCaller(group), BUDGET_KINDS[group]);
   if (!verdict.allowed) {
     return {
       ok: false,

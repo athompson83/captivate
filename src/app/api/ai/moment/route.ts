@@ -16,7 +16,7 @@ const Input = z.object({
 
 /** Rewrites one beat. Nothing else in the map is touched. */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, "light", ["moment", "rewrite"]);
+  const guarded = await guard(request, Input, "light");
   if (!guarded.ok) return guarded.response;
 
   const result = await rewriteMoment(guarded.input);

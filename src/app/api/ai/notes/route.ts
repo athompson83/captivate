@@ -23,7 +23,7 @@ const Input = z
  * cannot use this route to summarise arbitrary text.
  */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, "light", ["speaker_notes"]);
+  const guarded = await guard(request, Input, "light");
   if (!guarded.ok) return guarded.response;
 
   const { presentationId, sceneId, existingNotes, ...context } = guarded.input;

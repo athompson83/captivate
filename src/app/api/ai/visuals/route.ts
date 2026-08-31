@@ -14,7 +14,7 @@ const Input = z
   .merge(AudienceInput);
 
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, "light", ["visuals"]);
+  const guarded = await guard(request, Input, "light");
   if (!guarded.ok) return guarded.response;
 
   const { title, text, presentationId, ...context } = guarded.input;
