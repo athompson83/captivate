@@ -71,8 +71,10 @@ create table public.subscriptions (
   stripe_subscription_id text unique not null,
   status                 text not null,
   price_id               text not null,
-  interval               text not null,
-  current_period_end     timestamptz not null,
+  -- `interval` is a Postgres type name; the column is spelled out to avoid
+  -- needing quotes at every call site.
+  billing_interval       text not null,
+  current_period_end     timestamptz,
   cancel_at_period_end   boolean not null default false,
   -- The `created` of the Stripe event this row was last written from.
   updated_from_event_at  timestamptz not null,
@@ -109,16 +111,27 @@ export function limitFor(plan: Plan, group: BudgetGroup): RateLimit;
 export type BudgetGroup = "deck" | "map" | "drawing" | "light";
 ```
 
-`currentPlan()` reads the mirror table for the signed-in user and returns
-`"pro"` when the status is `active` or `trialing` **and** `current_period_end`
-is in the future. Every other status, a missing row, or any error returns
-`"free"` — it fails closed, because failing open on a read error is how a bug
+`currentPlan()` reads the mirror table for the signed-in user. `active` and
+`trialing` are Pro on the **status alone** — Stripe is authoritative about
+whether a subscription is live, and requiring a future `current_period_end`
+would downgrade a paying customer for however long a renewal webhook takes to
+arrive. Every unrecognised status, a missing row, or any error returns
+`"free"`: it fails closed, because failing open on a read error is how a bug
 becomes free Pro for everyone.
 
-**One deliberate exception: `past_due` keeps Pro until the period genuinely
-ends.** Stripe's dunning is still retrying the card. Cutting off a paying
-customer mid-cycle over a temporarily declined payment is hostile, and the
-period end is the honest boundary.
+**One graced status: `past_due` keeps Pro until the period ends.** Stripe's
+dunning is still retrying the card, and cutting off a paying customer mid-cycle
+over a temporarily declined payment is hostile. When dunning gives up, Stripe
+moves the subscription to `canceled` or `unpaid` — that, not a timestamp, is
+the real downgrade trigger.
+
+**`current_period_end` is nullable, and null means "trust the status".** Recent
+Stripe API versions removed the period from the Subscription object and moved
+it onto the subscription *item* (`items.data[0].current_period_end`). Reading
+it the old way silently yields undefined, and a row written with a bogus period
+end would downgrade someone who just paid. So the webhook reads the item first,
+falls back to the subscription, and writes null when neither is present — and a
+null period end never strands anyone.
 
 ### Nothing new counts the spend
 
@@ -242,9 +255,13 @@ configured on this deployment rather than showing a dead Upgrade button.
 
 ## Testing
 
-- `currentPlan`: a table over every Stripe status × period-end combination;
-  fails closed to free on a read error; returns pro when unconfigured;
-  `past_due` before period end is pro and after it is free.
+- `planFromSubscription`: a table over every Stripe status × period-end
+  combination, including a null period end; fails closed to free on an
+  unrecognised status; `past_due` before period end is pro and after it is
+  free; `active` stays pro with a period end in the past.
+- `currentPlan`: returns pro when billing is unconfigured; free on a read error.
+- `readPeriodEndMs`: reads the item-level period, falls back to the
+  subscription-level one, and returns null when neither is present.
 - `limitFor`: each plan and budget group maps to the intended window and max;
   a free deck budget is 10 per 30 days.
 - Webhook: an invalid signature is rejected without a write; replaying an
