@@ -102,7 +102,17 @@ export default function PricingPage() {
             </div>
           </div>
 
-          <div className="mt-14 overflow-x-auto">
+          {/* The table is wider than a phone, so this scrolls — and a region
+              that scrolls by drag alone is unreachable to anyone navigating by
+              keyboard, who would simply never see the Pro column. Focusable and
+              named, it scrolls with the arrow keys and announces what it is.
+              The global :focus-visible ring makes the stop visible. */}
+          <div
+            className="mt-14 overflow-x-auto"
+            tabIndex={0}
+            role="region"
+            aria-label="Plan comparison"
+          >
             <table className="w-full min-w-[560px] border-collapse text-[14px]">
               <thead>
                 <tr className="border-b border-[var(--sky-line)]">
