@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildNarrativeMap } from "@/lib/ai/service";
-import { AudienceInput, guard, LIMITS } from "@/lib/ai/route-helpers";
+import { AudienceInput, guard } from "@/lib/ai/route-helpers";
 import { listEvidence } from "@/lib/data/evidence";
 
 export const maxDuration = 60;
@@ -27,7 +27,7 @@ const Input = z
  * somebody else's material.
  */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, LIMITS.heavy, ["map", "presentation"]);
+  const guarded = await guard(request, Input, "draft", ["map", "presentation"]);
   if (!guarded.ok) return guarded.response;
 
   const { prompt, totalSeconds, recommendedShape, ...context } = guarded.input;

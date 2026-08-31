@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { writeSpeakerNotes } from "@/lib/ai/service";
-import { AudienceInput, guard, LIMITS } from "@/lib/ai/route-helpers";
+import { AudienceInput, guard } from "@/lib/ai/route-helpers";
 import { supabaseServer } from "@/lib/supabase/server";
 import { parseSceneContent, plainText } from "@/lib/schema/presentation";
 
@@ -23,7 +23,7 @@ const Input = z
  * cannot use this route to summarise arbitrary text.
  */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, LIMITS.light, ["speaker_notes"]);
+  const guarded = await guard(request, Input, "light", ["speaker_notes"]);
   if (!guarded.ok) return guarded.response;
 
   const { presentationId, sceneId, existingNotes, ...context } = guarded.input;

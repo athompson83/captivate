@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { isAiConfigured } from "@/lib/ai/provider";
-import {
-  isImageGenerationConfigured,
-  isStockSearchConfigured,
-} from "@/lib/ai/visual-sourcing";
+import { isImageGenerationConfigured, isStockSearchConfigured } from "@/lib/ai/visual-sourcing";
 
 /**
  * Lets the UI say honestly whether a model is available on this deployment.

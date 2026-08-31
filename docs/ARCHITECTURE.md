@@ -278,3 +278,30 @@ Storage buckets are private. Scene content stores a permanent
 request, after RLS has confirmed the asset belongs to the caller.
 
 See [SECURITY.md](SECURITY.md) for the full picture, including accepted risks.
+
+## Billing
+
+Captivate sells one thing: **Captivate Pro**, at $12 a month or $96 a year.
+Free is the whole product with a bounded AI allowance — 10 generated
+presentations in any rolling 30 days — and Pro raises every ceiling and adds
+generated imagery. Nothing a person authored is ever locked by a lapsed
+subscription; only future model calls are limited.
+
+Stripe owns every card field. The app redirects to Stripe-hosted Checkout and
+the Billing Portal, and a signature-verified webhook mirrors subscription state
+into `public.subscriptions`. Entitlement is then a cheap local read rather than
+a call to Stripe — which matters because an entitlement check sits in front of
+every AI generation, and a network hop there would put Stripe's uptime in front
+of Captivate's.
+
+The gate itself is deliberately tiny. `currentPlan()` resolves to `free` or
+`pro`, and that choice picks one of two `RateLimit` values fed to the
+_existing_ `captivate_reserve_generation` function. So the revenue boundary
+inherits, unchanged, the atomic per-user locking that was built for the spend
+boundary: counting and incrementing remain one statement, and a burst of
+concurrent requests still cannot all read the same count and pass.
+
+`src/lib/billing/` holds it: `plans.ts` (pure, isomorphic, the single source of
+what each plan allows), `entitlement.ts` (the mirror read), `stripe.ts` (the
+secret-bearing client) and `webhook-events.ts` (pure event-shape logic, so
+ordering and idempotency are testable without a webhook).

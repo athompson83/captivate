@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildScenesFromMap } from "@/lib/ai/service";
 import { ProposedMap } from "@/lib/ai/schemas";
-import { AudienceInput, guard, LIMITS } from "@/lib/ai/route-helpers";
+import { AudienceInput, guard } from "@/lib/ai/route-helpers";
 import { briefsFor, draftFromProposal } from "@/lib/narrative/generate";
 import { weaveAsides } from "@/lib/ai/weave-asides";
 import { listEvidence } from "@/lib/data/evidence";
@@ -46,7 +46,7 @@ const Input = z
  * author can come back to, so it is rolled back rather than degraded.
  */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, LIMITS.heavy, ["map", "presentation"]);
+  const guarded = await guard(request, Input, "deck", ["map", "presentation"]);
   if (!guarded.ok) return guarded.response;
 
   const { prompt, map, totalSeconds, depth, themeId, folderId, ...context } = guarded.input;

@@ -3,16 +3,22 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { checkRateLimit, LIMITS, type RateLimit } from "./rate-limit";
+import { checkRateLimit } from "./rate-limit";
+import { limitForCaller } from "@/lib/billing/entitlement";
+import type { BudgetGroup } from "@/lib/billing/plans";
 
 /**
  * Shared guard for every AI route: authenticated, rate limited, and validated
  * before a single token is spent.
+ *
+ * The budget comes from the caller's plan rather than a fixed constant, so a
+ * route says which *kind* of work it is doing and the plan decides how much of
+ * it is allowed.
  */
 export async function guard<T>(
   request: Request,
   schema: z.ZodType<T>,
-  limit: RateLimit,
+  group: BudgetGroup,
   kinds: string[],
 ): Promise<{ ok: true; input: T } | { ok: false; response: NextResponse }> {
   const user = await getCurrentUser();
@@ -26,7 +32,7 @@ export async function guard<T>(
     };
   }
 
-  const verdict = await checkRateLimit(limit, kinds);
+  const verdict = await checkRateLimit(await limitForCaller(group), kinds);
   if (!verdict.allowed) {
     return {
       ok: false,
@@ -66,5 +72,3 @@ export const AudienceInput = z.object({
   tone: z.string().max(80).optional(),
   sceneCount: z.number().int().min(3).max(24).optional(),
 });
-
-export { LIMITS };

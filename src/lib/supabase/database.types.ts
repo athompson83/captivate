@@ -184,6 +184,30 @@ type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Relationships: [];
 };
 
+export type BillingCustomerRow = {
+  user_id: string;
+  stripe_customer_id: string;
+  created_at: string;
+};
+
+export type SubscriptionRow = {
+  user_id: string;
+  stripe_subscription_id: string;
+  status: string;
+  price_id: string;
+  billing_interval: "month" | "year";
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  updated_from_event_at: string;
+  updated_at: string;
+};
+
+export type StripeEventRow = {
+  id: string;
+  type: string;
+  received_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -198,6 +222,9 @@ export type Database = {
       recordings: Table<RecordingRow>;
       ai_generations: Table<AiGenerationRow>;
       presentation_sessions: Table<PresentationSessionRow>;
+      billing_customers: Table<BillingCustomerRow>;
+      subscriptions: Table<SubscriptionRow>;
+      stripe_events: Table<StripeEventRow>;
     };
     Views: Record<never, never>;
     Functions: {

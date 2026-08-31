@@ -1,6 +1,7 @@
 import "server-only";
 
 import { supabaseServer } from "@/lib/supabase/server";
+import type { RateLimit } from "@/lib/billing/plans";
 
 /**
  * Rate limiting for model calls.
@@ -22,16 +23,30 @@ import { supabaseServer } from "@/lib/supabase/server";
  * message and the status code.
  */
 
-export interface RateLimit {
-  windowMinutes: number;
-  max: number;
+export type { RateLimit };
+
+/**
+ * How to describe the window a limit actually used.
+ *
+ * The free plan counts over a rolling 30 days, so a message that says "in the
+ * last hour" would be a lie about billing — the worst kind of copy to get
+ * wrong.
+ */
+function windowPhrase(limit: RateLimit): string {
+  if (limit.windowMinutes >= 1440) {
+    const days = Math.round(limit.windowMinutes / 1440);
+    return `the last ${days} day${days === 1 ? "" : "s"}`;
+  }
+  if (limit.windowMinutes >= 60) {
+    const hours = Math.round(limit.windowMinutes / 60);
+    return `the last ${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+  return `the last ${limit.windowMinutes} minutes`;
 }
 
-/** Full generations are expensive; text tools are cheap and used constantly. */
-export const LIMITS = {
-  heavy: { windowMinutes: 60, max: 30 } satisfies RateLimit,
-  light: { windowMinutes: 60, max: 200 } satisfies RateLimit,
-};
+function overLimitMessage(limit: RateLimit): string {
+  return `You've used ${limit.max} AI generations in ${windowPhrase(limit)}. Nothing you've made is affected.`;
+}
 
 export type RateVerdict =
   { allowed: true } | { allowed: false; retryAfterMinutes: number; message: string };
@@ -62,7 +77,7 @@ export async function checkRateLimit(limit: RateLimit, kinds: string[]): Promise
       return {
         allowed: false,
         retryAfterMinutes: limit.windowMinutes,
-        message: `You've used ${limit.max} AI generations in the last hour. Try again shortly — nothing you've made is affected.`,
+        message: overLimitMessage(limit),
       };
     }
 
@@ -123,7 +138,7 @@ export async function reserve(
       return refused(
         error
           ? "Couldn't reserve an AI call just now. Nothing was spent — try again."
-          : `You've used ${limit.max} AI generations in the last hour. Try again shortly — nothing you've made is affected.`,
+          : overLimitMessage(limit),
       );
     }
     return { ok: true, reservation: { id: data as unknown as string } };
