@@ -166,11 +166,24 @@ export async function generateStructured<T>(
         .map((i) => `- ${i.path.join(".") || "(root)"}: ${i.message}`)
         .join("\n");
 
+      // The correction must arrive as a tool_result for the failed call, not
+      // as prose: the API rejects any user turn after a tool_use that does
+      // not answer it ("tool_use ids were found without tool_result blocks"),
+      // which meant this retry — the whole rescue path for a near-miss —
+      // could never run. Every schema failure fell straight through to the
+      // structural fallback while looking like a model error.
       messages.push(
         { role: "assistant", content: response.content },
         {
           role: "user",
-          content: `That tool call didn't match the schema:\n${issues}\n\nCall ${options.toolName} again with corrected input. Respect every length limit exactly.`,
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: toolUse.id,
+              is_error: true,
+              content: `That input didn't match the schema:\n${issues}\n\nCall ${options.toolName} again with corrected input. Respect every length limit exactly.`,
+            },
+          ],
         },
       );
       continue;
