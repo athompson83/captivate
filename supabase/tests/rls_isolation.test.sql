@@ -644,3 +644,69 @@ select 'shared_asset_revoked_signed_in_storage_unreadable' as check,
   (count(*) = 0)::int as n from storage.objects
   where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/asset1.png';
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- Billing: a user may read their own subscription and may never write one.
+--
+-- Granting yourself Pro has to be impossible, not merely unimplemented. There
+-- is no insert, update or delete policy on `subscriptions` for any role, so
+-- the writes below affect nothing rather than escalating.
+-- ---------------------------------------------------------------------------
+insert into public.subscriptions
+  (user_id, stripe_subscription_id, status, price_id, billing_interval,
+   current_period_end, updated_from_event_at)
+values
+  ('11111111-1111-1111-1111-111111111111', 'sub_alice', 'active', 'price_test',
+   'month', now() + interval '30 days', now()),
+  ('22222222-2222-2222-2222-222222222222', 'sub_bob', 'active', 'price_test',
+   'month', now() + interval '30 days', now());
+
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+
+select 'subscription_sees_only_own' as check,
+  (count(*) = 1)::int as n from public.subscriptions;
+
+select 'subscription_other_user_invisible' as check,
+  (count(*) = 0)::int as n from public.subscriptions
+  where user_id = '22222222-2222-2222-2222-222222222222';
+
+-- No update policy exists, so this matches no rows.
+update public.subscriptions
+   set status = 'active', current_period_end = now() + interval '999 days';
+reset role;
+
+select 'subscription_not_self_writable' as check,
+  (count(*) = 0)::int as n from public.subscriptions
+  where current_period_end > now() + interval '900 days';
+
+-- Nor may a user mint one for themselves. With no insert policy the write is
+-- refused outright rather than matching zero rows, so the raise is caught here
+-- to keep ON_ERROR_STOP from ending the run on the expected denial.
+do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub',
+                     '11111111-1111-1111-1111-111111111111', true);
+  begin
+    insert into public.subscriptions
+      (user_id, stripe_subscription_id, status, price_id, billing_interval,
+       current_period_end, updated_from_event_at)
+    values ('11111111-1111-1111-1111-111111111111', 'sub_forged', 'active',
+            'price_test', 'year', now() + interval '900 days', now());
+  exception when insufficient_privilege then
+    null;
+  end;
+end $$;
+reset role;
+
+select 'subscription_not_self_insertable' as check,
+  (count(*) = 0)::int as n from public.subscriptions
+  where stripe_subscription_id = 'sub_forged';
+
+-- The event ledger has no policies at all: not even a read.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'stripe_events_opaque_to_users' as check,
+  (count(*) = 0)::int as n from public.stripe_events;
+reset role;
