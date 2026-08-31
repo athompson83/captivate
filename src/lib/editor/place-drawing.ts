@@ -2,6 +2,13 @@ import type { DrawnPath, SceneContent, SceneElement } from "@/lib/schema/present
 import { elementId } from "./layouts";
 
 /**
+ * Re-exported rather than defined here: `settleCover` moved to `layouts.ts`,
+ * beside the composition it corrects, so `relayoutScene` can apply it without
+ * this module and that one importing each other.
+ */
+export { settleCover } from "./layouts";
+
+/**
  * Swaps a generated scene's empty media placeholder for a drawing.
  *
  * A deck written by the model used to arrive with image slots that were
@@ -81,31 +88,6 @@ export function replaceMediaWithPhoto(
     alt: photo.alt || placeholder.alt,
   };
   return { ...content, elements };
-}
-
-/**
- * A cover whose image never arrived degrades to the title slide beneath it.
- *
- * The veil elements carry the `veil_` id prefix `composeCover` stamped on
- * them. When the veil image is still the empty placeholder after the dress
- * pass — no provider configured, or every source failed — the whole veil is
- * stripped rather than presenting a full-screen grey placeholder as the
- * opening of someone's talk.
- */
-export function settleCover(content: SceneContent): SceneContent {
-  if (content.layout !== "cover") return content;
-  const unfilled = content.elements.some(
-    (element) =>
-      element.type === "image" &&
-      element.id.startsWith("veil_") &&
-      !element.url &&
-      !element.assetId,
-  );
-  if (!unfilled) return content;
-  return {
-    ...content,
-    elements: content.elements.filter((element) => !element.id.startsWith("veil_")),
-  };
 }
 
 /**

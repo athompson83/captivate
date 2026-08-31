@@ -212,3 +212,137 @@ describe("an accented claim", () => {
     expect(heading.content).toEqual([{ text: "One idea" }]);
   });
 });
+
+/**
+ * What a composed scene must not do.
+ *
+ * These are the failures a schema check cannot see: `composeScene` returned a
+ * perfectly valid `SceneContent` in every case below, and the scene was still
+ * wrong on a projector. All three were found by rendering the fifteen layouts
+ * and looking at them.
+ */
+describe("a scene composed from content the author gave", () => {
+  it("degrades a cover to a title slide when the editor has no picture for it", () => {
+    // Composing a cover always lays down a veil, because generation fills
+    // that slot from a stock search afterwards. The editor's "change layout"
+    // control has no sourcing pass, so choosing Cover for a scene whose image
+    // slot is empty drew a full-bleed grey placeholder with the deck's title
+    // on it, over the same title beneath — one scene, two headings.
+    const source = composeScene("split-left", {
+      heading: "Recognising shock",
+      media: { url: "", alt: "" },
+    });
+    const covered = relayoutScene(source, "cover");
+
+    expect(covered.layout).toBe("cover");
+    expect(covered.elements.filter((element) => element.type === "heading")).toHaveLength(1);
+    expect(covered.elements.some((element) => element.id.startsWith("veil_"))).toBe(false);
+  });
+
+  it("keeps the veil when the scene does have a picture", () => {
+    const source = composeScene("split-left", {
+      heading: "Recognising shock",
+      media: { url: "https://example.com/theatre.jpg", alt: "A lecture theatre" },
+    });
+    expect(relayoutScene(source, "cover").elements.some((el) => el.id.startsWith("veil_"))).toBe(
+      true,
+    );
+  });
+
+  it("still composes an empty veil for generation to fill later", () => {
+    // The dress pass sources a photograph *after* the scene exists, so this
+    // placeholder is the thing it fills. Removing it would mean no generated
+    // deck could ever get a cover photograph at all.
+    const composed = composeScene("cover", {
+      heading: "Recognising shock",
+      media: { url: "", alt: "a night road" },
+    });
+    const veil = composed.elements.find((el) => el.id.startsWith("veil_") && el.type === "image");
+    expect(veil).toBeDefined();
+    expect(veil && "animation" in veil ? veil.animation.exit : null).toBe("zoom");
+  });
+
+  it("renders bullets into every layout that has somewhere to put them", () => {
+    // `closing` had a heading and a subheading but no body slot, so every
+    // bullet handed to it vanished — including in five shipped templates.
+    const bullets = ["Treat perfusion, not numbers", "Trust the skin", "Escalate early"];
+    const withBody = (NAMED_LAYOUTS as SceneLayout[]).filter((layout) => layoutSlots(layout).body);
+
+    expect(withBody).toContain("closing");
+    expect(withBody.length).toBeGreaterThan(4);
+
+    for (const layout of withBody) {
+      const rendered = JSON.stringify(composeScene(layout, { heading: "H", bullets }).elements);
+      for (const bullet of bullets) {
+        expect(rendered, `${layout} dropped "${bullet}"`).toContain(bullet);
+      }
+    }
+  });
+
+  it("has no layout that accepts a body and then throws the bullets away", () => {
+    // The inverse of the above, stated as the invariant it really is: a slot
+    // that exists must be filled, and a layout with no slot — a title, a
+    // section marker — is a misuse the editor prevents rather than a silent
+    // loss here.
+    for (const layout of NAMED_LAYOUTS as SceneLayout[]) {
+      const composed = composeScene(layout, { heading: "H", bullets: ["One"] });
+      const hasList = composed.elements.some((element) => element.type === "list");
+      expect(hasList, layout).toBe(Boolean(layoutSlots(layout).body));
+    }
+  });
+
+  it("leaves a bulleted list ranged left, even where the layout is centred", () => {
+    // Centred lines against left-hand markers reads as a rendering fault. The
+    // closing layout centres the list's *frame* instead.
+    const composed = composeScene("closing", { heading: "Take away", bullets: ["One", "Two"] });
+    const list = composed.elements.find((element) => element.type === "list");
+    expect(list).toBeDefined();
+    expect(list && "style" in list ? list.style.align : null).toBe("left");
+
+    const slots = layoutSlots("closing");
+    const body = slots.body!;
+    // Centred as a block: equal air either side.
+    expect(body.x).toBeCloseTo(100 - (body.x + body.w), 1);
+  });
+});
+
+/**
+ * Type sizes, as a floor rather than a taste.
+ *
+ * The theme's `scale.body` exists so body text can be read from the back of a
+ * room. Composing a list at 0.56 of it put bullets at around twenty pixels on
+ * a 1600-pixel stage — legible on a laptop while writing, and not from row
+ * fifteen. Growing them is safe because `fitTextSize` only ever shrinks.
+ */
+describe("composed text is sized to be read from the back of a room", () => {
+  const sizeOf = (
+    layout: SceneLayout,
+    type: string,
+    content: Parameters<typeof composeScene>[1],
+  ) => {
+    const element = composeScene(layout, content).elements.find((e) => e.type === type);
+    return element && "style" in element ? element.style.size : null;
+  };
+
+  it("sets a list near the theme's own body scale", () => {
+    expect(
+      sizeOf("bullets", "list", { heading: "H", bullets: ["One", "Two"] }),
+    ).toBeGreaterThanOrEqual(0.85);
+  });
+
+  it("sets a card's body high enough to read across three columns", () => {
+    const size = sizeOf("three-up", "callout", {
+      heading: "H",
+      cards: [{ title: "Skin", body: "Colour and temperature." }],
+    });
+    expect(size).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it("sets code high enough that a room can read it", () => {
+    const size = sizeOf("code", "code", {
+      heading: "H",
+      code: { code: "const x = 1;", language: "ts" },
+    });
+    expect(size).toBeGreaterThanOrEqual(0.55);
+  });
+});

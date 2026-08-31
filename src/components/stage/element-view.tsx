@@ -195,13 +195,19 @@ export const ElementView = memo(function ElementView({
     style: TextStyle,
     family: "display" | "sans" | "mono",
     lines?: number,
+    /**
+     * The share of the element's box this text actually gets, where it is not
+     * all of it — a callout spends its own height on padding, an icon and a
+     * title before its body starts.
+     */
+    share: { width: number; height: number } = { width: 1, height: 1 },
   ) => {
     if (!stageHeight) return desired;
     const metrics = textMetrics(text);
     return fitTextSize({
       ...metrics,
-      boxWidth,
-      boxHeight,
+      boxWidth: boxWidth * share.width,
+      boxHeight: boxHeight * share.height,
       desiredSize: desired,
       lineHeight: style.lineHeight,
       family: style.family ?? family,
@@ -622,7 +628,21 @@ export const ElementView = memo(function ElementView({
           )}
           <div
             style={{
-              fontSize: `${scale.body * rem * element.style.size}px`,
+              /**
+               * Fitted, like every other text on the stage.
+               *
+               * A callout was the only text on the stage that was not: its
+               * box clips, so a body longer than the card would lose its last
+               * line with nothing on screen to say so.
+               */
+              fontSize: `${fit(
+                plainOf(element.content),
+                scale.body * rem * element.style.size,
+                element.style,
+                "sans",
+                undefined,
+                { width: 0.84, height: 0.46 },
+              )}px`,
               color: theme.tokens.inkMuted,
               fontFamily: theme.fonts.sans,
               lineHeight: element.style.lineHeight,
