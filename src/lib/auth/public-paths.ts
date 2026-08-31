@@ -23,7 +23,26 @@ const PUBLIC_PREFIXES = [
   "/auth",
   // The share link. The token is the authorisation, and a dead one 404s.
   "/v",
+  // What Pro costs. Somebody deciding whether to pay does not have an account
+  // yet, so a pricing page behind the gate cannot do its one job.
+  "/pricing",
 ];
+
+/**
+ * Stripe's webhook, and nothing else under that prefix.
+ *
+ * An exact match rather than a prefix: opening `/api/stripe/*` would expose
+ * whatever billing route is added next, and this is the one endpoint whose
+ * caller has no session by design.
+ *
+ * It has to be here. Stripe sends no cookie and does not follow redirects, so
+ * behind the gate every delivery becomes a 307 to a sign-in page: the handler
+ * never runs, a customer who paid never becomes Pro, and nothing inside the
+ * app looks wrong. The endpoint is not unauthenticated — the signature it
+ * verifies is its authentication, which is exactly why it cannot use the
+ * session one.
+ */
+const PUBLIC_EXACT = new Set(["/api/stripe/webhook"]);
 
 /**
  * `/api/assets/<uuid>/content` serves a private file, and is public *here*
@@ -38,8 +57,7 @@ const PUBLIC_ASSET_CONTENT =
   /^\/api\/assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/content$/i;
 
 export function isPublicPath(pathname: string): boolean {
+  if (PUBLIC_EXACT.has(pathname)) return true;
   if (PUBLIC_ASSET_CONTENT.test(pathname)) return true;
-  return PUBLIC_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+  return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }

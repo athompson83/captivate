@@ -32,6 +32,28 @@ describe("what a visitor with no account may reach", () => {
     }
     expect(isPublicPath("/auth/callback")).toBe(true);
   });
+
+  it("reads the pricing page", () => {
+    // Somebody deciding whether to pay does not have an account yet. A pricing
+    // page behind a sign-in wall cannot do the one job it has.
+    expect(isPublicPath("/pricing")).toBe(true);
+  });
+});
+
+describe("what Stripe may reach", () => {
+  it("delivers a webhook without a session", () => {
+    // Stripe calls this with no cookie and does not follow redirects. Gated,
+    // every delivery becomes a 307 to a sign-in page, the handler never runs,
+    // and a customer who paid silently never becomes Pro — the failure is
+    // invisible from inside the app.
+    expect(isPublicPath("/api/stripe/webhook")).toBe(true);
+  });
+
+  it("opens nothing else under /api/stripe", () => {
+    expect(isPublicPath("/api/stripe")).toBe(false);
+    expect(isPublicPath("/api/stripe/webhook/extra")).toBe(false);
+    expect(isPublicPath("/api/stripe/anything-else")).toBe(false);
+  });
 });
 
 describe("what it may not", () => {
@@ -73,5 +95,6 @@ describe("what it may not", () => {
     expect(isPublicPath("/vault/secrets")).toBe(false);
     expect(isPublicPath("/sign-in-as-someone-else")).toBe(false);
     expect(isPublicPath("/authenticated-only")).toBe(false);
+    expect(isPublicPath("/pricing-internal")).toBe(false);
   });
 });
