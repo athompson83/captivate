@@ -47,7 +47,10 @@ jobs:
             exit 0
           fi
 
-          mapfile -t changed_files < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          # Triple-dot isolates changes introduced by the PR. Disabling rename
+          # detection reports both sides of a move so risk cannot disappear
+          # when executable or schema files are moved into documentation paths.
+          mapfile -t changed_files < <(git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA")
           run_verify=false
           run_rls=false
           run_e2e=false
@@ -55,7 +58,7 @@ jobs:
 
           for path in "${changed_files[@]}"; do
             case "$path" in
-              *.md|docs/*|LICENSE|.github/ISSUE_TEMPLATE/*|.github/PULL_REQUEST_TEMPLATE.md)
+              *.md|LICENSE|LICENSE.*)
                 ;;
               *)
                 run_verify=true
@@ -63,7 +66,7 @@ jobs:
             esac
 
             case "$path" in
-              .github/workflows/ci.yml|package.json|package-lock.json|supabase/*|scripts/check-migrations.mjs)
+              .github/workflows/ci.yml|package.json|package-lock.json|supabase/*|scripts/check-migrations.mjs|src/proxy.ts|src/app/api/*|src/lib/data/*|src/lib/present/*|src/lib/supabase/*)
                 run_rls=true
                 ;;
             esac
