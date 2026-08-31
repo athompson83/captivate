@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PLAN_BUDGETS, PRO_PRICING } from "@/lib/billing/plans";
+import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -49,77 +50,90 @@ const ROWS: { label: string; free: string; pro: string }[] = [
 
 export default function PricingPage() {
   return (
-    <main className="mx-auto max-w-3xl px-5 py-14 sm:px-8">
-      <h1
-        className="text-ink text-[30px] font-semibold tracking-tight"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        Simple pricing
-      </h1>
-      <p className="text-ink-2 mt-3 max-w-xl text-[15px] leading-relaxed">
-        Captivate is free to use, and everything you make stays yours — editable, presentable and
-        exportable — on either plan. Pro raises the AI limits and adds generated imagery.
-      </p>
+    <main className="marketing relative min-h-screen overflow-x-hidden">
+      <div className="aurora" aria-hidden />
+      <div className="relative">
+        <SiteHeader />
 
-      <div className="mt-9 grid gap-4 sm:grid-cols-2">
-        <div className="border-line-subtle bg-raised rounded-[var(--radius-lg)] border p-5">
-          <h2 className="text-ink text-[15px] font-semibold">Free</h2>
-          <p className="text-ink mt-1 text-[26px] font-semibold tracking-tight">$0</p>
-          <p className="text-ink-3 mt-2 text-[13px] leading-relaxed">
-            The whole product, with {free.deck.max} AI-generated presentations every 30 days.
-          </p>
-          <Link
-            href="/sign-up"
-            className="border-line hover:border-line-strong text-ink-2 hover:text-ink mt-4 inline-flex min-h-[32px] items-center rounded-[var(--radius-md)] border px-3 text-[13px] font-medium transition-colors"
+        <section className="shell py-16 sm:py-20">
+          <h1
+            className="text-[clamp(2.2rem,4vw,3.6rem)] leading-tight font-semibold tracking-tight text-[var(--sky-ink)]"
+            style={{ fontFamily: "var(--font-display)" }}
           >
-            Create an account
-          </Link>
-        </div>
-
-        <div className="border-accent bg-raised rounded-[var(--radius-lg)] border p-5">
-          <h2 className="text-ink text-[15px] font-semibold">Captivate Pro</h2>
-          <p className="text-ink mt-1 text-[26px] font-semibold tracking-tight">
-            {PRO_PRICING.monthly}
-            <span className="text-ink-3 text-[14px] font-normal"> / month</span>
+            Simple pricing
+          </h1>
+          <p className="mt-4 max-w-2xl text-[16px] leading-relaxed text-[var(--sky-ink-2)]">
+            Captivate is free to use, and everything you make stays yours — editable, presentable
+            and exportable — on either plan. Pro raises the AI limits and adds generated imagery.
           </p>
-          <p className="text-ink-3 mt-2 text-[13px] leading-relaxed">
-            Or {PRO_PRICING.annual} a year — about {PRO_PRICING.annualSavingPercent}% less.
+
+          <div className="mt-12 grid gap-5 lg:grid-cols-2 2xl:gap-8">
+            <div className="lit-card p-7 sm:p-9">
+              <h2 className="text-[15px] font-semibold text-[var(--sky-ink)]">Free</h2>
+              <p className="mt-2 text-[40px] leading-none font-semibold tracking-tight text-[var(--sky-ink)]">
+                $0
+              </p>
+              <p className="mt-4 text-[14px] leading-relaxed text-[var(--sky-ink-3)]">
+                The whole product, with {free.deck.max} AI-generated presentations every 30 days.
+              </p>
+              <Link
+                href="/sign-up"
+                className="mt-7 inline-flex items-center rounded-[var(--radius-lg)] border border-[var(--sky-line-strong)] px-5 py-3 text-[14px] font-medium text-[var(--sky-ink-2)] transition-colors hover:text-[var(--sky-ink)]"
+              >
+                Create an account
+              </Link>
+            </div>
+
+            <div className="lit-card border-[var(--sky-amber)]/45 p-7 sm:p-9">
+              <h2 className="text-[15px] font-semibold text-[var(--sky-amber)]">Captivate Pro</h2>
+              <p className="mt-2 text-[40px] leading-none font-semibold tracking-tight text-[var(--sky-ink)]">
+                {PRO_PRICING.monthly}
+                <span className="text-[16px] font-normal text-[var(--sky-ink-3)]"> / month</span>
+              </p>
+              <p className="mt-4 text-[14px] leading-relaxed text-[var(--sky-ink-3)]">
+                Or {PRO_PRICING.annual} a year — about {PRO_PRICING.annualSavingPercent}% less.
+              </p>
+              <Link
+                href="/settings"
+                className="mt-7 inline-flex items-center rounded-[var(--radius-lg)] bg-[var(--sky-amber)] px-5 py-3 text-[14px] font-medium text-[oklch(0.18_0.03_60)] transition-opacity hover:opacity-90"
+              >
+                Upgrade in settings
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-14 overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse text-[14px]">
+              <thead>
+                <tr className="border-b border-[var(--sky-line)]">
+                  <th className="py-3 text-left font-medium text-[var(--sky-ink-3)]">
+                    What you get
+                  </th>
+                  <th className="py-3 text-left font-medium text-[var(--sky-ink-3)]">Free</th>
+                  <th className="py-3 text-left font-medium text-[var(--sky-ink-3)]">Pro</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ROWS.map((row) => (
+                  <tr key={row.label} className="border-b border-[var(--sky-line)]/60">
+                    <td className="py-3.5 pr-6 text-[var(--sky-ink-2)]">{row.label}</td>
+                    <td className="py-3.5 pr-6 text-[var(--sky-ink-2)]">{row.free}</td>
+                    <td className="py-3.5 text-[var(--sky-ink)]">{row.pro}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mt-8 max-w-3xl text-[13px] leading-relaxed text-[var(--sky-ink-3)]">
+            Limits are counted over a rolling window — the last 30 days on Free, the last hour on
+            Pro — not a calendar month. Cancelling keeps every presentation, asset and recording you
+            have made; only future AI generations are limited.
           </p>
-          <Link
-            href="/settings"
-            className="bg-accent text-on-accent mt-4 inline-flex min-h-[32px] items-center rounded-[var(--radius-md)] px-3 text-[13px] font-medium transition-opacity hover:opacity-90"
-          >
-            Upgrade in settings
-          </Link>
-        </div>
-      </div>
+        </section>
 
-      <div className="mt-10 overflow-x-auto">
-        <table className="w-full min-w-[520px] border-collapse text-[13px]">
-          <thead>
-            <tr className="border-line-subtle border-b">
-              <th className="text-ink-3 py-2 text-left font-medium">What you get</th>
-              <th className="text-ink-3 py-2 text-left font-medium">Free</th>
-              <th className="text-ink-3 py-2 text-left font-medium">Pro</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ROWS.map((row) => (
-              <tr key={row.label} className="border-line-subtle border-b">
-                <td className="text-ink-2 py-2.5 pr-4">{row.label}</td>
-                <td className="text-ink-2 py-2.5 pr-4">{row.free}</td>
-                <td className="text-ink py-2.5">{row.pro}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <SiteFooter />
       </div>
-
-      <p className="text-ink-3 mt-6 text-[12.5px] leading-relaxed">
-        Limits are counted over a rolling window — the last 30 days on Free, the last hour on Pro —
-        not a calendar month. Cancelling keeps every presentation, asset and recording you have
-        made; only future AI generations are limited.
-      </p>
     </main>
   );
 }

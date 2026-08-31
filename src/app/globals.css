@@ -307,6 +307,37 @@ body {
   }
 }
 
+/**
+ * The marketing container.
+ *
+ * Wider than `app-page`, and it keeps widening: the front door is a picture
+ * before it is a document, and a hero pinned to 72rem on a 34-inch monitor
+ * reads as a phone layout someone forgot to finish. The prose inside it is
+ * still bounded by its own `max-w-*`, so the column that has to stay readable
+ * stays readable while the composition uses the room it is given.
+ */
+@utility shell {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 76rem;
+  padding-inline: 1.5rem;
+
+  @media (width >= 40rem) {
+    padding-inline: 2.5rem;
+  }
+  /* Past this, the cap is a share of the display rather than a number. A
+     fixed cap has to be chosen for one monitor and is wrong on every other:
+     at 72rem the hero read as a phone layout nobody had finished, and a step
+     ladder of breakpoints only moves where that happens. */
+  @media (width >= 90rem) {
+    max-width: min(168rem, 94vw);
+    padding-inline: 3.5rem;
+  }
+  @media (width >= 110rem) {
+    padding-inline: 4.5rem;
+  }
+}
+
 @utility no-scrollbar {
   scrollbar-width: none;
   &::-webkit-scrollbar {
@@ -352,6 +383,124 @@ body {
 }
 
 /* ------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------- */
+/* Marketing surface                                                          */
+/*                                                                            */
+/* The landing and pricing pages are a night sky, in every theme. This is the */
+/* one place in Captivate that does not follow the visitor's colour scheme,   */
+/* and it is deliberate: the product's own idea is a room going dark and a    */
+/* camera finding the argument, so the front door is that room. The app       */
+/* itself, past the sign-in, is theme-aware exactly as before — none of these */
+/* tokens are used there.                                                     */
+/*                                                                            */
+/* Three lights: amber is the key (it is the product's accent), violet the    */
+/* rim, and a cold cyan for the one accent that must not read as warm. The    */
+/* ground is blue-black rather than grey-black, so an amber edge on it looks  */
+/* lit rather than printed.                                                   */
+/* ------------------------------------------------------------------------- */
+
+@layer base {
+  .marketing {
+    --sky-ground: oklch(0.14 0.028 285);
+    --sky-deep: oklch(0.1 0.026 288);
+    --sky-amber: oklch(0.82 0.15 72);
+    --sky-violet: oklch(0.7 0.16 296);
+    --sky-cyan: oklch(0.83 0.11 186);
+    --sky-ink: oklch(0.97 0.008 90);
+    --sky-ink-2: oklch(0.79 0.018 285);
+    --sky-ink-3: oklch(0.64 0.02 285);
+    --sky-line: oklch(1 0 0 / 0.1);
+    --sky-line-strong: oklch(1 0 0 / 0.2);
+
+    color-scheme: dark;
+    color: var(--sky-ink-2);
+    background: var(--sky-ground);
+  }
+
+  /* The air of the page: two lights far off, and a horizon that is never a
+     line. No band, no edge — the same rule the world canvas follows. */
+  .aurora {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(78% 52% at 14% -8%, oklch(0.55 0.14 62 / 0.3) 0%, transparent 62%),
+      radial-gradient(64% 48% at 92% 6%, oklch(0.45 0.16 296 / 0.34) 0%, transparent 60%),
+      radial-gradient(90% 62% at 50% 108%, oklch(0.34 0.1 200 / 0.22) 0%, transparent 66%);
+  }
+
+  /* The hero's own ground, under the WebGL canvas: what a visitor sees in the
+     instant before three has loaded, and what shows through its transparency. */
+  .hero-sky {
+    border-radius: var(--radius-2xl);
+    background:
+      radial-gradient(100% 84% at 76% -6%, oklch(0.3 0.07 62 / 0.55) 0%, transparent 56%),
+      radial-gradient(88% 76% at 6% 106%, oklch(0.26 0.07 292 / 0.6) 0%, transparent 58%),
+      oklch(0.11 0.024 288);
+    box-shadow:
+      0 40px 90px oklch(0 0 0 / 0.55),
+      inset 0 1px 0 oklch(1 0 0 / 0.06);
+  }
+
+  /* The world has no edges, so neither does the window onto it: the canvas
+     fades out at the rim rather than being cut off by one, which is the same
+     rule the stage follows for an image at the edge of a scene. A hard border
+     here made the hero read as a screenshot of a slide. */
+  .hero-sky > * {
+    mask-image: radial-gradient(120% 120% at 50% 50%, #000 62%, transparent 99%);
+  }
+
+  /* A card lit from above rather than outlined: one hairline of light on the
+     top edge, and a wash that fades before it reaches the bottom. A border on
+     four sides reads as a box, which is the thing this product is not. */
+  .lit-card {
+    position: relative;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--sky-line);
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 0.055) 0%,
+      oklch(1 0 0 / 0.018) 42%,
+      oklch(1 0 0 / 0.008) 100%
+    );
+    transition:
+      border-color var(--duration-base) var(--ease-out-quint),
+      transform var(--duration-base) var(--ease-out-quint);
+  }
+  .lit-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      oklch(1 0 0 / 0.28) 30%,
+      oklch(1 0 0 / 0.28) 70%,
+      transparent 100%
+    );
+  }
+  .lit-card:hover {
+    border-color: var(--sky-line-strong);
+    transform: translateY(-2px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lit-card:hover {
+      transform: none;
+    }
+  }
+
+  /* Used on exactly one phrase per page. A gradient across a whole heading
+     makes none of it emphatic. */
+  .lit-text {
+    background: linear-gradient(96deg, var(--sky-amber) 8%, var(--sky-violet) 92%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
 /* Landing: the miniature world                                               */
 /* The hero shows the product's thesis instead of describing it: scenes       */
 /* placed on one canvas, a camera travelling between them. Pure CSS — the     */
