@@ -135,6 +135,8 @@ captivate/
    camera moves between them.
 5. `src/lib/editor/store.ts` — how edits are tracked and saved.
 6. `src/lib/present/session.ts` — how two windows stay in step.
+7. `src/lib/billing/plans.ts` — what each plan allows. Pure and isomorphic, so
+   the pricing page, the entitlement gate and the tests all read one source.
 
 ---
 

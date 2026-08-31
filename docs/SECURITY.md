@@ -84,7 +84,7 @@ Authenticated, rate limited, and validated before a single token is spent.
 Rate limiting counts the caller's own `ai_generations` rows in a rolling hour:
 30 heavy generations, 200 light ones. It is database-backed rather than
 in-memory because serverless instances make per-instance counters close to
-meaningless — and the row is *reserved* before the call rather than recorded
+meaningless — and the row is _reserved_ before the call rather than recorded
 after it, which is what makes the number a limit rather than an average. See
 "AI spend is bounded by a reservation, not a count" below.
 
@@ -238,7 +238,7 @@ the gate's three conditions is mutation-checked: removing the owner check, the
 ## AI spend is bounded by a reservation, not a count
 
 Model calls are metered against the caller's own rows in `ai_generations`, and
-the order of operations is the control. Counting the rows and *then* letting the
+the order of operations is the control. Counting the rows and _then_ letting the
 request through leaves the whole model call — seconds of it — as a window in
 which the count does not move: a user one call below the limit could fire fifty
 requests at once, have all fifty read the same count, and spend all fifty. The
@@ -304,7 +304,7 @@ else's CDN.
 **Generation is bounded on two axes, and the refusals are distinguishable.**
 The per-user hourly limit that bounds text calls is the wrong shape when the
 cost is money and the budget is shared, so `captivate_reserve_image_generation`
-checks a global monthly ceiling *and* a per-user daily count in one locked
+checks a global monthly ceiling _and_ a per-user daily count in one locked
 statement, and inserts the ledger row that both are measured from. The lock is
 global rather than per-user — two different people spending the last of a shared
 budget simultaneously is exactly the race a per-user lock would miss. A refusal
@@ -319,7 +319,7 @@ make an outage look like free capacity, and retries would burn the month.
 **Generated images are labelled as illustrations, permanently.** The notice
 under the prompt field is not dismissible, because it is true of every
 generated image; a prompt that names an ECG, a dosage, a lab value or a chart
-of specific numbers draws a stronger warning *before* the generation, since a
+of specific numbers draws a stronger warning _before_ the generation, since a
 model has no access to the real trace and will invent one that looks right.
 This is a guardrail on use rather than a block: Captivate cannot determine
 clinical intent, and false-positive blocking would only route people around it.
@@ -337,9 +337,10 @@ a separate, per-scene, explicitly chosen action.
   level; no UI exposes them.
 - **No audit log of sign-ins.** Supabase records them; Captivate does not
   surface them.
-- **No global ceiling on *text* generation.** Images have one
-  (`CAPTIVATE_IMAGE_BUDGET_USD`); text is still bounded only per user per hour
-  (30 heavy, 200 light), so total text spend scales with the number of accounts.
+- **No global ceiling on _text_ generation.** Images have one
+  (`CAPTIVATE_IMAGE_BUDGET_USD`); text is bounded per user only — 30 heavy and
+  200 light per hour on Pro, and a rolling 30-day allowance on Free — so total
+  text spend still scales with the number of accounts.
   `captivate_reserve_image_generation` is now the worked example of the shape
   this needs — a global counter checked under a global lock in the same
   statement that increments it.
@@ -351,3 +352,33 @@ a separate, per-scene, explicitly chosen action.
   Auth can check new passwords against HaveIBeenPwned; it is off. This is a
   project setting rather than a code change, and turning it on is strictly a
   hardening step.
+
+## Billing
+
+Subscription state is money, so the rules around it are stricter than the rest
+of the app's.
+
+- **The webhook signature is the authentication.** `/api/stripe/webhook` is
+  public and unauthenticated by necessity — Stripe calls it. Every request is
+  verified with `stripe.webhooks.constructEvent` against
+  `STRIPE_WEBHOOK_SECRET`, and an unverified body is a 400 that touches
+  nothing.
+- **`subscriptions` has no write policy for any role.** Not for the owner, not
+  for `authenticated`, not for `anon`. A user who could write their own row
+  would grant themselves Pro, so the schema never offers the verb; the webhook
+  writes through the service-role client and is the only writer. The RLS suite
+  asserts a user can neither update nor insert their own subscription.
+- **`stripe_events` has no policies at all**, including select. It exists for
+  idempotency and nothing in the app needs to read it.
+- **The price is never taken from the client.** `startCheckout` accepts only
+  `"month"` or `"year"` and resolves the price id from the environment. A
+  caller that names its own price is a caller that sets its own price.
+- **The billing portal resolves the customer from the session**, never from a
+  request field — a customer id in a request body is one somebody else can
+  name.
+- **Entitlement fails closed.** A read error, a missing row or an unrecognised
+  status all resolve to Free. The single graced case is `past_due`, which keeps
+  Pro until the period ends because Stripe is still retrying the card.
+- **An unconfigured deployment enforces nothing.** With no `STRIPE_SECRET_KEY`
+  every caller resolves to Pro: a deployment that cannot charge must not
+  throttle, and a half-finished rollout must not silently limit real users.
