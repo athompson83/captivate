@@ -31,7 +31,8 @@ export async function POST(request: Request) {
   }
 
   const parsed = Input.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: "Describe the image you want." }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ error: "Describe the image you want." }, { status: 400 });
 
   const result = await generateImage(parsed.data.prompt, parsed.data.presentationId ?? null);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });

@@ -1,6 +1,8 @@
 import "server-only";
 
-import { complete, LIMITS, reserve, type RateLimit } from "./rate-limit";
+import { complete, reserve } from "./rate-limit";
+import { limitForCaller } from "@/lib/billing/entitlement";
+import type { BudgetGroup } from "@/lib/billing/plans";
 import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
 import {
   drawableScenes,
@@ -61,10 +63,16 @@ async function spend<T>(
   countKinds: string[],
   prompt: string,
   presentationId: string | null,
-  limit: RateLimit,
+  group: BudgetGroup,
   run: () => Promise<StructuredResult<T>>,
 ): Promise<StructuredResult<T>> {
-  const ticket = await reserve(kind, countKinds, prompt, presentationId, limit);
+  const ticket = await reserve(
+    kind,
+    countKinds,
+    prompt,
+    presentationId,
+    await limitForCaller(group),
+  );
   if (!ticket.ok) return { ok: false, reason: "provider_error", error: ticket.error };
 
   const result = await run();
@@ -138,7 +146,7 @@ export async function buildNarrativeMap(
     ? context.available.map((item) => `- ${item.id} (${item.kind}): ${item.label}`).join("\n")
     : "None available.";
 
-  const result = await spend("map", ["map", "presentation"], prompt, null, LIMITS.heavy, () =>
+  const result = await spend("map", ["map", "presentation"], prompt, null, "draft", () =>
     generateStructured({
       schema: ProposedMap,
       toolName: "propose_narrative_map",
@@ -212,7 +220,7 @@ export async function rewriteMoment(input: {
     };
   }
 
-  const result = await spend("moment", ["moment", "rewrite"], input.title, null, LIMITS.light, () =>
+  const result = await spend("moment", ["moment", "rewrite"], input.title, null, "light", () =>
     generateStructured({
       schema: RewrittenMoment,
       toolName: "rewrite_moment",
@@ -362,7 +370,7 @@ export async function buildScenesFromMap(
     ["scenes", "presentation"],
     prompt,
     presentationId,
-    LIMITS.heavy,
+    "deck",
     () =>
       generateStructured({
         schema: GeneratedScenes,
@@ -572,7 +580,7 @@ export async function buildSingleScene(
     };
   }
 
-  const result = await spend("scene", ["scene"], instruction, presentationId, LIMITS.heavy, () =>
+  const result = await spend("scene", ["scene"], instruction, presentationId, "draft", () =>
     generateStructured({
       schema: GeneratedScene,
       toolName: "write_scene",
@@ -666,7 +674,7 @@ export async function rewriteText(
     ["rewrite"],
     `${mode}: ${text.slice(0, 200)}`,
     presentationId,
-    LIMITS.light,
+    "light",
     () =>
       generateStructured({
         schema: RewriteResult,
@@ -707,7 +715,7 @@ export async function writeSpeakerNotes(
     ["speaker_notes"],
     scene.title,
     presentationId,
-    LIMITS.light,
+    "light",
     () =>
       generateStructured({
         schema: SpeakerNotesResult,
@@ -744,26 +752,20 @@ export async function suggestVisuals(
     return { ok: false, error: "AI isn't configured on this deployment." };
   }
 
-  const result = await spend(
-    "visuals",
-    ["visuals"],
-    scene.title,
-    presentationId,
-    LIMITS.light,
-    () =>
-      generateStructured({
-        schema: VisualSuggestion,
-        toolName: "suggest_visuals",
-        toolDescription: "Suggest images that would strengthen a scene.",
-        system: `${BASE_SYSTEM}
+  const result = await spend("visuals", ["visuals"], scene.title, presentationId, "light", () =>
+    generateStructured({
+      schema: VisualSuggestion,
+      toolName: "suggest_visuals",
+      toolDescription: "Suggest images that would strengthen a scene.",
+      system: `${BASE_SYSTEM}
 
 Suggest images only where a picture does work that words cannot. Describe each one concretely enough to search for or commission. Never suggest generic stock imagery of people shaking hands or looking at laptops.`,
-        prompt: `${contextLine(context)}
+      prompt: `${contextLine(context)}
 
 Scene: ${scene.title}
 ${scene.text}`,
-        maxTokens: 1000,
-      }),
+      maxTokens: 1000,
+    }),
   );
 
   if (!result.ok) return { ok: false, error: result.error };
@@ -800,7 +802,7 @@ export async function generateDrawing(
     };
   }
 
-  const result = await spend("drawing", ["drawing"], prompt, presentationId, LIMITS.heavy, () =>
+  const result = await spend("drawing", ["drawing"], prompt, presentationId, "drawing", () =>
     generateStructured({
       schema: GeneratedDrawing,
       toolName: "draw_picture",

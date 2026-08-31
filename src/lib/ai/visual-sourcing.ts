@@ -4,6 +4,8 @@ import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase/server";
 import { STORAGE_BUCKETS } from "@/lib/supabase/config";
 import { MAX_UPLOAD_BYTES } from "@/lib/data/upload-limits";
+import { currentPlan } from "@/lib/billing/entitlement";
+import { allowsImageGeneration } from "@/lib/billing/plans";
 
 /**
  * Finding and making pictures.
@@ -175,6 +177,16 @@ export async function generateImage(
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { ok: false, error: "Image generation isn't configured on this deployment." };
 
+  // Checked before the reservation: a refusal must not consume budget, and the
+  // reason a free caller cannot do this is not "the deployment is out of
+  // money".
+  if (!allowsImageGeneration(await currentPlan())) {
+    return {
+      ok: false,
+      error: "AI image generation is part of Captivate Pro. Search and upload still work.",
+    };
+  }
+
   const trimmed = prompt.trim().slice(0, 1000);
   if (!trimmed) return { ok: false, error: "Describe the image you want first." };
 
@@ -300,7 +312,11 @@ const SIGNATURES: { mime: string; ext: string; matches: (b: Uint8Array) => boole
     ext: "png",
     matches: (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
   },
-  { mime: "image/jpeg", ext: "jpg", matches: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  {
+    mime: "image/jpeg",
+    ext: "jpg",
+    matches: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  },
   {
     mime: "image/webp",
     ext: "webp",
@@ -317,11 +333,7 @@ const SIGNATURES: { mime: string; ext: string; matches: (b: Uint8Array) => boole
 ];
 
 export type IngestFailure =
-  | "host-not-allowed"
-  | "unreachable"
-  | "too-large"
-  | "not-an-image"
-  | "storage";
+  "host-not-allowed" | "unreachable" | "too-large" | "not-an-image" | "storage";
 
 export interface IngestedBytes {
   bytes: Uint8Array;
@@ -361,7 +373,8 @@ export async function fetchImageBytes(rawUrl: string): Promise<Sourced<IngestedB
     }
 
     const declared = Number(response.headers.get("content-length") ?? "0");
-    if (declared > MAX_UPLOAD_BYTES) return { ok: false, error: "too-large" satisfies IngestFailure };
+    if (declared > MAX_UPLOAD_BYTES)
+      return { ok: false, error: "too-large" satisfies IngestFailure };
 
     const chunks: Uint8Array[] = [];
     let total = 0;
