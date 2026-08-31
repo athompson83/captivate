@@ -40,7 +40,7 @@ engineering work to the Product Owner.
 
 ```bash
 npm run dev          # Next dev server
-npm run verify       # typecheck → lint → unit tests → build. Run this before every commit.
+npm run verify       # typecheck → lint → unit tests → build. Required for code/config changes.
 npm run test         # vitest run (unit + component)
 npm run test:watch   # vitest, watching
 npm run test:e2e     # Playwright (needs a dev server and Supabase env vars)
@@ -48,7 +48,23 @@ npm run test:rls     # RLS policy tests against a local Postgres — see docs/DA
 npm run format       # prettier --write .
 ```
 
-`npm run verify` is the gate. Nothing is "done" until it exits 0.
+`npm run verify` is the code/configuration gate. Documentation-only work follows the economical-CI rules below.
+
+<!-- BEGIN ECONOMICAL CI -->
+## Economical CI (Codex and Claude)
+
+These rules apply equally to Codex and Claude.
+
+- Inspect the changed files before testing. Run the narrowest relevant local test first, then `npm run verify` for application, configuration, dependency, build, or shared-code changes.
+- Documentation-only changes do not require dependency installation or the application suite. Review the rendered/diffed Markdown and run only an applicable documentation or formatting check.
+- Run the RLS and migration checks when `supabase/**`, migration verification, database-facing code, or their dependencies change. Run browser suites for UI, presentation lifecycle, shader, route, server-action, or runtime-boundary changes.
+- Record every local command and result in the pull request or handoff. Do not push speculative fixes solely to obtain GitHub Actions feedback.
+- Read complete failing job and step logs, compare the failure with recent commits and a working repository pattern, and identify the root cause before changing code or workflow configuration.
+- Classify failures as deterministic code/configuration, base-branch drift/conflict, flaky/transient, dependency/service outage, secret/permission boundary, or obsolete workflow.
+- Do not manually rerun failed Actions or create empty commits to retrigger CI before the root cause is known. Allow at most one targeted rerun when evidence specifically indicates a transient external failure.
+- Use a draft pull request while iterating; mark it ready only after the selected local checks pass so hosted runners are not consumed on every work-in-progress push.
+- Preserve typecheck, lint, unit, build, RLS/migration, shader/lifecycle, production-server smoke, security, Preview, and release assurance whenever the corresponding risk boundary changed. Cost reduction must not weaken those gates.
+<!-- END ECONOMICAL CI -->
 
 ## The rules that actually bite
 
