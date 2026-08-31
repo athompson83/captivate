@@ -761,3 +761,52 @@ set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 select 'stripe_events_opaque_to_users' as check,
   (count(*) = 0)::int as n from public.stripe_events;
 reset role;
+
+-- ---- Granted plans -------------------------------------------------------------
+-- A grant is an entitlement handed out rather than bought. It has the same
+-- security story as the billing tables and for the same reason: a user who can
+-- write their own grant grants themselves the product, so the schema offers no
+-- verb for it. It is readable by its holder alone, because the settings page
+-- has to be able to say "granted, not billed" rather than implying a payment.
+insert into public.plan_grants (user_id, plan, note)
+values ('11111111-1111-1111-1111-111111111111', 'unlimited', 'Owner account.');
+
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'grant_sees_own' as check, (count(*) = 1)::int as n from public.plan_grants;
+reset role;
+
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select 'bob_sees_alice_grant' as check, count(*) as n from public.plan_grants;
+
+do $$
+begin
+  begin
+    insert into public.plan_grants (user_id, plan, note)
+    values ('22222222-2222-2222-2222-222222222222', 'unlimited', 'self-granted');
+  exception when insufficient_privilege then
+    null;
+  end;
+end $$;
+reset role;
+
+select 'grant_not_self_insertable' as check,
+  (count(*) = 0)::int as n from public.plan_grants
+  where user_id = '22222222-2222-2222-2222-222222222222';
+
+-- Nor may the holder promote their own grant, which is the same hole by
+-- another route.
+do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub',
+                     '11111111-1111-1111-1111-111111111111', true);
+  update public.plan_grants set plan = 'unlimited', expires_at = null
+   where user_id = '11111111-1111-1111-1111-111111111111';
+end $$;
+reset role;
+
+select 'grant_not_self_writable' as check,
+  (count(*) = 1)::int as n from public.plan_grants
+  where user_id = '11111111-1111-1111-1111-111111111111' and note = 'Owner account.';

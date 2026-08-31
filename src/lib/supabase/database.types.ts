@@ -202,6 +202,15 @@ export type SubscriptionRow = {
   updated_at: string;
 };
 
+/** An entitlement granted rather than bought — see `0019_plan_grants.sql`. */
+export type PlanGrantRow = {
+  user_id: string;
+  plan: "pro" | "unlimited";
+  note: string;
+  granted_at: string;
+  expires_at: string | null;
+};
+
 export type StripeEventRow = {
   id: string;
   type: string;
@@ -224,6 +233,7 @@ export type Database = {
       presentation_sessions: Table<PresentationSessionRow>;
       billing_customers: Table<BillingCustomerRow>;
       subscriptions: Table<SubscriptionRow>;
+      plan_grants: Table<PlanGrantRow>;
       stripe_events: Table<StripeEventRow>;
     };
     Views: Record<never, never>;

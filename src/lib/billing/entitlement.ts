@@ -7,6 +7,7 @@ import {
   BUDGET_KINDS,
   PLAN_BUDGETS,
   limitFor,
+  planFromGrant,
   planFromSubscription,
   type BudgetGroup,
   type Plan,
@@ -36,6 +37,22 @@ export async function currentPlan(): Promise<Plan> {
     } = await supabase.auth.getUser();
     if (!user) return "free";
 
+    // A grant first. It is checked before Stripe because a granted plan is
+    // never worse than a bought one, and because the people it exists for —
+    // the owner, a support case, a pilot — must not depend on a subscription
+    // they were never meant to have.
+    const { data: grant } = await supabase
+      .from("plan_grants")
+      .select("plan, expires_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const granted = planFromGrant(
+      grant ? { plan: grant.plan, expiresAtMs: grant.expires_at ? Date.parse(grant.expires_at) : null } : null,
+      Date.now(),
+    );
+    if (granted) return granted;
+
     const { data, error } = await supabase
       .from("subscriptions")
       .select("status, current_period_end")
@@ -61,6 +78,46 @@ export async function currentPlan(): Promise<Plan> {
 /** The budget this caller's plan grants for one group of calls. */
 export async function limitForCaller(group: BudgetGroup): Promise<RateLimit> {
   return limitFor(await currentPlan(), group);
+}
+
+export interface GrantSummary {
+  plan: Plan;
+  note: string;
+  expiresAt: string | null;
+}
+
+/**
+ * The grant on this account, if any, for the settings page to name.
+ *
+ * A granted plan must never be presented as a subscription: somebody comped
+ * should not be shown a renewal date they do not have, nor an upgrade button
+ * for a plan they already exceed.
+ */
+export async function grantSummary(): Promise<GrantSummary | null> {
+  try {
+    const supabase = await supabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data } = await supabase
+      .from("plan_grants")
+      .select("plan, note, expires_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!data) return null;
+
+    const plan = planFromGrant(
+      { plan: data.plan, expiresAtMs: data.expires_at ? Date.parse(data.expires_at) : null },
+      Date.now(),
+    );
+    if (!plan) return null;
+
+    return { plan, note: data.note, expiresAt: data.expires_at };
+  } catch {
+    return null;
+  }
 }
 
 export interface SubscriptionSummary {

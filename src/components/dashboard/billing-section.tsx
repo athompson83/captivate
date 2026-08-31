@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { openBillingPortal, startCheckout } from "@/lib/data/billing";
-import type { SubscriptionSummary } from "@/lib/billing/entitlement";
-import { PRO_PRICING } from "@/lib/billing/plans";
+import type { GrantSummary, SubscriptionSummary } from "@/lib/billing/entitlement";
+import { PRO_PRICING, planLabel } from "@/lib/billing/plans";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
@@ -22,11 +22,14 @@ export function BillingSection({
   configured,
   testMode,
   summary,
+  grant,
   usage,
 }: {
   configured: boolean;
   testMode: boolean;
   summary: SubscriptionSummary | null;
+  /** An entitlement granted rather than bought. Outranks the subscription. */
+  grant: GrantSummary | null;
   usage: { decksUsed: number; deckAllowance: number };
 }) {
   const { toast } = useToast();
@@ -58,6 +61,17 @@ export function BillingSection({
           Billing isn&rsquo;t configured on this deployment, so every feature is available without a
           subscription.
         </p>
+      ) : grant ? (
+        <>
+          <p className="text-ink-2 mt-1 text-[13px]">
+            <span className="text-ink font-medium">{planLabel(grant.plan)}</span> &middot; granted,
+            not billed
+            {grant.expiresAt ? <> &middot; until {formatDate(grant.expiresAt)}</> : null}
+          </p>
+          <p className="text-ink-3 mt-1 text-[13px]">
+            {grant.note || "This account was granted its plan. There is nothing to pay."}
+          </p>
+        </>
       ) : isPro ? (
         <>
           <p className="text-ink-2 mt-1 text-[13px]">

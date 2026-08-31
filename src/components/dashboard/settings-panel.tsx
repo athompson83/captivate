@@ -11,7 +11,7 @@ import { Segmented } from "@/components/ui/misc";
 import { formatDate } from "@/lib/utils/format";
 import { SHORTCUTS } from "@/lib/editor/shortcuts";
 import { BillingSection } from "./billing-section";
-import type { SubscriptionSummary } from "@/lib/billing/entitlement";
+import type { GrantSummary, SubscriptionSummary } from "@/lib/billing/entitlement";
 
 /**
  * Account settings.
@@ -34,6 +34,7 @@ export function SettingsPanel({
     configured: boolean;
     testMode: boolean;
     summary: SubscriptionSummary | null;
+    grant: GrantSummary | null;
     usage: { decksUsed: number; deckAllowance: number };
   };
 }) {
@@ -80,6 +81,7 @@ export function SettingsPanel({
         configured={billing.configured}
         testMode={billing.testMode}
         summary={billing.summary}
+        grant={billing.grant}
         usage={billing.usage}
       />
 

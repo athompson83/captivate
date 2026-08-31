@@ -63,6 +63,12 @@ if echo "$out" | grep -E "reserve_|complete_|failed_with|failed_without|alice_re
   echo "AI RESERVATION TESTS FAILED"; exit 1
 fi
 
+# Granted plans: readable by their holder, writable by nobody.
+# `bob_sees_alice_grant` must be 0 and is covered by the cross-user rule above.
+if echo "$out" | grep -E "grant_" | grep -qvE "\\|\\s+1\\s*$"; then
+  echo "PLAN GRANT TESTS FAILED"; exit 1
+fi
+
 # Every share-link assertion must hold (1 = the stated property was observed).
 if echo "$out" | grep -E "shared_link_" | grep -qvE "\|\s+1\s*$"; then
   echo "SHARE LINK TESTS FAILED"; exit 1

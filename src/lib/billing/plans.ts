@@ -7,7 +7,15 @@
  * is safe to import from a client component.
  */
 
-export type Plan = "free" | "pro";
+/**
+ * `unlimited` is not bought — it is granted (`plan_grants`), for the people who
+ * run Captivate, a support case, or an institution running a pilot. It is not
+ * literally without limit: every call still passes the reservation, because an
+ * uncounted call is also an unrecorded cost, and the ledger is how spend is
+ * seen at all. The ceilings are simply set where ordinary use never reaches
+ * them.
+ */
+export type Plan = "free" | "pro" | "unlimited";
 
 /**
  * The budget a call draws on. Named for what it bounds rather than for a price
@@ -52,6 +60,12 @@ export const PLAN_BUDGETS: Record<Plan, Record<BudgetGroup, RateLimit>> = {
     drawing: { windowMinutes: ONE_HOUR, max: 30 },
     light: { windowMinutes: ONE_HOUR, max: 300 },
   },
+  unlimited: {
+    deck: { windowMinutes: ONE_HOUR, max: 500 },
+    draft: { windowMinutes: ONE_HOUR, max: 1000 },
+    drawing: { windowMinutes: ONE_HOUR, max: 500 },
+    light: { windowMinutes: ONE_HOUR, max: 5000 },
+  },
 };
 
 export function limitFor(plan: Plan, group: BudgetGroup): RateLimit {
@@ -78,7 +92,28 @@ export const BUDGET_KINDS: Record<BudgetGroup, string[]> = {
 
 /** Paid image generation is the one capability Free does not have at all. */
 export function allowsImageGeneration(plan: Plan): boolean {
-  return plan === "pro";
+  return plan !== "free";
+}
+
+/**
+ * The plan a grant carries, if it is still in force.
+ *
+ * A grant outranks a subscription rather than merging with it: somebody with
+ * both should get the better of the two, and the granted plan is always at
+ * least Pro. An expiry in the past is simply not a grant any more.
+ */
+export function planFromGrant(
+  grant: { plan: string; expiresAtMs: number | null } | null,
+  nowMs: number,
+): Plan | null {
+  if (!grant) return null;
+  if (grant.expiresAtMs !== null && grant.expiresAtMs <= nowMs) return null;
+  return grant.plan === "unlimited" ? "unlimited" : grant.plan === "pro" ? "pro" : null;
+}
+
+/** How a plan is described where the holder can see it. */
+export function planLabel(plan: Plan): string {
+  return plan === "unlimited" ? "Unlimited" : plan === "pro" ? "Captivate Pro" : "Free";
 }
 
 /**
