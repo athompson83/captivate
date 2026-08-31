@@ -90,7 +90,21 @@ for (const viewport of VIEWPORTS) {
 
     for (const route of PUBLIC_ROUTES) {
       test(`${route} has no WCAG A/AA violations`, async ({ page }) => {
-        await page.goto(route);
+        const response = await page.goto(route);
+
+        // A scan of the wrong page passes. `goto` resolves for a redirect and
+        // for an error shell alike, and an error page has no alt text to be
+        // missing and no form control to be unlabelled — so it scores zero
+        // violations and this test goes green while the route is broken. Three
+        // of these routes have no render assertion anywhere else in the suite,
+        // so nothing would have caught it. Prove the page arrived first.
+        expect(response?.status(), `${route} did not respond`).toBeLessThan(400);
+        expect(new URL(page.url()).pathname, `${route} redirected`).toBe(route);
+        await expect(
+          page.locator("h1, h2").first(),
+          `${route} rendered no heading, so it is probably an error shell`,
+        ).toBeVisible();
+
         // The hero runs a WebGL flight and the marketing sections animate in.
         // Scanning mid-entrance measures a tree that no reader ever sees.
         await page.waitForLoadState("domcontentloaded");
@@ -128,8 +142,7 @@ test("the scan detects violations that are really there", async ({ page }) => {
   await page.evaluate(() => {
     const image = document.createElement("img");
     // A 1x1 GIF, inline: the rule under test is the missing alt, not the fetch.
-    image.src =
-      "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+    image.src = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
     image.removeAttribute("alt");
     document.body.appendChild(image);
 
