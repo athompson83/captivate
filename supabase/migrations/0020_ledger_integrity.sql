@@ -66,12 +66,18 @@ begin
          completed_at   = now()
    where id       = p_id
      and owner_id  = v_user
-     -- Final once the row says the model delivered something: either tokens
-     -- were billed, or the call is marked succeeded. Short of that the row
-     -- has cost nobody anything yet, so correcting it is free — and that is
-     -- the whole mechanism, because the server's write is the later one.
-     and status   <> 'succeeded'
-     and coalesce(output_tokens, 0) = 0;
+     -- Rewritable exactly while the row is not counting against anybody:
+     -- still in flight, or sitting in the one terminal state the counter
+     -- skips. Every state that does count is final, so the only settlement a
+     -- later call can overwrite is the one that claims nothing was owed —
+     -- which is the forgery, and the server's write is the later call.
+     --
+     -- Naming the non-counting state rather than "recorded no spend" matters:
+     -- an `invalid_output` with no usage records no spend and still counts, so
+     -- the looser rule left it rewritable and the refund forgeable a second
+     -- time, after the server had already written the truth.
+     and (status = 'pending'
+          or (status = 'failed' and coalesce(output_tokens, 0) = 0));
 
   get diagnostics v_rows = row_count;
   return v_rows = 1;

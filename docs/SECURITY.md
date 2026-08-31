@@ -262,9 +262,14 @@ It did not have to until `0018` stopped charging for calls that never reached
 the model: `failed` with no output tokens became a terminal state that does not
 count, and an author could settle their own in-flight reservation into it, keep
 the answer, and repeat without limit. `0020` answers it with ordering rather
-than identity — the server settles _after_ the model replies, so a settlement
-recording spend is final and one recording none may still be corrected, and the
-true result overwrites anything forged ahead of it. `ledger_*` in
+than identity. The server settles _after_ the model replies, so the row is left
+rewritable exactly while it is not counting against anybody — still in flight,
+or sitting in that one skipped state — and final in every state that counts.
+The only settlement a later call can overwrite is the one claiming nothing was
+owed, and the server's write is the later call. The rule names the non-counting
+state rather than "recorded no spend", because an `invalid_output` with no usage
+records no spend and still counts; the looser reading left that row rewritable
+and handed the forgery back a second time. `ledger_*` in
 `rls_isolation.test.sql` walks that sequence; the two probes for it fail against
 the previous migration.
 

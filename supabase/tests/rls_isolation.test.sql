@@ -475,6 +475,24 @@ select 'ledger_forged_refund_does_not_free_allowance' as check,
 select 'ledger_settled_spend_is_final' as check,
   (not public.captivate_complete_generation(
      :'forge_captivate_reserve_generation', 'failed', null, 0, 0, 'refund me'))::int as n;
+
+-- The state that is neither: a near-miss the provider never reported usage for
+-- records no spend and still counts, because only a *failed* call with no
+-- tokens is skipped. A rule keyed on "recorded no spend" would leave this row
+-- rewritable and hand the forgery back — after the server had already written
+-- the truth. What may be rewritten is the non-counting state itself, nothing
+-- wider.
+select public.captivate_reserve_generation('nearmiss', array['nearmiss'], 'no usage', null, 60, 5)
+  \gset nearmiss_
+select 'ledger_nearmiss_without_usage_counts' as check,
+  (public.captivate_complete_generation(
+     :'nearmiss_captivate_reserve_generation', 'invalid_output', 'test-model', null, null, 'unreadable')
+   and public.captivate_count_generations(array['nearmiss'], 60) = 1)::int as n;
+select 'ledger_counting_row_is_final_even_with_no_tokens' as check,
+  (not public.captivate_complete_generation(
+     :'nearmiss_captivate_reserve_generation', 'failed', null, 0, 0, 'refund me'))::int as n;
+select 'ledger_nearmiss_still_counts_after_forgery' as check,
+  (public.captivate_count_generations(array['nearmiss'], 60) = 1)::int as n;
 reset role;
 
 -- None of the spend functions is reachable signed out. Each returns false or
