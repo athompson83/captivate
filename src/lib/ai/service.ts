@@ -375,7 +375,7 @@ Craft, not template-filling:
 - Use the whole instrument. An eyebrow situates ("Module 2 · Airway"), a headingAccent carries the clause the claim turns on, cards give a three-up its three ideas, a chart's data uses the evidence's real magnitudes. A scene that uses only heading and bullets when its layout offers more reads as a form letter.
 - Never open with throat-clearing ("In this presentation...", "Let's explore...", "It's important to note"). Open inside the material.
 - Bullets are parallel in grammar and each one is a claim, not a topic. Two strong bullets beat five thin ones.
-- For a scene with an image slot, imagePrompt describes a single clear line drawing that would teach the moment — a mechanism, a pathway, a before-and-after — not a mood photograph. It will be sketched as staged line art in front of the audience.`,
+- Every split-left or split-right scene MUST carry an imagePrompt — the drawing is half the scene, and an empty half is a broken scene. The imagePrompt describes a single clear line drawing that would teach the moment — a mechanism, a pathway, a before-and-after — not a mood photograph. It will be sketched as staged line art in front of the audience.`,
         prompt: `Original request:
 ${prompt}
 

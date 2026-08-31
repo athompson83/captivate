@@ -293,7 +293,14 @@ export function layoutFor(
     case "sequence":
       return "three-up";
     case "imagery":
-      return "media-full";
+      // A side-by-side, not a full-bleed backdrop. The generation pipeline
+      // fills empty side slots with staged line drawings, and a drawing
+      // cannot be a backdrop — line art under a heading is noise, which is
+      // why the drawing pass skips media-full. Routing imagery here meant
+      // the most visual moments of a deck were exactly the ones guaranteed
+      // to arrive empty. Full-bleed stays available to authors with a real
+      // photograph to put there.
+      return index % 2 === 0 ? "split-right" : "split-left";
     case "quotation":
       return "quote";
     case "enumeration":
