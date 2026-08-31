@@ -66,7 +66,7 @@ export default defineConfig({
   projects: [
     {
       name: "smoke",
-      testMatch: /smoke\.spec\.ts/,
+      testMatch: /(smoke|accessibility)\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], launchOptions: { executablePath } },
     },
     {
