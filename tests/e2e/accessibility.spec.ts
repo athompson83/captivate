@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import type { AxeResults, NodeResult, Result, RunOptions } from "axe-core";
 
 /**
  * WCAG 2.1 A/AA over every page somebody can reach without an account.
@@ -50,17 +51,15 @@ const VIEWPORTS = [
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 
-type AxeNode = { html?: string; target?: string[]; failureSummary?: string };
-type AxeViolation = { id: string; impact?: string; help: string; nodes: AxeNode[] };
-type AxeResult = { violations: AxeViolation[]; passes: unknown[] };
-
+// axe ships its own types, so the shape of a result is not restated here — a
+// local subset drifts silently the first time a field is renamed under it.
 declare global {
   interface Window {
-    axe: { run: (context: Document, options: unknown) => Promise<AxeResult> };
+    axe: { run: (context: Document, options: RunOptions) => Promise<AxeResults> };
   }
 }
 
-async function analyse(page: Page): Promise<AxeResult> {
+async function analyse(page: Page): Promise<AxeResults> {
   await page.addScriptTag({ content: AXE_SOURCE });
   return page.evaluate(
     async (tags) => window.axe.run(document, { runOnly: { type: "tag", values: tags } }),
@@ -69,14 +68,19 @@ async function analyse(page: Page): Promise<AxeResult> {
 }
 
 /** What a reader needs to fix it: the rule, the element, and why it failed. */
-function describe(violations: AxeViolation[]): string {
+function describe(violations: Result[]): string {
+  const where = (node: NodeResult) =>
+    node.target
+      .map((selector) => (Array.isArray(selector) ? selector.join(" ") : selector))
+      .join(" ");
+
   return violations
     .map((violation) => {
       const nodes = violation.nodes
         .slice(0, 4)
         .map((node) => {
           const why = (node.failureSummary ?? "").replace(/\s+/g, " ").trim();
-          return `      ${node.target?.join(" ") ?? "?"}\n        ${(node.html ?? "").slice(0, 160)}\n        ${why}`;
+          return `      ${where(node)}\n        ${node.html.slice(0, 160)}\n        ${why}`;
         })
         .join("\n");
       return `  ${violation.id} (${violation.impact ?? "unknown"}) — ${violation.help}\n${nodes}`;
