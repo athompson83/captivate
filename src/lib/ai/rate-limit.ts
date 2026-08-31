@@ -174,9 +174,15 @@ export async function reserve(
  * Records what the reserved call actually did.
  *
  * Best-effort on purpose: the reservation already counts against the limit, so
- * a failure here loses cost detail rather than spend protection. It cannot be
- * used to undo a reservation — the function it calls only moves a row from
- * pending to a terminal status, never back.
+ * a failure here loses cost detail rather than spend protection.
+ *
+ * This call carries the author's own JWT, which is also all a browser needs to
+ * make it — and a zero-token failure is the one terminal state that stops
+ * counting. So the database does not try to tell the two callers apart. It
+ * relies on this one arriving *last*, after the model has answered: a
+ * settlement recording spend is final, and one recording none can still be
+ * corrected, so the truth written here supersedes anything forged before it.
+ * See `0020_ledger_integrity.sql`.
  */
 export async function complete(
   reservation: Reservation,

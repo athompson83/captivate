@@ -63,6 +63,12 @@ if echo "$out" | grep -E "reserve_|complete_|failed_with|failed_without|alice_re
   echo "AI RESERVATION TESTS FAILED"; exit 1
 fi
 
+# The ledger a caller must not be able to rewrite in their own favour. Every
+# `ledger_` probe states a property that must hold.
+if echo "$out" | grep -E "ledger_" | grep -qvE "\|\s+1\s*$"; then
+  echo "LEDGER INTEGRITY TESTS FAILED"; exit 1
+fi
+
 # Granted plans: readable by their holder, writable by nobody.
 # `bob_sees_alice_grant` must be 0 and is covered by the cross-user rule above.
 if echo "$out" | grep -E "grant_" | grep -qvE "\\|\\s+1\\s*$"; then
