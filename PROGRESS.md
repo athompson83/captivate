@@ -12,8 +12,9 @@
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
 - Production: live and in use; the owner tests deployed builds and reports defects
-- Database target: canonical Captivate Supabase project; migration `0017_billing.sql`
-  is written and tested locally but **not yet applied to production**
+- Database target: canonical Captivate Supabase project (`qnbwyymwhvqprjtyfdmb`).
+  `0017_billing.sql` is **applied to production**; the three billing tables exist
+  with RLS on and no write policy for any role.
 
 ## Latest Session
 
@@ -89,25 +90,32 @@ and more static imagery.
 
 ## Blockers
 
-- None in code. Billing enforces nothing until the owner actions below are
-  done, which is deliberate: a deployment that cannot charge must not throttle.
+- None. Billing is configured and enforcing.
 
-## Required User Actions
+## Billing rollout status
 
-**Billing is inert until these are done — merging changes nothing.**
+Live at `https://www.axtevi.com`. Done:
 
-1. Add to Vercel: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
-   `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_ANNUAL`, and
-   `SUPABASE_SERVICE_ROLE_KEY` (the webhook is the only writer of subscription
-   state, so it needs elevated access).
-2. Apply `supabase/migrations/0017_billing.sql` to the production database.
-3. Register the webhook endpoint at `https://<site>/api/stripe/webhook` for
-   `checkout.session.completed` and
-   `customer.subscription.created|updated|deleted`, then copy its signing
-   secret into `STRIPE_WEBHOOK_SECRET`.
-4. Set the Stripe account's public business name to **Axtevi** — that is what
+- Vercel env vars added and deployed — an unsigned POST to
+  `/api/stripe/webhook` returns 400 (signature verification running), not the
+  503 it returned while unconfigured.
+- `0017_billing.sql` applied to production.
+- Webhook endpoints registered in both Stripe modes at
+  `https://www.axtevi.com/api/stripe/webhook`. Both were missing
+  `customer.subscription.updated` — the event carrying cancellation,
+  plan change, renewal and `past_due` — and both have been corrected.
+
+Still owner-side:
+
+1. Set the Stripe account's public business name to **Axtevi** — that is what
    appears on card statements, receipts and the Billing Portal, with Captivate
    Pro as the product on them.
+2. Confirm `STRIPE_WEBHOOK_SECRET` is the signing secret of the endpoint
+   matching the mode of `STRIPE_SECRET_KEY`. Test and live endpoints have
+   different secrets; a mismatch makes every delivery fail signature
+   verification while everything else looks correct.
+3. Prove the loop in test mode: upgrade, confirm settings flips to Pro, cancel
+   from the portal, confirm it reads "ends" and Pro holds to the period end.
 
 ## Standing user actions (not new)
 
