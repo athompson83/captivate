@@ -54,7 +54,7 @@ const Input = z
 
 /** An accepted narrative map → the scenes that render it. */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, "deck", ["scenes", "presentation"]);
+  const guarded = await guard(request, Input, "deck");
   if (!guarded.ok) return guarded.response;
 
   const { prompt, presentationId, briefs, depth, ...context } = guarded.input;

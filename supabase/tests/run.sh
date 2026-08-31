@@ -59,7 +59,7 @@ fi
 # The reservation ticket: every probe states a property that must hold.
 # `bob_completes_alice_reservation` is the exception and is covered by the
 # cross-user rule above — it must come back 0.
-if echo "$out" | grep -E "reserve_|complete_|alice_reservation" | grep -vE "bob_completes" | grep -qvE "\|\s+1\s*$"; then
+if echo "$out" | grep -E "reserve_|complete_|failed_with|failed_without|alice_reservation" | grep -vE "bob_completes" | grep -qvE "\|\s+1\s*$"; then
   echo "AI RESERVATION TESTS FAILED"; exit 1
 fi
 

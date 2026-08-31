@@ -252,6 +252,13 @@ export type Database = {
         Args: { p_topic: string };
         Returns: boolean;
       };
+      captivate_count_generations: {
+        Args: {
+          p_count_kinds: string[];
+          p_window_minutes: number;
+        };
+        Returns: number;
+      };
       captivate_reserve_generation: {
         Args: {
           p_kind: string;

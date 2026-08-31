@@ -46,7 +46,7 @@ const Input = z
  * author can come back to, so it is rolled back rather than degraded.
  */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, "deck", ["map", "presentation"]);
+  const guarded = await guard(request, Input, "deck");
   if (!guarded.ok) return guarded.response;
 
   const { prompt, map, totalSeconds, depth, themeId, folderId, ...context } = guarded.input;

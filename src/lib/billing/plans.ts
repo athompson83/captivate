@@ -39,21 +39,42 @@ const ONE_HOUR = 60;
 export const PLAN_BUDGETS: Record<Plan, Record<BudgetGroup, RateLimit>> = {
   free: {
     deck: { windowMinutes: THIRTY_DAYS, max: 10 },
-    draft: { windowMinutes: THIRTY_DAYS, max: 20 },
+    // Raised with the pooling below: a group is now one shared count rather
+    // than a number each kind inside it got separately, so these are the old
+    // per-kind ceilings added up rather than a new policy.
+    draft: { windowMinutes: THIRTY_DAYS, max: 40 },
     drawing: { windowMinutes: THIRTY_DAYS, max: 20 },
-    light: { windowMinutes: THIRTY_DAYS, max: 50 },
+    light: { windowMinutes: THIRTY_DAYS, max: 100 },
   },
   pro: {
     deck: { windowMinutes: ONE_HOUR, max: 30 },
-    draft: { windowMinutes: ONE_HOUR, max: 30 },
+    draft: { windowMinutes: ONE_HOUR, max: 60 },
     drawing: { windowMinutes: ONE_HOUR, max: 30 },
-    light: { windowMinutes: ONE_HOUR, max: 200 },
+    light: { windowMinutes: ONE_HOUR, max: 300 },
   },
 };
 
 export function limitFor(plan: Plan, group: BudgetGroup): RateLimit {
   return PLAN_BUDGETS[plan][group];
 }
+
+/**
+ * Which ledger kinds each group counts.
+ *
+ * One definition, because two of them diverged and cost an author their
+ * allowance: the create route's pre-filter charged the deck budget for `map`
+ * rows, so every *draft* proposal on /new — budgeted separately, and cheap —
+ * spent one of the ten decks a Free account is sold, and the author was
+ * refused at the moment of creating anything while the settings page still
+ * read three of ten. A group is a budget *and* what draws on it; neither half
+ * means anything alone.
+ */
+export const BUDGET_KINDS: Record<BudgetGroup, string[]> = {
+  deck: ["scenes", "presentation"],
+  draft: ["map", "scene"],
+  drawing: ["drawing"],
+  light: ["moment", "rewrite", "speaker_notes", "visuals", "flow"],
+};
 
 /** Paid image generation is the one capability Free does not have at all. */
 export function allowsImageGeneration(plan: Plan): boolean {
