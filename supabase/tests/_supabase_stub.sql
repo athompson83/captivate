@@ -19,6 +19,15 @@ do $$ begin
   if not exists (select 1 from pg_roles where rolname='anon') then create role anon; end if;
 end $$;
 
+-- Supabase grants EXECUTE on every function created in `public` to the API
+-- roles, and that grant is made to the roles themselves rather than through
+-- PUBLIC — so `revoke all ... from public` does not take it back, and a
+-- function's own `auth.uid()` check is all that stands between an anonymous
+-- caller and its body. Reproduced here so that a migration revoking the grant
+-- is actually tested for it instead of passing against a role that never had
+-- it in the first place.
+alter default privileges in schema public grant execute on functions to anon, authenticated;
+
 -- storage.buckets / storage.objects, enough for 0002_storage.sql's bucket
 -- rows and per-bucket object policies to apply. Not a faithful reproduction
 -- of Supabase Storage — just the shape those statements actually touch.

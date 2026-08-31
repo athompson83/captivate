@@ -287,11 +287,12 @@ async function settle(
   try {
     await supabase.rpc("captivate_settle_image_generation", {
       p_id: id,
-      // A failed call still cost the attempt; charging zero for it would let a
-      // provider outage look like free capacity and burn the month's budget on
-      // retries. The estimate stands unless the provider tells us otherwise.
+      // The price is whatever the reservation already put on the row, and
+      // settling no longer restates it. A failed call still cost the attempt,
+      // so a provider outage must not read as free capacity and burn the
+      // month's budget on retries — and the settle runs with the caller's own
+      // JWT, so a figure it accepted was a figure a caller could choose.
       p_status: status,
-      p_cost_usd: IMAGE_COST_ESTIMATE_USD,
       p_model: IMAGE_MODEL,
       p_generation_ms: Date.now() - startedAt,
       p_error: error,

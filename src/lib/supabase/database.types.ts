@@ -305,7 +305,6 @@ export type Database = {
         Args: {
           p_id: string;
           p_status: string;
-          p_cost_usd: number;
           p_model: string | null;
           p_generation_ms: number | null;
           p_error: string | null;
