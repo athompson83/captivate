@@ -56,8 +56,8 @@ npm run format       # prettier --write .
 a number — from one makes _every_ action in that file fail at runtime with a 500, and
 the build says nothing. Shared constants go in a plain module;
 `src/lib/data/upload-limits.ts` exists for exactly this reason. The server-action files
-are `src/lib/{auth/actions,data/actions,data/assets,data/notes,data/recordings,
-data/remote-sessions,data/sourced-assets}.ts`. `sourced-assets.ts` wraps a cost
+are `src/lib/{auth/actions,data/actions,data/assets,data/billing,data/notes,
+data/recordings,data/remote-sessions,data/sourced-assets}.ts`. `sourced-assets.ts` wraps a cost
 constant in an async function for exactly this reason — check the list is still
 complete before adding another.
 
