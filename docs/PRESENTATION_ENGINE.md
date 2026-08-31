@@ -351,11 +351,16 @@ suppresses entrance animation entirely.
 
 `buildStepCount` computes how many discrete advances a scene contains: one for
 the scene itself, plus one per element marked `onAdvance`, plus one per extra
-item in a staggered list.
+item in a staggered list, plus one per stage a drawing adds, plus one — one
+total, not one per element — when the scene carries a veil (any element with a
+non-`none` `exit`). Exits are the mirror of `onAdvance`: the first advance
+dismisses every exiting element together, which is how a cover's full-bleed
+image and display title lift away to reveal the title slide beneath.
 
 Advancing walks those steps before moving to the next scene. Going _back_ to a
 scene shows it fully built rather than rewound, because a presenter returning to
-a slide wants to see it, not replay it.
+a slide wants to see it, not replay it — for a cover that means the veil is
+already lifted.
 
 ---
 

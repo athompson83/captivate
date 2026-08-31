@@ -254,12 +254,17 @@ export function fallbackScene(
     chart: null,
     code: null,
     imagePrompt: "",
+    photoQuery: "",
+    aside: null,
     speakerNotes:
       speakerNotes || `${purpose} Replace this placeholder with what you'll actually say.`,
   };
 
   switch (momentBrief.layout) {
     case "title":
+    // A structural cover has no image to source, so it composes as the title
+    // slide it degrades to — same slots, no veil.
+    case "cover":
       return {
         ...base,
         heading: context.title,
@@ -276,7 +281,12 @@ export function fallbackScene(
       // The claim turns on its second clause, which carries the accent. The
       // takeaway *is* the claim when the map has one.
       if (takeaway && takeaway.length <= 60) {
-        return { ...base, heading: `${momentBrief.title} —`, headingAccent: takeaway, subheading: "" };
+        return {
+          ...base,
+          heading: `${momentBrief.title} —`,
+          headingAccent: takeaway,
+          subheading: "",
+        };
       }
       return {
         ...base,
@@ -316,10 +326,7 @@ export function fallbackScene(
       return {
         ...base,
         bullets: bulletsFrom([purpose], ["First consideration", "Second consideration"]),
-        bulletsB: bulletsFrom(
-          [takeaway, ...evidence],
-          ["First contrast", "Second contrast"],
-        ),
+        bulletsB: bulletsFrom([takeaway, ...evidence], ["First contrast", "Second contrast"]),
         subheading: "",
       };
     case "split-left":

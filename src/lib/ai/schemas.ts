@@ -62,6 +62,24 @@ export const GeneratedScene = z.object({
     .default(null),
   /** A description the app turns into an image search or generation prompt. */
   imagePrompt: z.string().max(240).default(""),
+  /** Two to five concrete words for a stock-photo search of the same subject. */
+  photoQuery: z.string().max(80).default(""),
+  /**
+   * Depth on demand: a small aside the presenter reaches by clicking, not by
+   * advancing. It becomes a real detail scene (`flowRole: "detail"`) woven in
+   * after this one, with a hotspot on this scene's most clickable element.
+   */
+  aside: z
+    .object({
+      /** What the clickable affordance says, e.g. "See the mechanism". */
+      label: z.string().min(1).max(60),
+      title: z.string().min(1).max(120),
+      body: z.string().max(320).default(""),
+      bullets: z.array(z.string().min(1).max(140)).max(5).default([]),
+      speakerNotes: z.string().max(800).default(""),
+    })
+    .nullable()
+    .default(null),
   speakerNotes: z.string().max(1500).default(""),
 });
 export type GeneratedScene = z.infer<typeof GeneratedScene>;
@@ -206,7 +224,6 @@ export const FlowReview = z.object({
     .max(20)
     .default([]),
 });
-
 
 /**
  * A drawing the model sketches as vector paths, in drawing order.

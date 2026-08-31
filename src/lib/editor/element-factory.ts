@@ -22,6 +22,7 @@ export function createElement(type: SceneElementType, at?: { x: number; y: numbe
       duration: 0.5,
       emphasis: "none" as const,
       onAdvance: false,
+      exit: "none" as const,
     },
   };
 

@@ -56,6 +56,17 @@ export function layoutSlots(layout: SceneLayout): LayoutSlots {
         subheading: frame(M, 64, W * 0.66, 12),
       };
 
+    // The cover shares the title's slots on purpose: the veil (a full-bleed
+    // image and a display title, composed separately) lifts on the first
+    // advance to reveal what is, by construction, a title slide.
+    case "cover":
+      return {
+        eyebrow: frame(M, 34, W, 5),
+        heading: frame(M, 40, W * 0.86, 22),
+        subheading: frame(M, 64, W * 0.66, 12),
+        media: frame(0, 0, STAGE_WIDTH, STAGE_HEIGHT),
+      };
+
     case "section":
       return {
         eyebrow: frame(M, 40, W, 5),
@@ -183,6 +194,7 @@ export interface LayoutContent {
  * is consistent regardless of origin.
  */
 export function composeScene(layout: SceneLayout, content: LayoutContent): SceneContent {
+  if (layout === "cover") return composeCover(content);
   const slots = layoutSlots(layout);
   const centred = CENTRED.includes(layout);
   const align = centred ? "center" : "left";
@@ -214,6 +226,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
         duration: 0.45,
         emphasis: "none",
         onAdvance: false,
+        exit: "none",
       },
       style: {
         size: 0.62,
@@ -257,6 +270,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
         duration: 0.7,
         emphasis: "none",
         onAdvance: false,
+        exit: "none",
       },
     });
   }
@@ -287,6 +301,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
               duration: 0.6,
               emphasis: "none",
               onAdvance: false,
+              exit: "none",
             },
             style: {
               size: 1.35,
@@ -326,6 +341,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
               duration: 0.55,
               emphasis: "none",
               onAdvance: false,
+              exit: "none",
             },
             style: {
               size: big ? 1 : 0.62,
@@ -407,6 +423,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
         duration: 0.5,
         emphasis: "none",
         onAdvance: false,
+        exit: "none",
       },
       style: {
         size: 0.42,
@@ -444,6 +461,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
         duration: 0.7,
         emphasis: "none",
         onAdvance: false,
+        exit: "none",
       },
     });
   }
@@ -468,6 +486,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
           duration: 0.5,
           emphasis: "none",
           onAdvance: false,
+          exit: "none",
         },
         style: {
           size: 0.44,
@@ -499,6 +518,95 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
   };
 }
 
+/**
+ * The cover: a title slide with a veil over it.
+ *
+ * Beneath is a real title composition — entrances stripped, because those
+ * elements are simply *there* when the veil lifts rather than arriving. Over
+ * it, when there is an image, sit two `veil_`-prefixed elements: the full-bleed
+ * photograph and the display title, both dismissed by the first advance (see
+ * `ExitAnimation`). The prefix is the contract `settleCover` strips by when a
+ * generated cover's image never got filled — a cover without a picture must
+ * degrade to a title slide, never to a full-screen placeholder.
+ */
+function composeCover(content: LayoutContent): SceneContent {
+  const base = composeScene("title", { ...content, media: undefined });
+  const beneath = base.elements.map((el) => ({
+    ...el,
+    animation: { ...el.animation, entrance: "none" as const, delay: 0 },
+  }));
+  if (!content.media) return { ...base, layout: "cover" as const, elements: beneath };
+
+  const veil: SceneElement[] = [
+    {
+      id: elementId("veil"),
+      type: "image",
+      frame: frame(0, 0, STAGE_WIDTH, STAGE_HEIGHT),
+      assetId: content.media.assetId ?? null,
+      url: content.media.url,
+      alt: content.media.alt,
+      fit: "cover",
+      focalX: 0.5,
+      focalY: 0.5,
+      radius: 0,
+      scrim: 0.45,
+      hidden: false,
+      locked: false,
+      opacity: 1,
+      hotspot: null,
+      animation: {
+        entrance: "fade",
+        delay: 0,
+        duration: 0.9,
+        emphasis: "none",
+        onAdvance: false,
+        exit: "zoom",
+      },
+    },
+  ];
+
+  if (content.heading) {
+    veil.push({
+      id: elementId("veil"),
+      type: "heading",
+      level: 1,
+      frame: frame(M, 50, W * 0.84, 32),
+      content: content.headingAccent
+        ? richTextAccent(content.heading, content.headingAccent)
+        : richText(content.heading),
+      hidden: false,
+      locked: false,
+      opacity: 1,
+      hotspot: null,
+      animation: {
+        entrance: "rise",
+        delay: 0.2,
+        duration: 0.7,
+        emphasis: "none",
+        onAdvance: false,
+        exit: "fade",
+      },
+      style: {
+        size: 1.2,
+        weight: 600,
+        align: "left",
+        valign: "bottom",
+        italic: false,
+        underline: false,
+        uppercase: false,
+        lineHeight: 1.05,
+        letterSpacing: -0.02,
+        family: "display",
+        // Always over the scrimmed photograph, so always white regardless of
+        // theme — the beneath heading carries the theme's own ink.
+        color: { kind: "hex", hex: "#FFFFFF" },
+      },
+    });
+  }
+
+  return { ...base, layout: "cover" as const, elements: [...beneath, ...veil] };
+}
+
 function textElement(
   text: string,
   frame: Frame,
@@ -515,7 +623,14 @@ function textElement(
     locked: false,
     opacity: 1,
     hotspot: null,
-    animation: { entrance: "rise", delay, duration: 0.5, emphasis: "none", onAdvance: false },
+    animation: {
+      entrance: "rise",
+      delay,
+      duration: 0.5,
+      emphasis: "none",
+      onAdvance: false,
+      exit: "none",
+    },
     style: {
       size: opts.size ?? 0.55,
       weight: 400,
@@ -554,7 +669,14 @@ function listElement(
     locked: false,
     opacity: 1,
     hotspot: null,
-    animation: { entrance: "rise", delay, duration: 0.5, emphasis: "none", onAdvance: false },
+    animation: {
+      entrance: "rise",
+      delay,
+      duration: 0.5,
+      emphasis: "none",
+      onAdvance: false,
+      exit: "none",
+    },
     style: {
       size: 0.56,
       weight: 400,
@@ -649,6 +771,7 @@ export function plainOf(rt: RichText): string {
 
 export const ALL_LAYOUTS: { value: SceneLayout; label: string; hint: string }[] = [
   { value: "title", label: "Title", hint: "Opening slide" },
+  { value: "cover", label: "Cover", hint: "Full-screen image that lifts on the first advance" },
   { value: "section", label: "Section", hint: "Chapter marker" },
   { value: "statement", label: "Statement", hint: "One big idea" },
   { value: "bullets", label: "Points", hint: "Heading and list" },

@@ -58,7 +58,17 @@ export async function POST(request: Request) {
   if (!guarded.ok) return guarded.response;
 
   const { prompt, presentationId, briefs, depth, ...context } = guarded.input;
-  const result = await buildScenesFromMap(briefs, prompt, context, presentationId, depth);
+  // The briefs carry the map's own time distribution; their sum is the talk's
+  // length, which decides how many staged drawings the deck earns.
+  const totalSeconds = briefs.reduce((sum, brief) => sum + brief.estimatedSeconds, 0);
+  const result = await buildScenesFromMap(
+    briefs,
+    prompt,
+    context,
+    presentationId,
+    depth,
+    totalSeconds,
+  );
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
   return NextResponse.json(result.data);

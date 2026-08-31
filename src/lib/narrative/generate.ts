@@ -271,6 +271,7 @@ export function layoutFor(
   index: number,
 ):
   | "title"
+  | "cover"
   | "statement"
   | "bullets"
   | "two-column"
@@ -283,6 +284,20 @@ export function layoutFor(
   | "code"
   | "closing"
   | "section" {
+  // The deck opens on a cover — a full-bleed image with the title over it,
+  // lifted by the first advance. Only where the author left the choice to
+  // Captivate (or asked for imagery, which a cover *is* for an opening):
+  // an explicit intent — a chart, a quotation — still wins, as it does
+  // everywhere else. With no image to fill it, the composition degrades to
+  // the title slide it covers.
+  if (
+    index === 0 &&
+    (intent === "auto" || intent === "imagery") &&
+    (role === "hook" || role === "provocation" || role === "question")
+  ) {
+    return "cover";
+  }
+
   switch (intent) {
     case "statement":
       return "statement";
@@ -315,7 +330,7 @@ export function layoutFor(
     case "hook":
     case "provocation":
     case "question":
-      return index === 0 ? "title" : "statement";
+      return "statement";
     case "claim":
     case "reframe":
     case "synthesis":

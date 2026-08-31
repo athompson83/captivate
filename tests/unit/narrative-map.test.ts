@@ -683,8 +683,8 @@ describe("visual intent to layout", () => {
     expect(layoutFor("auto", "transition", 2)).toBe("section");
   });
 
-  it("only opens with a title composition at the very start", () => {
-    expect(layoutFor("auto", "hook", 0)).toBe("title");
+  it("opens with a cover at the very start, and only there", () => {
+    expect(layoutFor("auto", "hook", 0)).toBe("cover");
     expect(layoutFor("auto", "hook", 5)).toBe("statement");
   });
 

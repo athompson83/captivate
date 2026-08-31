@@ -155,6 +155,21 @@ export type EntranceAnimation = z.infer<typeof EntranceAnimation>;
 
 export const EmphasisAnimation = z.enum(["none", "pulse", "lift", "glow"]);
 
+/**
+ * How an element leaves. The *when* is fixed rather than configurable: a
+ * non-`none` exit means the element is dismissed by the scene's first advance,
+ * which is the mirror of `onAdvance` and rides the same step machinery. This
+ * exists for the cover — a full-screen image that lifts away to reveal the
+ * title scene beneath — and stays that narrow on purpose.
+ */
+export const ExitAnimation = z.enum([
+  "none",
+  "fade",
+  "lift", // fade + drift up
+  "zoom", // fade + scale toward the viewer
+]);
+export type ExitAnimation = z.infer<typeof ExitAnimation>;
+
 export const ElementAnimation = z.object({
   entrance: EntranceAnimation.default("fade"),
   /** Seconds after the scene becomes active. */
@@ -166,6 +181,8 @@ export const ElementAnimation = z.object({
    * instead of appearing on a timer. This is how build-ups are authored.
    */
   onAdvance: z.boolean().default(false),
+  /** Dismissed by the first advance when not "none". See `ExitAnimation`. */
+  exit: ExitAnimation.default("none"),
 });
 export type ElementAnimation = z.infer<typeof ElementAnimation>;
 
@@ -485,6 +502,7 @@ export type SceneBackground = z.infer<typeof SceneBackground>;
 export const SceneLayout = z.enum([
   "custom",
   "title", // large centred title + optional subtitle
+  "cover", // full-bleed image + display title; the image lifts on first advance
   "section", // section divider / chapter marker
   "statement", // one big idea, nothing else
   "bullets", // heading + list
