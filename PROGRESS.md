@@ -86,6 +86,8 @@ Supabase's default privileges, so the harness and the deployment agree.
   resolve gradient backgrounds and returns "incomplete", so the measured theme
   guard remains the only evidence there.
 
+## Blockers
+
 - None.
 
 ## Standing owner actions
