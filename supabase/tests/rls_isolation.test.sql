@@ -396,6 +396,57 @@ select 'complete_cannot_reopen' as check,
 select 'reserve_still_refused_after_completing' as check,
   (public.captivate_reserve_generation('probe', array['probe'], 'fourth', null, 60, 2)
      is null)::int as n;
+
+-- ---- What a reservation is allowed to cost the caller --------------------------
+-- Two things were being charged to an allowance that were never delivered.
+--
+-- A reservation abandoned by a killed function: `/api/ai/map` ran with a
+-- 60-second ceiling while the model call was given three minutes, so the
+-- platform killed the function mid-generation and nothing ever settled the
+-- row. It stayed pending, and on the free plan — ten decks in thirty days —
+-- each such 504 took one of them away for the full thirty days.
+select public.captivate_reserve_generation('stale', array['stale'], 'abandoned', null, 60, 5)
+  \gset stale_
+reset role;
+-- Aged from outside the caller's own privileges: a user must not be able to
+-- edit their ledger, which is why `complete` exists at all. This is the test
+-- harness standing in for thirty minutes passing.
+update public.ai_generations set created_at = now() - interval '30 minutes'
+ where id = :'stale_captivate_reserve_generation';
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+
+select 'reserve_abandoned_pending_stops_counting' as check,
+  (public.captivate_count_generations(array['stale'], 60) = 0)::int as n;
+
+-- …but one still in flight holds its place, or the lock would be pointless.
+-- Each of these reserves in its own statement: the counter is `stable`, so
+-- within one statement it reads the snapshot taken before the insert and would
+-- report zero however the rule was written.
+select public.captivate_reserve_generation('fresh', array['fresh'], 'running', null, 60, 5)
+  \gset fresh_
+select 'reserve_in_flight_pending_still_counts' as check,
+  (public.captivate_count_generations(array['fresh'], 60) = 1)::int as n;
+
+-- A call that never reached the model spent nothing and made nothing, so it is
+-- not charged. Billing it is charging the author for our own downtime.
+select public.captivate_reserve_generation('dud', array['dud'], 'provider down', null, 60, 5)
+  \gset dud_
+select public.captivate_complete_generation(
+  :'dud_captivate_reserve_generation', 'failed', null, null, null,
+  'the model could not be reached') \gset dud_settled_
+select 'failed_without_spend_does_not_count' as check,
+  (public.captivate_count_generations(array['dud'], 60) = 0)::int as n;
+
+-- A near-miss did reach it, twice, and is charged. The provider records the
+-- usage on the failure for exactly this reason.
+select public.captivate_reserve_generation('spent', array['spent'], 'truncated', null, 60, 5)
+  \gset spent_
+select public.captivate_complete_generation(
+  :'spent_captivate_reserve_generation', 'failed', 'test-model', 9000, 9000,
+  'the answer was cut off') \gset spent_settled_
+select 'failed_with_spend_counts' as check,
+  (public.captivate_count_generations(array['spent'], 60) = 1)::int as n;
 reset role;
 
 -- Bob cannot complete Alice's reservation, and cannot see it either.
@@ -644,3 +695,118 @@ select 'shared_asset_revoked_signed_in_storage_unreadable' as check,
   (count(*) = 0)::int as n from storage.objects
   where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/asset1.png';
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- Billing: a user may read their own subscription and may never write one.
+--
+-- Granting yourself Pro has to be impossible, not merely unimplemented. There
+-- is no insert, update or delete policy on `subscriptions` for any role, so
+-- the writes below affect nothing rather than escalating.
+-- ---------------------------------------------------------------------------
+insert into public.subscriptions
+  (user_id, stripe_subscription_id, status, price_id, billing_interval,
+   current_period_end, updated_from_event_at)
+values
+  ('11111111-1111-1111-1111-111111111111', 'sub_alice', 'active', 'price_test',
+   'month', now() + interval '30 days', now()),
+  ('22222222-2222-2222-2222-222222222222', 'sub_bob', 'active', 'price_test',
+   'month', now() + interval '30 days', now());
+
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+
+select 'subscription_sees_only_own' as check,
+  (count(*) = 1)::int as n from public.subscriptions;
+
+select 'subscription_other_user_invisible' as check,
+  (count(*) = 0)::int as n from public.subscriptions
+  where user_id = '22222222-2222-2222-2222-222222222222';
+
+-- No update policy exists, so this matches no rows.
+update public.subscriptions
+   set status = 'active', current_period_end = now() + interval '999 days';
+reset role;
+
+select 'subscription_not_self_writable' as check,
+  (count(*) = 0)::int as n from public.subscriptions
+  where current_period_end > now() + interval '900 days';
+
+-- Nor may a user mint one for themselves. With no insert policy the write is
+-- refused outright rather than matching zero rows, so the raise is caught here
+-- to keep ON_ERROR_STOP from ending the run on the expected denial.
+do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub',
+                     '11111111-1111-1111-1111-111111111111', true);
+  begin
+    insert into public.subscriptions
+      (user_id, stripe_subscription_id, status, price_id, billing_interval,
+       current_period_end, updated_from_event_at)
+    values ('11111111-1111-1111-1111-111111111111', 'sub_forged', 'active',
+            'price_test', 'year', now() + interval '900 days', now());
+  exception when insufficient_privilege then
+    null;
+  end;
+end $$;
+reset role;
+
+select 'subscription_not_self_insertable' as check,
+  (count(*) = 0)::int as n from public.subscriptions
+  where stripe_subscription_id = 'sub_forged';
+
+-- The event ledger has no policies at all: not even a read.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'stripe_events_opaque_to_users' as check,
+  (count(*) = 0)::int as n from public.stripe_events;
+reset role;
+
+-- ---- Granted plans -------------------------------------------------------------
+-- A grant is an entitlement handed out rather than bought. It has the same
+-- security story as the billing tables and for the same reason: a user who can
+-- write their own grant grants themselves the product, so the schema offers no
+-- verb for it. It is readable by its holder alone, because the settings page
+-- has to be able to say "granted, not billed" rather than implying a payment.
+insert into public.plan_grants (user_id, plan, note)
+values ('11111111-1111-1111-1111-111111111111', 'unlimited', 'Owner account.');
+
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'grant_sees_own' as check, (count(*) = 1)::int as n from public.plan_grants;
+reset role;
+
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select 'bob_sees_alice_grant' as check, count(*) as n from public.plan_grants;
+
+do $$
+begin
+  begin
+    insert into public.plan_grants (user_id, plan, note)
+    values ('22222222-2222-2222-2222-222222222222', 'unlimited', 'self-granted');
+  exception when insufficient_privilege then
+    null;
+  end;
+end $$;
+reset role;
+
+select 'grant_not_self_insertable' as check,
+  (count(*) = 0)::int as n from public.plan_grants
+  where user_id = '22222222-2222-2222-2222-222222222222';
+
+-- Nor may the holder promote their own grant, which is the same hole by
+-- another route.
+do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub',
+                     '11111111-1111-1111-1111-111111111111', true);
+  update public.plan_grants set plan = 'unlimited', expires_at = null
+   where user_id = '11111111-1111-1111-1111-111111111111';
+end $$;
+reset role;
+
+select 'grant_not_self_writable' as check,
+  (count(*) = 1)::int as n from public.plan_grants
+  where user_id = '11111111-1111-1111-1111-111111111111' and note = 'Owner account.';

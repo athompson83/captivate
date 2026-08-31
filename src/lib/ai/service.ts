@@ -1,6 +1,9 @@
 import "server-only";
 
-import { complete, LIMITS, reserve, type RateLimit } from "./rate-limit";
+import { complete, reserve } from "./rate-limit";
+import { limitForCaller } from "@/lib/billing/entitlement";
+import { BUDGET_KINDS, type BudgetGroup } from "@/lib/billing/plans";
+import { referenceBlock, type Reference } from "@/lib/ingest/reference";
 import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
 import {
   drawableScenes,
@@ -41,6 +44,16 @@ export interface AudienceContext {
   audience?: string;
   tone?: string;
   sceneCount?: number;
+  /**
+   * A file the author handed over, read in their browser.
+   *
+   * It rides on the audience context because every generation that writes
+   * *their* talk needs it — the map that proposes the argument and the scenes
+   * that render it. A map grounded in last year's deck followed by scenes
+   * that never saw it produces a presentation that argues one thing and says
+   * another.
+   */
+  reference?: Reference | null;
 }
 
 /**
@@ -58,13 +71,21 @@ export interface AudienceContext {
  */
 async function spend<T>(
   kind: AiKind,
-  countKinds: string[],
   prompt: string,
   presentationId: string | null,
-  limit: RateLimit,
+  group: BudgetGroup,
   run: () => Promise<StructuredResult<T>>,
 ): Promise<StructuredResult<T>> {
-  const ticket = await reserve(kind, countKinds, prompt, presentationId, limit);
+  const ticket = await reserve(
+    kind,
+    // The group says what this draws on. Passing the kinds separately let a
+    // caller count one pool and charge another, which is how drafting an
+    // argument came to spend a deck.
+    BUDGET_KINDS[group],
+    prompt,
+    presentationId,
+    await limitForCaller(group),
+  );
   if (!ticket.ok) return { ok: false, reason: "provider_error", error: ticket.error };
 
   const result = await run();
@@ -138,7 +159,7 @@ export async function buildNarrativeMap(
     ? context.available.map((item) => `- ${item.id} (${item.kind}): ${item.label}`).join("\n")
     : "None available.";
 
-  const result = await spend("map", ["map", "presentation"], prompt, null, LIMITS.heavy, () =>
+  const result = await spend("map", prompt, null, "draft", () =>
     generateStructured({
       schema: ProposedMap,
       toolName: "propose_narrative_map",
@@ -159,6 +180,7 @@ Rules:
 - Do not repeat the same role sequence in every movement.
 - The presentation runs about ${minutes} minutes. Use weights to say which parts deserve more of it.
 - Reference evidence ONLY by an id from the list you are given, and only where that source genuinely supports the claim. Never invent an id, a statistic or a citation. Leave evidenceIds empty when nothing supports it.
+- Where the author has supplied reference material, it outranks anything you already know about the subject. Shape the argument around what is actually in it — its examples, its terminology, its emphasis — and never contradict it. It is source material for a talk, not a script: proposing their file back to them in a different order is a failure.
 ${context.recommendedShape ? `- The chosen template recommends this shape as a starting point, which you may depart from where the subject calls for it:\n${context.recommendedShape}` : ""}`,
       prompt: `Propose the narrative map for this presentation.
 
@@ -169,8 +191,18 @@ Evidence available in this workspace:
 ${evidenceLines}
 
 Request:
-${prompt}`,
-      maxTokens: 4000,
+${prompt}
+${referenceBlock(context.reference ?? null)}`,
+      // 10000, up from 4000. A map is short prose per beat, but there can be
+      // eighty beats: the live ledger recorded successful maps at 4820 and
+      // 5543 output tokens, which are two-attempt totals — the first attempt
+      // had hit the 4000 ceiling and been cut off. When both attempts hit it,
+      // the author was told their answer "didn't match the required shape"
+      // and handed the structural fallback instead of their argument.
+      maxTokens: 10_000,
+      // /api/ai/map runs with a 300-second ceiling; two attempts fit inside it
+      // with room for the reservation and the write.
+      attemptTimeoutMs: 120_000,
     }),
   );
 
@@ -212,7 +244,7 @@ export async function rewriteMoment(input: {
     };
   }
 
-  const result = await spend("moment", ["moment", "rewrite"], input.title, null, LIMITS.light, () =>
+  const result = await spend("moment", input.title, null, "light", () =>
     generateStructured({
       schema: RewrittenMoment,
       toolName: "rewrite_moment",
@@ -232,6 +264,8 @@ Current beat
 
 Propose a sharper version.`,
       maxTokens: 800,
+      // /api/ai/moment runs with a 30-second ceiling.
+      attemptTimeoutMs: 12_000,
     }),
   );
 
@@ -357,22 +391,18 @@ export async function buildScenesFromMap(
     })
     .join("\n\n");
 
-  const result = await spend(
-    "scenes",
-    ["scenes", "presentation"],
-    prompt,
-    presentationId,
-    LIMITS.heavy,
-    () =>
-      generateStructured({
-        schema: GeneratedScenes,
-        toolName: "write_scenes",
-        toolDescription: "Write the content for every moment in an accepted narrative map.",
-        system: `${BASE_SYSTEM}
+  const result = await spend("scenes", prompt, presentationId, "deck", () =>
+    generateStructured({
+      schema: GeneratedScenes,
+      toolName: "write_scenes",
+      toolDescription: "Write the content for every moment in an accepted narrative map.",
+      system: `${BASE_SYSTEM}
 
 You are writing the scenes for an argument that has already been agreed. Write exactly ${briefs.length} scenes, in order, one per moment, using the layout given for each.
 
 Every scene must do the job its moment states. The audience takeaway is the test: if a scene does not produce it, the scene is wrong.
+
+Where the author has supplied reference material below, write from it. Its facts, examples, numbers and terminology are the content; anything you know that it does not say is not to be stated as fact. Do not copy it out — the author already has that file and wants a talk built from it.
 
 ${
   depth === "full"
@@ -397,15 +427,20 @@ Asides: for two to four scenes in the deck — the ones hiding a definition, a w
 Transitions: where a beat ends a movement, let the last line carry the room into what follows — from this argument, in its own words. Do not announce the next section by name, and do not add a transition sentence to scenes that are not ending a movement.
 
 Where a moment names evidence, write only what that evidence supports. Never introduce a statistic, study or citation that was not given to you.`,
-        prompt: `Original request:
+      prompt: `Original request:
 ${prompt}
 
 ${contextLine(context)}
 
 The accepted narrative map:
-${plan}`,
-        maxTokens: 14000,
-      }),
+${plan}
+
+${referenceBlock(context.reference ?? null)}`,
+      maxTokens: 14000,
+      // Both scene routes run at the 300-second platform ceiling, and this
+      // call is followed by the drawing and photo pass.
+      attemptTimeoutMs: 100_000,
+    }),
   );
 
   if (!result.ok) {
@@ -572,7 +607,7 @@ export async function buildSingleScene(
     };
   }
 
-  const result = await spend("scene", ["scene"], instruction, presentationId, LIMITS.heavy, () =>
+  const result = await spend("scene", instruction, presentationId, "draft", () =>
     generateStructured({
       schema: GeneratedScene,
       toolName: "write_scene",
@@ -587,6 +622,8 @@ ${context.neighbouring?.length ? `\nSurrounding scenes, for continuity:\n${conte
 Write a scene that does this:
 ${instruction}`,
       maxTokens: 2000,
+      // /api/ai/scene runs with a 60-second ceiling.
+      attemptTimeoutMs: 25_000,
     }),
   );
 
@@ -663,10 +700,9 @@ export async function rewriteText(
 
   const result = await spend(
     "rewrite",
-    ["rewrite"],
     `${mode}: ${text.slice(0, 200)}`,
     presentationId,
-    LIMITS.light,
+    "light",
     () =>
       generateStructured({
         schema: RewriteResult,
@@ -682,6 +718,8 @@ ${contextLine(context)}
 Text:
 ${text}`,
         maxTokens: 1200,
+        // /api/ai/rewrite runs with a 45-second ceiling.
+        attemptTimeoutMs: 18_000,
       }),
   );
 
@@ -702,21 +740,15 @@ export async function writeSpeakerNotes(
     };
   }
 
-  const result = await spend(
-    "speaker_notes",
-    ["speaker_notes"],
-    scene.title,
-    presentationId,
-    LIMITS.light,
-    () =>
-      generateStructured({
-        schema: SpeakerNotesResult,
-        toolName: "write_speaker_notes",
-        toolDescription: "Write private speaker notes for one scene.",
-        system: `${BASE_SYSTEM}
+  const result = await spend("speaker_notes", scene.title, presentationId, "light", () =>
+    generateStructured({
+      schema: SpeakerNotesResult,
+      toolName: "write_speaker_notes",
+      toolDescription: "Write private speaker notes for one scene.",
+      system: `${BASE_SYSTEM}
 
 Speaker notes are what the presenter says, not what the slide shows. Write four to eight sentences: how to open the scene, the one point to emphasise, a question to put to the room where it fits, and how to move on. Never repeat the words already on screen.`,
-        prompt: `Presentation: ${context.presentationTitle ?? "Untitled"}
+      prompt: `Presentation: ${context.presentationTitle ?? "Untitled"}
 ${contextLine(context)}
 
 Scene title: ${scene.title || "(untitled)"}
@@ -724,8 +756,10 @@ What is on the scene:
 ${scene.text || "(empty scene)"}
 
 ${scene.existingNotes.trim() ? `Improve these existing notes rather than starting over:\n${scene.existingNotes}` : "There are no notes yet."}`,
-        maxTokens: 1200,
-      }),
+      maxTokens: 1200,
+      // /api/ai/notes runs with a 45-second ceiling.
+      attemptTimeoutMs: 18_000,
+    }),
   );
 
   if (!result.ok) return { ok: false, error: result.error };
@@ -744,26 +778,22 @@ export async function suggestVisuals(
     return { ok: false, error: "AI isn't configured on this deployment." };
   }
 
-  const result = await spend(
-    "visuals",
-    ["visuals"],
-    scene.title,
-    presentationId,
-    LIMITS.light,
-    () =>
-      generateStructured({
-        schema: VisualSuggestion,
-        toolName: "suggest_visuals",
-        toolDescription: "Suggest images that would strengthen a scene.",
-        system: `${BASE_SYSTEM}
+  const result = await spend("visuals", scene.title, presentationId, "light", () =>
+    generateStructured({
+      schema: VisualSuggestion,
+      toolName: "suggest_visuals",
+      toolDescription: "Suggest images that would strengthen a scene.",
+      system: `${BASE_SYSTEM}
 
 Suggest images only where a picture does work that words cannot. Describe each one concretely enough to search for or commission. Never suggest generic stock imagery of people shaking hands or looking at laptops.`,
-        prompt: `${contextLine(context)}
+      prompt: `${contextLine(context)}
 
 Scene: ${scene.title}
 ${scene.text}`,
-        maxTokens: 1000,
-      }),
+      maxTokens: 1000,
+      // /api/ai/visuals runs with a 45-second ceiling.
+      attemptTimeoutMs: 18_000,
+    }),
   );
 
   if (!result.ok) return { ok: false, error: result.error };
@@ -777,6 +807,11 @@ function toRecord<T>(result: StructuredResult<T>) {
         status:
           result.reason === "invalid_output" ? ("invalid_output" as const) : ("failed" as const),
         error: result.error,
+        // A near-miss and a truncated answer bill two full model calls. The
+        // ledger recorded nothing for them, which made real spend invisible in
+        // the cost record and left the limiter unable to tell a generation
+        // that burned twenty thousand tokens from one the provider refused.
+        usage: result.usage,
       };
 }
 
@@ -800,7 +835,7 @@ export async function generateDrawing(
     };
   }
 
-  const result = await spend("drawing", ["drawing"], prompt, presentationId, LIMITS.heavy, () =>
+  const result = await spend("drawing", prompt, presentationId, "drawing", () =>
     generateStructured({
       schema: GeneratedDrawing,
       toolName: "draw_picture",
@@ -819,6 +854,9 @@ You draw single-colour line art that will be sketched stroke by stroke in front 
 - The alt text describes the finished picture for someone who cannot see it.`,
       prompt: `Draw: ${prompt}`,
       maxTokens: 16000,
+      // /api/ai/visuals/draw runs with a 120-second ceiling, and the deck
+      // pass runs several of these against its own 55-second race.
+      attemptTimeoutMs: 50_000,
     }),
   );
 

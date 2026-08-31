@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { suggestVisuals } from "@/lib/ai/service";
-import { AudienceInput, guard, LIMITS } from "@/lib/ai/route-helpers";
+import { AudienceInput, guard } from "@/lib/ai/route-helpers";
 
 export const maxDuration = 45;
 
@@ -14,7 +14,7 @@ const Input = z
   .merge(AudienceInput);
 
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, LIMITS.light, ["visuals"]);
+  const guarded = await guard(request, Input, "light");
   if (!guarded.ok) return guarded.response;
 
   const { title, text, presentationId, ...context } = guarded.input;

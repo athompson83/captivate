@@ -3,6 +3,7 @@
 import type { SceneContent } from "@/lib/schema/presentation";
 import type { ProposedMap, RewriteMode } from "./schemas";
 import type { AvailableEvidence } from "@/lib/narrative/generate";
+import type { Reference } from "@/lib/ingest/reference";
 
 /**
  * Browser-side callers for the AI routes.
@@ -46,6 +47,8 @@ export interface AudienceContext {
   audience?: string;
   tone?: string;
   sceneCount?: number;
+  /** A file the author handed over, already read and bounded in the browser. */
+  reference?: Reference | null;
 }
 
 /**

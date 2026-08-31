@@ -20,6 +20,8 @@ import type { ProposedMap } from "@/lib/ai/schemas";
 import { ROLE_META, ROLE_ORDER } from "@/lib/schema/narrative";
 import type { AvailableEvidence } from "@/lib/narrative/generate";
 import { requestMap, requestPresentationFromMap } from "@/lib/ai/client";
+import { ReferencePicker } from "./reference-picker";
+import type { Reference } from "@/lib/ingest/reference";
 import { createPresentation } from "@/lib/data/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
@@ -249,6 +251,7 @@ function AiPath({ folderId }: { folderId: string | null }) {
   const [themeId, setThemeId] = useState("midnight");
   const [map, setMap] = useState<ProposedMap | null>(null);
   const [available, setAvailable] = useState<AvailableEvidence[]>([]);
+  const [reference, setReference] = useState<Reference | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -259,7 +262,7 @@ function AiPath({ folderId }: { folderId: string | null }) {
     setBusy(true);
     setNotice(null);
 
-    const result = await requestMap({ prompt, audience, tone, totalSeconds });
+    const result = await requestMap({ prompt, audience, tone, totalSeconds, reference });
     setBusy(false);
 
     if (!result.ok) {
@@ -286,6 +289,11 @@ function AiPath({ folderId }: { folderId: string | null }) {
       folderId,
       audience,
       tone,
+      // The scenes are written from the same material the map was proposed
+      // from. A map grounded in the author's deck followed by scenes that
+      // never saw it produces a presentation that argues one thing and says
+      // another.
+      reference,
     });
 
     if (!result.ok) {
@@ -359,6 +367,8 @@ function AiPath({ folderId }: { folderId: string | null }) {
             placeholder="A 50-minute lecture on recognising and managing compensated shock for second-year paramedic students. Cover the physiology, the clinical signs that appear before hypotension, and two case examples."
             hint="Say what has to change in the room by the end. That is what the argument is built around."
           />
+
+          <ReferencePicker reference={reference} onChange={setReference} />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>

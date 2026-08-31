@@ -10,6 +10,8 @@ import { FormMessage } from "@/components/auth/forms";
 import { Segmented } from "@/components/ui/misc";
 import { formatDate } from "@/lib/utils/format";
 import { SHORTCUTS } from "@/lib/editor/shortcuts";
+import { BillingSection } from "./billing-section";
+import type { GrantSummary, SubscriptionSummary } from "@/lib/billing/entitlement";
 
 /**
  * Account settings.
@@ -22,18 +24,31 @@ export function SettingsPanel({
   displayName,
   memberSince,
   counts,
+  billing,
 }: {
   email: string;
   displayName: string;
   memberSince: string | null;
   counts: { presentations: number; notes: number; assets: number; recordings: number };
+  billing: {
+    configured: boolean;
+    testMode: boolean;
+    summary: SubscriptionSummary | null;
+    grant: GrantSummary | null;
+    usage: { decksUsed: number; deckAllowance: number };
+  };
 }) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(updateProfile, null);
   const { pref, setPref } = useTheme();
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-8 sm:px-8 sm:py-10">
-      <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Settings</h1>
+      <h1
+        className="text-ink text-[22px] font-semibold tracking-tight"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        Settings
+      </h1>
 
       <section className="mt-8" aria-labelledby="profile-heading">
         <h2 id="profile-heading" className="text-ink text-[14px] font-semibold">
@@ -61,6 +76,14 @@ export function SettingsPanel({
           </Button>
         </form>
       </section>
+
+      <BillingSection
+        configured={billing.configured}
+        testMode={billing.testMode}
+        summary={billing.summary}
+        grant={billing.grant}
+        usage={billing.usage}
+      />
 
       <section className="mt-10" aria-labelledby="appearance-heading">
         <h2 id="appearance-heading" className="text-ink text-[14px] font-semibold">

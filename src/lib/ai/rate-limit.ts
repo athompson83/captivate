@@ -1,6 +1,7 @@
 import "server-only";
 
 import { supabaseServer } from "@/lib/supabase/server";
+import type { RateLimit } from "@/lib/billing/plans";
 
 /**
  * Rate limiting for model calls.
@@ -9,6 +10,10 @@ import { supabaseServer } from "@/lib/supabase/server";
  * database-backed rather than in-memory because the app runs on serverless
  * functions where per-instance counters are close to meaningless — a user can
  * simply land on a cold instance.
+ *
+ * What counts is decided in one place, `captivate_count_generations`: a
+ * reservation abandoned by a killed function, and a call that never reached
+ * the model, are not spend and are not charged to anybody's allowance.
  *
  * The limits protect the deployment's spend, not the user; they are generous
  * enough that ordinary authoring never touches them.
@@ -22,19 +27,58 @@ import { supabaseServer } from "@/lib/supabase/server";
  * message and the status code.
  */
 
-export interface RateLimit {
-  windowMinutes: number;
-  max: number;
+export type { RateLimit };
+
+/**
+ * How to describe the window a limit actually used.
+ *
+ * The free plan counts over a rolling 30 days, so a message that says "in the
+ * last hour" would be a lie about billing — the worst kind of copy to get
+ * wrong.
+ */
+function windowPhrase(limit: RateLimit): string {
+  if (limit.windowMinutes >= 1440) {
+    const days = Math.round(limit.windowMinutes / 1440);
+    return `the last ${days} day${days === 1 ? "" : "s"}`;
+  }
+  if (limit.windowMinutes >= 60) {
+    const hours = Math.round(limit.windowMinutes / 60);
+    return `the last ${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+  return `the last ${limit.windowMinutes} minutes`;
 }
 
-/** Full generations are expensive; text tools are cheap and used constantly. */
-export const LIMITS = {
-  heavy: { windowMinutes: 60, max: 30 } satisfies RateLimit,
-  light: { windowMinutes: 60, max: 200 } satisfies RateLimit,
-};
+function overLimitMessage(limit: RateLimit): string {
+  return `You've used ${limit.max} AI generations in ${windowPhrase(limit)}. Nothing you've made is affected.`;
+}
 
 export type RateVerdict =
   { allowed: true } | { allowed: false; retryAfterMinutes: number; message: string };
+
+/**
+ * How much of a group's allowance the caller has used.
+ *
+ * The database owns the definition — an abandoned reservation and a call that
+ * never reached the model do not count — so the gate, this pre-filter and the
+ * number on the settings page cannot drift apart. Null means the count could
+ * not be read.
+ */
+export async function usedGenerations(
+  kinds: string[],
+  windowMinutes: number,
+): Promise<number | null> {
+  try {
+    const supabase = await supabaseServer();
+    const { data, error } = await supabase.rpc("captivate_count_generations", {
+      p_count_kinds: kinds,
+      p_window_minutes: windowMinutes,
+    });
+    if (error || typeof data !== "number") return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
 
 export async function checkRateLimit(limit: RateLimit, kinds: string[]): Promise<RateVerdict> {
   try {
@@ -46,23 +90,17 @@ export async function checkRateLimit(limit: RateLimit, kinds: string[]): Promise
       return { allowed: false, retryAfterMinutes: 0, message: "You're signed out." };
     }
 
-    const since = new Date(Date.now() - limit.windowMinutes * 60_000).toISOString();
-    const { count, error } = await supabase
-      .from("ai_generations")
-      .select("id", { count: "exact", head: true })
-      .eq("owner_id", user.id)
-      .in("kind", kinds)
-      .gte("created_at", since);
+    const used = await usedGenerations(kinds, limit.windowMinutes);
 
     // If the counter itself is broken, allow the request rather than blocking
-    // all AI on an infrastructure hiccup.
-    if (error) return { allowed: true };
+    // all AI on an infrastructure hiccup. The reservation still fails closed.
+    if (used === null) return { allowed: true };
 
-    if ((count ?? 0) >= limit.max) {
+    if (used >= limit.max) {
       return {
         allowed: false,
         retryAfterMinutes: limit.windowMinutes,
-        message: `You've used ${limit.max} AI generations in the last hour. Try again shortly — nothing you've made is affected.`,
+        message: overLimitMessage(limit),
       };
     }
 
@@ -123,7 +161,7 @@ export async function reserve(
       return refused(
         error
           ? "Couldn't reserve an AI call just now. Nothing was spent — try again."
-          : `You've used ${limit.max} AI generations in the last hour. Try again shortly — nothing you've made is affected.`,
+          : overLimitMessage(limit),
       );
     }
     return { ok: true, reservation: { id: data as unknown as string } };

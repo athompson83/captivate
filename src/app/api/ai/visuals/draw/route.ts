@@ -24,10 +24,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "You're signed out." }, { status: 401 });
 
   if (!isAiConfigured()) {
-    return NextResponse.json(
-      { error: "AI isn't configured on this deployment." },
-      { status: 501 },
-    );
+    return NextResponse.json({ error: "AI isn't configured on this deployment." }, { status: 501 });
   }
 
   const parsed = Input.safeParse(await request.json().catch(() => null));

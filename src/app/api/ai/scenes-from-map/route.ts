@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildScenesFromMap } from "@/lib/ai/service";
-import { AudienceInput, guard, LIMITS } from "@/lib/ai/route-helpers";
+import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
 import { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 
 // The platform ceiling: one scenes call at full depth plus the parallel
@@ -50,11 +50,12 @@ const Input = z
     /** How much writing to do: the full talk, or a frame the author fills in. */
     depth: z.enum(["outline", "full"]).default("full"),
   })
-  .merge(AudienceInput);
+  .merge(AudienceInput)
+  .merge(ReferenceInput);
 
 /** An accepted narrative map → the scenes that render it. */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, LIMITS.heavy, ["scenes", "presentation"]);
+  const guarded = await guard(request, Input, "deck");
   if (!guarded.ok) return guarded.response;
 
   const { prompt, presentationId, briefs, depth, ...context } = guarded.input;

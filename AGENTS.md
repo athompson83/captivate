@@ -40,7 +40,7 @@ engineering work to the Product Owner.
 
 ```bash
 npm run dev          # Next dev server
-npm run verify       # typecheck → lint → unit tests → build. Required for code/config changes.
+npm run verify       # typecheck → lint → unit tests → build. Run this before every commit.
 npm run test         # vitest run (unit + component)
 npm run test:watch   # vitest, watching
 npm run test:e2e     # Playwright (needs a dev server and Supabase env vars)
@@ -48,7 +48,7 @@ npm run test:rls     # RLS policy tests against a local Postgres — see docs/DA
 npm run format       # prettier --write .
 ```
 
-`npm run verify` is the code/configuration gate. Documentation-only work follows the economical-CI rules below.
+`npm run verify` is the gate. Nothing is "done" until it exits 0.
 
 <!-- BEGIN ECONOMICAL CI -->
 ## Economical CI (Codex and Claude)
@@ -72,8 +72,8 @@ These rules apply equally to Codex and Claude.
 a number — from one makes _every_ action in that file fail at runtime with a 500, and
 the build says nothing. Shared constants go in a plain module;
 `src/lib/data/upload-limits.ts` exists for exactly this reason. The server-action files
-are `src/lib/{auth/actions,data/actions,data/assets,data/notes,data/recordings,
-data/remote-sessions,data/sourced-assets}.ts`. `sourced-assets.ts` wraps a cost
+are `src/lib/{auth/actions,data/actions,data/assets,data/billing,data/notes,
+data/recordings,data/remote-sessions,data/sourced-assets}.ts`. `sourced-assets.ts` wraps a cost
 constant in an async function for exactly this reason — check the list is still
 complete before adding another.
 

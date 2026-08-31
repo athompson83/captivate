@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildSingleScene } from "@/lib/ai/service";
-import { AudienceInput, guard, LIMITS } from "@/lib/ai/route-helpers";
+import { AudienceInput, guard } from "@/lib/ai/route-helpers";
 
 export const maxDuration = 60;
 
@@ -16,7 +16,7 @@ const Input = z
 
 /** Generates one scene. The client decides where to insert it. */
 export async function POST(request: Request) {
-  const guarded = await guard(request, Input, LIMITS.heavy, ["scene"]);
+  const guarded = await guard(request, Input, "draft");
   if (!guarded.ok) return guarded.response;
 
   const { instruction, presentationId, ...context } = guarded.input;

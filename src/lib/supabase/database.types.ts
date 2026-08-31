@@ -184,6 +184,39 @@ type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Relationships: [];
 };
 
+export type BillingCustomerRow = {
+  user_id: string;
+  stripe_customer_id: string;
+  created_at: string;
+};
+
+export type SubscriptionRow = {
+  user_id: string;
+  stripe_subscription_id: string;
+  status: string;
+  price_id: string;
+  billing_interval: "month" | "year";
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  updated_from_event_at: string;
+  updated_at: string;
+};
+
+/** An entitlement granted rather than bought — see `0019_plan_grants.sql`. */
+export type PlanGrantRow = {
+  user_id: string;
+  plan: "pro" | "unlimited";
+  note: string;
+  granted_at: string;
+  expires_at: string | null;
+};
+
+export type StripeEventRow = {
+  id: string;
+  type: string;
+  received_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -198,6 +231,10 @@ export type Database = {
       recordings: Table<RecordingRow>;
       ai_generations: Table<AiGenerationRow>;
       presentation_sessions: Table<PresentationSessionRow>;
+      billing_customers: Table<BillingCustomerRow>;
+      subscriptions: Table<SubscriptionRow>;
+      plan_grants: Table<PlanGrantRow>;
+      stripe_events: Table<StripeEventRow>;
     };
     Views: Record<never, never>;
     Functions: {
@@ -224,6 +261,13 @@ export type Database = {
       captivate_remote_topic_open: {
         Args: { p_topic: string };
         Returns: boolean;
+      };
+      captivate_count_generations: {
+        Args: {
+          p_count_kinds: string[];
+          p_window_minutes: number;
+        };
+        Returns: number;
       };
       captivate_reserve_generation: {
         Args: {

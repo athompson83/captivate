@@ -2,18 +2,22 @@
 
 ## Environment variables
 
-| Variable                        | Required      | Reaches the browser | Purpose                         |
-| ------------------------------- | ------------- | ------------------- | ------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Yes           | Yes                 | Project URL                     |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes           | Yes                 | Publishable key                 |
-| `ANTHROPIC_API_KEY`             | No            | **No**              | Enables AI authoring            |
-| `CAPTIVATE_AI_MODEL`            | No            | No                  | Overrides the model id          |
-| `PEXELS_API_KEY`                | No            | **No**              | Enables the picker's Find tab   |
-| `OPENAI_API_KEY`                | No            | **No**              | Enables the picker's Generate tab |
-| `CAPTIVATE_IMAGE_BUDGET_USD`    | No            | No                  | Shared monthly image spend ceiling (default 100) |
-| `CAPTIVATE_IMAGE_DAILY_MAX`     | No            | No                  | Per-user daily generations (default 25) |
-| `NEXT_PUBLIC_SITE_URL`          | In production | Yes                 | Absolute origin for email links |
-| `SUPABASE_SERVICE_ROLE_KEY`     | No            | **No**              | Not needed by any current route |
+| Variable                        | Required      | Reaches the browser | Purpose                                                         |
+| ------------------------------- | ------------- | ------------------- | --------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Yes           | Yes                 | Project URL                                                     |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes           | Yes                 | Publishable key                                                 |
+| `ANTHROPIC_API_KEY`             | No            | **No**              | Enables AI authoring                                            |
+| `CAPTIVATE_AI_MODEL`            | No            | No                  | Overrides the model id                                          |
+| `PEXELS_API_KEY`                | No            | **No**              | Enables the picker's Find tab                                   |
+| `OPENAI_API_KEY`                | No            | **No**              | Enables the picker's Generate tab                               |
+| `CAPTIVATE_IMAGE_BUDGET_USD`    | No            | No                  | Shared monthly image spend ceiling (default 100)                |
+| `CAPTIVATE_IMAGE_DAILY_MAX`     | No            | No                  | Per-user daily generations (default 25)                         |
+| `NEXT_PUBLIC_SITE_URL`          | In production | Yes                 | Absolute origin for email links                                 |
+| `SUPABASE_SERVICE_ROLE_KEY`     | With billing  | **No**              | The Stripe webhook is the only writer of subscription state     |
+| `STRIPE_SECRET_KEY`             | No            | **No**              | Enables billing; absent means nobody is throttled               |
+| `STRIPE_WEBHOOK_SECRET`         | With billing  | **No**              | Verifies the webhook; it is that endpoint's only authentication |
+| `STRIPE_PRICE_PRO_MONTHLY`      | With billing  | **No**              | Price id for $12/month Captivate Pro                            |
+| `STRIPE_PRICE_PRO_ANNUAL`       | With billing  | **No**              | Price id for $96/year Captivate Pro                             |
 
 `NEXT_PUBLIC_SITE_URL` is required in production rather than merely advisable.
 Confirmation and recovery links carry a one-time credential, and the only other
@@ -49,23 +53,23 @@ supabase link --project-ref <ref>
 supabase db push
 ```
 
-| Migration                        | Contents                                                       |
-| -------------------------------- | -------------------------------------------------------------- |
-| `0001_captivate_core.sql`        | Tables, indexes, triggers, and RLS on the core tables          |
-| `0002_storage.sql`               | Three private buckets and their per-user object policies       |
-| `0003`–`0004` journey            | World-canvas placement and its defaults                        |
-| `0005_movements.sql`             | `sections.label` — the movement name shown to the audience     |
-| `0006_narrative_map.sql`         | `moments`, `sections.purpose`, `scenes.moment_id`              |
-| `0007_target_duration.sql`       | `presentations.target_seconds`                                 |
-| `0008_search_path.sql`           | `search_path` pinned on every function; EXECUTE revoked from client roles on the trigger functions, which Supabase otherwise exposes at `/rest/v1/rpc/<name>` |
-| `0009_transcripts.sql`           | `recordings.transcript`                                        |
-| `0010_share_links.sql`           | `presentations.share_token` and the one resolver a link-holder may call |
-| `0011_shared_assets.sql`         | Asset access for a shared deck, and the storage policy behind it |
-| `0012_scene_flow_role.sql`       | `scenes.flow_role`, and `flowRole` in the shared payload       |
-| `0013_generation_reservation.sql`| Reserve-before-spend for AI calls                              |
-| `0014_remote_sessions.sql`       | `presentation_sessions` and the phone remote's channel gate    |
-| `0015_sourced_visuals.sql`       | Asset provenance, and the image-generation budget              |
-| `0016_shared_asset_by_reference.sql` | Resolves a shared deck's images by what the deck references |
+| Migration                            | Contents                                                                                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001_captivate_core.sql`            | Tables, indexes, triggers, and RLS on the core tables                                                                                                         |
+| `0002_storage.sql`                   | Three private buckets and their per-user object policies                                                                                                      |
+| `0003`–`0004` journey                | World-canvas placement and its defaults                                                                                                                       |
+| `0005_movements.sql`                 | `sections.label` — the movement name shown to the audience                                                                                                    |
+| `0006_narrative_map.sql`             | `moments`, `sections.purpose`, `scenes.moment_id`                                                                                                             |
+| `0007_target_duration.sql`           | `presentations.target_seconds`                                                                                                                                |
+| `0008_search_path.sql`               | `search_path` pinned on every function; EXECUTE revoked from client roles on the trigger functions, which Supabase otherwise exposes at `/rest/v1/rpc/<name>` |
+| `0009_transcripts.sql`               | `recordings.transcript`                                                                                                                                       |
+| `0010_share_links.sql`               | `presentations.share_token` and the one resolver a link-holder may call                                                                                       |
+| `0011_shared_assets.sql`             | Asset access for a shared deck, and the storage policy behind it                                                                                              |
+| `0012_scene_flow_role.sql`           | `scenes.flow_role`, and `flowRole` in the shared payload                                                                                                      |
+| `0013_generation_reservation.sql`    | Reserve-before-spend for AI calls                                                                                                                             |
+| `0014_remote_sessions.sql`           | `presentation_sessions` and the phone remote's channel gate                                                                                                   |
+| `0015_sourced_visuals.sql`           | Asset provenance, and the image-generation budget                                                                                                             |
+| `0016_shared_asset_by_reference.sql` | Resolves a shared deck's images by what the deck references                                                                                                   |
 
 Every one is additive: new columns carry defaults and new tables carry their own
 policies, so applying them ahead of a deploy is safe and is the right order.
@@ -98,7 +102,7 @@ delete the other's presentations, scenes or notes, and that neither can forge
 SUPABASE_DB_URL='postgres://...' npm run migrations:check
 ```
 
-Run this against the *target* database, as the last gate before a deploy is
+Run this against the _target_ database, as the last gate before a deploy is
 called done. It asks that database directly for every object the application
 needs — `supabase/schema_required.sql` — and names the feature each missing one
 breaks.
@@ -106,13 +110,13 @@ breaks.
 This exists because the same failure has now happened twice, and both times it
 read as a code bug rather than a deploy that had not finished:
 
-| what was missing | what users saw |
-| --- | --- |
-| `0009`–`0014` | "Couldn't reserve an AI call just now." Every AI call, for everyone. |
-| `0015` | Image generation and stock search would have failed the same way. |
+| what was missing | what users saw                                                       |
+| ---------------- | -------------------------------------------------------------------- |
+| `0009`–`0014`    | "Couldn't reserve an AI call just now." Every AI call, for everyone. |
+| `0015`           | Image generation and stock search would have failed the same way.    |
 
 Nothing else catches it. The build is green, the unit suite is green, and the
-RLS suite is green *because* it applies every migration to a scratch database
+RLS suite is green _because_ it applies every migration to a scratch database
 first — every check ran against a database that was not the one serving users.
 
 It asserts objects rather than comparing migration filenames, because the

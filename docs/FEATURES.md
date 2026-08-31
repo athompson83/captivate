@@ -236,12 +236,30 @@ generator produces an editable structural draft, labelled as exactly that.
 
 ---
 
+## Built since this list was written
+
+Three things below were once on it and are not any more, which is worth saying
+plainly rather than quietly deleting:
+
+- **Sharing links** — `/v/[token]`, a capability token resolved by a database
+  function that never selects presenter material.
+- **Speaker-view on a phone** — `/present/[id]/remote`, joined to a live
+  session over a gated Realtime channel.
+- **PowerPoint export** — a `.pptx` Keynote also opens, written in the browser.
+  Export only; there is no importer.
+
 ## Deliberately not built
 
-Real-time collaboration · comments · sharing links and permissions · public
-publishing · version history beyond undo · enterprise team management · brand
-management · a template marketplace · PowerPoint import/export · analytics ·
-speaker-view on a phone · offline mode.
+Real-time collaboration · comments · public publishing · version history beyond
+undo · enterprise team management · brand management · a template marketplace ·
+PowerPoint *import* · analytics · offline mode.
 
 Every one of these is a reasonable thing to want. None is needed to stand up and
 give a lecture, which is what this MVP is for.
+
+## Wanted next
+
+`docs/ROADMAP.md` covers what has been asked for and not yet built — audience
+feedback (polls, trivia, Q&A), integrations with confidence monitors and
+Descript, generation grounded in a reference file, and more templates and
+themes — with the shape each would take.
