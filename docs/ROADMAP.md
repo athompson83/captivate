@@ -117,12 +117,17 @@ may widen what `/present/[id]` itself loads.
   bar is that a theme has a genuinely different point of view and a template
   proposes a shape an author would not have thought of — six of each that
   disagree with one another beat twenty that do not.
-- **Generating from a reference file.** An author with an existing deck, a
-  paper or a lesson plan should be able to hand it over and have the argument
-  grounded in it. The evidence mechanism already exists — the narrative map
-  cites `evidenceIds` and generation is told never to claim more than the
-  evidence supports — so this is an ingestion problem (extract text, store it
-  as an asset, offer it as evidence) rather than a prompting one.
+- **A reference file as stored evidence.** Generating from a file is built
+  (`src/lib/ingest/`): an author attaches a deck, document or notes and both
+  the map and the scenes are written from it. What is *not* built is keeping
+  it — the text is read in the browser, sent with that one generation, and
+  never stored, so regenerating a scene next week means attaching the file
+  again. Making it an asset and offering it through the existing
+  `evidenceIds` mechanism is the next step.
+- **PDFs.** The reader handles `.pptx`, `.docx`, Markdown and plain text.
+  A PDF needs a rendering-aware text layer, which is a real dependency
+  (pdf.js) rather than a zip and a regex, so it refuses with instructions
+  instead of half-reading one.
 - **Keynote-native export.** Today's export writes `.pptx`, which Keynote
   opens. A true `.key` file is an undocumented package format with no writer
   worth trusting, so this stays unbuilt until that changes rather than being
