@@ -3,6 +3,7 @@ import "server-only";
 import { supabaseServer } from "@/lib/supabase/server";
 import { isBillingConfigured } from "./stripe";
 import {
+  PLAN_BUDGETS,
   limitFor,
   planFromSubscription,
   type BudgetGroup,
@@ -99,5 +100,41 @@ export async function subscriptionSummary(): Promise<SubscriptionSummary | null>
     };
   } catch {
     return null;
+  }
+}
+
+/**
+ * How much of the free allowance the caller has spent.
+ *
+ * Counted the same way the limiter counts it — one `scenes` row per generated
+ * presentation, over the same rolling window — so the number shown in settings
+ * and the number enforced at the gate can never disagree.
+ *
+ * It lives here rather than in the page because reading the clock during a
+ * component render is impure, and because how an allowance is counted is this
+ * module's business rather than a page's.
+ */
+export async function deckUsage(): Promise<{ decksUsed: number; deckAllowance: number }> {
+  const budget = PLAN_BUDGETS.free.deck;
+  const allowance = { decksUsed: 0, deckAllowance: budget.max };
+
+  try {
+    const supabase = await supabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return allowance;
+
+    const since = new Date(Date.now() - budget.windowMinutes * 60_000).toISOString();
+    const { count } = await supabase
+      .from("ai_generations")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", user.id)
+      .in("kind", ["scenes"])
+      .gte("created_at", since);
+
+    return { decksUsed: count ?? 0, deckAllowance: budget.max };
+  } catch {
+    return allowance;
   }
 }

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { SettingsPanel } from "@/components/dashboard/settings-panel";
+import { deckUsage, subscriptionSummary } from "@/lib/billing/entitlement";
+import { isBillingConfigured, isTestMode } from "@/lib/billing/stripe";
 
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
@@ -11,7 +13,7 @@ export default async function SettingsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [profile, counts] = await Promise.all([
+  const [profile, counts, summary, usage] = await Promise.all([
     supabase
       .from("profiles")
       .select("display_name, created_at")
@@ -26,6 +28,8 @@ export default async function SettingsPage() {
       supabase.from("assets").select("id", { count: "exact", head: true }),
       supabase.from("recordings").select("id", { count: "exact", head: true }),
     ]),
+    subscriptionSummary(),
+    deckUsage(),
   ]);
 
   return (
@@ -38,6 +42,12 @@ export default async function SettingsPage() {
         notes: counts[1].count ?? 0,
         assets: counts[2].count ?? 0,
         recordings: counts[3].count ?? 0,
+      }}
+      billing={{
+        configured: isBillingConfigured(),
+        testMode: isTestMode(),
+        summary,
+        usage,
       }}
     />
   );
