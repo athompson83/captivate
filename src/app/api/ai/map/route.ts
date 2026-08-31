@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildNarrativeMap } from "@/lib/ai/service";
-import { AudienceInput, guard } from "@/lib/ai/route-helpers";
+import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
 import { listEvidence } from "@/lib/data/evidence";
 
 // 300, up from 60. Proposing an argument for a long talk is one large answer
@@ -18,7 +18,8 @@ const Input = z
     totalSeconds: z.number().int().min(60).max(14_400).default(900),
     recommendedShape: z.string().max(4000).optional(),
   })
-  .merge(AudienceInput);
+  .merge(AudienceInput)
+  .merge(ReferenceInput);
 
 /**
  * Prompt → proposed argument.

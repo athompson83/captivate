@@ -3,6 +3,7 @@ import "server-only";
 import { complete, reserve } from "./rate-limit";
 import { limitForCaller } from "@/lib/billing/entitlement";
 import { BUDGET_KINDS, type BudgetGroup } from "@/lib/billing/plans";
+import { referenceBlock, type Reference } from "@/lib/ingest/reference";
 import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
 import {
   drawableScenes,
@@ -43,6 +44,16 @@ export interface AudienceContext {
   audience?: string;
   tone?: string;
   sceneCount?: number;
+  /**
+   * A file the author handed over, read in their browser.
+   *
+   * It rides on the audience context because every generation that writes
+   * *their* talk needs it — the map that proposes the argument and the scenes
+   * that render it. A map grounded in last year's deck followed by scenes
+   * that never saw it produces a presentation that argues one thing and says
+   * another.
+   */
+  reference?: Reference | null;
 }
 
 /**
@@ -169,6 +180,7 @@ Rules:
 - Do not repeat the same role sequence in every movement.
 - The presentation runs about ${minutes} minutes. Use weights to say which parts deserve more of it.
 - Reference evidence ONLY by an id from the list you are given, and only where that source genuinely supports the claim. Never invent an id, a statistic or a citation. Leave evidenceIds empty when nothing supports it.
+- Where the author has supplied reference material, it outranks anything you already know about the subject. Shape the argument around what is actually in it — its examples, its terminology, its emphasis — and never contradict it. It is source material for a talk, not a script: proposing their file back to them in a different order is a failure.
 ${context.recommendedShape ? `- The chosen template recommends this shape as a starting point, which you may depart from where the subject calls for it:\n${context.recommendedShape}` : ""}`,
       prompt: `Propose the narrative map for this presentation.
 
@@ -179,7 +191,8 @@ Evidence available in this workspace:
 ${evidenceLines}
 
 Request:
-${prompt}`,
+${prompt}
+${referenceBlock(context.reference ?? null)}`,
       // 10000, up from 4000. A map is short prose per beat, but there can be
       // eighty beats: the live ledger recorded successful maps at 4820 and
       // 5543 output tokens, which are two-attempt totals — the first attempt
@@ -378,21 +391,18 @@ export async function buildScenesFromMap(
     })
     .join("\n\n");
 
-  const result = await spend(
-    "scenes",
-    prompt,
-    presentationId,
-    "deck",
-    () =>
-      generateStructured({
-        schema: GeneratedScenes,
-        toolName: "write_scenes",
-        toolDescription: "Write the content for every moment in an accepted narrative map.",
-        system: `${BASE_SYSTEM}
+  const result = await spend("scenes", prompt, presentationId, "deck", () =>
+    generateStructured({
+      schema: GeneratedScenes,
+      toolName: "write_scenes",
+      toolDescription: "Write the content for every moment in an accepted narrative map.",
+      system: `${BASE_SYSTEM}
 
 You are writing the scenes for an argument that has already been agreed. Write exactly ${briefs.length} scenes, in order, one per moment, using the layout given for each.
 
 Every scene must do the job its moment states. The audience takeaway is the test: if a scene does not produce it, the scene is wrong.
+
+Where the author has supplied reference material below, write from it. Its facts, examples, numbers and terminology are the content; anything you know that it does not say is not to be stated as fact. Do not copy it out — the author already has that file and wants a talk built from it.
 
 ${
   depth === "full"
@@ -417,18 +427,20 @@ Asides: for two to four scenes in the deck — the ones hiding a definition, a w
 Transitions: where a beat ends a movement, let the last line carry the room into what follows — from this argument, in its own words. Do not announce the next section by name, and do not add a transition sentence to scenes that are not ending a movement.
 
 Where a moment names evidence, write only what that evidence supports. Never introduce a statistic, study or citation that was not given to you.`,
-        prompt: `Original request:
+      prompt: `Original request:
 ${prompt}
 
 ${contextLine(context)}
 
 The accepted narrative map:
-${plan}`,
-        maxTokens: 14000,
-        // Both scene routes run at the 300-second platform ceiling, and this
-        // call is followed by the drawing and photo pass.
-        attemptTimeoutMs: 100_000,
-      }),
+${plan}
+
+${referenceBlock(context.reference ?? null)}`,
+      maxTokens: 14000,
+      // Both scene routes run at the 300-second platform ceiling, and this
+      // call is followed by the drawing and photo pass.
+      attemptTimeoutMs: 100_000,
+    }),
   );
 
   if (!result.ok) {
@@ -728,20 +740,15 @@ export async function writeSpeakerNotes(
     };
   }
 
-  const result = await spend(
-    "speaker_notes",
-    scene.title,
-    presentationId,
-    "light",
-    () =>
-      generateStructured({
-        schema: SpeakerNotesResult,
-        toolName: "write_speaker_notes",
-        toolDescription: "Write private speaker notes for one scene.",
-        system: `${BASE_SYSTEM}
+  const result = await spend("speaker_notes", scene.title, presentationId, "light", () =>
+    generateStructured({
+      schema: SpeakerNotesResult,
+      toolName: "write_speaker_notes",
+      toolDescription: "Write private speaker notes for one scene.",
+      system: `${BASE_SYSTEM}
 
 Speaker notes are what the presenter says, not what the slide shows. Write four to eight sentences: how to open the scene, the one point to emphasise, a question to put to the room where it fits, and how to move on. Never repeat the words already on screen.`,
-        prompt: `Presentation: ${context.presentationTitle ?? "Untitled"}
+      prompt: `Presentation: ${context.presentationTitle ?? "Untitled"}
 ${contextLine(context)}
 
 Scene title: ${scene.title || "(untitled)"}
@@ -749,10 +756,10 @@ What is on the scene:
 ${scene.text || "(empty scene)"}
 
 ${scene.existingNotes.trim() ? `Improve these existing notes rather than starting over:\n${scene.existingNotes}` : "There are no notes yet."}`,
-        maxTokens: 1200,
-        // /api/ai/notes runs with a 45-second ceiling.
-        attemptTimeoutMs: 18_000,
-      }),
+      maxTokens: 1200,
+      // /api/ai/notes runs with a 45-second ceiling.
+      attemptTimeoutMs: 18_000,
+    }),
   );
 
   if (!result.ok) return { ok: false, error: result.error };

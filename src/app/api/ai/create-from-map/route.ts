@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildScenesFromMap } from "@/lib/ai/service";
 import { ProposedMap } from "@/lib/ai/schemas";
-import { AudienceInput, guard } from "@/lib/ai/route-helpers";
+import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
 import { briefsFor, draftFromProposal } from "@/lib/narrative/generate";
 import { weaveAsides } from "@/lib/ai/weave-asides";
 import { listEvidence } from "@/lib/data/evidence";
@@ -28,7 +28,8 @@ const Input = z
     themeId: z.string().max(64).optional(),
     folderId: z.string().uuid().nullable().default(null),
   })
-  .merge(AudienceInput);
+  .merge(AudienceInput)
+  .merge(ReferenceInput);
 
 /**
  * An accepted narrative map → a real presentation.

@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/supabase/server";
 import { checkRateLimit } from "./rate-limit";
 import { limitForCaller } from "@/lib/billing/entitlement";
 import { BUDGET_KINDS, type BudgetGroup } from "@/lib/billing/plans";
+import { REFERENCE_LIMIT } from "@/lib/ingest/reference";
 
 /**
  * Shared guard for every AI route: authenticated, rate limited, and validated
@@ -70,6 +71,24 @@ export async function guard<T>(
 
   return { ok: true, input: parsed.data };
 }
+
+/**
+ * Reference material the author supplied, extracted in their browser.
+ *
+ * Bounded here as well as there. The client is where the file is read, but a
+ * client is not a validator: an unbounded string on this boundary is an
+ * unbounded prompt, and an unbounded prompt is somebody else's model bill.
+ */
+export const ReferenceInput = z.object({
+  reference: z
+    .object({
+      name: z.string().max(200),
+      text: z.string().max(REFERENCE_LIMIT),
+      truncated: z.number().int().min(0).max(50_000_000).default(0),
+    })
+    .nullable()
+    .default(null),
+});
 
 export const AudienceInput = z.object({
   audience: z.string().max(160).optional(),

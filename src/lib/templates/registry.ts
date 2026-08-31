@@ -272,16 +272,8 @@ export const TEMPLATES: Template[] = [
         layout: "two-column",
         content: {
           heading: "Attention is a budget",
-          bullets: [
-            "One idea, stated large",
-            "A move that means something",
-            "A pause on the map",
-          ],
-          bulletsB: [
-            "Six bullets read aloud",
-            "A transition for its own sake",
-            "Slide 23 of 60",
-          ],
+          bullets: ["One idea, stated large", "A move that means something", "A pause on the map"],
+          bulletsB: ["Six bullets read aloud", "A transition for its own sake", "Slide 23 of 60"],
         },
         speakerNotes:
           "Left column: things that buy attention. Right column: things that spend it. Every element on screen is a withdrawal from the same account. The discipline isn't decoration — it's deciding, for every scene, what the one thing worth paying for is.",
@@ -939,6 +931,494 @@ export const TEMPLATES: Template[] = [
         content: { heading: "Recommendation", subheading: "What to do, by when, and who owns it." },
         speakerNotes: "One clear recommendation beats three hedged ones.",
         movement: "NEXT",
+      },
+    ],
+  },
+  {
+    /**
+     * The argument a paper gets put through, not a summary of it. A journal
+     * club that walks the abstract has taught nothing; the shape here forces
+     * the claim, the method, the numbers and the flaw to be separate beats.
+     */
+    id: "journal-club",
+    name: "Journal club",
+    description: "Appraise a paper properly: the claim, the method, the numbers, the flaw.",
+    audience: "Clinicians, researchers and postgraduate teaching",
+    themeId: "clinical",
+    scenes: [
+      {
+        title: "Title",
+        layout: "title",
+        content: {
+          eyebrow: "Journal club",
+          heading: "{{TITLE}}",
+          subheading: "Citation, journal, year.",
+        },
+        speakerNotes: "Name the paper and why this room is reading it now.",
+        movement: "OPEN",
+      },
+      {
+        title: "The claim",
+        layout: "statement",
+        content: { heading: "What the authors say", headingAccent: "in one sentence." },
+        speakerNotes: "Their claim in their words, before any criticism of it.",
+        movement: "CLAIM",
+      },
+      {
+        title: "How they looked",
+        layout: "two-column",
+        content: {
+          heading: "Design",
+          bullets: ["Who was studied", "Who was excluded", "Over what period"],
+          bulletsB: ["Compared against what", "Measured how", "Analysed by whom"],
+        },
+        speakerNotes: "The design decides what the numbers can possibly mean.",
+        movement: "METHOD",
+      },
+      {
+        title: "What they found",
+        layout: "chart",
+        content: {
+          heading: "The primary outcome",
+          chart: { chart: "column", data: [] },
+          caption: "Effect size, not just significance.",
+        },
+        speakerNotes: "Absolute numbers first. A relative risk with no baseline is a rhetoric.",
+        movement: "RESULTS",
+      },
+      {
+        title: "Where it is weak",
+        layout: "three-up",
+        content: {
+          heading: "Three things to hold lightly",
+          cards: [
+            { title: "Selection", body: "Who could not have been enrolled.", icon: "circle" },
+            { title: "Measurement", body: "What the outcome actually captures.", icon: "circle" },
+            {
+              title: "Generalisability",
+              body: "Which of our patients this is not about.",
+              icon: "circle",
+            },
+          ],
+        },
+        speakerNotes: "Criticism is specific or it is posturing.",
+        movement: "CRITIQUE",
+      },
+      {
+        title: "What changes",
+        layout: "closing",
+        content: {
+          heading: "What we do differently on Monday",
+          bullets: ["Nothing, and why", "Or one specific change", "What would change our mind"],
+        },
+        speakerNotes: '"Interesting" is not a conclusion. Say what changes, including nothing.',
+        movement: "DECIDE",
+      },
+    ],
+    shape: [
+      {
+        label: "CLAIM",
+        title: "What is being asserted",
+        purpose: "Put the paper's own claim on the table before anyone argues with it.",
+        weight: 1,
+        moments: [
+          {
+            title: "Why this paper, now",
+            role: "hook",
+            purpose: "Tie the paper to a decision this room actually makes.",
+            takeaway: "This might change something I do.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+          {
+            title: "The claim, in their words",
+            role: "claim",
+            purpose: "State it fairly, so the critique lands on the real argument.",
+            takeaway: "I could state the authors' claim without a sneer.",
+            visualIntent: "statement",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "METHOD",
+        title: "How they went looking",
+        purpose: "Establish what the design is capable of showing at all.",
+        weight: 1.3,
+        moments: [
+          {
+            title: "Who was studied",
+            role: "context",
+            purpose: "Population and comparison, concretely.",
+            takeaway: "I know who this is about.",
+            visualIntent: "comparison",
+            weight: 1,
+          },
+          {
+            title: "What was measured",
+            role: "evidence",
+            purpose: "Name the outcome and how it was captured.",
+            takeaway: "I know what the number counts.",
+            visualIntent: "enumeration",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "RESULTS",
+        title: "What came back",
+        purpose: "The numbers, in absolute terms, before interpretation.",
+        weight: 1.2,
+        moments: [
+          {
+            title: "The primary outcome",
+            role: "evidence",
+            purpose: "Effect size and precision, not significance alone.",
+            takeaway: "I know how big the effect is, not just that it exists.",
+            visualIntent: "data",
+            weight: 1.4,
+          },
+        ],
+      },
+      {
+        label: "CRITIQUE",
+        title: "Where it is weak",
+        purpose: "Specific limitations, each with what it would take to fix.",
+        weight: 1.2,
+        moments: [
+          {
+            title: "Three specific weaknesses",
+            role: "contrast",
+            purpose: "Name flaws that would change the conclusion, not generic caveats.",
+            takeaway: "I can say why the result might be wrong.",
+            visualIntent: "enumeration",
+            weight: 1,
+          },
+        ],
+      },
+      {
+        label: "DECIDE",
+        title: "What changes",
+        purpose: "Convert appraisal into a decision, including deciding not to move.",
+        weight: 1,
+        moments: [
+          {
+            title: "What we do on Monday",
+            role: "application",
+            purpose: "State the change, or state that there is none and why.",
+            takeaway: "I know what this means for my practice.",
+            visualIntent: "enumeration",
+            weight: 1,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    /**
+     * A procedure taught the way it is actually learned: why before how,
+     * the failure modes named out loud, and time reserved for doing it.
+     */
+    id: "procedure",
+    name: "Teach a procedure",
+    description: "Why it matters, the steps, the ways it goes wrong, and time to practise.",
+    audience: "Skills instructors and clinical educators",
+    themeId: "chalk",
+    scenes: [
+      {
+        title: "Title",
+        layout: "title",
+        content: {
+          eyebrow: "Skills session",
+          heading: "{{TITLE}}",
+          subheading: "What you'll be able to do by the end.",
+        },
+        speakerNotes: "State the competency, not the topic.",
+        movement: "OPEN",
+      },
+      {
+        title: "Why it matters",
+        layout: "statement",
+        content: { heading: "When this goes wrong", headingAccent: "here is the cost." },
+        speakerNotes: "One real consequence. Motivation before mechanics.",
+        movement: "WHY",
+      },
+      {
+        title: "Before you start",
+        layout: "bullets",
+        content: {
+          heading: "Prerequisites",
+          bullets: ["Kit laid out", "Checks completed", "The stop conditions"],
+        },
+        speakerNotes: "Stop conditions first, so nobody learns them the hard way.",
+        movement: "SETUP",
+      },
+      {
+        title: "The steps",
+        layout: "split-left",
+        content: {
+          heading: "In order",
+          bullets: ["Step one", "Step two", "Step three", "Step four"],
+          media: { url: "", alt: "" },
+        },
+        speakerNotes: "Demonstrate at full speed once, then again narrating.",
+        movement: "DO",
+      },
+      {
+        title: "Where it fails",
+        layout: "three-up",
+        content: {
+          heading: "The three common errors",
+          cards: [
+            { title: "Too early", body: "What it looks like, and the fix.", icon: "circle" },
+            { title: "Too much force", body: "What it looks like, and the fix.", icon: "circle" },
+            { title: "Wrong landmark", body: "What it looks like, and the fix.", icon: "circle" },
+          ],
+        },
+        speakerNotes: "Errors are taught by naming them, not by hoping.",
+        movement: "PITFALLS",
+      },
+      {
+        title: "Your turn",
+        layout: "closing",
+        content: {
+          heading: "Practise",
+          bullets: ["In pairs", "Observer uses the checklist", "Swap after each attempt"],
+        },
+        speakerNotes: "Protect this time. The talking part is not the learning part.",
+        movement: "PRACTISE",
+      },
+    ],
+  },
+  {
+    /**
+     * The engineering talk that does not open with the solution. The naive
+     * approach is a real beat: an audience that has not felt the problem
+     * cannot evaluate the design.
+     */
+    id: "tech-talk",
+    name: "Technical talk",
+    description: "The problem, the obvious approach, why it breaks, and the design that holds.",
+    audience: "Engineers and technical teams",
+    themeId: "blueprint",
+    scenes: [
+      {
+        title: "Title",
+        layout: "title",
+        content: { eyebrow: "Engineering", heading: "{{TITLE}}", subheading: "The short version." },
+        speakerNotes: "Give the conclusion in one line, then earn it.",
+        movement: "OPEN",
+      },
+      {
+        title: "The problem",
+        layout: "statement",
+        content: { heading: "What broke", headingAccent: "and how we noticed." },
+        speakerNotes: "A concrete failure, with the moment it was seen.",
+        movement: "PROBLEM",
+      },
+      {
+        title: "The obvious fix",
+        layout: "code",
+        content: {
+          heading: "What we tried first",
+          code: {
+            code: "// The version everyone in the room would have written.\n// Paste yours here.\n",
+            language: "ts",
+          },
+        },
+        speakerNotes: "Show the version everyone in the room would have written.",
+        movement: "NAIVE",
+      },
+      {
+        title: "Why it breaks",
+        layout: "chart",
+        content: {
+          heading: "Where it falls over",
+          chart: { chart: "line", data: [] },
+          caption: "The point at which the shape changes.",
+        },
+        speakerNotes: "One measurement beats three assertions.",
+        movement: "NAIVE",
+      },
+      {
+        title: "The design",
+        layout: "split-right",
+        content: {
+          heading: "What actually holds",
+          bullets: ["The invariant", "What it costs", "What it rules out"],
+          media: { url: "", alt: "" },
+        },
+        speakerNotes: "State the invariant. A design is what it refuses to allow.",
+        movement: "DESIGN",
+      },
+      {
+        title: "What we learned",
+        layout: "closing",
+        content: {
+          heading: "Take these away",
+          bullets: ["The rule that generalises", "The trap to avoid", "What is still open"],
+        },
+        speakerNotes: "Say what is still unsolved. Nobody believes a talk with no loose ends.",
+        movement: "CLOSE",
+      },
+    ],
+  },
+  {
+    /**
+     * The conference talk, with the limitations as a movement rather than a
+     * slide nobody reads. A research talk that hides its weaknesses is
+     * evaluated on them anyway, in the questions, without the speaker there.
+     */
+    id: "research",
+    name: "Research talk",
+    description: "Question, background, method, results, limitations, what it opens up.",
+    audience: "Researchers presenting at conferences and seminars",
+    themeId: "meadow",
+    scenes: [
+      {
+        title: "Title",
+        layout: "title",
+        content: {
+          eyebrow: "Research",
+          heading: "{{TITLE}}",
+          subheading: "Authors and affiliation.",
+        },
+        speakerNotes: "Name the question, not the field.",
+        movement: "OPEN",
+      },
+      {
+        title: "The question",
+        layout: "statement",
+        content: { heading: "What we did not know", headingAccent: "before this." },
+        speakerNotes: "The gap, stated so a non-specialist feels it.",
+        movement: "QUESTION",
+      },
+      {
+        title: "What was already known",
+        layout: "two-column",
+        content: {
+          heading: "Where the field stood",
+          bullets: [
+            "Established: not in dispute",
+            "Established: replicated",
+            "Established: assumed",
+          ],
+          bulletsB: [
+            "Contested: the open question",
+            "Contested: the rival account",
+            "Contested: what this speaks to",
+          ],
+        },
+        speakerNotes: "Separate settled from contested. Most talks blur them.",
+        movement: "BACKGROUND",
+      },
+      {
+        title: "How we looked",
+        layout: "split-right",
+        content: {
+          heading: "Method",
+          bullets: ["The design", "What was measured", "What was controlled"],
+          media: { url: "", alt: "" },
+        },
+        speakerNotes: "Enough that someone could challenge it, not enough to lose them.",
+        movement: "METHOD",
+      },
+      {
+        title: "Results",
+        layout: "chart",
+        content: {
+          heading: "What we found",
+          chart: { chart: "column", data: [] },
+          caption: "With the uncertainty shown.",
+        },
+        speakerNotes: "Show the spread. A point estimate alone invites the wrong question.",
+        movement: "RESULTS",
+      },
+      {
+        title: "Limitations",
+        layout: "bullets",
+        content: {
+          heading: "What this does not show",
+          bullets: [
+            "The design's blind spot",
+            "What we could not measure",
+            "Where it may not transfer",
+          ],
+        },
+        speakerNotes: "Say these before the questions do. It buys the rest of the talk credit.",
+        movement: "LIMITS",
+      },
+      {
+        title: "What it opens",
+        layout: "closing",
+        content: {
+          heading: "Where this goes next",
+          bullets: ["The immediate follow-up", "The harder question", "What we would need"],
+        },
+        speakerNotes: "End on the next question, not on thanks.",
+        movement: "NEXT",
+      },
+    ],
+  },
+  {
+    /**
+     * A briefing, which is not a talk: the recommendation goes first, because
+     * the audience may stop it at any point and still needs to have heard
+     * the answer.
+     */
+    id: "briefing",
+    name: "Decision briefing",
+    description: "The recommendation first, then the situation, the options and the ask.",
+    audience: "Anyone briefing a decision-maker",
+    themeId: "field",
+    scenes: [
+      {
+        title: "Title",
+        layout: "title",
+        content: { eyebrow: "Briefing", heading: "{{TITLE}}", subheading: "Decision required by." },
+        speakerNotes: "Say up front what decision you are asking for and by when.",
+        movement: "OPEN",
+      },
+      {
+        title: "Recommendation",
+        layout: "statement",
+        content: { heading: "We recommend", headingAccent: "one sentence, no hedging." },
+        speakerNotes: "Lead with it. If the meeting ends here they have the answer.",
+        movement: "ASK",
+      },
+      {
+        title: "Situation",
+        layout: "bullets",
+        content: {
+          heading: "Where we are",
+          bullets: ["What changed", "What it costs us now", "What happens if nothing changes"],
+        },
+        speakerNotes: "Three facts, each with a number where one exists.",
+        movement: "SITUATION",
+      },
+      {
+        title: "Options",
+        layout: "three-up",
+        content: {
+          heading: "What we considered",
+          cards: [
+            { title: "Do nothing", body: "Cost, risk, and why it was rejected.", icon: "circle" },
+            { title: "Option A", body: "Cost, risk, and the trade.", icon: "circle" },
+            { title: "Option B — recommended", body: "Cost, risk, and the trade.", icon: "circle" },
+          ],
+        },
+        speakerNotes: "Include do-nothing honestly. A briefing with one option is a demand.",
+        movement: "OPTIONS",
+      },
+      {
+        title: "The ask",
+        layout: "closing",
+        content: {
+          heading: "What we need from you",
+          bullets: ["The decision", "The resource", "The date"],
+        },
+        speakerNotes: "Be specific enough that a yes is actionable without a follow-up meeting.",
+        movement: "ASK",
       },
     ],
   },

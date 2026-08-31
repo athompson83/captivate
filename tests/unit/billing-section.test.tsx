@@ -21,7 +21,9 @@ const proSummary = (over: Partial<Record<string, unknown>> = {}) =>
 
 describe("the billing section", () => {
   it("offers an upgrade on free, and describes the window honestly", () => {
-    render(<BillingSection configured testMode={false} summary={null} usage={usage} />);
+    render(
+      <BillingSection configured testMode={false} summary={null} grant={null} usage={usage} />,
+    );
     expect(screen.getByText(/free/i)).toBeInTheDocument();
     expect(screen.getByText(/6 of 10/)).toBeInTheDocument();
     expect(screen.getByText(/last 30 days/i)).toBeInTheDocument();
@@ -30,12 +32,22 @@ describe("the billing section", () => {
   });
 
   it("promises that nothing authored is ever locked", () => {
-    render(<BillingSection configured testMode={false} summary={null} usage={usage} />);
+    render(
+      <BillingSection configured testMode={false} summary={null} grant={null} usage={usage} />,
+    );
     expect(screen.getByText(/stays yours/i)).toBeInTheDocument();
   });
 
   it("offers billing management on pro instead of an upgrade", () => {
-    render(<BillingSection configured testMode={false} summary={proSummary()} usage={usage} />);
+    render(
+      <BillingSection
+        configured
+        testMode={false}
+        summary={proSummary()}
+        grant={null}
+        usage={usage}
+      />,
+    );
     expect(screen.getByRole("button", { name: /manage billing/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /upgrade/i })).toBeNull();
     expect(screen.getByText(/renews/i)).toBeInTheDocument();
@@ -47,6 +59,7 @@ describe("the billing section", () => {
         configured
         testMode={false}
         summary={proSummary({ cancelAtPeriodEnd: true })}
+        grant={null}
         usage={usage}
       />,
     );
@@ -60,6 +73,7 @@ describe("the billing section", () => {
         configured
         testMode={false}
         summary={proSummary({ status: "past_due" })}
+        grant={null}
         usage={usage}
       />,
     );
@@ -69,13 +83,64 @@ describe("the billing section", () => {
 
   it("shows no dead controls when billing is not configured", () => {
     // An unbuilt path is absent, not disabled with a tooltip.
-    render(<BillingSection configured={false} testMode={false} summary={null} usage={usage} />);
+    render(
+      <BillingSection
+        configured={false}
+        testMode={false}
+        summary={null}
+        grant={null}
+        usage={usage}
+      />,
+    );
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.getByText(/isn't configured|isn’t configured/i)).toBeInTheDocument();
   });
 
   it("says when the deployment is pointed at test mode", () => {
-    render(<BillingSection configured testMode summary={null} usage={usage} />);
+    render(<BillingSection configured testMode summary={null} grant={null} usage={usage} />);
     expect(screen.getByText(/test mode/i)).toBeInTheDocument();
+  });
+});
+
+describe("a granted plan", () => {
+  const grant = { plan: "unlimited", note: "Owner account.", expiresAt: null } as never;
+
+  it("is named as granted rather than dressed up as a subscription", () => {
+    // Somebody comped must not be shown a renewal date they do not have, nor
+    // an upgrade button for a plan they already exceed.
+    render(
+      <BillingSection configured testMode={false} summary={null} grant={grant} usage={usage} />,
+    );
+    expect(screen.getByText(/unlimited/i)).toBeInTheDocument();
+    expect(screen.getByText(/granted, not billed/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /upgrade/i })).toBeNull();
+    expect(screen.queryByText(/renews/i)).toBeNull();
+  });
+
+  it("outranks a subscription rather than competing with it", () => {
+    render(
+      <BillingSection
+        configured
+        testMode={false}
+        summary={proSummary()}
+        grant={grant}
+        usage={usage}
+      />,
+    );
+    expect(screen.getByText(/granted, not billed/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /manage billing/i })).toBeNull();
+  });
+
+  it("says when it runs out", () => {
+    render(
+      <BillingSection
+        configured
+        testMode={false}
+        summary={null}
+        grant={{ plan: "pro", note: "Pilot.", expiresAt: "2026-12-01T00:00:00Z" } as never}
+        usage={usage}
+      />,
+    );
+    expect(screen.getByText(/until/i)).toBeInTheDocument();
   });
 });

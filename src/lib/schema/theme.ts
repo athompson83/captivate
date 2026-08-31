@@ -57,8 +57,16 @@ export type PresentationTheme = z.infer<typeof PresentationTheme>;
 const scale = { h1: 5.4, h2: 3.4, h3: 2.2, body: 1.6, caption: 1.1 };
 
 /**
- * Six themes, each with a genuinely different point of view. Curated rather
- * than exhaustive — an educator should be able to pick one in five seconds.
+ * Twelve themes, each with a genuinely different point of view. Still curated
+ * rather than exhaustive — an educator should be able to pick one in five
+ * seconds, so the bar for a new one is that it does a job none of the others
+ * does, not that it is another nice palette. Six dark and six light, because
+ * the room decides that and the author does not always get to choose the room.
+ *
+ * The jobs, in order: a dim lecture hall · an editorial read · dense technical
+ * teaching · a keynote · storytelling · a workshop · engineering and systems ·
+ * creative and product work · low vision and bad projectors · a bright room
+ * with the lights on · the humanities · the life sciences.
  */
 export const THEMES: PresentationTheme[] = [
   {
@@ -171,6 +179,139 @@ export const THEMES: PresentationTheme[] = [
       line: "#35443F",
     },
     fonts: { display: "var(--font-grotesk)", sans: "var(--font-inter)", mono: "var(--font-mono)" },
+    scale,
+    backgroundStyle: "flat",
+  },
+  {
+    id: "blueprint",
+    name: "Blueprint",
+    description: "Deep navy and cyan, set in mono. Engineering, systems and architecture.",
+    mode: "dark",
+    tokens: {
+      canvas: "#0B1522",
+      surface: "#132131",
+      ink: "#E8F2FB",
+      inkMuted: "#8CA6C0",
+      accent: "#4CC9F0",
+      onAccent: "#05131C",
+      line: "#22344A",
+    },
+    fonts: { display: "var(--font-mono)", sans: "var(--font-inter)", mono: "var(--font-mono)" },
+    scale: { ...scale, h1: 4.6, h2: 3.0 },
+    backgroundStyle: "gradient",
+    gradientTo: "#0E1B2B",
+  },
+  {
+    id: "aurora",
+    name: "Aurora",
+    description: "Violet dusk with a magenta edge. Creative, product and design work.",
+    mode: "dark",
+    tokens: {
+      canvas: "#140F22",
+      surface: "#1F1734",
+      ink: "#F4EFFF",
+      inkMuted: "#A99BC7",
+      accent: "#F26DBD",
+      onAccent: "#25061A",
+      line: "#2E2447",
+    },
+    fonts: {
+      display: "var(--font-grotesk)",
+      sans: "var(--font-inter)",
+      mono: "var(--font-mono)",
+    },
+    scale: { ...scale, h1: 5.8 },
+    backgroundStyle: "gradient",
+    gradientTo: "#1B1030",
+  },
+  {
+    /**
+     * Built for the two rooms that break every other theme: a projector with
+     * a washed-out lamp, and an audience with low vision. Pure black behind
+     * pure white is the highest contrast a screen can produce, the accent is
+     * the one hue that survives a yellowing bulb, and the type is a step
+     * larger throughout — which costs words on a scene and is the point.
+     */
+    id: "contrast",
+    name: "High contrast",
+    description: "Maximum legibility. Low vision, tired projectors, the back of a big room.",
+    mode: "dark",
+    tokens: {
+      canvas: "#000000",
+      surface: "#141414",
+      ink: "#FFFFFF",
+      inkMuted: "#C8C8C8",
+      accent: "#FFD400",
+      onAccent: "#000000",
+      line: "#3A3A3A",
+    },
+    fonts: {
+      display: "var(--font-grotesk)",
+      sans: "var(--font-grotesk)",
+      mono: "var(--font-mono)",
+    },
+    scale: { h1: 6.2, h2: 4.0, h3: 2.7, body: 2.0, caption: 1.4 },
+    backgroundStyle: "flat",
+  },
+  {
+    id: "field",
+    name: "Field",
+    description: "Black on white, oversized. For teaching with the lights on.",
+    mode: "light",
+    tokens: {
+      canvas: "#FFFFFF",
+      surface: "#EFEFEF",
+      ink: "#111111",
+      inkMuted: "#555555",
+      accent: "#D62828",
+      onAccent: "#FFFFFF",
+      line: "#D6D6D6",
+    },
+    fonts: {
+      display: "var(--font-grotesk)",
+      sans: "var(--font-inter)",
+      mono: "var(--font-mono)",
+    },
+    scale: { ...scale, h1: 5.8, body: 1.9 },
+    backgroundStyle: "flat",
+  },
+  {
+    id: "archive",
+    name: "Archive",
+    description: "Parchment and oxblood serif. History, law, literature and argument.",
+    mode: "light",
+    tokens: {
+      canvas: "#F6EFE1",
+      surface: "#EDE3D0",
+      ink: "#241C14",
+      inkMuted: "#6E5D48",
+      accent: "#7B2D26",
+      onAccent: "#FBF6EC",
+      line: "#DCCEB5",
+    },
+    fonts: {
+      display: "var(--font-display)",
+      sans: "var(--font-display)",
+      mono: "var(--font-mono)",
+    },
+    scale: { ...scale, h1: 4.9, body: 1.75 },
+    backgroundStyle: "vignette",
+  },
+  {
+    id: "meadow",
+    name: "Meadow",
+    description: "Pale green and deep forest ink. Biology, ecology and the field sciences.",
+    mode: "light",
+    tokens: {
+      canvas: "#F3F7EF",
+      surface: "#E6EEDE",
+      ink: "#16241A",
+      inkMuted: "#54685A",
+      accent: "#2E7D4F",
+      onAccent: "#F4FBF6",
+      line: "#D2DFC8",
+    },
+    fonts: { display: "var(--font-display)", sans: "var(--font-inter)", mono: "var(--font-mono)" },
     scale,
     backgroundStyle: "flat",
   },
