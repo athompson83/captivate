@@ -131,7 +131,14 @@ describe("advance steps", () => {
       hidden: false,
       locked: false,
       opacity: 1,
-      animation: { entrance: "fade", delay: 0, duration: 0.5, emphasis: "none", onAdvance: false },
+      animation: {
+        entrance: "fade",
+        delay: 0,
+        duration: 0.5,
+        emphasis: "none",
+        onAdvance: false,
+        exit: "none",
+      },
       style: {
         size: 1,
         weight: 400,
@@ -161,6 +168,7 @@ describe("advance steps", () => {
             duration: 0.5,
             emphasis: "none",
             onAdvance: true,
+            exit: "none",
           },
         }),
       ]),
@@ -578,16 +586,15 @@ describe("flowRole-aware navigation", () => {
   }
 
   // 0 main, 1 detail, 2 main, 3 detail, 4 main
-  const mixed = () => [
-    scene(0),
-    scene(1, "detail"),
-    scene(2),
-    scene(3, "detail"),
-    scene(4),
-  ];
+  const mixed = () => [scene(0), scene(1, "detail"), scene(2), scene(3, "detail"), scene(4)];
 
   const session = (scenes: Scene[]) =>
-    createSession({ presentationId: PRESENTATION, scenes, role: "stage", establishSections: false });
+    createSession({
+      presentationId: PRESENTATION,
+      scenes,
+      role: "stage",
+      establishSections: false,
+    });
 
   const at = (s: ReturnType<typeof session>) => s.store.getState().sceneIndex;
 

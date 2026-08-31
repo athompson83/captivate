@@ -1,4 +1,4 @@
-import type { ElementAnimation, EntranceAnimation } from "@/lib/schema/presentation";
+import type { ElementAnimation, EntranceAnimation, ExitAnimation } from "@/lib/schema/presentation";
 
 /**
  * Motion presets.
@@ -49,6 +49,21 @@ export function entranceTo(preset: EntranceAnimation): MotionState {
   return base;
 }
 
+/**
+ * Where a dismissed element goes. `zoom` scales *up*: the cover reads as the
+ * camera pushing through the photograph into the scene beneath it.
+ */
+export function exitTo(preset: ExitAnimation): MotionState {
+  switch (preset) {
+    case "lift":
+      return { opacity: 0, y: -48 };
+    case "zoom":
+      return { opacity: 0, scale: 1.12 };
+    default:
+      return { opacity: 0 };
+  }
+}
+
 /** Scene-level transition, expressed as enter/exit variants. */
 export const STAGE_EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -67,6 +82,10 @@ export function buildStepCount(
   }[],
 ): number {
   let steps = 1;
+  // Every exiting element is dismissed by the *same* first advance — the
+  // cover's image and its title lift together — so however many there are,
+  // the dismissal is one step, not one per element.
+  if (elements.some((el) => el.animation.exit && el.animation.exit !== "none")) steps += 1;
   for (const el of elements) {
     if (el.animation.onAdvance) steps += 1;
     if (el.type === "list" && el.staggered && Array.isArray(el.items)) {

@@ -10,7 +10,7 @@ import {
   type PresentationTheme,
 } from "@/lib/schema/theme";
 import { STAGE_BASE_WIDTH, fitScale, stageSize } from "@/lib/present/stage";
-import { STAGE_EASE, entranceFrom, entranceTo } from "@/lib/present/motion";
+import { STAGE_EASE, entranceFrom, entranceTo, exitTo } from "@/lib/present/motion";
 import { DrawnPicture } from "./drawn-picture";
 import { ElementView } from "./element-view";
 import { cn } from "@/lib/utils/cn";
@@ -269,12 +269,21 @@ function ElementLayer({
   if (element.hidden) return null;
 
   // Elements marked `onAdvance` appear in document order as the presenter
-  // advances; everything else is visible from the start of the scene.
+  // advances; everything else is visible from the start of the scene. When
+  // the scene carries a veil (any exiting element), the first advance belongs
+  // to the dismissal — builds start one step later, matching buildStepCount.
+  const exitOffset = elements.some((e) => e.animation.exit !== "none" && !e.hidden) ? 1 : 0;
   const advanceIndex = elements
     .slice(0, index + 1)
     .filter((e) => e.animation.onAdvance && !e.hidden).length;
-  const gated = element.animation.onAdvance && advanceIndex > step;
+  const gated = element.animation.onAdvance && advanceIndex + exitOffset > step;
   if (gated) return null;
+
+  // A non-"none" exit is dismissed by the scene's first advance — the cover
+  // lifting away. Present-mode only: the editor and thumbnails always show the
+  // finished composition. The element stays mounted at opacity zero so
+  // playback state stays serialisable; it just stops catching the pointer.
+  const dismissed = play && element.animation.exit !== "none" && step >= 1;
 
   const from = entranceFrom(element.animation.entrance);
   const to = entranceTo(element.animation.entrance);
@@ -304,16 +313,18 @@ function ElementLayer({
 
   return (
     <motion.div
-      style={style}
+      style={{ ...style, pointerEvents: dismissed ? "none" : undefined }}
       initial={play ? { ...from, opacity: (from.opacity ?? 1) * element.opacity } : false}
       animate={
         play
-          ? { ...to, opacity: element.opacity, ...(emphasis ?? {}) }
+          ? dismissed
+            ? { ...entranceTo("fade"), ...exitTo(element.animation.exit) }
+            : { ...to, opacity: element.opacity, ...(emphasis ?? {}) }
           : { opacity: element.opacity }
       }
       transition={{
         duration: element.animation.duration,
-        delay: element.animation.onAdvance ? 0 : element.animation.delay,
+        delay: element.animation.onAdvance || dismissed ? 0 : element.animation.delay,
         ease: STAGE_EASE,
       }}
     >

@@ -5,6 +5,7 @@ import { buildScenesFromMap } from "@/lib/ai/service";
 import { ProposedMap } from "@/lib/ai/schemas";
 import { AudienceInput, guard, LIMITS } from "@/lib/ai/route-helpers";
 import { briefsFor, draftFromProposal } from "@/lib/narrative/generate";
+import { weaveAsides } from "@/lib/ai/weave-asides";
 import { listEvidence } from "@/lib/data/evidence";
 import { createPresentation } from "@/lib/data/actions";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -134,6 +135,7 @@ export async function POST(request: Request) {
     context,
     presentationId,
     depth,
+    totalSeconds,
   );
 
   // The map survives a failed generation: the author lands in the map view
@@ -159,30 +161,47 @@ export async function POST(request: Request) {
 
   const seedId = seeded?.[0]?.id ?? null;
   const byMoment = new Map(draft.moments.map((moment) => [moment.id, moment]));
-  const rows: Partial<SceneRow>[] = [];
 
-  built.data.scenes.forEach((scene, index) => {
-    const moment = byMoment.get(scene.momentId);
-    rows.push({
-      // Every row carries an id, including the ones being created.
-      //
-      // A bulk insert is one statement, so PostgREST needs one column list:
-      // postgrest-js takes the union of the objects' keys and sends missing
-      // ones as NULL. Giving only row 0 an `id` therefore did not mean "let
-      // the database default the rest" — it meant `id = NULL` on every other
-      // row, which the primary key rejects. The whole write failed, and since
-      // `createPresentation` always seeds a scene there was always a row 0
-      // with an id: the AI path could not write scenes at all.
-      id: index === 0 && seedId ? seedId : randomUUID(),
+  // Asides become real detail scenes here, after identity exists: the weave
+  // assigns every row's id and wires each parent's hotspot to its detail
+  // scene's id in the same payload, so a dangling reference cannot be
+  // written. Row 0 is always a main scene (details follow their parents), so
+  // reusing the seeded scene's id for it never breaks a hotspot target.
+  const woven = weaveAsides(
+    built.data.scenes.map((scene) => ({
+      momentId: scene.momentId,
+      title: scene.title,
+      content: scene.content,
+      speakerNotes: scene.speakerNotes,
+      detail: scene.detail,
+    })),
+    randomUUID,
+  );
+
+  // Every row carries an id, including the ones being created.
+  //
+  // A bulk insert is one statement, so PostgREST needs one column list:
+  // postgrest-js takes the union of the objects' keys and sends missing
+  // ones as NULL. Giving only row 0 an `id` therefore did not mean "let
+  // the database default the rest" — it meant `id = NULL` on every other
+  // row, which the primary key rejects. The whole write failed, and since
+  // `createPresentation` always seeds a scene there was always a row 0
+  // with an id: the AI path could not write scenes at all.
+  const rows: Partial<SceneRow>[] = woven.map((row, index) => {
+    const moment = byMoment.get(row.filedUnder);
+    return {
+      id: index === 0 && seedId ? seedId : row.id,
       presentation_id: presentationId,
       section_id: moment?.movementId ?? null,
-      moment_id: scene.momentId,
+      moment_id: row.momentId,
       position: index,
-      title: scene.title,
-      content: scene.content as unknown as SceneRow["content"],
-      speaker_notes: scene.speakerNotes,
-      duration_seconds: moment?.estimatedSeconds ?? null,
-    });
+      title: row.title,
+      content: row.content as unknown as SceneRow["content"],
+      speaker_notes: row.speakerNotes,
+      // A detail scene is an aside; it has no place in the running time.
+      duration_seconds: row.flowRole === "main" ? (moment?.estimatedSeconds ?? null) : null,
+      flow_role: row.flowRole,
+    };
   });
 
   const { error: sceneError, count } = await supabase

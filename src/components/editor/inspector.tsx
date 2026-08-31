@@ -162,8 +162,8 @@ function HotspotControls({ element, sceneId }: { element: SceneElement; sceneId:
 
           {targetMissing && (
             <p className="text-danger text-[11.5px] leading-relaxed">
-              This hotspot points at a scene that no longer exists. It will be cleared next time
-              the deck is opened.
+              This hotspot points at a scene that no longer exists. It will be cleared next time the
+              deck is opened.
             </p>
           )}
 
@@ -680,6 +680,27 @@ function MotionControls({ elements, sceneId }: { elements: SceneElement[]; scene
             { value: "glow", label: "Glow" },
           ]}
         />
+      </Field>
+
+      <Field label="Exit">
+        <div className="space-y-1.5">
+          <Segmented
+            label="Exit"
+            size="sm"
+            value={first.animation.exit}
+            onChange={(v) => setAnimation({ exit: v }, "Change exit")}
+            options={[
+              { value: "none", label: "None" },
+              { value: "fade", label: "Fade" },
+              { value: "lift", label: "Lift" },
+              { value: "zoom", label: "Zoom" },
+            ]}
+          />
+          <p className="text-ink-3 text-[10.5px]">
+            Anything but None is dismissed by your first advance on this scene — how a cover lifts
+            away.
+          </p>
+        </div>
       </Field>
 
       <button

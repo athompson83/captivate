@@ -100,6 +100,7 @@ function inferRole(scene: Scene, index: number, total: number): NarrativeRole {
 
   switch (layout) {
     case "title":
+    case "cover":
       return "frame";
     case "section":
       return "transition";

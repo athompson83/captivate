@@ -4,80 +4,70 @@
 
 - Product: Captivate
 - Lifecycle stage: Beta / production-readiness
-- Control-graph node: VERIFY → PUBLISH → HOSTED_RUNTIME_VERIFICATION
-- Current milestone: Close verified release gaps and prove the canonical hosted runtime
-- Branch: `governance/adopt-project-control-standard`
-- PR: Not yet created
-- Preview: Canonical Vercel project; deployment for this branch pending push
-- Production: No Production change in this session
-- Database target: Canonical Captivate Supabase project; no database change in this session
+- Control-graph node: HOSTED_RUNTIME_VERIFICATION (live app in owner-driven test loop)
+- Current milestone: Presentation-content quality — make generated decks visually and verbally worth presenting
+- Branch: `claude/premium-ui-presentation-akzjzs` (PR #28, draft, CI pending)
+- `main`: `2b33509` — PRs #22–#27 merged and deployed via Vercel auto-deploy
+- Production: live and in use; the owner tests deployed builds and reports defects
+- Database target: canonical Captivate Supabase project; no schema change this session
 
 ## Latest Session
 
 ### Objective
 
-Adopt the App Project Control Standard without duplicating Captivate's detailed roadmap, reconcile stale status claims, and repair actionable release debt found during adoption.
+The owner's content-quality brief: a title slide with captivating full-screen
+imagery that dismisses on the first click, world-class generated writing,
+clickable elements where they make sense, roughly one drawing per ten minutes,
+and more static imagery.
 
-### Completed
+### Completed (PR #28)
 
-- Added the canonical control standard, executive checklist, and concise session handoff.
-- Updated `AGENTS.md` startup/closeout governance and README documentation links.
-- Preserved `docs/MVP_STATUS.md` and the Superpowers design/implementation documents as detailed product evidence rather than duplicating them.
-- Confirmed no generic prompt-template directory or overlapping live prompt files exist.
-- Reconciled stale Vercel and public-sharing documentation against current `main`.
-- Added failing WCAG contrast coverage, then corrected the light-theme muted and success tokens so the new tests pass.
-
-### Checklist Changes
-
-- Added 32 stable executive items spanning foundation, MVP, beta, production, and post-launch work.
-- Marked `GOVERNANCE-001` DONE.
-- Added the active accessibility repair to `MVP-007` and issue closeout to `BETA-005`.
-- Recorded branch cleanup as `PROD-009`; merged remote branches remain pending safe deletion.
-
-### Problems Found and Fixed
-
-- Stale docs said public sharing was not built; PR #20 is on `main`. Corrected the roadmap statement.
-- Stale docs said the Vercel project still needed to be created; the repository now builds hosted previews. Corrected deployment/connection guidance and made canonical-project reuse explicit.
-- Light-theme muted text and success-on-tint pairings failed WCAG AA. Added stylesheet-derived regression cases and adjusted the source tokens.
+- **Cover scenes**: new `cover` layout plus a narrow `ElementAnimation.exit`
+  mechanism (dismissed by the scene's first advance, riding the build-step
+  machinery). A cover degrades to a title slide when no image arrives
+  (`settleCover`); the exit is authorable from the inspector.
+- **Content prompt rewrite**: the scenes system prompt now enforces a quality
+  bar — headings as claims, a cover title that sells the talk, concrete
+  language, varied scene texture, script-quality speaker notes. Output ceiling
+  16k tokens / 180s timeout.
+- **AI asides**: generation may propose depth-on-demand asides; `weaveAsides`
+  turns them into `flowRole: "detail"` scenes hotspot-wired to their parents,
+  ids assigned server-side in the same insert.
+- **Duration-scaled drawings**: `drawingCap(totalSeconds)` — one per ten
+  minutes, min 1, max 6 — replaces the fixed cap of three.
+- **Photo dress pass**: empty media slots fill with Pexels stock (and, for the
+  cover only, one budget-gated generated image) through the existing sourcing
+  boundary, when provider keys are configured.
 
 ### Verification
 
-- Red test: `npm test -- tests/unit/theme-contrast.test.ts` failed on both known WCAG pairings before the token change.
-- Green test: the same command passed 8/8 tests after the repair.
-- Full repository verification and documentation formatting remain to run after closeout files are finalized.
+- `npm run verify` green: 801 unit/component tests across 58 files, build clean.
+- New coverage: `tests/unit/cover-scene.test.tsx`, `tests/unit/weave-asides.test.ts`,
+  extended `place-drawing`, `present`, `narrative-map` suites.
 
-### Deployment / Database Activity
+### Earlier in this stabilization cycle (already on `main`)
 
-- None yet. Governance and token changes are local on the adoption branch pending final verification and publication.
+- PR #22 drawn pictures; #23 sign-in read retry; #24 Claude 5 sampling-param
+  removal; #25 rail inset, auto-drawings, Element Capture recording; #26
+  corrective-retry wire shape; #27 imagery→drawable-layout routing. All merged
+  with the live `ai_generations` ledger confirming successful map+scenes runs.
 
 ## Blockers
 
-- No blocker to publishing this work.
-- Preview automation may require the existing Vercel protection bypass for unauthenticated browser checks.
-- Production-ready email remains blocked on provider/policy configuration.
+- None for merging PR #28 once CI is green.
 
-## Risks
+## Required User Actions (standing, not new)
 
-- The light-palette correction needs visual browser review in both themes after the branch Preview is available.
-- Physical-GPU/Safari atmosphere verification and exact Production evidence remain outstanding.
-- Fully merged remote branches remain until a tool with safe ref-deletion capability is available.
-
-## Required User Actions
-
-None for this work package.
+- Add `PEXELS_API_KEY` (free) and/or `OPENAI_API_KEY` (paid, capped by
+  `CAPTIVATE_IMAGE_BUDGET_USD` / `CAPTIVATE_IMAGE_DAILY_MAX`) in Vercel to
+  light up cover photographs and the photo dress pass. Without keys, decks
+  get staged drawings and covers degrade to title slides.
+- Vercel project access for the agent integration still returns 403; logs are
+  read through the owner when needed.
 
 ## Recommended Next Steps
 
-1. Agent-owned (`MVP-007`, `BETA-005`): run full verification, publish the branch, verify Preview appearance, merge, close issue #11, and clean the migration branch.
-2. Agent-owned (`BETA-001`): run smoke and authenticated Playwright against the exact hosted candidate with console/network inspection.
-3. Agent-owned (`PROD-009`): classify remaining unmerged design/history branches and delete fully merged branches when ref-deletion capability is available.
-4. Agent-owned (`PROD-002`): verify required schema and RLS against the exact Production database target before release.
-5. Owner decision / agent implementation (`BETA-004`): select custom SMTP or an intentional confirmation policy; the agent should configure and verify the chosen path when access is available.
-
-## Production Impact
-
-None yet. No Production deployment or database mutation occurred in this session.
-
-## Previous Session Summary
-
-Before governance adoption, `main` was at `3a9ec81` with PR #20 merged, no open pull requests, one open accessibility issue (#11), and multiple historical/merged remote branches. Captivate's MVP was documented as functionally complete, but hosted release evidence and several production-readiness controls remained incomplete.
+1. Merge PR #28 on green CI (agent-owned) and let Vercel deploy.
+2. Owner: generate a fresh deck on the live app and judge the cover, the
+   writing, the aside dives, and the drawing count against the brief.
+3. Owner: add the image-provider keys above to see the full cover experience.

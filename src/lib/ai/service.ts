@@ -2,7 +2,14 @@ import "server-only";
 
 import { complete, LIMITS, reserve, type RateLimit } from "./rate-limit";
 import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
-import { drawableScenes, replaceMediaWithDrawing } from "@/lib/editor/place-drawing";
+import {
+  drawableScenes,
+  drawingCap,
+  replaceMediaWithDrawing,
+  replaceMediaWithPhoto,
+  settleCover,
+} from "@/lib/editor/place-drawing";
+import { fillWithGeneratedImage, fillWithStockPhoto, isPhotoFillConfigured } from "./photo-fill";
 import type { SceneContent } from "@/lib/schema/presentation";
 import { BASE_SYSTEM, generateStructured, isAiConfigured, type StructuredResult } from "./provider";
 import {
@@ -270,23 +277,29 @@ export interface SceneOutcome {
  */
 export type ContentDepth = "outline" | "full";
 
+export interface MaterialisedScene {
+  title: string;
+  content: SceneContent;
+  speakerNotes: string;
+  imagePrompt: string;
+  photoQuery: string;
+  /** A composed aside, ready to be woven in as a detail scene. */
+  detail: { label: string; title: string; content: SceneContent; speakerNotes: string } | null;
+}
+
 export async function buildScenesFromMap(
   briefs: MomentBrief[],
   prompt: string,
   context: AudienceContext,
   presentationId: string | null,
   depth: ContentDepth = "full",
+  /** The requested running time; drives how many drawings the deck earns. */
+  totalSeconds = 0,
 ): Promise<
   | {
       ok: true;
       data: {
-        scenes: {
-          momentId: string;
-          title: string;
-          content: SceneContent;
-          speakerNotes: string;
-          imagePrompt: string;
-        }[];
+        scenes: ({ momentId: string } & MaterialisedScene)[];
         source: "model" | "fallback";
         notice?: string;
       };
@@ -367,15 +380,23 @@ ${
     : `Write the frame, not the talk: crisp headings, bullets of a few words each as speaking cues, body text only where a layout demands it. Speaker notes are one or two sentences stating the moment's job. The author will write the words themselves.`
 }
 
+The writing has to be worth standing in front of. The bar:
+- Headings are claims or images, never topic labels. "Ninety seconds without oxygen" stops a room; "Introduction to hypoxia" empties one. If a heading could sit on any deck about this subject, it is not finished.
+- The first scene is the cover: its heading is the talk's own name and it must be able to sell the talk alone — short, concrete, a little dangerous. Give it a subheading that makes a promise to the audience, and an imagePrompt for one cinematic photograph.
+- Concrete beats abstract every time: a number from the evidence, a named thing, a place, a consequence — not "various factors" or "significant impact". Prefer the second-person where the subject allows it; the audience is in the room.
+- Never open with throat-clearing ("In this presentation...", "Let's explore...", "It's important to note"). Open inside the material.
+- Vary the texture. A statement scene is one sentence that earns its whole screen; a quote is a real voice, not a paraphrase; consecutive scenes must not share a rhythm. Read the deck as a sequence and break any run of three scenes shaped alike.
+- Bullets are parallel in grammar and each one is a claim, not a topic. Two strong bullets beat five thin ones.
+
+Use the whole instrument. An eyebrow situates ("Module 2 · Airway"), a headingAccent carries the clause the claim turns on, cards give a three-up its three ideas, a chart's data uses the evidence's real magnitudes. A scene that uses only heading and bullets when its layout offers more reads as a form letter.
+
+Pictures: every cover, split-left, split-right and media-full scene MUST carry an imagePrompt — the picture is half the scene, and an empty half is a broken scene. The imagePrompt describes the one image that would teach or land the moment — a mechanism, a scene, a before-and-after — concretely enough to photograph or sketch. Also give those scenes a photoQuery: two to five plain search words for a stock photo of the same subject.
+
+Asides: for two to four scenes in the deck — the ones hiding a definition, a worked example, or the data behind a claim — add an aside: a small detail scene the presenter opens by clicking, off the main path. Its label names what the click reveals ("See the mechanism"). Give it a real title and either bullets or a short body, and one or two sentences of speaker notes. Most scenes have no aside; use them only where depth-on-demand genuinely helps.
+
 Transitions: where a beat ends a movement, let the last line carry the room into what follows — from this argument, in its own words. Do not announce the next section by name, and do not add a transition sentence to scenes that are not ending a movement.
 
-Where a moment names evidence, write only what that evidence supports. Never introduce a statistic, study or citation that was not given to you.
-
-Craft, not template-filling:
-- Use the whole instrument. An eyebrow situates ("Module 2 · Airway"), a headingAccent carries the clause the claim turns on, cards give a three-up its three ideas, a chart's data uses the evidence's real magnitudes. A scene that uses only heading and bullets when its layout offers more reads as a form letter.
-- Never open with throat-clearing ("In this presentation...", "Let's explore...", "It's important to note"). Open inside the material.
-- Bullets are parallel in grammar and each one is a claim, not a topic. Two strong bullets beat five thin ones.
-- Every split-left or split-right scene MUST carry an imagePrompt — the drawing is half the scene, and an empty half is a broken scene. The imagePrompt describes a single clear line drawing that would teach the moment — a mechanism, a pathway, a before-and-after — not a mood photograph. It will be sketched as staged line art in front of the audience.`,
+Where a moment names evidence, write only what that evidence supports. Never introduce a statistic, study or citation that was not given to you.`,
         prompt: `Original request:
 ${prompt}
 
@@ -383,7 +404,7 @@ ${contextLine(context)}
 
 The accepted narrative map:
 ${plan}`,
-        maxTokens: 12000,
+        maxTokens: 14000,
       }),
   );
 
@@ -443,47 +464,85 @@ ${plan}`,
     };
   });
 
-  await drawSceneVisuals(scenes, presentationId);
+  await dressScenes(scenes, presentationId, totalSeconds);
 
   return { ok: true, data: { source: "model", scenes } };
 }
 
 /**
- * Fills a generated deck's empty media slots with staged drawings.
+ * Fills a generated deck's empty media slots with real pictures.
  *
- * The deck used to arrive with image placeholders waiting for a photograph —
- * which needs a paid image provider the deployment may not have configured,
- * so "generate a presentation" produced a deck with grey boxes in it. A
- * drawing needs only the text model that just wrote the deck.
+ * Two sources, partitioned up front and run in parallel:
  *
- * Deliberately bounded: at most three drawings, side-by-side layouts only
- * (a full-bleed backdrop wants a photograph, not line art under text), in
- * parallel, and every failure leaves the placeholder exactly as it was —
- * the author can still source an image by hand. Each drawing passes the
- * same reservation and schema boundary a hand-prompted one does.
+ *  - **Staged drawings** for side-by-side scenes, scaled to the talk — one
+ *    per ten minutes (`drawingCap`) rather than a fixed three. A drawing
+ *    needs only the text model that just wrote the deck, so this works on a
+ *    keyless deployment.
+ *  - **Photographs** for everything else with an empty slot — the cover, any
+ *    full-bleed backdrop, and side scenes past the drawing cap — when an
+ *    image provider is configured. Stock first (free); the cover alone may
+ *    fall back to one budget-gated generated image, because the cover *is*
+ *    the deck's first impression and it degrades to a plain title otherwise.
+ *
+ * Bounded as before: one shared timeout, every failure leaves the
+ * placeholder exactly as it was, and each drawing or paid image passes the
+ * same reservation boundary a hand-prompted one does. Mutation inside the
+ * race is safe — a late result that loses finds its scene already returned
+ * (or its cover already settled and the placeholder gone) and its write is
+ * never read. Last, covers are settled: a veil that never got its picture is
+ * stripped so no deck opens on a full-screen placeholder.
  */
-async function drawSceneVisuals(
-  scenes: { title: string; content: SceneContent; imagePrompt: string }[],
+async function dressScenes(
+  scenes: { title: string; content: SceneContent; imagePrompt: string; photoQuery?: string }[],
   presentationId: string | null,
+  totalSeconds: number,
 ): Promise<void> {
-  const candidates = drawableScenes(scenes);
-  if (candidates.length === 0) return;
+  const hasEmptySlot = (content: SceneContent) =>
+    content.elements.some(
+      (element) => element.type === "image" && !element.url && !element.assetId,
+    );
 
-  // The pass is a bonus, not the deliverable: past this bound the deck ships
-  // with its placeholders and the author draws by hand. Mutation inside the
-  // race is safe — a late drawing that loses simply finds its scene already
-  // returned and its write is never read.
-  await Promise.race([
-    Promise.allSettled(
-      candidates.map(async (scene) => {
-        const drawn = await generateDrawing(scene.imagePrompt, presentationId);
-        if (!drawn.ok) return;
-        const replaced = replaceMediaWithDrawing(scene.content, drawn.drawing, scene.imagePrompt);
-        if (replaced) scene.content = replaced;
-      }),
-    ),
-    new Promise((resolve) => setTimeout(resolve, 55_000)),
-  ]);
+  const drawings = drawableScenes(scenes, drawingCap(totalSeconds));
+  const drawn = new Set<unknown>(drawings);
+  const photos = isPhotoFillConfigured()
+    ? scenes.filter(
+        (scene) =>
+          !drawn.has(scene) && scene.imagePrompt.trim().length > 0 && hasEmptySlot(scene.content),
+      )
+    : [];
+
+  const jobs: Promise<void>[] = [
+    ...drawings.map(async (scene) => {
+      const result = await generateDrawing(scene.imagePrompt, presentationId);
+      if (!result.ok) return;
+      const replaced = replaceMediaWithDrawing(scene.content, result.drawing, scene.imagePrompt);
+      if (replaced) scene.content = replaced;
+    }),
+    ...photos.map(async (scene) => {
+      let photo = await fillWithStockPhoto(
+        scene.photoQuery ?? "",
+        scene.imagePrompt,
+        presentationId,
+      );
+      if (!photo && scene.content.layout === "cover") {
+        photo = await fillWithGeneratedImage(scene.imagePrompt, presentationId);
+      }
+      if (!photo) return;
+      const replaced = replaceMediaWithPhoto(scene.content, photo);
+      if (replaced) scene.content = replaced;
+    }),
+  ];
+
+  if (jobs.length > 0) {
+    await Promise.race([
+      Promise.allSettled(jobs),
+      new Promise((resolve) => setTimeout(resolve, 55_000)),
+    ]);
+  }
+
+  for (const scene of scenes) {
+    scene.content = settleCover(scene.content);
+  }
 }
 
 export async function buildSingleScene(
@@ -536,12 +595,7 @@ ${instruction}`,
 }
 
 /** Turn validated model content into a real, composed scene. */
-function materialise(scene: GeneratedScene): {
-  title: string;
-  content: SceneContent;
-  speakerNotes: string;
-  imagePrompt: string;
-} {
+function materialise(scene: GeneratedScene): MaterialisedScene {
   const layoutContent: LayoutContent = {
     eyebrow: scene.eyebrow || undefined,
     heading: scene.heading || undefined,
@@ -561,11 +615,31 @@ function materialise(scene: GeneratedScene): {
     media: scene.imagePrompt ? { url: "", alt: scene.imagePrompt } : undefined,
   };
 
+  // An aside is a small scene of its own: heading plus either its bullets or
+  // its short body, on the plainest layout. The weave gives it identity and a
+  // hotspot; here it is only composed.
+  const aside = scene.aside;
+  const detail =
+    aside && (aside.body.trim() || aside.bullets.length)
+      ? {
+          label: aside.label,
+          title: aside.title,
+          content: composeScene("bullets", {
+            heading: aside.title,
+            bullets: aside.bullets.length ? aside.bullets : undefined,
+            body: aside.body || undefined,
+          }),
+          speakerNotes: aside.speakerNotes,
+        }
+      : null;
+
   return {
     title: scene.title,
     content: composeScene(scene.layout, layoutContent),
     speakerNotes: scene.speakerNotes,
     imagePrompt: scene.imagePrompt,
+    photoQuery: scene.photoQuery,
+    detail,
   };
 }
 
