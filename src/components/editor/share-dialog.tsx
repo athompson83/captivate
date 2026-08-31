@@ -8,6 +8,7 @@ import { useEditor } from "@/lib/editor/store";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
+import { DeckExport } from "./deck-export";
 
 /**
  * Sharing, stated plainly.
@@ -55,11 +56,19 @@ export function ShareDialog({
       setToken(result.data.shareToken);
       setCopied(false);
       if (!enabled) {
-        toast({ tone: "info", title: "Link revoked", description: "Old copies of the link no longer work." });
+        toast({
+          tone: "info",
+          title: "Link revoked",
+          description: "Old copies of the link no longer work.",
+        });
       }
     } catch {
       // A server action can reject outright (network, deploy in progress).
-      toast({ tone: "error", title: "Sharing change failed", description: "Try again in a moment." });
+      toast({
+        tone: "error",
+        title: "Sharing change failed",
+        description: "Try again in a moment.",
+      });
     } finally {
       setBusy(false);
     }
@@ -72,7 +81,11 @@ export function ShareDialog({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast({ tone: "error", title: "Couldn't copy", description: "Select the link and copy it manually." });
+      toast({
+        tone: "error",
+        title: "Couldn't copy",
+        description: "Select the link and copy it manually.",
+      });
     }
   };
 
@@ -80,8 +93,8 @@ export function ShareDialog({
     <Dialog open={open} onClose={onClose} title="Share a view-only link" size="sm">
       <div className="space-y-4">
         <p className="text-ink-3 text-[12.5px] leading-relaxed">
-          Anyone with the link can walk through the presentation at their own pace — scenes and
-          the journey only. Speaker notes never leave your account, and nobody can edit.
+          Anyone with the link can walk through the presentation at their own pace — scenes and the
+          journey only. Speaker notes never leave your account, and nobody can edit.
         </p>
 
         {token ? (
@@ -127,7 +140,7 @@ export function ShareDialog({
           </Button>
         )}
 
-        <div className="border-line-subtle border-t pt-3">
+        <div className="border-line-subtle space-y-3 border-t pt-3">
           <Link
             href={`/handout/${presentationId}`}
             onClick={onClose}
@@ -136,6 +149,7 @@ export function ShareDialog({
             <Printer className="size-3.5" aria-hidden />
             Prefer a file? Open the handout — print it or save as PDF
           </Link>
+          <DeckExport onDone={onClose} />
         </div>
       </div>
     </Dialog>
