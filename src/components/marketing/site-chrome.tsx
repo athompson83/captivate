@@ -32,7 +32,7 @@ export function SiteHeader() {
           </Link>
           <Link
             href="/sign-up"
-            className="rounded-[var(--radius-md)] bg-[var(--sky-amber)] px-3.5 py-2 text-[13px] font-medium text-[var(--sky-amber-ink)] transition-opacity hover:opacity-90"
+            className="rounded-[var(--radius-md)] bg-[var(--sky-action)] px-3.5 py-2 text-[13px] font-medium text-[var(--sky-action-ink)] transition-colors hover:bg-[var(--sky-action-hover)]"
           >
             Get started
           </Link>
@@ -60,7 +60,10 @@ export function SiteFooter() {
           <Link href="/sign-in" className="transition-colors hover:text-[var(--sky-ink)]">
             Sign in
           </Link>
-          <Link href="/sign-up" className="font-medium text-[var(--sky-amber)] hover:underline">
+          <Link
+            href="/sign-up"
+            className="font-medium text-[var(--sky-action-text)] hover:underline"
+          >
             Get started
           </Link>
         </span>

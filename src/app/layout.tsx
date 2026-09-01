@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { siteUrl } from "@/lib/site";
-import { Inter, Fraunces, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Inter, Manrope, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { ReducedMotionProvider } from "@/components/ui/reduced-motion";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { ToastProvider } from "@/components/ui/toast";
@@ -12,11 +12,17 @@ const inter = Inter({
   display: "swap",
 });
 
-const fraunces = Fraunces({
+/*
+ * Manrope is the brand kit's display face, and it replaced Fraunces — a serif
+ * — when the kit arrived. The two say different things about the product: a
+ * high-contrast serif is editorial, and Captivate is a spatial tool whose own
+ * logotype is a geometric sans. Inter stays for interface and body copy, which
+ * is what the kit asks for and what the app already did.
+ */
+const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-display",
   display: "swap",
-  axes: ["SOFT", "WONK", "opsz"],
 });
 
 const grotesk = Space_Grotesk({
@@ -107,7 +113,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body
-        className={`${inter.variable} ${fraunces.variable} ${grotesk.variable} ${mono.variable} antialiased`}
+        className={`${inter.variable} ${manrope.variable} ${grotesk.variable} ${mono.variable} antialiased`}
       >
         <ReducedMotionProvider>
           <ThemeProvider>

@@ -45,22 +45,27 @@ const FOV = 42;
  *
  * Deliberately fixed rather than read from the theme: this is a night sky, and
  * it is the same night sky whether the visitor's system is set to light or
- * dark. Amber is the key, violet the rim, and the ground is a blue-black deep
+ * dark. Violet is the key, amber the rim, and the ground is a midnight deep
  * enough that the scenes are the only light in the frame.
  */
 const PALETTE = {
-  ground: "#07060d",
-  fog: "#141031",
-  scene: "#1c1930",
-  sceneEdge: "rgba(255, 168, 140, 0.42)",
+  // Midnight, one step below `--sky-deep` so the page's ground reads as the
+  // near edge of this one rather than a seam across the hero.
+  ground: "#010313",
+  fog: "#06093f",
+  scene: "#081543",
+  sceneEdge: "rgba(255, 152, 85, 0.4)",
   ink: "rgba(250, 246, 255, 0.94)",
   bar: "rgba(214, 214, 240, 0.34)",
   barBright: "rgba(238, 240, 255, 0.66)",
-  // The mark's warm end and its cool one. `amber` keeps its name because it
-  // is the key light everywhere in this file and in `globals.css`; what
-  // changed is which warm it is — the logo's coral rather than gold.
-  amber: "#ff8a5c",
-  violet: "#8b6bff",
+  /*
+   * A light is not a fill. `violet` is the key and is the brand's #6D39F7
+   * raised to the lightness a light source needs on a near-black ground —
+   * the fill value reads 4:1 there and would be a bruise rather than a beam.
+   * `amber` is the kit's #FF9855 unaltered, because it already is one.
+   */
+  violet: "#baadff",
+  amber: "#ff9855",
   cyan: "#7fe3d4",
 } as const;
 
@@ -70,7 +75,7 @@ const PALETTE = {
  * `<canvas>` gradient stop and a `THREE.Color` are given colour strings by
  * JavaScript, with no cascade to read a custom property from, and `THREE.Color`
  * cannot parse `oklch()` at all. These values are the same lights as
- * `--sky-amber` and `--sky-violet`, converted once.
+ * `--sky-action-text` and `--sky-amber`, converted once.
  *
  * What that does risk is drift, so nothing in this file writes a colour of its
  * own: every translucent stop is a tint of a palette entry, which is what the

@@ -25,6 +25,23 @@ function lightTokens(): Record<string, string> {
   return tokens;
 }
 
+/**
+ * The public site's palette, which lives on `.marketing` rather than `:root`
+ * because the front door deliberately ignores the visitor's colour scheme.
+ * It had no contrast coverage at all until the action moved to violet, which
+ * is a change that can only be made safely with the numbers in front of you.
+ */
+function skyTokens(): Record<string, string> {
+  const css = readFileSync(GLOBALS, "utf8");
+  const block = /\.marketing\s*\{([\s\S]*?)\n  \}/.exec(css);
+  if (!block) throw new Error("could not find the .marketing token block in globals.css");
+  const tokens: Record<string, string> = {};
+  for (const [, name, value] of block[1].matchAll(/^\s*--([\w-]+):\s*(oklch\([^)]*\));/gm)) {
+    tokens[name] = value;
+  }
+  return tokens;
+}
+
 function darkTokens(): Record<string, string> {
   const css = readFileSync(GLOBALS, "utf8");
   const block = /\[data-theme="dark"\][^{]*\{([\s\S]*?)\n\}/.exec(css);
@@ -38,6 +55,7 @@ function darkTokens(): Record<string, string> {
 
 const TOKENS = lightTokens();
 const DARK = darkTokens();
+const SKY = skyTokens();
 
 function token(name: string): string {
   const value = TOKENS[name];
@@ -121,6 +139,158 @@ describe("light theme contrast after the warmth bump", () => {
         ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
       }
     }
+  });
+});
+
+/**
+ * Everything above reads the light block. The dark theme is the one most of
+ * this application is looked at in, and it had never been held to the same
+ * threshold — which is how `--text-muted` came to be 4.11:1 on
+ * `--surface-overlay`, the ground of every menu and popover in the product,
+ * and stay there. The defect was invisible because the guard did not look.
+ */
+describe("dark theme contrast", () => {
+  const SURFACES = [
+    "surface-base",
+    "surface-sunken",
+    "surface-raised",
+    "surface-overlay",
+    "surface-inset",
+  ];
+
+  const dark = (name: string) => {
+    const value = DARK[name];
+    if (!value) throw new Error(`--${name} is not an oklch() token in the dark block`);
+    return value;
+  };
+
+  it("reads the real dark tokens out of globals.css", () => {
+    expect(Object.keys(DARK).length).toBeGreaterThan(10);
+    for (const surface of SURFACES) expect(dark(surface)).toMatch(/^oklch\(/);
+  });
+
+  it("keeps every ink readable on every dark surface", () => {
+    for (const ink of ["text-primary", "text-secondary", "text-muted"]) {
+      for (const surface of SURFACES) {
+        expect(
+          contrastRatio(hex(dark(ink)), hex(dark(surface))),
+          `${ink} on ${surface}`,
+        ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      }
+    }
+  });
+
+  it("keeps every status and accent tone AA-legible on every dark surface", () => {
+    for (const fg of ["accent-text", "ai-text", "danger", "success"]) {
+      for (const surface of SURFACES) {
+        expect(
+          contrastRatio(hex(dark(fg)), hex(dark(surface))),
+          `${fg} on ${surface}`,
+        ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      }
+    }
+  });
+});
+
+/**
+ * The primary action, in both themes.
+ *
+ * A filled violet button with a label on it is the most-clicked thing in the
+ * product and was the one pairing with no assertion at all — so the brand
+ * kit's "violet leads action" could have been adopted at any lightness and
+ * nothing would have objected. The kit's own violet clears AA with white by a
+ * margin of about a point; that margin is what this protects.
+ */
+describe("the primary action carries its label", () => {
+  for (const [theme, tokens] of [
+    ["light", TOKENS],
+    ["dark", DARK],
+  ] as const) {
+    it(`meets AA in the ${theme} theme, at rest and under a pointer`, () => {
+      const contrast = tokens["accent-contrast"];
+      if (!contrast) throw new Error(`--accent-contrast missing from ${theme}`);
+
+      // Hover included. On a dark ground the natural direction for a hover is
+      // to lighten, which is also the direction that costs contrast — and a
+      // label that is legible until you reach for it is not legible.
+      for (const state of ["accent", "accent-hover"]) {
+        const fill = tokens[state];
+        if (!fill) throw new Error(`--${state} missing from ${theme}`);
+
+        expect(
+          contrastRatio(hex(contrast), hex(fill)),
+          `accent-contrast on ${state} (${theme})`,
+        ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      }
+    });
+  }
+});
+
+/**
+ * The front door.
+ *
+ * Its call to action used to be the kit's 5% emphasis colour, and moving it to
+ * violet is the kind of change that reads as an improvement and quietly costs
+ * a contrast ratio: the brand's violet is a *fill*, and as text on midnight it
+ * is 3.4:1. The fill and the ink that sits on it are one decision, so they are
+ * asserted as one.
+ */
+describe("the public site's palette", () => {
+  const sky = (name: string) => {
+    const value = SKY[name];
+    if (!value) throw new Error(`--${name} is not an oklch() token on .marketing`);
+    return value;
+  };
+
+  it("reads the real .marketing tokens out of globals.css", () => {
+    expect(Object.keys(SKY).length).toBeGreaterThan(8);
+    expect(sky("sky-ground")).toMatch(/^oklch\(/);
+  });
+
+  it("carries a label on the action it fills", () => {
+    expect(
+      contrastRatio(hex(sky("sky-action-ink")), hex(sky("sky-action"))),
+    ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+    expect(
+      contrastRatio(hex(sky("sky-action-ink")), hex(sky("sky-action-hover"))),
+    ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+  });
+
+  it("keeps every ink and accent readable on both grounds", () => {
+    for (const fg of ["sky-ink", "sky-ink-2", "sky-ink-3", "sky-action-text", "sky-amber"]) {
+      for (const ground of ["sky-ground", "sky-deep"]) {
+        expect(
+          contrastRatio(hex(sky(fg)), hex(sky(ground))),
+          `${fg} on ${ground}`,
+        ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      }
+    }
+  });
+
+  it("keeps every stop of the emphasised phrase readable", () => {
+    // `.lit-text` clips a four-stop sweep into a heading. It used to take the
+    // identity ramp, which is fill-grade: its indigo is 2.79:1 on this ground,
+    // so the opening word of the phrase was under the 3:1 floor that even
+    // large text has. Held to 4.5:1 rather than 3:1 — the phrase is set large
+    // today, and a stop that only clears the large-text floor is one type
+    // change away from failing.
+    for (const stop of ["sky-indigo-text", "sky-action-text", "sky-magenta-text", "sky-amber"]) {
+      for (const ground of ["sky-ground", "sky-deep"]) {
+        expect(
+          contrastRatio(hex(sky(stop)), hex(sky(ground))),
+          `${stop} on ${ground}`,
+        ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      }
+    }
+  });
+
+  it("does not use the action's fill value as text", () => {
+    // The distinction the two tokens exist for. If they ever converge, one of
+    // them is being used for the wrong half of the job.
+    expect(sky("sky-action")).not.toBe(sky("sky-action-text"));
+    expect(contrastRatio(hex(sky("sky-action")), hex(sky("sky-ground")))).toBeLessThan(
+      MIN_BODY_CONTRAST,
+    );
   });
 });
 
