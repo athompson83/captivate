@@ -227,7 +227,17 @@ test.describe("the editor on a narrow screen", () => {
     await expect(page.getByRole("radio", { name: /Midnight/ })).toBeVisible();
     await expect(page.getByRole("button", { name: "Toggle AI assistant" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Share" })).toBeVisible();
-    expect(await page.locator('[role="menu"]').count()).toBe(0);
+
+    // Scoped to this popover, not the page. The scene navigator's row and
+    // section menus and the insert bar's two are genuine menus built from
+    // `MenuItem`, which does render `role="menuitem"` — a global count of zero
+    // would have failed the moment any of them was open, and passes today only
+    // because none happens to be. The claim is about *this* container.
+    const overflow = page.getByRole("group", { name: "More editor controls" });
+    await expect(overflow).toBeVisible();
+    expect(
+      await overflow.locator('[role="menu"], [role="menuitem"], [role="menuitemradio"]').count(),
+    ).toBe(0);
   });
 
   test("dismissing a popover puts the keyboard back where it was", async ({ page }) => {
