@@ -1,4 +1,5 @@
 import type { GeneratedScene } from "./schemas";
+import type { IconName } from "@/lib/schema/icons";
 
 /**
  * Deterministic generator used when no model is configured.
@@ -306,19 +307,39 @@ export function fallbackScene(
           }
         : { ...base, quote: "A line worth repeating.", attribution: "Source" };
     case "three-up": {
+      // The icons are chosen here rather than left null because the fallback is
+      // what an author sees when the model could not be reached, and three
+      // identical circles is the exact appearance this whole change exists to
+      // remove. Each card knows what it is for, so each can say so.
       const cards = [
-        purpose && { title: "Why it matters", body: clip(purpose, 180) },
-        takeaway && { title: "What to remember", body: clip(takeaway, 180) },
-        evidence[0] && { title: "The evidence", body: clip(evidence.join(" · "), 180) },
-      ].filter(Boolean) as { title: string; body: string }[];
+        purpose && { title: "Why it matters", body: clip(purpose, 180), icon: "target" },
+        takeaway && { title: "What to remember", body: clip(takeaway, 180), icon: "lightbulb" },
+        evidence[0] && {
+          title: "The evidence",
+          body: clip(evidence.join(" · "), 180),
+          icon: "clipboard-check",
+        },
+      ].filter(Boolean) as { title: string; body: string; icon: IconName }[];
       return cards.length >= 2
         ? { ...base, cards: cards.slice(0, 3), subheading: "" }
         : {
             ...base,
             cards: [
-              { title: "First", body: "What it is and why it matters." },
-              { title: "Second", body: "What it is and why it matters." },
-              { title: "Third", body: "What it is and why it matters." },
+              {
+                title: "First",
+                body: "What it is and why it matters.",
+                icon: "circle" as IconName,
+              },
+              {
+                title: "Second",
+                body: "What it is and why it matters.",
+                icon: "circle" as IconName,
+              },
+              {
+                title: "Third",
+                body: "What it is and why it matters.",
+                icon: "circle" as IconName,
+              },
             ],
           };
     }

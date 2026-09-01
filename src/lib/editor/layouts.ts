@@ -199,7 +199,7 @@ export interface LayoutContent {
   caption?: string;
   code?: { code: string; language: string };
   media?: { url: string; alt: string; assetId?: string | null };
-  cards?: { title: string; body: string; icon?: string }[];
+  cards?: { title: string; body: string; icon?: string | null }[];
   chart?: {
     chart: "bar" | "column" | "line" | "donut";
     data: { label: string; value: number }[];

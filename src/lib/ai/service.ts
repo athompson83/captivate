@@ -424,6 +424,8 @@ The writing has to be worth standing in front of. The bar:
 - Vary the texture. A statement scene is one sentence that earns its whole screen; a quote is a real voice, not a paraphrase; consecutive scenes must not share a rhythm. Read the deck as a sequence and break any run of three scenes shaped alike.
 - Bullets are parallel in grammar and each one is a claim, not a topic. Two strong bullets beat five thin ones.
 
+Every card carries an icon, and the icon is part of the argument rather than decoration on it. Choose the one that means what the card means — \`trending-down\` for a decline, \`shield\` for a protection, \`alert-triangle\` for a risk, \`clock\` for a delay, \`stethoscope\` for an examination. Three cards on one scene should rarely share an icon; if they do, the three ideas are probably one idea. Choose only from the list the schema gives you.
+
 Use the whole instrument. An eyebrow situates ("Module 2 · Airway"), a headingAccent carries the clause the claim turns on, cards give a three-up its three ideas, a chart's data uses the evidence's real magnitudes. A scene that uses only heading and bullets when its layout offers more reads as a form letter.
 
 Each layout draws a fixed set of fields and shows nothing else, so write into the ones its layout has. A statement whose words are in \`body\` is a blank screen:
@@ -436,7 +438,7 @@ Each layout draws a fixed set of fields and shows nothing else, so write into th
 - split-left, split-right — heading, then bullets or body, and imagePrompt
 - media-full — heading, caption, imagePrompt
 - two-column — heading, bullets on the left and bulletsB on the right
-- three-up — heading and exactly three cards, each with its own title and body. Not bullets.
+- three-up — heading and exactly three cards, each with its own title, body and icon. Not bullets.
 - chart — heading, chart, caption
 - code — heading, code
 
