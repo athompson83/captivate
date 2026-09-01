@@ -7,7 +7,8 @@ import {
   planUsage,
   subscriptionSummary,
 } from "@/lib/billing/entitlement";
-import { isBillingConfigured, isTestMode, topUpPriceId } from "@/lib/billing/stripe";
+import { isBillingConfigured, isTestMode, priceIdFor, topUpPriceId } from "@/lib/billing/stripe";
+import { PAID_PLANS } from "@/lib/billing/plans";
 
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
@@ -55,6 +56,9 @@ export default async function SettingsPage() {
         testMode: isTestMode(),
         summary,
         credits,
+        // Only the tiers this deployment has a price for. Offering one it
+        // cannot sell takes the click and answers with an error toast.
+        sellable: PAID_PLANS.filter((plan) => priceIdFor(plan) !== null),
         topUpAvailable: topUpPriceId() !== null,
         grant,
         usage,

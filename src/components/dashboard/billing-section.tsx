@@ -25,6 +25,7 @@ export function BillingSection({
   grant,
   usage,
   credits,
+  sellable,
   topUpAvailable,
 }: {
   configured: boolean;
@@ -36,6 +37,14 @@ export function BillingSection({
   usage: { plan: Plan; groups: GroupUsage[] };
   /** Presentations bought outright and not yet spent. */
   credits: number;
+  /**
+   * The tiers this deployment has a price for.
+   *
+   * `isBillingConfigured()` only checks the secret key, so a deployment with
+   * Stripe but no Basic price would otherwise offer Basic, take the click, and
+   * answer with an error toast — a control that looks functional and is not.
+   */
+  sellable: PaidPlan[];
   /** False when no top-up price is configured, so the buy control is absent. */
   topUpAvailable: boolean;
 }) {
@@ -44,6 +53,10 @@ export function BillingSection({
 
   const paid = summary?.plan === "pro" || summary?.plan === "basic";
   const [tier, setTier] = useState<PaidPlan>("pro");
+  // The chosen tier, unless this deployment cannot sell it. Derived rather than
+  // corrected in an effect: a selection that has become invalid is a render
+  // concern, and writing it back to state would loop.
+  const offered: PaidPlan = sellable.includes(tier) ? tier : (sellable[0] ?? "pro");
 
   // Both controls leave the app for a Stripe-hosted page, so a failure has to
   // say so rather than silently doing nothing.
@@ -117,31 +130,41 @@ export function BillingSection({
             Everything you make stays yours to edit, present, record and share on every plan. Paid
             tiers raise the allowance and add generated imagery.
           </p>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Segmented
-              label="Plan"
-              size="sm"
-              value={tier}
-              onChange={setTier}
-              options={[
-                { value: "basic", label: "Basic" },
-                { value: "pro", label: "Pro" },
-              ]}
-            />
-            {/* Monthly only. An annual selector would be a control that looks
-                functional and is not: there is no annual price to check out
-                against, and annual billing is held until measured cost per
-                presentation says a year-long commitment is a safe one. */}
-            <span className="text-ink-3 text-[13px]">{PRICING[tier].monthly}/mo</span>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={pending}
-              onClick={() => go(() => startCheckout({ plan: tier }), "Couldn't start checkout")}
-            >
-              Upgrade to {tier === "pro" ? "Pro" : "Basic"}
-            </Button>
-          </div>
+          {sellable.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              {/* Only the tiers this deployment can actually sell. A picker
+                  between two options is worth showing only when there are two. */}
+              {sellable.length > 1 ? (
+                <Segmented
+                  label="Plan"
+                  size="sm"
+                  value={offered}
+                  onChange={setTier}
+                  options={sellable.map((plan) => ({
+                    value: plan,
+                    label: plan === "pro" ? "Pro" : "Basic",
+                  }))}
+                />
+              ) : (
+                <span className="text-ink-2 text-[13px] font-medium">{planLabel(offered)}</span>
+              )}
+              {/* Monthly only. An annual selector would be a control that looks
+                  functional and is not: there is no annual price to check out
+                  against, and annual billing is held until measured cost per
+                  presentation says a year-long commitment is a safe one. */}
+              <span className="text-ink-3 text-[13px]">{PRICING[offered].monthly}/mo</span>
+              <Button
+                variant="primary"
+                size="sm"
+                loading={pending}
+                onClick={() =>
+                  go(() => startCheckout({ plan: offered }), "Couldn't start checkout")
+                }
+              >
+                Upgrade to {offered === "pro" ? "Pro" : "Basic"}
+              </Button>
+            </div>
+          )}
         </>
       )}
 
@@ -170,7 +193,11 @@ export function BillingSection({
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={group.allowance}
-                aria-valuenow={group.used}
+                // Clamped, because credits raise the effective ceiling: an author who
+                // has bought a top-up genuinely uses more than their allowance, and a
+                // progressbar whose value exceeds its own maximum is malformed. The
+                // real number stays in the label below.
+                aria-valuenow={Math.min(group.used, group.allowance)}
                 aria-label={`${group.label}: ${group.used} of ${group.allowance} used, ${left} left`}
               >
                 <div

@@ -13,7 +13,7 @@ import { SHORTCUTS } from "@/lib/editor/shortcuts";
 import { BillingSection } from "./billing-section";
 import type { GrantSummary, SubscriptionSummary } from "@/lib/billing/entitlement";
 import type { GroupUsage } from "@/lib/billing/entitlement";
-import type { Plan } from "@/lib/billing/plans";
+import type { PaidPlan, Plan } from "@/lib/billing/plans";
 
 /**
  * Account settings.
@@ -39,6 +39,7 @@ export function SettingsPanel({
     grant: GrantSummary | null;
     usage: { plan: Plan; groups: GroupUsage[] };
     credits: number;
+    sellable: PaidPlan[];
     topUpAvailable: boolean;
   };
 }) {
@@ -88,6 +89,7 @@ export function SettingsPanel({
         grant={billing.grant}
         usage={billing.usage}
         credits={billing.credits}
+        sellable={billing.sellable}
         topUpAvailable={billing.topUpAvailable}
       />
 
