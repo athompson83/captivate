@@ -59,18 +59,24 @@ export function SelectionToolbar({
   // delete, duplicate, lock — outside the window, where the editor's
   // `overflow-hidden` shell meant nothing could scroll to reach it.
   useLayoutEffect(() => {
-    const stage = stageRef.current;
-    if (!stage || !selected.length) return;
+    if (!selected.length) return;
 
-    const rect = stage.getBoundingClientRect();
     const minX = Math.min(...selected.map((e) => e.frame.x));
     const maxX = Math.max(...selected.map((e) => e.frame.x + e.frame.w));
     const minY = Math.min(...selected.map((e) => e.frame.y));
 
-    const centerX = rect.left + ((minX + maxX) / 2 / 100) * rect.width;
-    const topY = rect.top + (minY / 100) * rect.height;
-
     const place = () => {
+      // The stage is re-read here, not once outside. A resize moves the stage
+      // without changing `scale` — the canvas refits and re-centres — so
+      // coordinates captured before the listener was attached would have left
+      // this correctly clamped to the new window and anchored to where the
+      // selection used to be.
+      const stage = stageRef.current;
+      if (!stage) return;
+      const rect = stage.getBoundingClientRect();
+      const centerX = rect.left + ((minX + maxX) / 2 / 100) * rect.width;
+      const topY = rect.top + (minY / 100) * rect.height;
+
       // `-translate-x-1/2` means `left` is the centre, so the clamp is in half
       // widths. Measured rather than assumed: the toolbar's width depends on
       // how many groups the current selection earns, and on how many rows it
@@ -91,8 +97,25 @@ export function SelectionToolbar({
     };
 
     place();
+
+    // Watch the canvas, not just the window. The stage moves for reasons the
+    // effect's dependencies cannot see: opening the inspector takes 272px off
+    // the right of the canvas, and when the stage is bound by height rather
+    // than width — a short, wide window — `scale` does not change, so nothing
+    // re-runs this. Selecting an element is what opens the inspector, so the
+    // toolbar was placed against the canvas as it was one frame earlier and
+    // sat 136px — half the panel — from where the selection ended up.
+    //
+    // The wrapper rather than the stage itself, because that is the box that
+    // changes size; the stage only slides within it.
+    const wrapper = stageRef.current?.parentElement;
+    const observer = wrapper ? new ResizeObserver(place) : null;
+    if (wrapper && observer) observer.observe(wrapper);
     window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", place);
+    };
   }, [selected, scale, stageRef]);
 
   const allLocked = selected.every((e) => e.locked);

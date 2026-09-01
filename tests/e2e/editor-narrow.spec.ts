@@ -212,6 +212,75 @@ test.describe("the editor on a narrow screen", () => {
     await expect(status.getByText("Couldn't save")).toBeInViewport();
   });
 
+  test("the folded-away controls keep the roles they actually have", async ({ page }) => {
+    await open(page, 390, 780);
+    await page.getByRole("button", { name: "More editor controls" }).click();
+
+    // The popover holds toggle buttons and a theme radiogroup. It was marked
+    // `role="menu"` with `menuitemradio` themes inside, which is not a
+    // structure that exists: a menu may only contain menu items, so the
+    // aspect-ratio radiogroup beside them had no valid place at all and a
+    // screen reader was handed a broken tree.
+    //
+    // Asserting by role is the point — these queries only match if the
+    // semantics are the ones the controls really have.
+    await expect(page.getByRole("radio", { name: /Midnight/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Toggle AI assistant" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Share" })).toBeVisible();
+    expect(await page.locator('[role="menu"]').count()).toBe(0);
+  });
+
+  test("the selection toolbar follows the stage across a resize", async ({ page }) => {
+    // A short, wide window on purpose. `fitScale` takes the smaller of the two
+    // fits, so here the stage is bound by height — and a width-only resize
+    // then moves it sideways while leaving `scale` exactly as it was.
+    //
+    // That distinction is the whole test. `scale` is a dependency of the
+    // effect that places this toolbar, so any resize that changes it re-runs
+    // the effect and re-reads the stage no matter where the read lives. An
+    // earlier version of this test resized 1440→900, which does change
+    // `scale`, and passed against the defect it was written for.
+    await open(page, 1400, 500);
+    await selectTheHeading(page);
+
+    // How far the toolbar's centre sits from the stage's centre. The selection
+    // is the full-width heading, so the two should coincide; what matters is
+    // that the offset does not grow when the window changes size.
+    const drift = () =>
+      page.evaluate(() => {
+        const bar = document.querySelector('[role="toolbar"][aria-label="Selection actions"]');
+        const stage = [...document.querySelectorAll("[data-stage]")].sort(
+          (a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width,
+        )[0];
+        if (!bar || !stage) return Number.NaN;
+        const b = bar.getBoundingClientRect();
+        const s = stage.getBoundingClientRect();
+        return Math.abs((b.left + b.right) / 2 - (s.left + s.right) / 2);
+      });
+
+    expect(await drift()).toBeLessThan(8);
+
+    // A resize moves the stage without changing `scale` — the canvas refits
+    // and re-centres. Reading the stage once, outside the resize handler, left
+    // the toolbar correctly clamped to the new window and anchored to where
+    // the selection used to be.
+    const scaleBefore = await page.evaluate(
+      () => document.querySelector("[data-stage]")?.getBoundingClientRect().height ?? 0,
+    );
+
+    await page.setViewportSize({ width: 1300, height: 500 });
+    await page.waitForTimeout(400);
+
+    // Same height means same scale, which is what makes this the case the
+    // effect's dependencies cannot catch.
+    expect(
+      await page.evaluate(
+        () => document.querySelector("[data-stage]")?.getBoundingClientRect().height ?? 0,
+      ),
+    ).toBeCloseTo(scaleBefore, 0);
+    expect(await drift()).toBeLessThan(8);
+  });
+
   test("the wide layout is untouched", async ({ page }) => {
     await open(page, 1440, 900);
 

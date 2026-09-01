@@ -217,7 +217,11 @@ export function EditorTopBar({
             <Tooltip label="More" side="bottom">
               <button
                 onClick={() => setOverflowOpen((v) => !v)}
-                aria-haspopup="menu"
+                // Not `aria-haspopup="menu"`. What opens is a group of
+                // ordinary controls — toggles, a radiogroup — and a menu may
+                // only contain menu items, so promising one describes a
+                // structure a screen reader will not find. `aria-expanded`
+                // carries the disclosure on its own.
                 aria-expanded={overflowOpen}
                 aria-label="More editor controls"
                 className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)]"
@@ -231,7 +235,7 @@ export function EditorTopBar({
               anchor="bottom-end"
               className="max-h-[70vh] w-[264px] overflow-y-auto"
             >
-              <div role="menu">
+              <div role="group" aria-label="More editor controls">
                 <div className="flex items-center gap-1 px-1 pb-1">{history}</div>
                 <div className="border-line-subtle my-1 border-t" />
                 <div className="flex items-center gap-1 px-1 pb-1">{panelToggles}</div>
@@ -254,7 +258,6 @@ export function EditorTopBar({
             <div className="relative shrink-0">
               <button
                 onClick={() => setThemeOpen((v) => !v)}
-                aria-haspopup="menu"
                 aria-expanded={themeOpen}
                 className="border-line text-ink-2 hover:border-line-strong hover:text-ink flex items-center gap-2 rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[12.5px] transition-colors"
               >
@@ -272,7 +275,7 @@ export function EditorTopBar({
                 anchor="bottom-end"
                 className="w-[288px]"
               >
-                <div role="menu">
+                <div role="group" aria-label="Theme and aspect ratio">
                   <ThemeMenu
                     themeId={themeId}
                     aspect={aspect}
@@ -331,33 +334,40 @@ function ThemeMenu({
       <p className="text-ink-3 px-2.5 pt-1 pb-1.5 text-[11px] leading-snug">
         Themes only change tokens — your content is untouched.
       </p>
-      {THEMES.map((theme) => (
-        <button
-          key={theme.id}
-          role="menuitemradio"
-          aria-checked={theme.id === themeId}
-          onClick={() => {
-            updatePresentationMeta({ themeId: theme.id }, { label: "Change theme" });
-            onPicked();
-          }}
-          className={cn(
-            "flex w-full items-start gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-inset)]",
-            theme.id === themeId && "bg-[var(--surface-inset)]",
-          )}
-        >
-          <span
-            aria-hidden
-            className="border-line-subtle mt-0.5 flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] border"
-            style={{ background: theme.tokens.canvas }}
+      {/* A radiogroup rather than menu items: this is one choice out of
+          several, and the aspect ratio below it is a second, separate one.
+          `menuitemradio` only means anything inside a `menu`, and a `menu`
+          could not have held the aspect-ratio radiogroup that sits beside
+          it. */}
+      <div role="radiogroup" aria-label="Theme">
+        {THEMES.map((theme) => (
+          <button
+            key={theme.id}
+            role="radio"
+            aria-checked={theme.id === themeId}
+            onClick={() => {
+              updatePresentationMeta({ themeId: theme.id }, { label: "Change theme" });
+              onPicked();
+            }}
+            className={cn(
+              "flex w-full items-start gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-inset)]",
+              theme.id === themeId && "bg-[var(--surface-inset)]",
+            )}
           >
-            <span className="size-2.5 rounded-full" style={{ background: theme.tokens.accent }} />
-          </span>
-          <span className="min-w-0">
-            <span className="text-ink block text-[12.5px] font-medium">{theme.name}</span>
-            <span className="text-ink-3 block text-[11px] leading-snug">{theme.description}</span>
-          </span>
-        </button>
-      ))}
+            <span
+              aria-hidden
+              className="border-line-subtle mt-0.5 flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] border"
+              style={{ background: theme.tokens.canvas }}
+            >
+              <span className="size-2.5 rounded-full" style={{ background: theme.tokens.accent }} />
+            </span>
+            <span className="min-w-0">
+              <span className="text-ink block text-[12.5px] font-medium">{theme.name}</span>
+              <span className="text-ink-3 block text-[11px] leading-snug">{theme.description}</span>
+            </span>
+          </button>
+        ))}
+      </div>
 
       <div className="border-line-subtle my-1.5 border-t" />
       <div className="px-2.5 pb-1.5">
