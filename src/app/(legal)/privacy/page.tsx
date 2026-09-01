@@ -35,8 +35,9 @@ export default function PrivacyPage() {
       <ul>
         <li>
           <strong>Your account.</strong> The email address you sign up with and the name you choose
-          to be called. Authentication is handled by Supabase; Captivate never sees or stores your
-          password.
+          to be called. Your password is checked against the policy
+          on the way past and handed straight to Supabase, which is what stores it; Captivate keeps
+          no copy of it and cannot recover it.
         </li>
         <li>
           <strong>What you write.</strong> Presentations, movements, scenes, the narrative map,
@@ -93,11 +94,15 @@ export default function PrivacyPage() {
         application code, so a bug in a page cannot expose another account&rsquo;s work.
       </p>
       <p>
-        Two things you can choose to make reachable: a <strong>share link</strong>, which lets anyone
-        holding the URL open that one deck until you revoke it, and a <strong>handout</strong>, which
-        works the same way. Neither is listed in search — Captivate asks crawlers not to index them,
-        because who sees a share link is your decision and not a search engine&rsquo;s. Speaker notes
-        and lecture notes are never included in anything you share.
+        One thing you can choose to make reachable: a <strong>share link</strong>, which lets anyone
+        holding the URL open that one deck until you revoke it. It is not listed in search —
+        Captivate asks crawlers not to index it, because who sees a share link is your decision and
+        not a search engine&rsquo;s. Speaker notes and lecture notes are never included in it.
+      </p>
+      <p>
+        A <strong>handout</strong> is not a share link. It is a printable version of your own deck
+        and it needs your account: anyone else opening that URL is sent to sign in. Sharing one
+        means sharing the file you print from it, which is then outside Captivate.
       </p>
 
       <h2>Deleting things</h2>

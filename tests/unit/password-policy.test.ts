@@ -51,6 +51,15 @@ describe("passwords that must be refused", () => {
     refuse("9876543210");
   });
 
+  it("refuses a run along a keyboard row, in either direction", () => {
+    // The runs a code-point comparison cannot see. `qwertyuiop` is the longest
+    // one on the board and exactly ten characters, so it clears the minimum
+    // while being the second thing anyone types after `password`.
+    refuse("qwertyuiop");
+    refuse("poiuytrewq");
+  });
+
+
   it("refuses a password that is really the email or the name on the same form", () => {
     // Both halves of the login sitting in one place is not two secrets.
     refuse("alexsmith99", { email: "alex.smith@example.com" });
@@ -79,6 +88,14 @@ describe("passwords that must be accepted", () => {
   it("accepts unrelated words, which is the advice being given", () => {
     accept("correct horse battery staple");
     accept("thimble-rafter-quench");
+  });
+
+  it("accepts a passphrase that merely contains a key run", () => {
+    // The check asks whether the password *is* a run, not whether one appears
+    // inside it — otherwise every passphrase with `as` or `op` in it is
+    // refused, which trains people towards worse ones.
+    accept("harpoon-viaduct-asdf");
+    accept("qwerty is not my whole password");
   });
 
   it("accepts an ordinary strong password", () => {

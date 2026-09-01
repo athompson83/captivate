@@ -678,8 +678,10 @@ body {
 
 /* Long-form prose for the privacy and terms pages. Scoped to a class rather
    than tag selectors so it cannot leak into the editor, where a bare `h2` rule
-   would restyle every panel heading in the product. */
-@layer components {
+   would restyle every panel heading in the product. In `base` with the rest of
+   the global stylesheet: these are element defaults for one region, and putting
+   them in `components` would rank them above base while adding nothing. */
+@layer base {
   .prose-legal {
     color: var(--sky-ink-2, var(--ink));
     font-size: 15px;

@@ -50,6 +50,15 @@ const DESCRIPTION =
  * `metadataBase` resolves every canonical and social URL against the origin
  * this deployment was configured with, so a Preview build cannot advertise
  * itself as the canonical copy.
+ *
+ * `alternates.canonical` is deliberately absent for the same reason `robots`
+ * is. Next merges metadata by field, so a canonical set here is inherited by
+ * every page that does not replace it — which was every indexable page except
+ * the legal two, telling a crawler that `/pricing` and `/sign-up` are
+ * duplicates of the landing page. A canonical is a per-route claim; it is set
+ * on each route that makes it. `openGraph.url` is omitted for the same reason,
+ * and the rest of the `openGraph` block is inherited on purpose because a site
+ * name and a card type really are site-wide.
  */
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
@@ -59,13 +68,11 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   applicationName: "Captivate",
-  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     siteName: "Captivate",
     title: "Captivate — presentations that move",
     description: DESCRIPTION,
-    url: "/",
   },
   twitter: {
     card: "summary_large_image",

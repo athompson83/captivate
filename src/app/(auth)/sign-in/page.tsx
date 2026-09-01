@@ -2,7 +2,10 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { SignInForm } from "@/components/auth/sign-in-form";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = {
+  title: "Sign in",
+  alternates: { canonical: "/sign-in" },
+};
 
 export default async function SignInPage({
   searchParams,

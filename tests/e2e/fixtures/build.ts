@@ -31,6 +31,11 @@ import { build, type Plugin } from "vite";
  * action, that is a genuine boundary violation and the build should fail loudly
  * rather than quietly bundle a file that reads secrets.
  */
+/** Windows separators to POSIX, so two paths from different sources compare. */
+function posix(value: string): string {
+  return value.replace(/\\/g, "/").replace(/\/$/, "");
+}
+
 function serverActionStubs(root: string): Plugin {
   const USE_SERVER = /^\s*(?:\/\*[\s\S]*?\*\/\s*)?["']use server["']/;
   const EXPORTED = /^export\s+async\s+function\s+([A-Za-z0-9_$]+)/gm;
@@ -41,8 +46,14 @@ function serverActionStubs(root: string): Plugin {
     // is nothing left for anything else to transform.
     enforce: "pre",
     transform(code, id) {
-      const file = id.split("?")[0];
-      if (!file.startsWith(root) || !/\.tsx?$/.test(file)) return null;
+      // Both sides normalised, and the root given its separator. Vite hands the
+      // transform hook a POSIX path while `resolve` uses the platform's, so on
+      // Windows the comparison silently never matched and every server action
+      // was bundled for real — failing in `server-only` with an error that
+      // names neither this plugin nor the reason. The trailing separator stops
+      // a sibling directory called `srcfoo` from matching too.
+      const file = posix(id.split("?")[0]);
+      if (!file.startsWith(`${posix(root)}/`) || !/\.tsx?$/.test(file)) return null;
       if (!USE_SERVER.test(code)) return null;
 
       const names = [...code.matchAll(EXPORTED)].map((match) => match[1]);

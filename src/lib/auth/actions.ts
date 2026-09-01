@@ -190,12 +190,34 @@ export async function updatePassword(
     return { ok: false, error: issue.message, field: String(issue.path[0]) };
   }
 
+  const supabase = await supabaseServer();
+
+  // The identity has to be read before the policy runs, not after. A recovery
+  // link signs the user in, so their email and name are available here — and
+  // without them `passwordProblem` skips both of its identity checks, which
+  // would let recovery accept `alexsmith99` for `alex.smith@example.com` while
+  // sign-up refuses it. Same policy means the same context.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, error: "That reset link has expired. Ask for a new one." };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .maybeSingle();
+
   // A recovery flow is exactly where someone reaches for the password they
   // already had trouble with, so it gets the same policy as sign-up.
-  const weak = passwordProblem(parsed.data.password);
+  const weak = passwordProblem(parsed.data.password, {
+    email: user.email ?? undefined,
+    displayName: profile?.display_name ?? undefined,
+  });
   if (weak) return { ok: false, error: weak, field: "password" };
 
-  const supabase = await supabaseServer();
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) return { ok: false, error: error.message };
 

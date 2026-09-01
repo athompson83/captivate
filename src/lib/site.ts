@@ -10,15 +10,30 @@
  * `NEXT_PUBLIC_SITE_URL` is already the deployment's own answer to that
  * question: `src/lib/auth/actions.ts` refuses to send a recovery link without
  * it rather than trusting a request header. The same reasoning applies here,
- * so this reads that variable and nothing else. Locally it falls back to the
- * dev server, where there is no crawler and nothing at stake.
+ * so that variable is read first.
+ *
+ * What it must never do is fall back to `localhost` on something that is
+ * actually deployed. `robots.txt`, the sitemap and every canonical tag are
+ * generated at build time, so a missing variable would not fail loudly — it
+ * would publish `http://localhost:3000` to a crawler and quietly uncanonicalise
+ * the whole site. Vercel always sets `VERCEL_PROJECT_PRODUCTION_URL` to the
+ * project's production domain, on previews as well, which is the right answer
+ * for both: a preview that names the production origin as canonical is exactly
+ * what we want, and is what the explicit variable would have said anyway.
+ *
+ * Localhost is therefore reachable only where there is no deployment at all.
  */
 
 const FALLBACK = "http://localhost:3000";
 
 export function siteOrigin(): string {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  return (explicit || FALLBACK).replace(/\/$/, "");
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercel) return `https://${vercel.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+
+  return FALLBACK;
 }
 
 export function siteUrl(): URL {

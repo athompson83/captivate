@@ -85,18 +85,37 @@ function isSingleCharacter(value: string): boolean {
   return new Set(value).size === 1;
 }
 
-/** A straight run up or down the alphabet or the number row. */
+/**
+ * The runs a finger makes without the mind joining in.
+ *
+ * The alphabet, the number row and the three letter rows, because "sequential"
+ * to someone at a login form means the keys next to each other rather than the
+ * code points behind them. Comparing character codes catches `abcdefghij` and
+ * lets `qwertyuiop` straight through — the longest and most-typed run on the
+ * board, exactly ten characters, so it clears a ten-character minimum without
+ * being a word, a repeat, or an entry on any short list.
+ *
+ * A password has to *be* a run, not merely contain one: flagging every string
+ * with `asd` inside it would refuse real passphrases for no gain, and this
+ * check earns its place by being certain rather than by casting wide.
+ */
+const TRACKS = [
+  "abcdefghijklmnopqrstuvwxyz",
+  "0123456789",
+  "qwertyuiop",
+  // Both of these are shorter than `PASSWORD_MIN`, so nothing matching them
+  // can reach this check — the length gate has already refused it. They are
+  // here so the table stays complete if that minimum ever moves, not because
+  // they fire today.
+  "asdfghjkl",
+  "zxcvbnm",
+];
+
 function isSequential(value: string): boolean {
   const lower = value.toLowerCase();
   if (lower.length < 4) return false;
-  let ascending = true;
-  let descending = true;
-  for (let i = 1; i < lower.length; i += 1) {
-    const step = lower.charCodeAt(i) - lower.charCodeAt(i - 1);
-    if (step !== 1) ascending = false;
-    if (step !== -1) descending = false;
-  }
-  return ascending || descending;
+  const backwards = [...lower].reverse().join("");
+  return TRACKS.some((track) => track.includes(lower) || track.includes(backwards));
 }
 
 /**

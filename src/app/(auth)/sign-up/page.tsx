@@ -2,7 +2,10 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { SignUpForm } from "@/components/auth/sign-up-form";
 
-export const metadata: Metadata = { title: "Create your account" };
+export const metadata: Metadata = {
+  title: "Create your account",
+  alternates: { canonical: "/sign-up" },
+};
 
 export default function SignUpPage() {
   return (

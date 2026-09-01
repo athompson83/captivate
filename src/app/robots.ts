@@ -16,7 +16,14 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: PRIVATE_PATH_PREFIXES.map((prefix) => `${prefix}/`),
+      // Two rules per prefix, because one cannot say what we mean. A rule is
+      // matched literally from the first octet, so `/new/` covers `/new/from-file`
+      // and not `/new` itself, while a bare `/new` would also swallow any future
+      // `/newsletter` — the same shape of over-broad rule this file exists to
+      // undo. `$` anchors the exact path on every major crawler; one that does
+      // not implement it simply ignores the rule and is left with the `/`
+      // form, which is where this stood before.
+      disallow: PRIVATE_PATH_PREFIXES.flatMap((prefix) => [`${prefix}$`, `${prefix}/`]),
     },
     sitemap: `${origin}/sitemap.xml`,
     host: origin,
