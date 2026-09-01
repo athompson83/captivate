@@ -193,6 +193,43 @@ describe("a read that loses the race just after sign-in", () => {
     stderr.mockRestore();
   });
 
+  /**
+   * A salvaged scene is not an empty one, and the card cannot tell them apart.
+   *
+   * `parseSceneContent` never throws — it returns what it could rescue plus a
+   * `recovered` flag, and that flag was being discarded here. A first scene
+   * that fails to parse therefore renders as the bare theme colour, which is
+   * exactly what a deck with a plain background looks like, and exactly what a
+   * deck whose previews never arrived looks like. Three different states, one
+   * appearance.
+   *
+   * Caught in review: the retry and the query-failure log both had tests, and
+   * this third path had none, so it could have been deleted without anything
+   * going red.
+   */
+  it("says so when a scene had to be salvaged", async () => {
+    outcomes = [
+      {
+        // A string rather than an object. The parser rescues an empty scene
+        // from it rather than throwing, which is the behaviour that makes the
+        // flag the only signal there is.
+        data: [{ presentation_id: "00000000-0000-4000-8000-000000000001", content: "{}" }],
+        error: null,
+      },
+    ];
+    const stderr = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { fetchFirstScenes } = await import("@/lib/data/presentations");
+    const previews = await fetchFirstScenes();
+
+    // Still served: a salvaged scene is better than no card at all.
+    expect(previews.size).toBe(1);
+    expect(stderr.mock.calls.flat().join(" ")).toMatch(
+      /dashboard\.previews\.recovered.*00000000-0000-4000-8000-000000000001/,
+    );
+    stderr.mockRestore();
+  });
+
   it("names the mistake when a closure hands back the same query twice", async () => {
     // The guard that stops this shipping again. Re-awaiting a settled builder
     // is indistinguishable from a real retry at the call site, so `readTwice`

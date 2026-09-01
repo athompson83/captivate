@@ -179,7 +179,11 @@ export async function fetchFirstScenes(limit = 120): Promise<Map<string, SceneCo
   // builder is a one-shot thenable, and a retry that re-awaits the same object
   // replays the first failure without making a request.
   const build = () =>
-    supabase.from("scenes").select("presentation_id, content").eq("position", 0).limit(limit);
+    supabase
+      .from("scenes")
+      .select("presentation_id, content")
+      .eq("position", 0)
+      .limit(limit);
 
   const { data, error } = await readTwice(build);
 
@@ -197,8 +201,7 @@ export async function fetchFirstScenes(limit = 120): Promise<Map<string, SceneCo
     // A scene that had to be salvaged is a different thing from one that is
     // genuinely empty, and the card cannot tell them apart — both paint the
     // bare theme colour.
-    if (recovered)
-      logFailureSampled("dashboard.previews.recovered", new Error(row.presentation_id));
+    if (recovered) logFailureSampled("dashboard.previews.recovered", new Error(row.presentation_id));
     map.set(row.presentation_id, content);
   }
   return map;
