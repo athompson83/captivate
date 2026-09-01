@@ -98,3 +98,30 @@ describe("what it may not", () => {
     expect(isPublicPath("/pricing-internal")).toBe(false);
   });
 });
+
+/**
+ * The crawler's first two requests.
+ *
+ * `robots.txt` and `sitemap.xml` are generated routes rather than files in
+ * `public/`, so the proxy matcher's static-asset exclusion does not reach them
+ * and the allowlist is the only thing standing between a crawler and a
+ * redirect to `/sign-in`. Both were behind the gate when the SEO metadata was
+ * first added, which made every `noindex` removal on the public pages
+ * pointless: the pages were indexable and the file telling anyone so was not
+ * readable. Caught by fetching them from a built server rather than reading
+ * the source.
+ */
+describe("the files a crawler asks for first", () => {
+  it("serves robots.txt and sitemap.xml without a session", () => {
+    expect(isPublicPath("/robots.txt")).toBe(true);
+    expect(isPublicPath("/sitemap.xml")).toBe(true);
+  });
+
+  it("does not open the rest of the root to anonymous requests", () => {
+    // The entries are exact, not a prefix: `/robots.txt` being public must not
+    // quietly make a future `/robots.txt.map` or `/sitemapper` public too.
+    expect(isPublicPath("/robots.txt.map")).toBe(false);
+    expect(isPublicPath("/sitemap.xml/../home")).toBe(false);
+    expect(isPublicPath("/home")).toBe(false);
+  });
+});

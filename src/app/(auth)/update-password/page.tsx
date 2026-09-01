@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { UpdatePasswordForm } from "@/components/auth/update-password-form";
 
-export const metadata: Metadata = { title: "Choose a new password" };
+// Only reachable holding a recovery token, so indexing it is meaningless at
+// best and an invitation to probe at worst.
+export const metadata: Metadata = {
+  title: "Choose a new password",
+  robots: { index: false, follow: false },
+};
 
 export default function UpdatePasswordPage() {
   return (

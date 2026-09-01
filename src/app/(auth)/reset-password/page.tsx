@@ -2,7 +2,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 
-export const metadata: Metadata = { title: "Reset your password" };
+// A step in a flow, not a page anyone should arrive on from a search.
+export const metadata: Metadata = {
+  title: "Reset your password",
+  robots: { index: false, follow: false },
+};
 
 export default function ResetPasswordPage() {
   return (

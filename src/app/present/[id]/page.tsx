@@ -16,7 +16,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const doc = await getPresentationDocument(id).catch(() => null);
-  return { title: doc ? doc.presentation.title : "Present" };
+  // The stage is driven by a presenter, not browsed.
+  return {
+    title: doc ? doc.presentation.title : "Present",
+    robots: { index: false, follow: false },
+  };
 }
 
 export default async function PresentPage({

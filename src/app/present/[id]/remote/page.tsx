@@ -8,7 +8,9 @@ import { SetupRequired } from "@/components/setup-required";
 import { PhoneRemote } from "@/components/present/phone-remote";
 
 export const dynamic = "force-dynamic";
+// The phone remote is handed to a presenter, never found in a search.
 export const metadata: Metadata = {
+  robots: { index: false, follow: false },
   title: "Remote",
   // A phone held in one hand, in a room, with the screen on for a whole talk.
   viewport: { width: "device-width", initialScale: 1, maximumScale: 1, userScalable: false },
