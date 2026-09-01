@@ -1,7 +1,7 @@
 import "server-only";
 
 import { supabaseServer } from "@/lib/supabase/server";
-import type { RateLimit } from "@/lib/billing/plans";
+import type { BudgetGroup, RateLimit } from "@/lib/billing/plans";
 
 /**
  * Rate limiting for model calls.
@@ -136,6 +136,12 @@ export interface Reservation {
 export type ReserveOutcome =
   { ok: true; reservation: Reservation } | { ok: false; error: string; retryAfterMinutes: number };
 
+/** What the database said when it refused. */
+const REFUSAL = {
+  "signed-out": "You're signed out. Sign in again to continue.",
+  misconfigured: "AI generation isn't configured on this deployment.",
+} as const;
+
 /**
  * Claims one model call before it is made.
  *
@@ -143,69 +149,75 @@ export type ReserveOutcome =
  * nothing was spent, because the ledger row that bounds the limit is written
  * by the same statement that counts, under a per-user lock.
  *
- * `kind` is what this call is recorded as; `countKinds` is the group it counts
+ * **This is the authority, and it is the whole authority.** The caller names
+ * what kind of work this is and which budget it draws on, and nothing else:
+ * not the ceiling, not the window, not the plan. Those were all arguments
+ * once, and PostgREST exposes this function to `authenticated` — so a browser
+ * could issue the same RPC with a ceiling of its own choosing and the plan
+ * gate above it was decoration. `0022_plan_budgets.sql` moved them inside,
+ * along with the hourly burst ceiling, which used to be a separate
+ * application read: a read anybody can decline to perform, and one that two
+ * simultaneous callers both pass. Both ceilings are now decided inside the
+ * lock this function already took. `supabase/tests/reservation_race.sh`
+ * races each of them.
+ *
+ * `kind` is what this call is recorded as; `group` is the budget it counts
  * against, which is usually wider (a rewrite and a moment draw on the same
- * light budget).
+ * light budget). The database checks that the two agree.
  */
 export async function reserve(
   kind: string,
-  countKinds: string[],
+  group: BudgetGroup,
   prompt: string,
   presentationId: string | null,
-  limits: readonly RateLimit[],
 ): Promise<ReserveOutcome> {
-  const [allowance, ...burst] = limits;
-  const refused = (error: string, windowMinutes = allowance.windowMinutes): ReserveOutcome => ({
-    ok: false,
-    error,
-    retryAfterMinutes: windowMinutes,
-  });
-
   try {
-    /*
-     * The burst ceilings, then the allowance.
-     *
-     * The allowance is the one that decides what somebody paid for, so it is
-     * enforced by the statement that writes the ledger row — counted and
-     * inserted under the same per-user lock, exactly. A burst ceiling is
-     * abuse protection rather than a billing promise, and the reservation
-     * function takes one window, so it is checked here instead: a burst of
-     * genuinely simultaneous requests could put a couple of calls over it
-     * before the first is recorded. That is the honest limit of this without
-     * a second window in the database, and it is the right trade — the number
-     * that must never be wrong is the one somebody bought.
-     */
-    for (const ceiling of burst) {
-      const used = await usedGenerations(countKinds, ceiling.windowMinutes);
-      if (used !== null && used >= ceiling.max) {
-        return refused(overLimitMessage(ceiling), ceiling.windowMinutes);
-      }
-    }
-
     const supabase = await supabaseServer();
     const { data, error } = await supabase.rpc("captivate_reserve_generation", {
       p_kind: kind,
-      p_count_kinds: countKinds,
+      p_group: group,
       p_prompt: prompt.slice(0, 4000),
       p_presentation_id: presentationId,
-      p_window_minutes: allowance.windowMinutes,
-      p_max: allowance.max,
     });
 
-    // Unlike the pre-filter, this one fails closed. The pre-filter can be
-    // wrong in the safe direction — it only decides whether to reject early —
-    // but if the reservation cannot be written there is nothing counting the
-    // call, and an uncounted call is exactly what the limit exists to stop.
-    if (error || !data) {
-      return refused(
-        error
-          ? "Couldn't reserve an AI call just now. Nothing was spent — try again."
-          : overLimitMessage(allowance),
-      );
+    const row = Array.isArray(data) ? data[0] : data;
+
+    // Unlike the pre-filter, this fails closed. The pre-filter can be wrong in
+    // the safe direction — it only decides whether to reject early — but if the
+    // reservation cannot be written there is nothing counting the call, and an
+    // uncounted call is exactly what the limit exists to stop.
+    if (error || !row) {
+      return {
+        ok: false,
+        error: "Couldn't reserve an AI call just now. Nothing was spent — try again.",
+        retryAfterMinutes: 0,
+      };
     }
-    return { ok: true, reservation: { id: data as unknown as string } };
+
+    if (!row.id) {
+      const refusal = row.refusal as keyof typeof REFUSAL | "burst" | "allowance" | null;
+      if (refusal === "burst" || refusal === "allowance") {
+        const limit = { windowMinutes: row.limit_minutes ?? 60, max: row.limit_max ?? 0 };
+        return {
+          ok: false,
+          error: overLimitMessage(limit),
+          retryAfterMinutes: limit.windowMinutes,
+        };
+      }
+      return {
+        ok: false,
+        error: (refusal && REFUSAL[refusal]) ?? "That AI call couldn't be reserved.",
+        retryAfterMinutes: 0,
+      };
+    }
+
+    return { ok: true, reservation: { id: row.id as string } };
   } catch {
-    return refused("Couldn't reserve an AI call just now. Nothing was spent — try again.");
+    return {
+      ok: false,
+      error: "Couldn't reserve an AI call just now. Nothing was spent — try again.",
+      retryAfterMinutes: 0,
+    };
   }
 }
 

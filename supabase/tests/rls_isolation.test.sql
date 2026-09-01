@@ -340,48 +340,55 @@ reset "realtime.topic";
 set role authenticated;
 set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 
--- Two reservations against a limit of two: both issued.
+-- The ceilings are no longer the caller's to name, so these race a real one:
+-- Alice has no subscription and no grant yet, which is the free plan — ten
+-- presentations in thirty days, three in an hour. Three land.
 select 'reserve_within_limit' as check,
-  (public.captivate_reserve_generation('probe', array['probe'], 'first', null, 60, 2)
-     is not null)::int as n;
+  (id is not null)::int as n
+  from public.captivate_reserve_generation('scenes', 'deck', 'first', null);
 select 'reserve_second_within_limit' as check,
-  (public.captivate_reserve_generation('probe', array['probe'], 'second', null, 60, 2)
-     is not null)::int as n;
+  (id is not null)::int as n
+  from public.captivate_reserve_generation('scenes', 'deck', 'second', null);
+select 'reserve_third_within_limit' as check,
+  (id is not null)::int as n
+  from public.captivate_reserve_generation('scenes', 'deck', 'third', null);
 
--- The third is refused, and refused *before* anything is spent — the point of
--- reserving rather than recording.
+-- The fourth is refused, refused *before* anything is spent — the point of
+-- reserving rather than recording — and it says which ceiling stopped it and
+-- over what window. Two ceilings mean "wait an hour" and "wait out the month"
+-- are different answers, and a refusal that names neither is unactionable.
 select 'reserve_beyond_limit_refused' as check,
-  (public.captivate_reserve_generation('probe', array['probe'], 'third', null, 60, 2)
-     is null)::int as n;
+  (id is null and refusal = 'burst' and limit_max = 3 and limit_minutes = 60)::int as n
+  from public.captivate_reserve_generation('scenes', 'deck', 'fourth', null);
 
 -- Naming someone else's deck attributes the row to no deck rather than to
 -- theirs: the function runs as definer, so RLS is not there to catch it.
-select public.captivate_reserve_generation(
-  'probe_other', array['probe_other'], 'foreign-deck',
-  'bbbbbbbb-0000-0000-0000-000000000001', 60, 5) \gset foreign_
+select id from public.captivate_reserve_generation(
+  'drawing', 'drawing', 'foreign-deck',
+  'bbbbbbbb-0000-0000-0000-000000000001') \gset foreign_
 select 'reserve_foreign_deck_unattributed' as check,
   (presentation_id is null)::int as n
-  from public.ai_generations where id = :'foreign_captivate_reserve_generation';
+  from public.ai_generations where id = :'foreign_id';
 
 -- …and naming its own owner's deck is attributed normally, so the check above
 -- is about ownership rather than the parameter being ignored.
-select public.captivate_reserve_generation(
-  'probe_other', array['probe_other'], 'own-deck',
-  'aaaaaaaa-0000-0000-0000-000000000001', 60, 5) \gset own_
+select id from public.captivate_reserve_generation(
+  'drawing', 'drawing', 'own-deck',
+  'aaaaaaaa-0000-0000-0000-000000000001') \gset own_
 select 'reserve_own_deck_attributed' as check,
   (presentation_id = 'aaaaaaaa-0000-0000-0000-000000000001')::int as n
-  from public.ai_generations where id = :'own_captivate_reserve_generation';
+  from public.ai_generations where id = :'own_id';
 
 -- Completing moves pending to terminal, once.
 select 'complete_own_pending' as check,
   (public.captivate_complete_generation(
      (select id from public.ai_generations
-       where kind = 'probe' and prompt = 'first'),
+       where kind = 'scenes' and prompt = 'first'),
      'succeeded', 'test-model', 10, 20, null))::int as n;
 select 'complete_is_not_replayable' as check,
   (not public.captivate_complete_generation(
      (select id from public.ai_generations
-       where kind = 'probe' and prompt = 'first'),
+       where kind = 'scenes' and prompt = 'first'),
      'succeeded', 'test-model', 10, 20, null))::int as n;
 
 -- And it cannot rewind a row to pending, which is how you would stop it
@@ -389,13 +396,13 @@ select 'complete_is_not_replayable' as check,
 select 'complete_cannot_reopen' as check,
   (not public.captivate_complete_generation(
      (select id from public.ai_generations
-       where kind = 'probe' and prompt = 'second'),
+       where kind = 'scenes' and prompt = 'second'),
      'pending', null, null, null, null))::int as n;
 
 -- A completed row still counts, so the limit holds after the work is done.
 select 'reserve_still_refused_after_completing' as check,
-  (public.captivate_reserve_generation('probe', array['probe'], 'fourth', null, 60, 2)
-     is null)::int as n;
+  (id is null and refusal = 'burst')::int as n
+  from public.captivate_reserve_generation('scenes', 'deck', 'fifth', null);
 
 -- ---- What a reservation is allowed to cost the caller --------------------------
 -- Two things were being charged to an allowance that were never delivered.
@@ -405,48 +412,48 @@ select 'reserve_still_refused_after_completing' as check,
 -- platform killed the function mid-generation and nothing ever settled the
 -- row. It stayed pending, and on the free plan — ten decks in thirty days —
 -- each such 504 took one of them away for the full thirty days.
-select public.captivate_reserve_generation('stale', array['stale'], 'abandoned', null, 60, 5)
+select id from public.captivate_reserve_generation('moment', 'light', 'abandoned', null)
   \gset stale_
 reset role;
 -- Aged from outside the caller's own privileges: a user must not be able to
 -- edit their ledger, which is why `complete` exists at all. This is the test
 -- harness standing in for thirty minutes passing.
 update public.ai_generations set created_at = now() - interval '30 minutes'
- where id = :'stale_captivate_reserve_generation';
+ where id = :'stale_id';
 set role authenticated;
 set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 
 select 'reserve_abandoned_pending_stops_counting' as check,
-  (public.captivate_count_generations(array['stale'], 60) = 0)::int as n;
+  (public.captivate_count_generations(array['moment'], 60) = 0)::int as n;
 
 -- …but one still in flight holds its place, or the lock would be pointless.
 -- Each of these reserves in its own statement: the counter is `stable`, so
 -- within one statement it reads the snapshot taken before the insert and would
 -- report zero however the rule was written.
-select public.captivate_reserve_generation('fresh', array['fresh'], 'running', null, 60, 5)
+select id from public.captivate_reserve_generation('rewrite', 'light', 'running', null)
   \gset fresh_
 select 'reserve_in_flight_pending_still_counts' as check,
-  (public.captivate_count_generations(array['fresh'], 60) = 1)::int as n;
+  (public.captivate_count_generations(array['rewrite'], 60) = 1)::int as n;
 
 -- A call that never reached the model spent nothing and made nothing, so it is
 -- not charged. Billing it is charging the author for our own downtime.
-select public.captivate_reserve_generation('dud', array['dud'], 'provider down', null, 60, 5)
+select id from public.captivate_reserve_generation('speaker_notes', 'light', 'provider down', null)
   \gset dud_
 select public.captivate_complete_generation(
-  :'dud_captivate_reserve_generation', 'failed', null, null, null,
+  :'dud_id', 'failed', null, null, null,
   'the model could not be reached') \gset dud_settled_
 select 'failed_without_spend_does_not_count' as check,
-  (public.captivate_count_generations(array['dud'], 60) = 0)::int as n;
+  (public.captivate_count_generations(array['speaker_notes'], 60) = 0)::int as n;
 
 -- A near-miss did reach it, twice, and is charged. The provider records the
 -- usage on the failure for exactly this reason.
-select public.captivate_reserve_generation('spent', array['spent'], 'truncated', null, 60, 5)
+select id from public.captivate_reserve_generation('visuals', 'light', 'truncated', null)
   \gset spent_
 select public.captivate_complete_generation(
-  :'spent_captivate_reserve_generation', 'failed', 'test-model', 9000, 9000,
+  :'spent_id', 'failed', 'test-model', 9000, 9000,
   'the answer was cut off') \gset spent_settled_
 select 'failed_with_spend_counts' as check,
-  (public.captivate_count_generations(array['spent'], 60) = 1)::int as n;
+  (public.captivate_count_generations(array['visuals'], 60) = 1)::int as n;
 
 -- ---- The ledger is not the caller's to rewrite --------------------------------
 -- `complete` runs with the caller's own JWT, so nothing on the wire tells the
@@ -460,21 +467,21 @@ select 'failed_with_spend_counts' as check,
 -- hold the same credential. What can be said instead is that the server writes
 -- the truth *last*: a settlement recording spend is final, and one recording
 -- none may still be corrected. The forgery is superseded rather than refused.
-select public.captivate_reserve_generation('forge', array['forge'], 'unlimited', null, 60, 5)
+select id from public.captivate_reserve_generation('flow', 'light', 'unlimited', null)
   \gset forge_
 select 'ledger_forged_refund_is_accepted' as check,
   (public.captivate_complete_generation(
-     :'forge_captivate_reserve_generation', 'failed', null, 0, 0, 'nothing to see'))::int as n;
+     :'forge_id', 'failed', null, 0, 0, 'nothing to see'))::int as n;
 select 'ledger_server_truth_supersedes_forgery' as check,
   (public.captivate_complete_generation(
-     :'forge_captivate_reserve_generation', 'succeeded', 'test-model', 900, 5000, null))::int as n;
+     :'forge_id', 'succeeded', 'test-model', 900, 5000, null))::int as n;
 select 'ledger_forged_refund_does_not_free_allowance' as check,
-  (public.captivate_count_generations(array['forge'], 60) = 1)::int as n;
+  (public.captivate_count_generations(array['flow'], 60) = 1)::int as n;
 
 -- …and once spend is recorded, it cannot be taken back off.
 select 'ledger_settled_spend_is_final' as check,
   (not public.captivate_complete_generation(
-     :'forge_captivate_reserve_generation', 'failed', null, 0, 0, 'refund me'))::int as n;
+     :'forge_id', 'failed', null, 0, 0, 'refund me'))::int as n;
 
 -- The state that is neither: a near-miss the provider never reported usage for
 -- records no spend and still counts, because only a *failed* call with no
@@ -482,17 +489,17 @@ select 'ledger_settled_spend_is_final' as check,
 -- rewritable and hand the forgery back — after the server had already written
 -- the truth. What may be rewritten is the non-counting state itself, nothing
 -- wider.
-select public.captivate_reserve_generation('nearmiss', array['nearmiss'], 'no usage', null, 60, 5)
+select id from public.captivate_reserve_generation('map', 'draft', 'no usage', null)
   \gset nearmiss_
 select 'ledger_nearmiss_without_usage_counts' as check,
   (public.captivate_complete_generation(
-     :'nearmiss_captivate_reserve_generation', 'invalid_output', 'test-model', null, null, 'unreadable')
-   and public.captivate_count_generations(array['nearmiss'], 60) = 1)::int as n;
+     :'nearmiss_id', 'invalid_output', 'test-model', null, null, 'unreadable')
+   and public.captivate_count_generations(array['map'], 60) = 1)::int as n;
 select 'ledger_counting_row_is_final_even_with_no_tokens' as check,
   (not public.captivate_complete_generation(
-     :'nearmiss_captivate_reserve_generation', 'failed', null, 0, 0, 'refund me'))::int as n;
+     :'nearmiss_id', 'failed', null, 0, 0, 'refund me'))::int as n;
 select 'ledger_nearmiss_still_counts_after_forgery' as check,
-  (public.captivate_count_generations(array['nearmiss'], 60) = 1)::int as n;
+  (public.captivate_count_generations(array['map'], 60) = 1)::int as n;
 reset role;
 
 -- None of the spend functions is reachable signed out. Each returns false or
@@ -521,13 +528,13 @@ set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
 select 'bob_completes_alice_reservation' as check,
   (public.captivate_complete_generation(
      (select id from public.ai_generations
-       where kind = 'probe' and prompt = 'second'),
+       where kind = 'scenes' and prompt = 'second'),
      'succeeded', 'stolen', 1, 1, null))::int as n;
 reset role;
 
 select 'alice_reservation_still_pending' as check,
   (select (status = 'pending')::int from public.ai_generations
-    where kind = 'probe' and prompt = 'second') as n;
+    where kind = 'scenes' and prompt = 'second') as n;
 
 -- ---- Image generation budget --------------------------------------------------
 -- Text generation is bounded per user; images are bounded per user *and*
@@ -947,3 +954,143 @@ reset role;
 select 'grant_not_self_writable' as check,
   (count(*) = 1)::int as n from public.plan_grants
   where user_id = '11111111-1111-1111-1111-111111111111' and note = 'Owner account.';
+
+-- ---- What plan the database thinks you are on ---------------------------------
+-- `captivate_current_plan` is now the whole resolution: the reservation reads
+-- it inside its own lock, and the settings page reads it through the
+-- application. It used to live in TypeScript and be handed to the reservation
+-- as a ceiling, which meant the rule was only applied to callers who chose to
+-- go through the application at all.
+--
+-- An account with nothing at all is the floor.
+insert into auth.users (id, email)
+values ('33333333-3333-3333-3333-333333333333', 'nobody@example.com')
+on conflict (id) do nothing;
+set role authenticated;
+set "request.jwt.claim.sub" = '33333333-3333-3333-3333-333333333333';
+select 'plan_default_is_free' as check,
+  (public.captivate_current_plan() = 'free')::int as n;
+reset role;
+
+-- Bob's subscription is active and predates the stored tier, so it has none.
+-- That resolves to Basic — the *lowest* paid tier — rather than to free (which
+-- would cut off somebody who is paying) or to Pro (which would hand them the
+-- top tier on a missing column).
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select 'plan_active_without_stored_tier_is_basic' as check,
+  (public.captivate_current_plan() = 'basic')::int as n;
+reset role;
+
+-- Alice holds an unlimited grant from the block above. A grant outranks a
+-- subscription rather than merging with it: somebody with both gets the better
+-- of the two, and the people a grant exists for must not depend on a
+-- subscription they were never meant to have.
+insert into public.subscriptions
+  (user_id, stripe_subscription_id, status, price_id, plan, billing_interval, updated_from_event_at)
+values ('11111111-1111-1111-1111-111111111111', 'sub_alice', 'active',
+        'price_basic', 'basic', 'month', now())
+on conflict (user_id) do update set status = 'active', plan = 'basic';
+
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'plan_grant_outranks_subscription' as check,
+  (public.captivate_current_plan() = 'unlimited')::int as n;
+reset role;
+
+-- With the grant expired, the subscription decides — and it decides on the
+-- stored tier, not on the price it was resolved from. That is what stops a
+-- rotated price silently moving a paying customer to the lowest paid plan.
+update public.plan_grants set expires_at = now() - interval '1 day'
+ where user_id = '11111111-1111-1111-1111-111111111111';
+
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'plan_expired_grant_falls_through' as check,
+  (public.captivate_current_plan() = 'basic')::int as n;
+reset role;
+
+update public.subscriptions set plan = 'pro'
+ where user_id = '11111111-1111-1111-1111-111111111111';
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'plan_reads_the_stored_tier' as check,
+  (public.captivate_current_plan() = 'pro')::int as n;
+reset role;
+
+-- A row written before the tier was stored. Basic, the *lowest* paid tier:
+-- guessing upward hands somebody Pro for Basic's money.
+update public.subscriptions set plan = null
+ where user_id = '11111111-1111-1111-1111-111111111111';
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'plan_unknown_tier_guesses_downward' as check,
+  (public.captivate_current_plan() = 'basic')::int as n;
+reset role;
+
+-- `past_due` is graced until the period genuinely ends: dunning is still
+-- retrying the card, and cutting someone off mid-cycle over a temporary
+-- decline is hostile. When dunning gives up Stripe moves the subscription to
+-- `canceled`, which lands on free.
+update public.subscriptions
+   set status = 'past_due', plan = 'pro', current_period_end = now() + interval '3 days'
+ where user_id = '11111111-1111-1111-1111-111111111111';
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'plan_past_due_is_graced' as check,
+  (public.captivate_current_plan() = 'pro')::int as n;
+reset role;
+
+update public.subscriptions set current_period_end = now() - interval '1 day'
+ where user_id = '11111111-1111-1111-1111-111111111111';
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'plan_past_due_expires' as check,
+  (public.captivate_current_plan() = 'free')::int as n;
+reset role;
+
+update public.subscriptions set status = 'canceled', current_period_end = now() + interval '30 days'
+ where user_id = '11111111-1111-1111-1111-111111111111';
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'plan_cancelled_is_free' as check,
+  (public.captivate_current_plan() = 'free')::int as n;
+reset role;
+
+-- The ceilings are the deployment's, not any user's. A select policy here
+-- would hand every user the numbers the table exists to stop them choosing —
+-- the same reason `ai_image_limits` has none.
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select 'plan_budgets_opaque_to_users' as check,
+  (count(*) = 0)::int as n from public.plan_budgets;
+
+-- And a user cannot raise their own. This is the hole the whole migration
+-- exists to close: the ceiling used to be an argument to the reservation, and
+-- PostgREST exposes that function to `authenticated`.
+do $$
+begin
+  begin
+    update public.plan_budgets set allowance_max = 999999 where plan = 'free';
+  exception when insufficient_privilege then
+    null;
+  end;
+end $$;
+reset role;
+
+select 'plan_budgets_not_user_writable' as check,
+  (allowance_max = 10)::int as n from public.plan_budgets
+  where plan = 'free' and budget_group = 'deck';
+
+-- A caller cannot record expensive work against a cheap budget. Without the
+-- kind/group check the reservation would let a deck generation count as a
+-- `light` action and spend the largest allowance the plan has.
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select 'reserve_rejects_kind_outside_group' as check,
+  (refusal = 'misconfigured')::int as n
+  from public.captivate_reserve_generation('scenes', 'light', 'p', null);
+select 'reserve_rejects_unknown_group' as check,
+  (refusal = 'misconfigured')::int as n
+  from public.captivate_reserve_generation('scenes', 'nonsense', 'p', null);
+reset role;

@@ -2,7 +2,7 @@ import "server-only";
 
 import { supabaseServer } from "@/lib/supabase/server";
 import { usedGenerations } from "@/lib/ai/rate-limit";
-import { isBillingConfigured, planForPriceId } from "./stripe";
+import type { PaidPlan } from "./plans";
 import {
   BUDGET_KINDS,
   ceilingsFor,
@@ -14,65 +14,38 @@ import {
   type RateLimit,
 } from "./plans";
 
+const PLANS = new Set<Plan>(["free", "basic", "pro", "unlimited"]);
+
 /**
  * Which plan the signed-in caller is on.
  *
- * One cheap read of the mirror table the webhook maintains. Deliberately not a
- * call to Stripe: an entitlement check sits in front of every AI generation,
- * and a network hop there would put Stripe's uptime in front of Captivate's.
+ * Asked of the database, because the database is what enforces it. The
+ * resolution used to live here — grant first, then the subscription mirror,
+ * then a fallback — and `captivate_reserve_generation` was handed the answer
+ * as a ceiling to apply. That made this function the gate, and it was reachable
+ * only if the caller chose to go through the application: the same RPC issued
+ * from a browser could name any ceiling it liked. The resolution now lives in
+ * `captivate_current_plan`, and this reads it so that what settings shows and
+ * what the reservation enforces are the same sentence rather than two
+ * implementations of one rule that agreed until they didn't.
  *
- * When no Stripe key is configured everybody is Pro. A deployment that cannot
- * charge must not throttle — the same principle as the AI tools degrading
- * rather than disappearing when no model is configured. It also means merging
- * billing changes nothing about a running deployment until keys are added
- * deliberately.
+ * Fails closed. A read error is free, because failing open is how a bug
+ * becomes free Pro for everybody.
+ *
+ * A deployment with no Stripe keys has no subscriptions and so is on Free.
+ * That used to be special-cased to Pro here — a deployment that cannot charge
+ * must not throttle — but the database cannot see an environment variable, and
+ * a rule the enforcement layer does not know is not a rule. `plan_grants`
+ * exists for exactly this and is honoured by both: a self-hosted deployment
+ * grants itself `unlimited` in one row, visibly, rather than relying on a
+ * fallback nobody can see. See `docs/DEPLOYMENT.md`.
  */
 export async function currentPlan(): Promise<Plan> {
-  if (!isBillingConfigured()) return "pro";
-
   try {
     const supabase = await supabaseServer();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return "free";
-
-    // A grant first. It is checked before Stripe because a granted plan is
-    // never worse than a bought one, and because the people it exists for —
-    // the owner, a support case, a pilot — must not depend on a subscription
-    // they were never meant to have.
-    const { data: grant } = await supabase
-      .from("plan_grants")
-      .select("plan, expires_at")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    const granted = planFromGrant(
-      grant
-        ? { plan: grant.plan, expiresAtMs: grant.expires_at ? Date.parse(grant.expires_at) : null }
-        : null,
-      Date.now(),
-    );
-    if (granted) return granted;
-
-    const { data, error } = await supabase
-      .from("subscriptions")
-      .select("status, price_id, current_period_end")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    // Fails closed. Failing open on a read error is how a bug becomes free Pro
-    // for everyone.
-    if (error || !data) return "free";
-
-    return planFromSubscription(
-      {
-        status: data.status,
-        currentPeriodEndMs: data.current_period_end ? Date.parse(data.current_period_end) : null,
-        plan: planForPriceId(data.price_id),
-      },
-      Date.now(),
-    );
+    const { data, error } = await supabase.rpc("captivate_current_plan");
+    if (error || typeof data !== "string" || !PLANS.has(data as Plan)) return "free";
+    return data as Plan;
   } catch {
     return "free";
   }
@@ -153,17 +126,22 @@ export async function subscriptionSummary(): Promise<SubscriptionSummary | null>
 
     const { data, error } = await supabase
       .from("subscriptions")
-      .select("status, price_id, billing_interval, current_period_end, cancel_at_period_end")
+      .select("status, plan, billing_interval, current_period_end, cancel_at_period_end")
       .eq("user_id", user.id)
       .maybeSingle();
     if (error || !data) return null;
 
     return {
+      // The stored tier, not one re-derived from the price. A Stripe price is
+      // immutable, so raising Pro's price means a new price and a rotated
+      // variable — and from that moment re-deriving would resolve the old
+      // price to nothing and quietly move its holder to the lowest paid tier.
+      // The webhook resolved it once, when it wrote the row.
       plan: planFromSubscription(
         {
           status: data.status,
           currentPeriodEndMs: data.current_period_end ? Date.parse(data.current_period_end) : null,
-          plan: planForPriceId(data.price_id),
+          plan: (data.plan as PaidPlan | null) ?? null,
         },
         Date.now(),
       ),

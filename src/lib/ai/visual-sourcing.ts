@@ -166,7 +166,8 @@ export async function generateImage(
   if (!allowsImageGeneration(await currentPlan())) {
     return {
       ok: false,
-      error: "AI image generation is part of Captivate Pro. Search and upload still work.",
+      error:
+        "AI image generation comes with Captivate Basic and Pro. Search and upload still work.",
     };
   }
 

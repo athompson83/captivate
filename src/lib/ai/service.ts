@@ -1,9 +1,8 @@
 import "server-only";
 
 import { complete, reserve } from "./rate-limit";
-import { ceilingsForCaller } from "@/lib/billing/entitlement";
 import { logFailure } from "@/lib/observability";
-import { BUDGET_KINDS, type BudgetGroup } from "@/lib/billing/plans";
+import { type BudgetGroup } from "@/lib/billing/plans";
 import { referenceBlock, type Reference } from "@/lib/ingest/reference";
 import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
 import {
@@ -78,16 +77,13 @@ async function spend<T>(
   group: BudgetGroup,
   run: () => Promise<StructuredResult<T>>,
 ): Promise<StructuredResult<T>> {
-  const ticket = await reserve(
-    kind,
-    // The group says what this draws on. Passing the kinds separately let a
-    // caller count one pool and charge another, which is how drafting an
-    // argument came to spend a deck.
-    BUDGET_KINDS[group],
-    prompt,
-    presentationId,
-    await ceilingsForCaller(group),
-  );
+  // The group says what this draws on, and it is all the caller gets to say.
+  // Passing the kinds separately let a caller count one pool and charge
+  // another, which is how drafting an argument came to spend a deck; passing
+  // the ceilings let it name its own limit, which made the plan gate above
+  // this decoration. The database resolves the plan, reads its budgets and
+  // checks both ceilings under one lock.
+  const ticket = await reserve(kind, group, prompt, presentationId);
   if (!ticket.ok) {
     // A refusal is usually the limit doing its job, and occasionally the
     // ledger being unreachable. The two read identically to the author and

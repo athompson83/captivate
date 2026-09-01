@@ -75,6 +75,14 @@ if echo "$out" | grep -E "grant_" | grep -qvE "\\|\\s+1\\s*$"; then
   echo "PLAN GRANT TESTS FAILED"; exit 1
 fi
 
+# Which plan the database thinks a caller is on, and the ceilings that follow
+# from it. Every `plan_*` and `reserve_rejects_*` probe states a property that
+# must hold; `plan_budgets_opaque_to_users` asserts a count of zero and states
+# it as `= 0`, so it reads 1 like the rest.
+if echo "$out" | grep -E "plan_|reserve_rejects_" | grep -qvE "\|\s+1\s*$"; then
+  echo "PLAN RESOLUTION TESTS FAILED"; exit 1
+fi
+
 # Every share-link assertion must hold (1 = the stated property was observed).
 if echo "$out" | grep -E "shared_link_" | grep -qvE "\|\s+1\s*$"; then
   echo "SHARE LINK TESTS FAILED"; exit 1

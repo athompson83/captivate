@@ -195,6 +195,15 @@ export type SubscriptionRow = {
   stripe_subscription_id: string;
   status: string;
   price_id: string;
+  /**
+   * The tier this subscription grants, resolved from `price_id` at the moment
+   * the webhook wrote the row. Stored rather than re-derived: a Stripe price is
+   * immutable, so a price change means a new price and a rotated variable, and
+   * re-deriving would then resolve the old price to nothing and silently move
+   * its holder to the lowest paid tier. Null only for rows written before
+   * `0022_plan_budgets.sql`.
+   */
+  plan: "basic" | "pro" | null;
   billing_interval: "month" | "year";
   current_period_end: string | null;
   cancel_at_period_end: boolean;
@@ -272,13 +281,20 @@ export type Database = {
       captivate_reserve_generation: {
         Args: {
           p_kind: string;
-          p_count_kinds: string[];
+          p_group: string;
           p_prompt: string;
           p_presentation_id: string | null;
-          p_window_minutes: number;
-          p_max: number;
         };
-        Returns: string | null;
+        Returns: {
+          id: string | null;
+          refusal: string | null;
+          limit_max: number | null;
+          limit_minutes: number | null;
+        }[];
+      };
+      captivate_current_plan: {
+        Args: Record<string, never>;
+        Returns: string;
       };
       captivate_complete_generation: {
         Args: {

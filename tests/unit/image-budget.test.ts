@@ -14,10 +14,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const OK_IMAGE = { data: [{ b64_json: "aGVsbG8=" }] };
 
-function mockDb(reserve: { id: string | null; refusal: string | null; daily_max?: number | null }) {
+function mockDb(
+  reserve: { id: string | null; refusal: string | null; daily_max?: number | null },
+  plan = "pro",
+) {
+  // Answering by name, because the plan gate in front of image generation asks
+  // the same client which plan the caller is on. A mock that returned the
+  // reservation row to every question made every caller free, and free is the
+  // one plan that cannot generate images at all — so every budget assertion
+  // below was really testing the plan gate.
   const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
-    void name;
     void args;
+    if (name === "captivate_current_plan") return { data: plan, error: null };
     return { data: [reserve], error: null };
   });
   vi.doMock("@/lib/supabase/server", () => ({
@@ -132,9 +140,15 @@ describe("generateImage", () => {
   });
 
   it("fails closed when the reservation itself errors", async () => {
+    // The plan still resolves — this is about the *reservation* failing, not
+    // about being refused the feature.
     vi.doMock("@/lib/supabase/server", () => ({
       supabaseServer: vi.fn(async () => ({
-        rpc: vi.fn(async () => ({ data: null, error: { message: "down" } })),
+        rpc: vi.fn(async (name: string) =>
+          name === "captivate_current_plan"
+            ? { data: "pro", error: null }
+            : { data: null, error: { message: "down" } },
+        ),
       })),
     }));
     const fetchSpy = vi.fn();

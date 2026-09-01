@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { isBillingConfigured, stripe } from "@/lib/billing/stripe";
+import { isBillingConfigured, planForPriceId, stripe } from "@/lib/billing/stripe";
 import { shouldApply, subscriptionPatchFrom } from "@/lib/billing/webhook-events";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { logFailure, logFailureSampled } from "@/lib/observability";
@@ -153,6 +153,12 @@ async function applyPatch(
       stripe_subscription_id: patch.stripeSubscriptionId,
       status: patch.status,
       price_id: patch.priceId,
+      // Resolved once, here, and kept. Everything downstream reads the stored
+      // answer, so a price this deployment later stops naming — a rotation, a
+      // withdrawn annual plan — cannot change what somebody already bought.
+      // Null when the price is not recognised at all, which entitlement reads
+      // as the *lowest* paid tier rather than the highest.
+      plan: planForPriceId(patch.priceId),
       billing_interval: patch.billingInterval,
       current_period_end: patch.currentPeriodEnd,
       cancel_at_period_end: patch.cancelAtPeriodEnd,
