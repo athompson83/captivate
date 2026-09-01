@@ -281,13 +281,27 @@ async function grantTopUp(
   session: Stripe.Checkout.Session,
   eventId: string,
 ): Promise<boolean> {
-  let quantity = 1;
+  // Failing here is now better than guessing, and it did not used to be.
+  //
+  // The quantity decides how much was bought, and the row it writes is keyed on
+  // the Checkout Session id — which is unique, so it is written once and never
+  // corrected: a retry collides, reads success, and stops. Falling back to one
+  // on a transient Stripe error therefore does not grant "less for now", it
+  // grants less *permanently*, to somebody who paid for three.
+  //
+  // The old comment here said granting the base quantity beat granting nothing,
+  // and under the old claim handling it did — a failed grant was never retried.
+  // Since `0025` an unfinished claim is re-processed, so returning false leaves
+  // the event to come back and read the line items again. Same lesson as the
+  // claim release: the safe fallback under one idempotency model is the unsafe
+  // one under the next.
+  let quantity: number;
   try {
     const items = await stripe().checkout.sessions.listLineItems(session.id, { limit: 1 });
     quantity = items.data[0]?.quantity ?? 1;
-  } catch {
-    // Keep the fallback rather than failing: the payment succeeded, and
-    // granting the base quantity beats granting nothing.
+  } catch (error) {
+    logFailure("stripe.webhook.line-items", error);
+    return false;
   }
 
   const paymentIntent =

@@ -238,6 +238,39 @@ describe("the webhook endpoint", () => {
     );
   });
 
+  it("retries rather than permanently under-crediting a multi-quantity purchase", async () => {
+    // The quantity says how much was bought, and the row is keyed on the
+    // Checkout Session id — unique, so written once and never corrected. A
+    // fallback of one on a transient Stripe error does not grant "less for
+    // now"; it grants less forever, to somebody who paid for three.
+    const paid = {
+      id: "evt_qty",
+      type: "checkout.session.completed",
+      created: 1_790_000_000,
+      data: {
+        object: {
+          id: "cs_qty",
+          mode: "payment",
+          payment_status: "paid",
+          client_reference_id: "user-1",
+        },
+      },
+    };
+    listLineItems.mockRejectedValue(new Error("stripe unreachable"));
+
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    const response = await POST(signed(paid));
+
+    // 500 so Stripe comes back and reads the line items again.
+    expect(response.status).toBe(500);
+    // And nothing was granted at a guessed quantity in the meantime.
+    expect(insert.mock.calls.some(([row]) => "presentations_granted" in (row as object))).toBe(
+      false,
+    );
+    // The claim is left unfinished, which is what lets the retry through.
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it("leaves the claim unfinished when the handler throws, so a retry redoes it", async () => {
     // The claim is what makes a redelivery safe, and it is what makes a failed
     // attempt unsafe: without releasing it, Stripe's retry is short-circuited
