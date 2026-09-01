@@ -158,16 +158,30 @@ The RLS harness caught two things review would not have: Supabase's default
 privileges re-granted `anon` EXECUTE on the recreated function, and an existing
 probe asserting `count(*) = 0` was passing only because Bob owned no rows.
 
+Review found ten findings on the PRs in this session and every one of them was
+real; three were about claims rather than code, which is the failure this
+session kept repeating. The last of them is worth recording because it changed
+the fix rather than the prose: the ceilings were read *before* the budget lock
+was taken, so a queue of callers each held the numbers from before an operator
+lowered them and was then admitted one at a time against a budget that no
+longer existed — the lock guarding the measurement while leaving the decision
+unguarded. `supabase/tests/ceiling_race.sh` holds eight callers inside the
+function while the budget is lowered to zero and asserts all eight are refused;
+against the previous ordering it reports `tickets_issued=8`. The documented
+operator update in `docs/DEPLOYMENT.md` now takes the same lock, so the
+boundary holds from the writer's side too.
+
 ### Verification
 
-- `npm run verify` green with no warnings: **1021 unit/component tests across 74
+- `npm run verify` green with no warnings: **1023 unit/component tests across 74
   files**.
 - Playwright: 37 smoke, 41 lifecycle, 5 shader.
 - `migrations:check` against a database with every migration applied: all 36
   required objects present, including `public.ai_image_limits` and the new
   two-argument signature.
-- `npm run test:rls` green including the reservation race and all 13 `image_*`
-  probes.
+- `npm run test:rls` green including both concurrency harnesses — the
+  reservation race and the new ceiling race — and all 13 `image_*` probes. Both
+  were re-run against the defect they describe and both fail there.
 - Production re-verified independently: the supersession rule is present in the
   deployed function, `captivate_settle_image_generation` is the five-argument
   form, no spend function is anon-reachable, no owner-scoped table is missing

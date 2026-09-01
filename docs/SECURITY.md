@@ -355,21 +355,37 @@ statement, and inserts the ledger row that both are measured from. The lock is
 global rather than per-user — two different people spending the last of a shared
 budget simultaneously is exactly the race a per-user lock would miss.
 
-All three numbers — the price of one image, the monthly ceiling, the daily
-count — are read from `public.ai_image_limits` inside that statement, and none
-of them is a parameter. The table has RLS on and no policies at all, on the
-same grounds as `stripe_events`: the ceilings belong to the deployment, so
-even reading them is not a signed-in user's business. This is the whole point
-of the design rather than a detail of it. While the estimate was an argument,
-the reservation ran under the caller's own JWT like every other RPC, so one
-request could name a `cost_usd` of 500, land it in a sum that is deliberately
-shared by everybody, and refuse every other user with "out of budget" for the
-rest of the calendar month — without calling a model or spending anything
-real. A refusal
-says which ceiling was reached, because "the deployment is out of budget" and
-"you have used your day's allowance" are different situations and only one of
-them is the reader's own doing; both say that search and upload still work, so
-a budget problem does not read as "images are broken".
+All three numbers — the price of one image, the monthly ceiling, and the _cap_
+on how many images one author may generate in a day — are read from
+`public.ai_image_limits` inside that statement, and none of them is a
+parameter. The count that cap is compared against is derived from
+`public.ai_generations` at reservation time; the table holds no counters. It
+has RLS on and no policies at all, on the same grounds as `stripe_events`: the
+ceilings belong to the deployment, so even reading them is not a signed-in
+user's business. This is the whole point of the design rather than a detail of
+it. While the estimate was an argument, the reservation ran under the caller's
+own JWT like every other RPC, so one request could name a `cost_usd` of 500,
+land it in a sum that is deliberately shared by everybody, and refuse every
+other user with "out of budget" for the rest of the calendar month — without
+calling a model or spending anything real.
+
+They are read _after_ the lock is taken, not before, and the difference is a
+real one rather than tidiness. Read them first and a queue of callers each
+holds the numbers from before an operator lowered them, then enters the
+critical section one at a time and is admitted against a budget that no longer
+exists — the lock guarding the measurement while leaving the decision
+unguarded. Lowering a budget has to bind the requests already in flight,
+because that is the moment a spending safeguard is for.
+[DEPLOYMENT.md](DEPLOYMENT.md) takes the same lock around the documented
+update, so the boundary holds from the writer's side too, and
+`supabase/tests/ceiling_race.sh` holds eight callers inside the function while
+the budget is lowered to zero: all eight must be refused. It fails against the
+other ordering.
+
+A refusal says which ceiling was reached, because "the deployment is out of
+budget" and "you have used your day's allowance" are different situations and
+only one of them is the reader's own doing; both say that search and upload
+still work, so a budget problem does not read as "images are broken".
 
 A failed provider call is still charged at the estimate. Charging zero would
 make an outage look like free capacity, and retries would burn the month.
