@@ -42,6 +42,10 @@ const PUBLIC_ROUTES = [
   "/sign-up",
   "/reset-password",
   "/update-password",
+  // Long-form prose with its own type scale, which is exactly where heading
+  // order and link contrast go wrong without anyone noticing.
+  "/privacy",
+  "/terms",
 ] as const;
 
 const VIEWPORTS = [

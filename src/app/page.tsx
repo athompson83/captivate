@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import {
   Camera,
@@ -15,6 +16,18 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { Hero } from "@/components/marketing/hero";
 import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
 import { FREE_ALLOWANCE_COPY, PRO_PRICING } from "@/lib/billing/plans";
+
+/**
+ * The one page whose canonical really is the origin.
+ *
+ * Stated here rather than in the root layout, where it was inherited by every
+ * page that did not replace it and told a crawler that `/pricing` was a copy
+ * of this one. `openGraph.url` travels with it for the same reason.
+ */
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: { url: "/" },
+};
 
 /**
  * The front door.

@@ -19,12 +19,16 @@ export async function generateMetadata({
 }: {
   params: Promise<{ token: string }>;
 }): Promise<Metadata> {
-  if (!isSupabaseConfigured) return { title: "Shared presentation" };
+  // Never indexed. A share link is the author's decision about who sees the
+  // deck; putting one in a search result revokes that decision on their
+  // behalf, and they would have no way of knowing it had happened.
+  if (!isSupabaseConfigured) return { title: "Shared presentation", robots: { index: false, follow: false } };
   const { token } = await params;
   const deck = await getSharedDeck(token).catch(() => null);
   return {
     title: deck ? deck.title : "Shared presentation",
     description: deck?.description || undefined,
+    robots: { index: false, follow: false },
   };
 }
 

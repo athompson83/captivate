@@ -6,6 +6,7 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
 export const metadata: Metadata = {
   title: "Pricing",
   description: "Captivate is free to use. Pro raises the AI limits and adds generated imagery.",
+  alternates: { canonical: "/pricing" },
 };
 
 /**

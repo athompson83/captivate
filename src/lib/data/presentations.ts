@@ -157,49 +157,71 @@ export interface ListOptions {
 export async function listPresentations(opts: ListOptions = {}): Promise<PresentationSummary[]> {
   const supabase = await supabaseServer();
 
-  let query = supabase
-    .from("presentations")
-    .select("*, folders(name), scenes(count)")
-    // The count a reader cares about is how long the talk is, and an aside is
-    // not a beat of it — it is reached by clicking a hotspot and may never be
-    // opened at all. Filtering the embedded rows rather than the parents, so a
-    // deck that is *only* asides still lists, showing none.
-    .eq("scenes.flow_role", "main")
-    .is("deleted_at", null);
+  /*
+   * Built inside a factory, not once outside it.
+   *
+   * `readTwice` retries by calling this again, and that only issues a second
+   * request if a second *builder* is made. A PostgREST builder is a one-shot
+   * thenable: re-awaiting one that has already resolved hands back the same
+   * cached result without touching the network. Constructing the query outside
+   * the closure and only calling `.limit()` inside it looked like a fresh
+   * request and was not, so the retry silently replayed the first failure.
+   *
+   * That is not theoretical. Signing in on production produced four concurrent
+   * reads, of which exactly one — this one — came back 401 while the other
+   * three succeeded twenty milliseconds either side of it. The edge log shows
+   * no second request for it: the retry ran, re-awaited the dead builder, and
+   * got the same 401 back. Because this is the only read on the home page that
+   * throws on error, the whole page died and the author was told their work
+   * could not be read.
+   */
+  const build = () => {
+    let query = supabase
+      .from("presentations")
+      .select("*, folders(name), scenes(count)")
+      // The count a reader cares about is how long the talk is, and an aside is
+      // not a beat of it — it is reached by clicking a hotspot and may never be
+      // opened at all. Filtering the embedded rows rather than the parents, so a
+      // deck that is *only* asides still lists, showing none.
+      .eq("scenes.flow_role", "main")
+      .is("deleted_at", null);
 
-  if (opts.search?.trim()) {
-    // Escape PostgREST's `or` filter separators so a comma or paren in the
-    // search box cannot alter the filter expression.
-    const term = opts.search
-      .trim()
-      .replace(/[,()\\]/g, " ")
-      .slice(0, 120);
-    if (term.trim()) {
-      query = query.or(`title.ilike.%${term}%,description.ilike.%${term}%`);
+    if (opts.search?.trim()) {
+      // Escape PostgREST's `or` filter separators so a comma or paren in the
+      // search box cannot alter the filter expression.
+      const term = opts.search
+        .trim()
+        .replace(/[,()\\]/g, " ")
+        .slice(0, 120);
+      if (term.trim()) {
+        query = query.or(`title.ilike.%${term}%,description.ilike.%${term}%`);
+      }
     }
-  }
-  if (opts.folderId !== undefined) {
-    query =
-      opts.folderId === null ? query.is("folder_id", null) : query.eq("folder_id", opts.folderId);
-  }
-  if (opts.favoritesOnly) query = query.eq("is_favorite", true);
-  if (opts.tag) query = query.contains("tags", [opts.tag]);
+    if (opts.folderId !== undefined) {
+      query =
+        opts.folderId === null ? query.is("folder_id", null) : query.eq("folder_id", opts.folderId);
+    }
+    if (opts.favoritesOnly) query = query.eq("is_favorite", true);
+    if (opts.tag) query = query.contains("tags", [opts.tag]);
 
-  switch (opts.sort ?? "recent") {
-    case "opened":
-      query = query.order("last_opened_at", { ascending: false, nullsFirst: false });
-      break;
-    case "title":
-      query = query.order("title", { ascending: true });
-      break;
-    case "created":
-      query = query.order("created_at", { ascending: false });
-      break;
-    default:
-      query = query.order("updated_at", { ascending: false });
-  }
+    switch (opts.sort ?? "recent") {
+      case "opened":
+        query = query.order("last_opened_at", { ascending: false, nullsFirst: false });
+        break;
+      case "title":
+        query = query.order("title", { ascending: true });
+        break;
+      case "created":
+        query = query.order("created_at", { ascending: false });
+        break;
+      default:
+        query = query.order("updated_at", { ascending: false });
+    }
 
-  const { data, error } = await readTwice(() => query.limit(opts.limit ?? 60));
+    return query.limit(opts.limit ?? 60);
+  };
+
+  const { data, error } = await readTwice(build);
   if (error) throw new Error(`Could not load presentations: ${error.message}`);
 
   type Joined = PresentationRow & {
@@ -232,11 +254,43 @@ export async function listPresentations(opts: ListOptions = {}): Promise<Present
 async function readTwice<T extends { error: { message: string } | null }>(
   run: () => PromiseLike<T>,
 ): Promise<T> {
-  const first = await run();
+  const firstAttempt = run();
+  const first = await firstAttempt;
   if (!first.error) return first;
+
   await new Promise((resolve) => setTimeout(resolve, 300));
-  return run();
+  const secondAttempt = run();
+
+  /*
+   * The closure has to build a new query, not reach for one built outside it.
+   *
+   * A PostgREST builder is a one-shot thenable: awaiting a settled one returns
+   * its cached result without a request. A caller who closes over a builder
+   * instead of constructing one therefore gets a retry that replays the first
+   * failure, silently — which is exactly what shipped, and what turned a single
+   * 401 in the seconds after sign-in into a dead home page.
+   *
+   * The comment above was already there and did not prevent it, so this checks
+   * instead. Identical references mean no second request was made, and saying
+   * so is strictly more useful than surfacing the first error twice: the read
+   * had already failed, and this at least names why the retry could not help.
+   */
+  if (secondAttempt === firstAttempt) {
+    throw new Error(
+      "readTwice was given a closure that returns the same query object twice, so the retry " +
+        "made no request. Build the query inside the closure.",
+    );
+  }
+
+  return secondAttempt;
 }
+
+/**
+ * Exposed for the one test that cannot reach this through a public function:
+ * that a closure returning the same object twice is rejected rather than
+ * silently treated as a retry.
+ */
+export const __readTwiceForTests = readTwice;
 
 /** Loads a full deck. Returns null when the id does not exist *or* is not ours. */
 export async function getPresentationDocument(
@@ -248,9 +302,15 @@ export async function getPresentationDocument(
     readTwice(() =>
       supabase.from("presentations").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
     ),
-    readTwice(() => supabase.from("sections").select("*").eq("presentation_id", id).order("position")),
-    readTwice(() => supabase.from("scenes").select("*").eq("presentation_id", id).order("position")),
-    readTwice(() => supabase.from("moments").select("*").eq("presentation_id", id).order("position")),
+    readTwice(() =>
+      supabase.from("sections").select("*").eq("presentation_id", id).order("position"),
+    ),
+    readTwice(() =>
+      supabase.from("scenes").select("*").eq("presentation_id", id).order("position"),
+    ),
+    readTwice(() =>
+      supabase.from("moments").select("*").eq("presentation_id", id).order("position"),
+    ),
   ]);
 
   if (presentationRes.error || !presentationRes.data) return null;
@@ -296,7 +356,11 @@ export async function getPresentationMeta(id: string): Promise<PresentationRecor
 export async function listFolders() {
   const supabase = await supabaseServer();
   const { data, error } = await readTwice(() =>
-    supabase.from("folders").select("*, presentations(count)").order("position").order("created_at"),
+    supabase
+      .from("folders")
+      .select("*, presentations(count)")
+      .order("position")
+      .order("created_at"),
   );
   if (error) throw new Error(error.message);
 

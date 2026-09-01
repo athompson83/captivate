@@ -675,3 +675,57 @@ body {
     }
   }
 }
+
+/* Long-form prose for the privacy and terms pages. Scoped to a class rather
+   than tag selectors so it cannot leak into the editor, where a bare `h2` rule
+   would restyle every panel heading in the product. In `base` with the rest of
+   the global stylesheet: these are element defaults for one region, and putting
+   them in `components` would rank them above base while adding nothing. */
+@layer base {
+  .prose-legal {
+    color: var(--sky-ink-2, var(--ink));
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .prose-legal h1 {
+    font-family: var(--font-display);
+    font-size: clamp(30px, 4vw, 40px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--sky-ink, var(--ink));
+    margin-bottom: 0.5rem;
+  }
+  .prose-legal h2 {
+    font-family: var(--font-display);
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--sky-ink, var(--ink));
+    margin-top: 2.25rem;
+    margin-bottom: 0.6rem;
+  }
+  .prose-legal p,
+  .prose-legal ul {
+    margin-bottom: 1rem;
+  }
+  .prose-legal .lead {
+    font-size: 16.5px;
+    color: var(--sky-ink-2, var(--ink));
+    margin-bottom: 2rem;
+  }
+  .prose-legal ul {
+    list-style: disc;
+    padding-left: 1.25rem;
+  }
+  .prose-legal li {
+    margin-bottom: 0.5rem;
+  }
+  .prose-legal strong {
+    color: var(--sky-ink, var(--ink));
+    font-weight: 600;
+  }
+  .prose-legal a {
+    color: var(--sky-amber, var(--accent-text));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}

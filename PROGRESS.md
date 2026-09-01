@@ -5,10 +5,10 @@
 - Product: Captivate
 - Lifecycle stage: Beta / production-readiness
 - Control-graph node: HOSTED_RUNTIME_VERIFICATION (live app in owner-driven test loop)
-- Current milestone: Close the AI spend ledger against the caller who is
-  billed by it
-- Branch: `claude/premium-ui-presentation-akzjzs` → PR #35, merged
-- `main`: PRs #22–#35 merged and deployed via Vercel auto-deploy
+- Current milestone: Production readiness — discoverability, the signed-in
+  coverage gap, password policy, and a trust surface
+- Branch: `claude/premium-ui-presentation-akzjzs` → PR #38, open
+- `main`: PRs #22–#37 merged and deployed via Vercel auto-deploy
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -22,69 +22,90 @@
 
 ## Latest Session
 
-### Shipped to `main` and to production — PR #35, "Stop a caller settling their own AI spend in their own favour"
+### Production-readiness pass — PR #38
 
-The two functions that record what an AI call cost run with the _author's own_
-JWT, because that is the client a route handler already holds. Nothing on the
-wire tells them apart from the same RPC issued straight from a browser, and
-`ai_generations` is selectable by its owner, so a pending reservation's id is
-one query away. That made two accounting refinements into ways of spending
-nothing:
+Four launch blockers. Three turned out to be the same shape: something built,
+deployed and correct that the only client who mattered could not reach.
 
-- `0018` stopped charging for a call that never reached the model, keyed on
-  `failed` with no output tokens. An author could settle their own in-flight
-  reservation into exactly that state, keep the answer the server was already
-  generating, and repeat. Ten decks a month became unbounded.
-- An image settlement could write any `cost_usd`. Zero released the shared
-  monthly budget; a large one exhausted it for everybody. The application only
-  ever echoed back the estimate it had already reserved.
+**The front door could not be found.** `src/app/layout.tsx` carried
+`robots: { index: false, follow: false }` for every route, so the landing page,
+pricing and sign-up were invisible to search. Indexing is now per route: the
+signed-in application, every link-addressed page and both recovery flows opt out
+explicitly. `/v/<token>` matters most — a share link is the author's decision
+about who sees a deck, and indexing one revokes it silently.
 
-Each link was confirmed against the production schema before anything changed:
-the `authenticated` EXECUTE grants, the owner-select policy, and the counting
-predicate.
+Adding `robots.ts` and `sitemap.ts` exposed the second half: both are generated
+routes, so the proxy matcher's static-asset exclusion does not reach them, and
+both were answering an anonymous request with a 307 to `/sign-in`. Confirmed
+live on production before the fix. `public-paths.ts` already carried a comment
+about this exact failure from when the share link was behind the gate; it had
+happened again.
 
-`0020` answers it with ordering rather than identity. No check inside those
-functions can separate the server from the author — they hold the same
-credential — but the server settles _after_ the model replies. So a row is
-rewritable exactly while it is not counting against anybody, and final in every
-state that counts: the only settlement a later call can overwrite is the one
-claiming nothing was owed. Image settlement no longer carries a price at all.
+**The signed-in app is now under test.** Two earlier attempts died in the
+bundler and the cause was never diagnosed, because the error only appears when
+the bundle is run alone: rolldown cannot resolve `server-only`, reached through
+a `"use server"` module that vite follows and Next replaces. `build.ts` now
+stubs those modules the way Next does, reading export names from the real
+source. `server-only` is deliberately not aliased away, so a genuine boundary
+violation still fails the build. The editor runs with its real store, autosave,
+shortcuts and canvas; removing `dirtySections` from `updateSectionLocal` — the
+regression that shipped for a release — fails the tests.
 
-The first attempt at that rule was keyed on "recorded no spend", which was too
-wide: an `invalid_output` with no usage records no spend and still counts, so
-that row stayed rewritable after the server had written the truth and the
-refund could be forged a second time. Caught by re-reading the predicate
-adversarially, and closed before merge.
+**Signing in produced "This page didn't load."** Reported from production while
+this pass was open, and root-caused from the edge log rather than guessed at:
+`/home` runs four reads concurrently, exactly one came back 401, and there was
+no second request for it anywhere. `readTwice` had been retrying the whole time
+without making a request — the builder was constructed outside the closure, and
+a PostgREST builder is a one-shot thenable, so re-awaiting the settled one
+replayed the cached 401. The function's own comment said it took a closure
+"because re-awaiting the same object is not a fresh request", and its call site
+did exactly that. The query now builds inside the closure, and `readTwice`
+compares references and refuses rather than pretending it tried. The test that
+was supposed to cover this passed against the defect, because its fake asserted
+the opposite semantics in a comment and then behaved that way; it now counts
+builders rather than awaits.
 
-Also revoked the `anon` EXECUTE grant Supabase adds by default to the five
-spend functions and to the phone remote's channel gate. `revoke ... from
-public` never took that grant back, which is why `remote_gate_closed_to_anon`
-had been asserting a property production did not have. The test stub now models
-Supabase's default privileges, so the harness and the deployment agree.
+**Password policy** was eight characters and nothing else. Now refuses the
+common list, its substitution-folded form, repeated characters, key runs, and a
+password that is really the email or display name on the same form. Enforced
+server-side in both sign-up and recovery.
+
+**A trust surface.** Privacy and terms pages, written from the code — every
+processor named is one the application really contacts. Where the product has no
+answer, they say so: account deletion is not self-service.
+
+**What review then found**, all of it real against the code and all fixed: the
+privacy page claimed Captivate "never sees" a password (the server actions
+receive it to check the policy; they do not store it) and described a handout as
+a revocable share link (it requires the owner's account and has no token); the
+root layout's canonical was inherited by every indexable page, telling a crawler
+`/pricing` duplicates the landing page; `robots.txt` disallowed `/settings/` but
+not `/settings`; a missing `NEXT_PUBLIC_SITE_URL` would have published
+`localhost` URLs into build-time robots and sitemap files; recovery called the
+password policy without identity context, so both identity checks silently did
+nothing; and `qwertyuiop` cleared the ten-character minimum because a code-point
+comparison cannot see a keyboard row. CI then caught the last of it — the smoke
+test still demanded the form promise the old eight-character minimum.
 
 ### Verification
 
-- `npm run verify` green: 962 unit/component tests across 70 files, typecheck,
-  lint and build clean.
-- `npm run test:rls` green against a real Postgres, including thirteen new
-  `ledger_*` probes. Four of them were watched failing against `0019` first:
-  the forgery accepted, the server's truthful write rejected, the allowance
-  freed, and — for the tightened rule — the second forgery succeeding.
-- `migrations:check` green. It caught the real defect in this change: the
-  image-settle signature changed and `supabase/schema_required.sql` still named
-  the old one, which the file itself says is as breaking as an absence.
-- Production verified after applying `0020`: the supersession rule is present
-  in the deployed function body, the settle function is the five-argument form,
-  and `anon` holds EXECUTE on none of the six — while the share-link functions
-  still have it. Supabase's security advisor went from nine anon-callable
-  `SECURITY DEFINER` functions to three, all of them share-link.
-- Accessibility: `axe-core` at WCAG 2.1 A/AA reports zero violations on `/`,
-  `/pricing`, `/sign-in`, `/sign-up`, `/reset-password` and `/update-password`
-  at 1512×950 and 390×844, and on the shared-deck viewer. The harness was
-  proved to catch real faults first, by injecting an unlabelled image and a
-  nameless button. Theme contrast is _not_ covered by that run — axe cannot
-  resolve gradient backgrounds and returns "incomplete", so the measured theme
-  guard remains the only evidence there.
+- `npm run verify` green with no warnings: 1009 unit/component tests across 73
+  files.
+- Playwright: 37 smoke, 35 lifecycle, 5 shader.
+- `npm run test:rls` green including the reservation race.
+- Production re-verified independently: the supersession rule is present in the
+  deployed function, `captivate_settle_image_generation` is the five-argument
+  form, no spend function is anon-reachable, no owner-scoped table is missing
+  RLS, and nothing in `schema_required.sql` is absent. No migration drift.
+- `robots.txt`, `sitemap.xml`, per-route `noindex`, all six canonicals and the
+  legal pages confirmed in rendered output from a built server rather than from
+  source — including a build made with `NEXT_PUBLIC_SITE_URL` cleared and only
+  Vercel's production URL set, to prove that fallback survives static
+  prerendering.
+- Every new assertion was run against its own defect before being trusted: the
+  retry test fails three of five cases, the recovery test two of three,
+  `qwertyuiop` is accepted, and the robots, canonical and origin tests each
+  fail.
 
 ## Blockers
 
@@ -99,23 +120,40 @@ Supabase's default privileges, so the harness and the deployment agree.
    delivery while everything else looks correct.
 3. Delete the two disposable `webhook-probe@example.com` Stripe customers left
    by the end-to-end proof (tagged `delete_me`).
+4. **Enable leaked-password protection** — Supabase dashboard, Auth → Policies.
+   It checks new passwords against HaveIBeenPwned and costs nothing. There is no
+   MCP tool and no management token in the agent environment, so it cannot be
+   set from here. The application-level policy in `src/lib/auth/password.ts`
+   narrows the gap but does not replace a breach corpus.
+5. **Set `NEXT_PUBLIC_SUPPORT_EMAIL`** in Vercel. Until it is set, the privacy
+   and terms pages say to contact whoever runs the deployment rather than print
+   an address nobody reads.
+6. **Review the privacy and terms wording.** The facts in both are derived from
+   the code and are accurate; the wording has had no legal review.
 
 `PEXELS_API_KEY` and `OPENAI_API_KEY` are configured, so cover photographs and
 the photo dress pass are live.
 
 ## Recommended Next Steps
 
-1. Decide on leaked-password protection. Supabase's advisor reports it
-   disabled; enabling it checks new passwords against HaveIBeenPwned and costs
-   nothing. It is an Auth setting, not a migration, so it needs the dashboard.
-2. Decide whether the site should stay unlisted. `src/app/layout.tsx` sets
-   `robots: { index: false, follow: false }` for every route, so the front door
-   built in PR #33 is invisible to search.
-3. The signed-in app — dashboard, editor, presenter console — has still never
-   been audited from a browser, because no session in this environment has
-   credentials for it. An attempt to mount the editor in the fixture harness
-   failed in the bundler on the `"use server"` modules. Either test credentials
-   or a shim for those modules would unblock it.
-4. `docs/ROADMAP.md` holds what has been asked for and not built: audience
+1. **Account deletion.** Not self-service, and the privacy page says so. Doing
+   it properly means cascading through presentations, scenes, assets,
+   recordings, storage objects and the Stripe subscription; doing it badly
+   leaves orphaned files and a live subscription, which is why it was recorded
+   rather than rushed into a release pass.
+2. **A hosted authenticated journey.** Signed-in _components_ are covered now;
+   a signed-in _session_ against Preview is not. Sign-up requires email
+   confirmation, so a synthetic user cannot be created with the anon key alone —
+   it needs a dedicated test identity or a service-role key scoped to a test
+   project.
+3. **`codex/economical-ci-20260831`** carries five unmerged commits that select
+   CI checks by changed-file risk. Worth a decision: it trades hosted-CI cost
+   against coverage, and that is a judgement about how much protection to keep,
+   not a defect to fix.
+4. **Stale branches.** Nineteen are fully merged with no unique commits and are
+   safe to delete, but this environment's git proxy refuses a delete refspec
+   (HTTP 403), so they remain. Enabling "automatically delete head branches" on
+   the repository would stop them accumulating.
+5. `docs/ROADMAP.md` holds what has been asked for and not built: audience
    feedback (polls, trivia, Q&A), integrations with confidence monitors and
    Descript, keeping a reference file as stored evidence, and PDF reading.

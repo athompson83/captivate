@@ -55,6 +55,12 @@ export function SiteFooter() {
           <Link href="/pricing" className="transition-colors hover:text-[var(--sky-ink)]">
             Pricing
           </Link>
+          <Link href="/privacy" className="transition-colors hover:text-[var(--sky-ink)]">
+            Privacy
+          </Link>
+          <Link href="/terms" className="transition-colors hover:text-[var(--sky-ink)]">
+            Terms
+          </Link>
           <Link href="/sign-in" className="transition-colors hover:text-[var(--sky-ink)]">
             Sign in
           </Link>
