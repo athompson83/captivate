@@ -248,8 +248,21 @@ function useFitInViewport(
       if (shift)
         panel.style.setProperty(edge, `${Math.round(edge === "right" ? -shift : shift)}px`);
 
-      const room = window.innerHeight - box.top - GUTTER;
-      if (box.height > room) panel.style.setProperty("max-height", `${Math.max(120, room)}px`);
+      // Measured from the side the panel is anchored to, not always downwards.
+      // A `top-*` panel grows *up* from its trigger, so when it overflows the
+      // top its `box.top` is negative and `innerHeight - box.top` reports more
+      // room than the window has — the panel would keep its full height and
+      // its upper controls would stay off-screen. The insert bar's two menus
+      // and the user menu are all top-anchored.
+      const room = anchor.startsWith("top")
+        ? box.bottom - GUTTER
+        : window.innerHeight - box.top - GUTTER;
+      // Never a cap larger than the space there is. Flooring this at 120px
+      // pushed the bottom of a panel back off a very short window, which is
+      // the defect one line up wearing different clothes.
+      if (room > 0 && box.height > room) {
+        panel.style.setProperty("max-height", `${Math.round(room)}px`);
+      }
     };
 
     measure();

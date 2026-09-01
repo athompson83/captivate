@@ -64,6 +64,25 @@ const PALETTE = {
   cyan: "#7fe3d4",
 } as const;
 
+/**
+ * The palette is hex here, and `globals.css` is the OKLCH the rest of the app
+ * uses. That is not an oversight and not a second opinion about the brand: a
+ * `<canvas>` gradient stop and a `THREE.Color` are given colour strings by
+ * JavaScript, with no cascade to read a custom property from, and `THREE.Color`
+ * cannot parse `oklch()` at all. These values are the same lights as
+ * `--sky-amber` and `--sky-violet`, converted once.
+ *
+ * What that does risk is drift, so nothing in this file writes a colour of its
+ * own: every translucent stop is a tint of a palette entry, which is what the
+ * media scene and the glow were not — they still carried the gold and lavender
+ * from before the mark existed, three functions away from the palette that had
+ * moved on without them.
+ */
+function tint(hex: string, alpha: number): string {
+  const value = Number.parseInt(hex.slice(1), 16);
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+}
+
 /** Pixels of texture per world unit. Enough to stay crisp when flown into. */
 const TEXELS_PER_UNIT = 128;
 
@@ -153,9 +172,9 @@ function paintScene(kind: HeroSceneKind, width: number, height: number): HTMLCan
     bar(h * 0.72, 0.34, PALETTE.barBright, 0.034);
   } else if (kind === "media") {
     const image = ctx.createLinearGradient(pad, pad, w - pad, h * 0.72);
-    image.addColorStop(0, "rgba(255, 170, 92, 0.55)");
-    image.addColorStop(0.55, "rgba(169, 139, 255, 0.42)");
-    image.addColorStop(1, "rgba(127, 227, 212, 0.32)");
+    image.addColorStop(0, tint(PALETTE.amber, 0.55));
+    image.addColorStop(0.55, tint(PALETTE.violet, 0.42));
+    image.addColorStop(1, tint(PALETTE.cyan, 0.32));
     ctx.fillStyle = image;
     roundedRect(ctx, pad, pad, w - pad * 2, h * 0.66, w * 0.02);
     ctx.fill();
@@ -177,8 +196,8 @@ function paintGlow(): HTMLCanvasElement {
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
   const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  gradient.addColorStop(0, "rgba(255, 186, 120, 0.42)");
-  gradient.addColorStop(0.35, "rgba(169, 139, 255, 0.16)");
+  gradient.addColorStop(0, tint(PALETTE.amber, 0.42));
+  gradient.addColorStop(0.35, tint(PALETTE.violet, 0.16));
   gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 256, 256);

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   FRAME_MARGIN,
@@ -149,5 +151,43 @@ describe("the loop's shape", () => {
   it("spends more time travelling than waiting, so it is never static", () => {
     expect(TRAVEL_MS).toBeGreaterThan(HOLD_MS);
     expect(LOOP_MS).toBe(HERO_FLIGHT.length * (HOLD_MS + TRAVEL_MS));
+  });
+});
+
+/**
+ * The front door's palette, stated once.
+ *
+ * `hero-canvas.tsx` paints on a `<canvas>` and feeds `THREE.Color`, neither of
+ * which can read a CSS custom property — so the brand's colours exist there as
+ * hex as well as in `globals.css`. That is a real drift risk and it happened:
+ * the media scene and the glow kept the gold and lavender from before the mark
+ * existed, three functions away from the `PALETTE` that had moved on without
+ * them. Nothing in that file writes a colour of its own any more.
+ */
+describe("the hero canvas palette", () => {
+  const source = readFileSync(
+    join(__dirname, "..", "..", "src/components/marketing/hero-canvas.tsx"),
+    "utf8",
+  );
+
+  it("keeps every colour in the palette or a tint of one", () => {
+    // Everything after the palette literal: the painters. A colour written
+    // there is one the palette does not know about.
+    const painters = source.slice(source.indexOf("} as const;"));
+    const written = [
+      ...painters.matchAll(/rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*[\d.]+\s*\)/g),
+    ].map((match) => match[0]);
+
+    // Black and white are not brand colours; a transparent stop and a specular
+    // highlight are geometry.
+    const branded = written.filter(
+      (colour) => !/rgba\(\s*(0,\s*0,\s*0|255,\s*255,\s*255)\s*,/.test(colour),
+    );
+    expect(branded, "a colour painted outside the palette").toEqual([]);
+  });
+
+  it("has no raw hex outside the palette", () => {
+    const painters = source.slice(source.indexOf("} as const;"));
+    expect([...painters.matchAll(/#[0-9a-fA-F]{6}\b/g)].map((match) => match[0])).toEqual([]);
   });
 });

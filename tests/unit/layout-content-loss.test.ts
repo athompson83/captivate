@@ -186,6 +186,61 @@ describe("the fold puts words in the slots a layout has", () => {
     expect(JSON.stringify(composed.elements)).not.toContain("Differentiation");
   });
 
+  it("does not print the same prose as a heading and again as itself", () => {
+    // Promoting eagerly was the flaw: `bullets` has a body slot, so prose
+    // handed to it was already going to be drawn — copying it into the heading
+    // as well printed it twice. The composition only reaches for a heading it
+    // was not given once the layout has drawn nothing at all.
+    const composed = composeScene("bullets", {
+      body: "A worksheet waits silently when a student gets stuck.",
+    });
+
+    const text = JSON.stringify(composed.elements);
+    expect(text.split("A worksheet waits silently").length - 1).toBe(1);
+  });
+
+  it("keeps a title out of a layout that had something to draw", () => {
+    const composed = composeScene("bullets", {
+      title: "Differentiation",
+      bullets: ["Below grade level", "At grade level"],
+    });
+
+    expect(JSON.stringify(composed.elements)).not.toContain("Differentiation");
+  });
+
+  it("draws all three cards from a three-up given only bullets", () => {
+    // The cards conversion used to run after the heading promotion, which had
+    // already eaten the first bullet and cleared the rest — so a bullet-only
+    // three-up rendered one line where it should have drawn three cards.
+    const composed = composeScene("three-up", {
+      bullets: ["Draft it", "Differentiate it", "Mark it"],
+    });
+
+    const callouts = composed.elements.filter((element) => element.type === "callout");
+    expect(callouts).toHaveLength(3);
+    const text = JSON.stringify(callouts);
+    expect(text).toContain("Draft it");
+    expect(text).toContain("Differentiate it");
+    expect(text).toContain("Mark it");
+  });
+
+  it("keeps a chart handed to a layout that cannot draw one", () => {
+    // `hasWords` counts words, and a chart has none — so the last resort was
+    // skipped and a chart-only scene composed to nothing on any other layout.
+    const composed = composeScene("statement", {
+      chart: {
+        chart: "column",
+        data: [
+          { label: "Prep", value: 40 },
+          { label: "Teaching", value: 60 },
+        ],
+      },
+    });
+
+    expect(composed.layout).toBe("chart");
+    expect(composed.elements.some((element) => element.type === "chart")).toBe(true);
+  });
+
   it("still composes nothing when there was nothing to compose", () => {
     // An author who has genuinely written nothing must still see the empty
     // state, not a scene invented on their behalf.

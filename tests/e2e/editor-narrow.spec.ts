@@ -423,3 +423,64 @@ test.describe("the editor on a narrow screen", () => {
     expect(await offscreen(page)).toEqual([]);
   });
 });
+
+/**
+ * The clamp itself, against each edge in turn.
+ *
+ * Every top-anchored menu in the editor caps itself at `46vh`, so a panel tall
+ * enough to run off the top of the window cannot be produced from the product
+ * — which is exactly why the arithmetic was wrong and nothing caught it. Room
+ * measured downwards from a panel that grows *upwards* reports more space the
+ * further off-screen it goes. This mounts the real `Popover` with a panel that
+ * is genuinely taller than its window.
+ */
+test.describe("a popover against a window edge", () => {
+  const POPOVER = "tests/e2e/fixtures/popover-mount.tsx";
+  let popover: Promise<string> | null = null;
+  const popoverUrl = () => (popover ??= bundleFixture(POPOVER));
+
+  async function mount(page: Page, variant: string, width: number, height: number) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${await popoverUrl()}?variant=${variant}`);
+    await page.waitForSelector("body[data-ready=true]", { state: "attached" });
+    await expect(page.getByRole("button", { name: "Row 0" })).toBeVisible();
+  }
+
+  /** The panel, which is the scrolling box — not the content inside it. */
+  async function panel(page: Page) {
+    return page.locator("[data-panel-body]").evaluate((el) => {
+      const box = el.parentElement!.getBoundingClientRect();
+      return {
+        top: Math.round(box.top),
+        bottom: Math.round(box.bottom),
+        left: Math.round(box.left),
+        right: Math.round(box.right),
+        scrollable: el.parentElement!.scrollHeight > el.parentElement!.clientHeight + 1,
+      };
+    });
+  }
+
+  test("is capped by the room above it when it opens upwards", async ({ page }) => {
+    await mount(page, "top", 900, 360);
+    const box = await panel(page);
+
+    expect(box.top, "the panel ran off the top of a 360px window").toBeGreaterThanOrEqual(0);
+    expect(box.scrollable, "clipped without a way to scroll to the rest").toBe(true);
+  });
+
+  test("is capped by the room below it when it opens downwards", async ({ page }) => {
+    await mount(page, "bottom", 900, 360);
+    const box = await panel(page);
+
+    expect(box.bottom).toBeLessThanOrEqual(360);
+    expect(box.scrollable).toBe(true);
+  });
+
+  test("is pushed back inside the edge it is anchored to", async ({ page }) => {
+    await mount(page, "end", 900, 800);
+    const box = await panel(page);
+
+    expect(box.left, "an end-anchored panel hung off the left edge").toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(900);
+  });
+});
