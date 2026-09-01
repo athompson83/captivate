@@ -6,6 +6,18 @@ import { z } from "zod";
  * element content — it just resolves the same tokens differently.
  */
 
+/**
+ * Every ground a stage can be given, named once.
+ *
+ * A list rather than an inline enum because the switch in `stageBackgroundCss`
+ * has to cover it and nothing makes that true — its default arm returns the
+ * canvas colour, which is correct for `flat` and silent for a style added here
+ * and forgotten there. The theme suite walks this list and asserts each one
+ * paints something of its own.
+ */
+export const BACKGROUND_STYLES = ["flat", "gradient", "vignette", "bloom", "mesh"] as const;
+export type BackgroundStyle = (typeof BACKGROUND_STYLES)[number];
+
 export const ThemeFonts = z.object({
   display: z.string().max(120),
   sans: z.string().max(120),
@@ -48,8 +60,16 @@ export const PresentationTheme = z.object({
   tokens: ThemeTokens,
   fonts: ThemeFonts,
   scale: ThemeScale,
-  /** Default background applied to new scenes. */
-  backgroundStyle: z.enum(["flat", "gradient", "vignette"]).default("flat"),
+  /**
+   * Default background applied to new scenes, and the world's own ground.
+   *
+   * `flat`, `gradient` and `vignette` are one colour, two stops and a centre
+   * light. `bloom` and `mesh` are the two that have depth: several offset
+   * washes composed from the theme's own tokens, so a stage has somewhere to
+   * be rather than a colour behind it. See `stageBackgroundCss`.
+   */
+  backgroundStyle: z.enum(BACKGROUND_STYLES).default("flat"),
+  /** The far end of a two-stop gradient, and the second light in the others. */
   gradientTo: z.string().optional(),
 });
 export type PresentationTheme = z.infer<typeof PresentationTheme>;
@@ -57,16 +77,25 @@ export type PresentationTheme = z.infer<typeof PresentationTheme>;
 const scale = { h1: 5.4, h2: 3.4, h3: 2.2, body: 1.6, caption: 1.1 };
 
 /**
- * Twelve themes, each with a genuinely different point of view. Still curated
+ * Sixteen themes, each with a genuinely different point of view. Still curated
  * rather than exhaustive — an educator should be able to pick one in five
  * seconds, so the bar for a new one is that it does a job none of the others
- * does, not that it is another nice palette. Six dark and six light, because
- * the room decides that and the author does not always get to choose the room.
+ * does, not that it is another nice palette. Eight dark and eight light,
+ * because the room decides that and the author does not always get to choose
+ * the room.
  *
- * The jobs, in order: a dim lecture hall · an editorial read · dense technical
- * teaching · a keynote · storytelling · a workshop · engineering and systems ·
- * creative and product work · low vision and bad projectors · a bright room
- * with the lights on · the humanities · the life sciences.
+ * The first twelve are chosen by *room*: a dim lecture hall · an editorial
+ * read · dense technical teaching · a keynote · storytelling · a workshop ·
+ * engineering and systems · creative and product work · low vision and bad
+ * projectors · a bright room with the lights on · the humanities · the life
+ * sciences.
+ *
+ * The last four are chosen by *ground*, which is an axis the first twelve
+ * do not have: every one of them is lit by a single light — one colour, one
+ * two-stop gradient, or one centre vignette — and a stage lit by one light
+ * reads as a page. These four use `bloom` and `mesh`, so the ground has a near
+ * side and a far side. Two dark and two light, because that is still the
+ * question the room asks first.
  */
 export const THEMES: PresentationTheme[] = [
   {
@@ -315,6 +344,109 @@ export const THEMES: PresentationTheme[] = [
     scale,
     backgroundStyle: "flat",
   },
+  {
+    /**
+     * The room lit from its corners rather than from a lamp. Deep indigo with
+     * a cyan-violet bloom — where `aurora` is a flat violet dusk, this has
+     * distance in it, which is what a launch or a demo wants when the deck
+     * itself is part of the impression.
+     */
+    id: "nebula",
+    name: "Nebula",
+    description:
+      "Indigo depth with a violet bloom. A launch, a demo, a deck that is part of the pitch.",
+    mode: "dark",
+    tokens: {
+      canvas: "#0A0D1A",
+      surface: "#161A2E",
+      ink: "#EFF1FB",
+      inkMuted: "#96A0C4",
+      accent: "#7C6BF5",
+      onAccent: "#0A0716",
+      line: "#242942",
+    },
+    fonts: {
+      display: "var(--font-grotesk)",
+      sans: "var(--font-inter)",
+      mono: "var(--font-mono)",
+    },
+    scale: { ...scale, h1: 5.8 },
+    backgroundStyle: "bloom",
+    gradientTo: "#1B2450",
+  },
+  {
+    /**
+     * Dusk, and the light is coming from somewhere. `ember` is warm and flat;
+     * this is warm and *directional*, which is what a story wants when the
+     * point is that time is passing.
+     */
+    id: "horizon",
+    name: "Horizon",
+    description: "Warm dusk over deep teal. Narrative, time passing, a talk with an arc.",
+    mode: "dark",
+    tokens: {
+      canvas: "#0C1719",
+      surface: "#16282B",
+      ink: "#F6F1E9",
+      inkMuted: "#9DB0AF",
+      accent: "#F2914A",
+      onAccent: "#1B0E03",
+      line: "#243A3D",
+    },
+    fonts: { display: "var(--font-display)", sans: "var(--font-inter)", mono: "var(--font-mono)" },
+    scale: { ...scale, h1: 5.2 },
+    backgroundStyle: "mesh",
+    gradientTo: "#123338",
+  },
+  {
+    /**
+     * For the bright room where `field`'s pure white reads as a spreadsheet.
+     * Same lights-on legibility, but the page has a temperature — the blush is
+     * far too weak to touch contrast and just enough that the stage stops
+     * looking like a document someone forgot to design.
+     */
+    id: "porcelain",
+    name: "Porcelain",
+    description: "Warm white with a blush bloom. A lit room, without looking like a document.",
+    mode: "light",
+    tokens: {
+      canvas: "#FCFAFA",
+      surface: "#F2ECEE",
+      ink: "#1A1618",
+      inkMuted: "#6A6165",
+      accent: "#C0466B",
+      onAccent: "#FFF7F9",
+      line: "#E4DADE",
+    },
+    fonts: { display: "var(--font-display)", sans: "var(--font-inter)", mono: "var(--font-mono)" },
+    scale,
+    backgroundStyle: "bloom",
+    gradientTo: "#EFE6F0",
+  },
+  {
+    /**
+     * The light counterpart to `blueprint`: a technical review with the lights
+     * on. Cool grey with steel washes at the corners, mono display, and a
+     * centre band left almost clear because that is where the diagram goes.
+     */
+    id: "graphite",
+    name: "Graphite",
+    description: "Cool grey with steel corners, set in mono. Technical review, lights on.",
+    mode: "light",
+    tokens: {
+      canvas: "#F7F8F9",
+      surface: "#E8ECEF",
+      ink: "#15191D",
+      inkMuted: "#5C666F",
+      accent: "#1D6FA5",
+      onAccent: "#F4FAFF",
+      line: "#D5DCE2",
+    },
+    fonts: { display: "var(--font-mono)", sans: "var(--font-inter)", mono: "var(--font-mono)" },
+    scale: { ...scale, h1: 4.6, h2: 3.0 },
+    backgroundStyle: "mesh",
+    gradientTo: "#DCE4EA",
+  },
 ];
 
 export const DEFAULT_THEME_ID = "midnight";
@@ -362,14 +494,68 @@ export function themeCssVars(theme: PresentationTheme): Record<string, string> {
   };
 }
 
-/** Background CSS for the stage surface itself. */
+/**
+ * A colour of the theme's, thinned so it reads as light rather than as paint.
+ *
+ * `oklab` and not `srgb`: mixing toward transparent in sRGB darkens as it
+ * fades, so a warm accent washes out through a muddy brown on its way to
+ * nothing. This is the same reason the world's atmosphere blends in OKLab.
+ */
+const wash = (colour: string, percent: number) =>
+  `color-mix(in oklab, ${colour} ${percent}%, transparent)`;
+
+/**
+ * Background CSS for the stage surface itself.
+ *
+ * Every one of these is built from the theme's own tokens and nothing else, so
+ * re-theming a deck moves its ground with it and no background can disagree
+ * with the text standing on it.
+ *
+ * `bloom` and `mesh` exist because the other three are flat. A single colour,
+ * a two-stop linear gradient and a centre vignette are all *one* light, and a
+ * stage lit by one light looks like a page — which is the complaint they were
+ * added to answer. Both of these are several offset washes over the canvas, so
+ * the ground has a near side and a far side.
+ *
+ * They stay deliberately quiet. These sit *behind* text at presentation size,
+ * so the washes are thinned to somewhere between a tenth and a third and the
+ * canvas is still the colour the eye reads — contrast is measured against
+ * `canvas` everywhere else in this file and in `analysis/`, and a background
+ * bright enough to change that answer would make those numbers lies.
+ */
 export function stageBackgroundCss(theme: PresentationTheme): string {
+  const { canvas, surface, accent } = theme.tokens;
+  // The second light. A theme that named a gradient end has already chosen it;
+  // otherwise its surface is the nearest thing to "canvas, but lifted".
+  const far = theme.gradientTo ?? surface;
+
   switch (theme.backgroundStyle) {
     case "gradient":
-      return `linear-gradient(160deg, ${theme.tokens.canvas} 0%, ${theme.gradientTo ?? theme.tokens.surface} 100%)`;
+      return `linear-gradient(160deg, ${canvas} 0%, ${far} 100%)`;
     case "vignette":
-      return `radial-gradient(120% 90% at 50% 0%, ${theme.tokens.surface} 0%, ${theme.tokens.canvas} 62%)`;
+      return `radial-gradient(120% 90% at 50% 0%, ${surface} 0%, ${canvas} 62%)`;
+    case "bloom":
+      // Light entering from the top corners and pooling at the foot, which is
+      // how a room is lit. The accent appears twice at different strengths so
+      // the two ends of the stage are the same colour at different distances,
+      // rather than two colours.
+      return [
+        `radial-gradient(62% 48% at 10% 4%, ${wash(accent, 20)} 0%, transparent 64%)`,
+        `radial-gradient(54% 42% at 92% 14%, ${wash(far, 62)} 0%, transparent 68%)`,
+        `radial-gradient(84% 62% at 50% 116%, ${wash(accent, 11)} 0%, transparent 72%)`,
+        canvas,
+      ].join(", ");
+    case "mesh":
+      // Four corners, none of them meeting in the middle — where the heading
+      // goes. The washes are weakest along the centre band on purpose.
+      return [
+        `radial-gradient(46% 40% at 4% 8%, ${wash(far, 70)} 0%, transparent 70%)`,
+        `radial-gradient(42% 38% at 96% 6%, ${wash(accent, 16)} 0%, transparent 68%)`,
+        `radial-gradient(50% 44% at 2% 96%, ${wash(accent, 10)} 0%, transparent 72%)`,
+        `radial-gradient(48% 42% at 98% 92%, ${wash(far, 52)} 0%, transparent 70%)`,
+        canvas,
+      ].join(", ");
     default:
-      return theme.tokens.canvas;
+      return canvas;
   }
 }

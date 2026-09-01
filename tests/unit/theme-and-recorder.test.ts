@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  BACKGROUND_STYLES,
   DEFAULT_THEME_ID,
   PresentationTheme,
   THEMES,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/schema/theme";
 import { detectSupport, sanitiseFilename } from "@/lib/record/recorder";
 import { contrastRatio, toOklab } from "@/lib/utils/color";
+import { MIN_CONTRAST } from "@/lib/analysis/health";
 
 /** Perceptual distance between two hex colours, in OKLab. */
 function oklabDistance(a: string, b: string): number {
@@ -64,13 +66,52 @@ describe("themes", () => {
     }
   });
 
-  it("keeps ink and canvas visibly different in every theme", () => {
-    // A theme whose text matches its background is unusable on a projector.
+  it("keeps every shipped palette above the bar the app itself measures", () => {
+    // This used to assert only that ink and canvas were different *strings*,
+    // which a theme at 1.2:1 passes comfortably. `health.ts` scores a deck's
+    // contrast against MIN_CONTRAST and marks it down below that, so a palette
+    // that ships under the bar puts a permanent warning on every deck using
+    // it — and picking a theme from the product's own picker is not something
+    // an author should be marked down for. The threshold is imported rather
+    // than restated so the two cannot drift.
     for (const theme of THEMES) {
-      expect(theme.tokens.ink.toLowerCase(), theme.id).not.toBe(theme.tokens.canvas.toLowerCase());
-      expect(theme.tokens.accent.toLowerCase(), theme.id).not.toBe(
-        theme.tokens.canvas.toLowerCase(),
-      );
+      const ink = contrastRatio(theme.tokens.ink, theme.tokens.canvas);
+      const accent = contrastRatio(theme.tokens.accent, theme.tokens.canvas);
+      const onAccent = contrastRatio(theme.tokens.onAccent, theme.tokens.accent);
+
+      expect(ink, `${theme.id} ink on canvas`).toBeGreaterThanOrEqual(MIN_CONTRAST);
+      expect(accent, `${theme.id} accent on canvas`).toBeGreaterThanOrEqual(MIN_CONTRAST);
+      // Text sitting *on* the accent — a button, a filled callout — is the
+      // pairing the two checks above never look at.
+      expect(onAccent, `${theme.id} onAccent on accent`).toBeGreaterThanOrEqual(MIN_CONTRAST);
+    }
+  });
+
+  it("handles every background style it offers, rather than falling through to flat", () => {
+    // The switch in `stageBackgroundCss` has a default arm that returns the
+    // canvas colour. That is right for `flat` and silent for a style added to
+    // the enum and forgotten in the switch — the theme would simply look
+    // undesigned, with nothing failing anywhere.
+    const flat = getTheme("field");
+    for (const style of BACKGROUND_STYLES) {
+      const painted = stageBackgroundCss({ ...flat, backgroundStyle: style });
+      if (style === "flat") continue;
+      expect(painted, `${style} is not handled`).not.toBe(flat.tokens.canvas);
+    }
+  });
+
+  it("layers the deep backgrounds over the canvas rather than replacing it", () => {
+    // `bloom` and `mesh` are several washes *plus* the canvas underneath. A
+    // simplification that dropped the final colour would leave the stage
+    // transparent, which on the world canvas means the page shows through.
+    for (const style of ["bloom", "mesh"] as const) {
+      const theme = { ...getTheme("midnight"), backgroundStyle: style };
+      const painted = stageBackgroundCss(theme);
+      expect(painted.split("radial-gradient").length - 1, style).toBeGreaterThanOrEqual(3);
+      expect(painted.endsWith(theme.tokens.canvas), `${style} must end on the canvas`).toBe(true);
+      // Built from tokens, never from a literal colour, so re-theming moves
+      // the ground with the text.
+      expect(painted).toContain(theme.tokens.accent);
     }
   });
 

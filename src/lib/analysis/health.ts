@@ -42,8 +42,14 @@ export interface Health {
 /** Above this many words on one scene, the room reads instead of listening. */
 const DENSE_WORDS = 60;
 
-/** WCAG AA for large text. Scene type is large by definition. */
-const MIN_CONTRAST = 3;
+/**
+ * WCAG AA for large text. Scene type is large by definition.
+ *
+ * Exported so the theme suite can assert no shipped palette would fail the
+ * check this file performs. Two copies of that number is how a theme lands in
+ * the picker that the app's own health report then marks down.
+ */
+export const MIN_CONTRAST = 3;
 
 const STATUS_VALUE: Record<CheckStatus, number> = { pass: 1, warn: 0.5, fail: 0 };
 
