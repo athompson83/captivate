@@ -45,6 +45,48 @@ function runsFor(runs: PlannedRun[], fallback: string): PptxGenJS.TextProps[] {
 }
 
 /**
+ * A bulleted list as PowerPoint runs.
+ *
+ * One run per Captivate run, not one per item. Flattening an item to
+ * `runs.map((run) => run.text).join("")` threw away the bold word, the
+ * accent-coloured clause and the link inside a bullet — the very things
+ * `runsFor` keeps for a paragraph, so the same emphasis survived in prose and
+ * vanished in the list beside it.
+ *
+ * The bullet marker belongs to the paragraph rather than the run, so it goes
+ * on the item's first run; `breakLine` on its last run is what ends the
+ * paragraph, and the final item does not get one or PowerPoint draws an empty
+ * bullet after the list.
+ *
+ * Exported because this is the part with a claim to test: `addShape` needs a
+ * live `Slide`, and the assertion worth making is about what the runs say.
+ */
+export function bulletRuns(
+  shape: Extract<PlannedShape, { kind: "bullets" }>,
+): PptxGenJS.TextProps[] {
+  const runs: PptxGenJS.TextProps[] = [];
+  shape.items.forEach((item, index) => {
+    const parts = item.length ? item : [{ text: "" }];
+    const last = index === shape.items.length - 1;
+    parts.forEach((run, position) => {
+      runs.push({
+        text: run.text,
+        options: {
+          bullet: position === 0 ? (shape.ordered ? { type: "number" as const } : true) : false,
+          breakLine: position === parts.length - 1 && !last,
+          bold: run.bold ?? shape.bold,
+          italic: run.italic ?? shape.italic,
+          underline: run.underline ? { style: "sng" as const } : undefined,
+          color: hex(run.color ?? shape.color),
+          hyperlink: run.href ? { url: run.href } : undefined,
+        },
+      });
+    });
+  });
+  return runs;
+}
+
+/**
  * An SVG drawing as a PNG data URI.
  *
  * PowerPoint's SVG support is version-dependent and silently absent in
@@ -108,19 +150,15 @@ function addShape(slide: PptxGenJS.Slide, pptx: PptxGenJS, shape: PlannedShape):
       break;
     }
     case "bullets": {
-      const items = shape.items.map((item, index) => ({
-        text: item.map((run) => run.text).join(""),
-        options: {
-          bullet: shape.ordered ? { type: "number" as const } : true,
-          breakLine: index < shape.items.length - 1,
-        },
-      }));
-      slide.addText(items, {
+      slide.addText(bulletRuns(shape), {
         ...common,
         fontSize: shape.fontSize,
+        fontFace: shape.monospace ? "Consolas" : undefined,
         color: hex(shape.color),
-        valign: "top",
+        align: shape.align,
+        valign: shape.valign,
         autoFit: false,
+        wrap: true,
         hyperlink: shape.linkToSlide ? { slide: shape.linkToSlide } : undefined,
       });
       break;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getTheme } from "@/lib/schema/theme";
 import { SceneElement, type Scene } from "@/lib/schema/presentation";
+import { bulletRuns } from "@/lib/export/pptx";
 import {
   SLIDE_SIZES,
   boxOf,
@@ -309,6 +310,89 @@ describe("content that does survive", () => {
     expect(shape.kind).toBe("bullets");
     if (shape.kind !== "bullets") return;
     expect(shape.items).toHaveLength(2);
+  });
+
+  it("carries a list's own style, as a paragraph's is carried", () => {
+    // Every field of a list's `TextStyle` was dropped: an author who set the
+    // list larger, centred it, or set it in caps got the theme's defaults
+    // back, while the paragraph beside it kept all three. That inconsistency
+    // is most of what an exported deck's formatting looking "all over the
+    // map" actually is.
+    const styled = scene({
+      id: id(),
+      elements: [
+        element({
+          type: "list",
+          ordered: false,
+          items: [[{ text: "Below grade level" }], [{ text: "At grade level" }]],
+          style: {
+            size: 1.6,
+            align: "center",
+            valign: "middle",
+            weight: 700,
+            italic: true,
+            uppercase: true,
+          },
+        }),
+      ],
+    });
+    const plain = scene({
+      id: id(),
+      elements: [
+        element({ type: "list", ordered: false, items: [[{ text: "Below grade level" }]] }),
+      ],
+    });
+
+    const shape = planDeck(DECK, [styled], THEME).slides[0].shapes[0];
+    const base = planDeck(DECK, [plain], THEME).slides[0].shapes[0];
+    expect(shape.kind).toBe("bullets");
+    if (shape.kind !== "bullets" || base.kind !== "bullets") return;
+
+    expect(shape.fontSize).toBeGreaterThan(base.fontSize);
+    expect(shape.align).toBe("center");
+    expect(shape.valign).toBe("middle");
+    expect(shape.bold).toBe(true);
+    expect(shape.italic).toBe(true);
+    expect(shape.items[0][0].text).toBe("BELOW GRADE LEVEL");
+  });
+
+  it("keeps the emphasis inside a bullet, all the way into the file's runs", () => {
+    // A bold word in a bullet reached the file as plain text: the writer
+    // joined an item's runs into one string, while the same word in a
+    // paragraph kept its weight. The plan always had the runs; the loss was in
+    // the last step, so the assertion has to be on that step.
+    const emphasised = scene({
+      id: id(),
+      elements: [
+        element({
+          type: "list",
+          ordered: false,
+          items: [
+            [{ text: "Forty per cent ", bold: true }, { text: "of a teacher's week" }],
+            [{ text: "Nine hours of it on marking" }],
+          ],
+        }),
+      ],
+    });
+
+    const shape = planDeck(DECK, [emphasised], THEME).slides[0].shapes[0];
+    expect(shape.kind).toBe("bullets");
+    if (shape.kind !== "bullets") return;
+
+    const runs = bulletRuns(shape);
+    expect(runs.map((run) => run.text)).toEqual([
+      "Forty per cent ",
+      "of a teacher's week",
+      "Nine hours of it on marking",
+    ]);
+
+    // The marker opens each item and nothing else; the line breaks between
+    // items and not after the last, which would draw an empty bullet.
+    expect(runs.map((run) => Boolean(run.options?.bullet))).toEqual([true, false, true]);
+    expect(runs.map((run) => Boolean(run.options?.breakLine))).toEqual([false, true, false]);
+
+    expect(runs[0].options?.bold).toBe(true);
+    expect(runs[1].options?.bold).toBeFalsy();
   });
 
   it("keeps a chart as data, so it stays editable in PowerPoint", () => {

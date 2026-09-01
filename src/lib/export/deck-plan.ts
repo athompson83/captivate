@@ -69,7 +69,12 @@ export type PlannedShape =
       items: PlannedRun[][];
       ordered: boolean;
       fontSize: number;
+      align: "left" | "center" | "right";
+      valign: "top" | "middle" | "bottom";
       color: string;
+      bold: boolean;
+      italic: boolean;
+      monospace: boolean;
       opacity: number;
       linkToSlide?: number;
     }
@@ -350,13 +355,32 @@ function planSlide(
         break;
       }
       case "list": {
+        // A list carries the same `TextStyle` as a paragraph, and every field
+        // of it was being dropped here: an author who set a list larger,
+        // centred it, or set it in caps got the default back. That is most of
+        // what "the formatting is all over the map" means in an exported
+        // deck — the same style honoured on one shape and ignored on the one
+        // beside it.
+        const style = element.style;
+        const color = colorOf(style.color, theme, theme.tokens.ink);
+        const items = element.items.map((item) => {
+          const runs = toRuns(item, theme, color);
+          return style.uppercase
+            ? runs.map((run) => ({ ...run, text: run.text.toUpperCase() }))
+            : runs;
+        });
         shapes.push({
           kind: "bullets",
           box,
-          items: element.items.map((item) => toRuns(item, theme, theme.tokens.ink)),
+          items,
           ordered: element.ordered,
-          fontSize: pointsFor(theme.scale.body, size.width),
-          color: colorOf(element.style.color, theme, theme.tokens.ink),
+          fontSize: pointsFor(theme.scale.body * style.size, size.width),
+          align: style.align,
+          valign: style.valign,
+          color,
+          bold: style.weight >= 600,
+          italic: style.italic,
+          monospace: style.family === "mono",
           opacity,
           linkToSlide: link,
         });
