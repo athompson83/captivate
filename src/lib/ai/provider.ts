@@ -207,6 +207,16 @@ interface Conversation {
 // Anthropic
 // ---------------------------------------------------------------------------
 
+/**
+ * A conversation with Anthropic's Messages API.
+ *
+ * The tool call is forced by name and the schema is the tool's `input_schema`,
+ * so the answer arrives already shaped and there is no free text to parse. What
+ * the caller never sees is the correction: it has to arrive as a `tool_result`
+ * block answering the failed `tool_use` by id, because the API rejects any user
+ * turn that leaves a tool call unanswered — which is why this owns the message
+ * list rather than handing it out.
+ */
 function anthropicConversation<T>(
   options: GenerateOptions<T>,
   jsonSchema: Record<string, unknown>,
@@ -366,6 +376,18 @@ type ChatMessage =
     }
   | { role: "tool"; tool_call_id: string; content: string };
 
+/**
+ * A conversation with OpenRouter's OpenAI-compatible chat completions.
+ *
+ * The same forced tool call, in a protocol that differs in three places that
+ * matter, each absorbed here so no caller can tell the two providers apart: the
+ * system prompt is a *message* rather than a top-level field, the tool
+ * arguments come back as a JSON string rather than an object, and a correction
+ * is a `role: "tool"` message quoting the `tool_call_id` rather than a
+ * `tool_result` block. The last is the same trap in the other dialect — an
+ * assistant turn carrying `tool_calls` must be answered by one `tool` message
+ * per call or the next request is rejected outright.
+ */
 function openRouterConversation<T>(
   options: GenerateOptions<T>,
   jsonSchema: Record<string, unknown>,

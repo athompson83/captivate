@@ -101,6 +101,14 @@ function resolveImageProvider(): ImageProviderName {
 
 export const IMAGE_PROVIDER = resolveImageProvider();
 
+/**
+ * The key for whichever gateway `IMAGE_PROVIDER` resolved to.
+ *
+ * Read through here rather than at each call site so the two can never drift —
+ * a deployment that resolved to OpenRouter and then checked `OPENAI_API_KEY`
+ * would report image generation unavailable while a working key sat in the
+ * environment.
+ */
 function imageKey(): string | undefined {
   return IMAGE_PROVIDER === "openrouter"
     ? process.env.OPENROUTER_API_KEY
