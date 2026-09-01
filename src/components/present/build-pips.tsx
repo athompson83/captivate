@@ -1,22 +1,13 @@
 import { cn } from "@/lib/utils/cn";
 
 /**
- * How far through a scene's builds the presenter is, as a row of pips.
+ * The most presses this will draw one pip each for.
  *
- * Both surfaces already said this in words — "2 more presses on this scene",
- * "+2 builds here" — and words are the wrong shape for it. A presenter reads
- * this while talking, in peripheral vision, in the half-second between
- * finishing a sentence and reaching for the key. A count has to be *read*: the
- * eye lands, parses a numeral, parses a noun, and comes back. A row of pips is
- * a length, and length is judged without reading.
- *
- * Filled means spent, hollow means left, and the pip about to be spent is
- * ringed — so the answer to "does the next press change the slide" is the same
- * glance as "how much of this is left".
- *
- * Above `MAX_PIPS` it stops drawing one per press and says the number instead.
- * A row of nineteen dots is not glanceable either, and a scene with that many
- * builds has a different problem that this component should not disguise.
+ * Past it the row says the number instead. Nineteen dots is not glanceable
+ * either — the whole argument for pips is that a length is judged without
+ * counting, and a length nobody can judge is just a worse numeral — and a
+ * scene with that many builds has a problem this component should not tidy
+ * away into a neat row.
  */
 const MAX_PIPS = 8;
 
@@ -30,6 +21,23 @@ export interface BuildPipsProps {
   className?: string;
 }
 
+/**
+ * How far through a scene's builds the presenter is, as a row of pips.
+ *
+ * Both surfaces already said this in words — "2 more presses on this scene",
+ * "+2 builds here" — and words are the wrong shape for it. A presenter reads
+ * this while talking, in peripheral vision, in the half-second between
+ * finishing a sentence and reaching for the key. A count has to be *read*: the
+ * eye lands, parses a numeral, parses a noun, and comes back. A row of pips is
+ * a length, and a length is judged without reading.
+ *
+ * Filled means spent, hollow means left, and the pip about to be spent is
+ * ringed — so "does the next press change the slide" and "how much of this is
+ * left" are one glance rather than two.
+ *
+ * The words stay beside it on both surfaces. This is a second reading of the
+ * same fact, not a replacement for it.
+ */
 export function BuildPips({ total, current, tone = "console", className }: BuildPipsProps) {
   const left = Math.max(0, total - 1 - current);
 
