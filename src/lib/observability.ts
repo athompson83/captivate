@@ -43,7 +43,11 @@ function detailOf(error: unknown): string {
           : String(error);
 
   const collapsed = raw.replace(/\s+/g, " ").trim();
-  return collapsed.length > MAX_DETAIL ? `${collapsed.slice(0, MAX_DETAIL)}…` : collapsed;
+  // The ellipsis counts. Slicing to the maximum and *then* adding it produced
+  // 301 characters against a documented bound of 300 — and the first test
+  // written for it asserted 301, so the number in the comment and the number in
+  // the code disagreed with nobody to notice.
+  return collapsed.length > MAX_DETAIL ? `${collapsed.slice(0, MAX_DETAIL - 1)}…` : collapsed;
 }
 
 /**

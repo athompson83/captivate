@@ -34,7 +34,9 @@ describe("what a failure line says", () => {
 
   it("bounds an enormous provider message rather than flooding the log", () => {
     const detail = __detailOfForTests("x".repeat(5000));
-    expect(detail.length).toBeLessThanOrEqual(301);
+    // Exactly the bound, ellipsis included. The first version of this asserted
+    // 301 and so agreed with the off-by-one instead of catching it.
+    expect(detail.length).toBe(300);
     expect(detail.endsWith("…")).toBe(true);
   });
 });
