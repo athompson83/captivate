@@ -24,7 +24,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@/app/globals.css";
 import { EditorRoot } from "@/components/editor/editor-root";
-import { updateSectionLocal, useEditor } from "@/lib/editor/store";
+import { updatePresentationMeta, updateSectionLocal, useEditor } from "@/lib/editor/store";
 import { composeScene } from "@/lib/editor/layouts";
 import { JOURNEY_DEFAULTS, type PresentationDocument } from "@/lib/schema/presentation";
 
@@ -98,6 +98,11 @@ declare global {
       renameSection: (label: string) => Record<string, unknown>;
       /** The server actions the stub recorded, most recent last. */
       calls: () => { name: string; args: unknown[] }[];
+      /**
+       * Rename the deck — a store write the top bar actually subscribes to,
+       * and so a reliable way to re-render it from a test.
+       */
+      renameDeck: (title: string) => void;
       /** Drive the save indicator, so a test can see what a failure looks like. */
       setSaveState: (
         state: "idle" | "dirty" | "saving" | "saved" | "error",
@@ -179,6 +184,10 @@ window.editorFixture = {
   },
 
   calls: () => window.__serverActions?.log ?? [],
+
+  renameDeck(title: string) {
+    updatePresentationMeta({ title }, { label: "Rename" });
+  },
 
   setSaveState(state, error) {
     useEditor.setState({ saveState: state, saveError: error ?? null });

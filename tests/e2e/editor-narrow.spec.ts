@@ -265,6 +265,30 @@ test.describe("the editor on a narrow screen", () => {
     await expect(elsewhere).toBeFocused();
   });
 
+  test("a re-render does not pull the keyboard out of an open popover", async ({ page }) => {
+    await open(page, 390, 780);
+
+    await page.getByRole("button", { name: "More editor controls" }).click();
+    await page.keyboard.press("Tab");
+    const inside = page.getByRole("button", { name: "Toggle notes" });
+    await expect(inside).toBeFocused();
+
+    // Every caller passes `onClose` inline, so the effect holding the popover's
+    // listeners re-runs on any render of the component that owns it — and its
+    // cleanup runs with it. Restoring focus from *that* cleanup takes the
+    // keyboard out of a menu that is still open, on a render which has nothing
+    // to do with the menu. Renaming the deck is a store write the header
+    // subscribes to, so it is a reliable way to cause one.
+    //
+    // This is the trap `Dialog` documents — a cleanup firing on an unrelated
+    // render — which is why focus lives in an effect keyed on `open` alone
+    // here rather than sharing one with the listeners.
+    await page.evaluate(() => window.editorFixture.renameDeck("Renamed while open"));
+
+    await expect(inside).toBeFocused();
+    await expect(page.getByRole("group", { name: "More editor controls" })).toBeVisible();
+  });
+
   test("the selection toolbar follows the stage across a resize", async ({ page }) => {
     // A short, wide window on purpose. `fitScale` takes the smaller of the two
     // fits, so here the stage is bound by height — and a width-only resize

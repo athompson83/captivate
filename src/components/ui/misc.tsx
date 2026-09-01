@@ -101,10 +101,47 @@ export function Popover({
   const ref = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef<HTMLElement | null>(null);
 
+  /**
+   * Focus, kept in its own effect so it depends on `open` alone.
+   *
+   * The listeners below need `onClose`, and every caller passes that inline —
+   * so that effect re-runs on any render of the component holding the popover,
+   * and its cleanup runs with it. Restoring focus from a cleanup that fires
+   * while the popover is still open would yank the keyboard out of the menu
+   * mid-use, on a re-render that has nothing to do with it.
+   *
+   * That is the same trap `Dialog` documents: its effect is pinned to `[open]`
+   * because a cleanup that ran on an unrelated render threw focus back to the
+   * button behind it. Splitting the two here means this one cannot run while
+   * open at all, rather than relying on the compiler's memoisation to make
+   * sure it never gets the chance.
+   */
   useEffect(() => {
     if (!open) return;
     // Whatever opened this — the trigger, in every case in this codebase.
     restoreFocus.current = document.activeElement as HTMLElement | null;
+    // The panel as it is now, rather than whatever the ref points at by the
+    // time this unwinds: the question below is whether focus is inside *this*
+    // popover, and `AnimatePresence` keeps the node around while it exits.
+    const panel = ref.current;
+    return () => {
+      // Escape used to drop focus on `body`, so the next Tab restarted at the
+      // top of the document and a keyboard user lost their place. `Dialog` has
+      // restored focus since #41; this had the same hole and every menu in the
+      // editor goes through it.
+      //
+      // Only when focus is still ours to give back. Dismissing by clicking
+      // something else must leave focus where the click put it, and a menu
+      // item that navigates has already moved it on purpose — stealing it back
+      // to the trigger in either case is its own bug.
+      const active = document.activeElement;
+      const stranded = !active || active === document.body || panel?.contains(active);
+      if (stranded) restoreFocus.current?.focus?.();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
 
     const onDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
@@ -119,19 +156,6 @@ export function Popover({
       clearTimeout(t);
       document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
-
-      // Escape used to drop focus on `body`, so the next Tab restarted at the
-      // top of the document and a keyboard user lost their place entirely.
-      // `Dialog` has restored focus since #41; this had the same hole and
-      // every menu in the editor goes through it.
-      //
-      // Only when focus is still ours to give back. Dismissing by clicking
-      // something else must leave focus where the click put it, and a menu
-      // item that navigates has already moved it on purpose — stealing it
-      // back to the trigger in either case is its own bug.
-      const active = document.activeElement;
-      const stranded = !active || active === document.body || ref.current?.contains(active);
-      if (stranded) restoreFocus.current?.focus?.();
     };
   }, [open, onClose]);
 
