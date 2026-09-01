@@ -21,7 +21,23 @@ The image-generation ceilings are deliberately not in this table. The price of
 one image, the shared monthly budget and the per-user daily count live in
 `public.ai_image_limits` and are read by the reservation itself, because a
 ceiling passed in by the caller is a ceiling the caller chooses — see
-[SECURITY.md](SECURITY.md). Change them with SQL against that row.
+[SECURITY.md](SECURITY.md). Change them with SQL against that row:
+
+```sql
+update public.ai_image_limits
+   set cost_usd = 0.05, monthly_budget = 100.00, daily_max = 25;
+```
+
+**One-time step when applying `0021_reservation_ceilings.sql`.** It seeds that
+row with the documented defaults — 0.05, 100.00 and 25 — which are what
+`CAPTIVATE_IMAGE_BUDGET_USD` and `CAPTIVATE_IMAGE_DAILY_MAX` fell back to. If
+this deployment had set either variable to something else, **run the update
+above with those values before or immediately after applying the migration**: a
+budget set lower than the default on purpose would otherwise be raised to 100,
+and the application no longer reads the variable that said so. It does log
+`captivate:failure ai.image.ceilings-moved` for as long as either variable
+remains set, so the mismatch is findable rather than silent, but the log is a
+safety net and not the fix. Unset both once the row matches.
 
 `NEXT_PUBLIC_SITE_URL` is required in production rather than merely advisable.
 Confirmation and recovery links carry a one-time credential, and the only other

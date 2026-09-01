@@ -14,11 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const OK_IMAGE = { data: [{ b64_json: "aGVsbG8=" }] };
 
-function mockDb(reserve: {
-  id: string | null;
-  refusal: string | null;
-  daily_max?: number | null;
-}) {
+function mockDb(reserve: { id: string | null; refusal: string | null; daily_max?: number | null }) {
   const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
     void name;
     void args;
@@ -92,6 +88,47 @@ describe("generateImage", () => {
       expect(result.error).not.toContain("undefined");
       expect(result.error).not.toContain("null");
     }
+  });
+
+  it("says so when the old ceiling variables are still set", async () => {
+    // The ceilings moved into the database and the migration seeds the
+    // documented defaults. A deployment that had set a *lower* budget on
+    // purpose would otherwise be raised to that default with nothing said, so
+    // the one thing this must not be is silent.
+    vi.stubEnv("CAPTIVATE_IMAGE_BUDGET_USD", "20");
+    const errors: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((line: unknown) => {
+      errors.push(String(line));
+    });
+    mockDb({ id: null, refusal: "budget", daily_max: 25 });
+    vi.stubGlobal("fetch", vi.fn());
+    const { __resetSamplingForTests } = await import("@/lib/observability");
+    __resetSamplingForTests();
+    const { generateImage } = await import("@/lib/ai/visual-sourcing");
+
+    await generateImage("a lighthouse");
+
+    const moved = errors.find((line) => line.includes("ai.image.ceilings-moved"));
+    expect(moved, `logged lines: ${JSON.stringify(errors)}`).toBeDefined();
+    expect(moved).toContain("ai_image_limits");
+  });
+
+  it("stays quiet when they are not", async () => {
+    vi.stubEnv("CAPTIVATE_IMAGE_BUDGET_USD", "");
+    vi.stubEnv("CAPTIVATE_IMAGE_DAILY_MAX", "");
+    const errors: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((line: unknown) => {
+      errors.push(String(line));
+    });
+    mockDb({ id: null, refusal: "budget", daily_max: 25 });
+    vi.stubGlobal("fetch", vi.fn());
+    const { __resetSamplingForTests } = await import("@/lib/observability");
+    __resetSamplingForTests();
+    const { generateImage } = await import("@/lib/ai/visual-sourcing");
+
+    await generateImage("a lighthouse");
+
+    expect(errors.filter((line) => line.includes("ai.image.ceilings-moved"))).toEqual([]);
   });
 
   it("fails closed when the reservation itself errors", async () => {

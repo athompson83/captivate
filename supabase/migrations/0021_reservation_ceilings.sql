@@ -42,8 +42,17 @@ create table if not exists public.ai_image_limits (
 -- choosing.
 alter table public.ai_image_limits enable row level security;
 
--- The values the application used to send, so applying this changes no
--- behaviour beyond who is allowed to state them.
+-- The documented defaults — the same numbers `budget()` fell back to, and the
+-- only values `.env.example` ever named.
+--
+-- For a deployment that took those defaults this changes nothing but who is
+-- allowed to state them. For one that had set `CAPTIVATE_IMAGE_BUDGET_USD`
+-- *lower*, deliberately, as a spending safeguard, seeding 100 here would raise
+-- its ceiling — and the application stops reading the variable in the same
+-- change, so nothing would say so. That is the one direction this migration
+-- must not move quietly, and a migration cannot read the environment to avoid
+-- it: `generateImage` logs `ai.image.ceilings-moved` for as long as either
+-- variable is still set, and `docs/DEPLOYMENT.md` carries the update to run.
 insert into public.ai_image_limits (id, cost_usd, monthly_budget, daily_max)
 values (true, 0.05, 100.00, 25)
 on conflict (id) do nothing;

@@ -6,6 +6,7 @@ import { STORAGE_BUCKETS } from "@/lib/supabase/config";
 import { MAX_UPLOAD_BYTES } from "@/lib/data/upload-limits";
 import { currentPlan } from "@/lib/billing/entitlement";
 import { allowsImageGeneration } from "@/lib/billing/plans";
+import { logFailureSampled } from "@/lib/observability";
 
 /**
  * Finding and making pictures.
@@ -171,6 +172,8 @@ export async function generateImage(
   const trimmed = prompt.trim().slice(0, 1000);
   if (!trimmed) return { ok: false, error: "Describe the image you want first." };
 
+  warnIfCeilingsStillInTheEnvironment();
+
   const supabase = await supabaseServer();
 
   const { data: reserved, error: reserveError } = await supabase.rpc(
@@ -241,6 +244,39 @@ export async function generateImage(
     await settle(supabase, ticket.id, "failed", "network", startedAt);
     return { ok: false, error: "Couldn't reach the image provider. Nothing was changed." };
   }
+}
+
+/**
+ * Says so when a deployment's old ceiling variables are still set.
+ *
+ * The budget and the daily cap used to come from the environment and now come
+ * from `public.ai_image_limits`, which the migration seeds with the documented
+ * defaults. A deployment that had overridden either — a lower budget kept
+ * deliberately as a spending safeguard is the case that matters — would
+ * otherwise be moved onto those defaults without a word, and a spend ceiling
+ * that changes without a word is the thing this whole area exists to prevent.
+ *
+ * Sampled, because it is true on every call for as long as the variable is set
+ * rather than being an event, and one line a minute is enough to be found.
+ */
+function warnIfCeilingsStillInTheEnvironment(): void {
+  // Empty counts as unset, which is the state this asks an operator to reach:
+  // a variable cleared rather than removed is not a ceiling anybody could read
+  // as being in force, and warning about it would train the reader to ignore
+  // the line that matters.
+  const set = (value: string | undefined) => (value ?? "").trim() !== "";
+  if (!set(process.env.CAPTIVATE_IMAGE_BUDGET_USD) && !set(process.env.CAPTIVATE_IMAGE_DAILY_MAX)) {
+    return;
+  }
+
+  logFailureSampled(
+    "ai.image.ceilings-moved",
+    new Error(
+      "CAPTIVATE_IMAGE_BUDGET_USD/CAPTIVATE_IMAGE_DAILY_MAX are set but are no longer read. " +
+        "The ceilings are rows in public.ai_image_limits now — set that row to match, or " +
+        "unset these so nobody reads them as the limit in force.",
+    ),
+  );
 }
 
 function refusalMessage(refusal: string | null, daily: number | null): string {
