@@ -48,11 +48,15 @@ each, the way Postgres applies them.
 
 **#50 — one key runs the whole product.** Captivate needed two accounts to be
 whole: Anthropic for text, OpenAI for pictures. An OpenRouter key now does
-both, with the gateway resolved from _which keys are set_ rather than from a
+both. The ordinary path to a gateway is _which keys are set_ rather than a
 setting kept in step with them — the failure mode of the latter is a deployment
 that names one provider, holds the other's key, and reports itself unconfigured
-while both halves look present. The retry policy, error text and schema
-validation stay shared; a provider supplies only a `Conversation`.
+while both halves look present. `CAPTIVATE_AI_PROVIDER` and
+`CAPTIVATE_IMAGE_PROVIDER` still name one outright, and are checked first, for
+the deliberate switch; without them the incumbent wins a tie, so an OpenRouter
+key added beside a working Anthropic one does not move a running deployment. The
+retry policy, error text and schema validation stay shared; a provider supplies
+only a `Conversation`.
 
 Also in #50: every generated card was a plain circle, because the generation
 schema never offered the model an `icon` field to answer. `layouts.ts` had read
