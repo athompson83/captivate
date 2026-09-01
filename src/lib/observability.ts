@@ -33,6 +33,21 @@ const MAX_DETAIL = 300;
  * line that reads `[object Object]` is the same as no log line at all.
  */
 function detailOf(error: unknown): string {
+  try {
+    return describe(error);
+  } catch {
+    // Reading the error threw. Three real shapes do it: an object with no
+    // prototype, one whose `toString` throws, and one whose `message` is a
+    // getter that throws. Since the refactor that moved this call out of the
+    // writer's guard, any of them would have turned a *handled* failure into an
+    // unhandled one — the exact thing this module promises never to do, from
+    // inside the code meant to observe it.
+    return "(unprintable error)";
+  }
+}
+
+/** The shapes an error actually arrives in, before anything defends them. */
+function describe(error: unknown): string {
   const raw =
     error instanceof Error
       ? error.message

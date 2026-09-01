@@ -28,6 +28,39 @@ describe("what a failure line says", () => {
     expect(__detailOfForTests(null)).toBe("null");
   });
 
+  it("survives an error that cannot be read at all", () => {
+    // Three shapes really do throw on conversion: an object with no prototype,
+    // one whose `toString` throws, and one whose `message` getter throws. Since
+    // `detailOf` runs before the writer's guard, any of them would turn a
+    // handled failure into an unhandled one — from inside the code whose job is
+    // to observe it.
+    const hostile: unknown[] = [
+      Object.create(null),
+      {
+        toString() {
+          throw new Error("boom");
+        },
+      },
+      {
+        get message() {
+          throw new Error("boom");
+        },
+      },
+    ];
+
+    for (const error of hostile) {
+      expect(() => __detailOfForTests(error)).not.toThrow();
+      expect(__detailOfForTests(error)).toBe("(unprintable error)");
+    }
+  });
+
+  it("does not let an unreadable error escape the logger", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => logFailure("data.mutation", Object.create(null))).not.toThrow();
+    expect(spy.mock.calls[0][0]).toContain("(unprintable error)");
+    vi.restoreAllMocks();
+  });
+
   it("collapses whitespace so one failure is one line", () => {
     expect(__detailOfForTests("a\n  b\t\tc")).toBe("a b c");
   });
