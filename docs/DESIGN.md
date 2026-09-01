@@ -2,12 +2,14 @@
 
 ## The metaphor
 
-A darkened stage lit by a warm spotlight.
+A darkened stage lit by a coloured spotlight.
 
 That is not decoration — it is the reason for every colour decision. Captivate
 is used in lecture theatres and meeting rooms, often with the lights down. The
 interface is dark by default because it sits next to a dark projection; the
-accent is warm gold because that is what a stage light looks like.
+light on that stage is the mark's own, an indigo key with a coral rim, because
+the brand is a gradient and a product that only ever shows one end of it is
+showing the part that is not the brand.
 
 It also settles what Captivate is _not_. It does not look like PowerPoint,
 Google Slides, Keynote, Canva or Gamma, because none of those start from "you
@@ -20,18 +22,31 @@ are about to stand up in front of people".
 Everything is OKLCH, so lightness is perceptually even and a token can be
 adjusted without hue drift.
 
-| Role                                             | Purpose                                      |
-| ------------------------------------------------ | -------------------------------------------- |
-| `surface-base` / `sunken` / `raised` / `overlay` | Four elevations, no more                     |
-| `text-primary` / `secondary` / `muted`           | Three text weights, no more                  |
-| `accent`                                         | Warm gold. Primary actions, selection, focus |
-| `ai`                                             | Orchid. **Only** AI affordances              |
-| `record`                                         | Crimson. **Only** recording                  |
-| `success` / `warning` / `danger`                 | Status                                       |
+| Role                                             | Purpose                                   |
+| ------------------------------------------------ | ----------------------------------------- |
+| `surface-base` / `sunken` / `raised` / `overlay` | Four elevations, no more                  |
+| `text-primary` / `secondary` / `muted`           | Three text weights, no more               |
+| `accent`                                         | Indigo. Primary actions, selection, focus |
+| `ai`                                             | Magenta. **Only** AI affordances          |
+| `record`                                         | Crimson. **Only** recording               |
+| `success` / `warning` / `danger`                 | Status                                    |
+| `brand-gradient`                                 | The mark's sweep. Signature marks only    |
 
-The semantic separation is load-bearing. Orchid means "a model is involved" and
-nothing else; crimson means "you are being recorded" and nothing else. A user
-learns each in one exposure.
+The semantic separation is load-bearing. Magenta means "a model is involved"
+and nothing else; crimson means "you are being recorded" and nothing else. A
+user learns each in one exposure.
+
+That separation is why the accent moved and the AI colour moved with it. The
+accent was gold at oklch L 0.8 H 72 and `warning` was L 0.8 H 75 — three
+degrees apart, so in the dark theme a warning and a primary action were the
+same colour. The accent is the mark's indigo now, AI is its magenta rather
+than the orchid that sat too close to it, and the warm end of the gradient
+belongs to the front door's key light.
+
+`brand-gradient` is the whole sweep — indigo through violet and magenta to
+coral. It marks the things that carry the brand rather than an interface
+state: the wordmark's tile, a rule on the front door. Never behind body text.
+Four hues under a paragraph is a background; this is a signature.
 
 Light mode is warm paper rather than clinical white, and keeps the same
 relationships with a darker accent for contrast.

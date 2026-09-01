@@ -96,7 +96,7 @@ export default function PricingPage() {
               </p>
               <Link
                 href="/settings"
-                className="mt-7 inline-flex items-center rounded-[var(--radius-lg)] bg-[var(--sky-amber)] px-5 py-3 text-[14px] font-medium text-[oklch(0.18_0.03_60)] transition-opacity hover:opacity-90"
+                className="mt-7 inline-flex items-center rounded-[var(--radius-lg)] bg-[var(--sky-amber)] px-5 py-3 text-[14px] font-medium text-[var(--sky-amber-ink)] transition-opacity hover:opacity-90"
               >
                 Upgrade in settings
               </Link>

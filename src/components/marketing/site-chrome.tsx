@@ -32,7 +32,7 @@ export function SiteHeader() {
           </Link>
           <Link
             href="/sign-up"
-            className="rounded-[var(--radius-md)] bg-[var(--sky-amber)] px-3.5 py-2 text-[13px] font-medium text-[oklch(0.18_0.03_60)] transition-opacity hover:opacity-90"
+            className="rounded-[var(--radius-md)] bg-[var(--sky-amber)] px-3.5 py-2 text-[13px] font-medium text-[var(--sky-amber-ink)] transition-opacity hover:opacity-90"
           >
             Get started
           </Link>

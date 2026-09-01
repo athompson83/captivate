@@ -25,16 +25,14 @@ import { cn } from "@/lib/utils/cn";
  */
 type Tone = "app" | "sky";
 
-const TONE: Record<Tone, { tile: string; icon: string; product: string; maker: string }> = {
+const TONE: Record<Tone, { icon: string; product: string; maker: string }> = {
   app: {
-    tile: "bg-accent",
-    icon: "text-[var(--accent-contrast)]",
+    icon: "text-white",
     product: "text-ink",
     maker: "text-ink-3",
   },
   sky: {
-    tile: "bg-[var(--sky-amber)]",
-    icon: "text-[oklch(0.18_0.03_60)]",
+    icon: "text-white",
     product: "text-[var(--sky-ink)]",
     maker: "text-[var(--sky-ink-3)]",
   },
@@ -55,12 +53,17 @@ export function Wordmark({
 
   return (
     <span className={cn("flex items-center gap-2.5", className)}>
+      {/*
+       * The tile carries the mark's own gradient rather than a flat accent:
+       * the brand is a sweep from indigo to coral, and a single swatch of it
+       * is the one part that is not the brand.
+       */}
       <span
         className={cn(
           "flex items-center justify-center",
-          palette.tile,
           md ? "size-8 rounded-[var(--radius-md)]" : "size-7 rounded-[var(--radius-sm)]",
         )}
+        style={{ background: "var(--brand-gradient)" }}
       >
         <Sparkles className={cn(md ? "size-4" : "size-3.5", palette.icon)} aria-hidden />
       </span>

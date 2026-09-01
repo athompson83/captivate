@@ -52,12 +52,15 @@ const PALETTE = {
   ground: "#07060d",
   fog: "#141031",
   scene: "#1c1930",
-  sceneEdge: "rgba(255, 214, 160, 0.42)",
-  ink: "rgba(255, 247, 234, 0.94)",
+  sceneEdge: "rgba(255, 168, 140, 0.42)",
+  ink: "rgba(250, 246, 255, 0.94)",
   bar: "rgba(214, 214, 240, 0.34)",
   barBright: "rgba(238, 240, 255, 0.66)",
-  amber: "#ffb765",
-  violet: "#a98bff",
+  // The mark's warm end and its cool one. `amber` keeps its name because it
+  // is the key light everywhere in this file and in `globals.css`; what
+  // changed is which warm it is — the logo's coral rather than gold.
+  amber: "#ff8a5c",
+  violet: "#8b6bff",
   cyan: "#7fe3d4",
 } as const;
 
