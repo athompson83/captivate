@@ -252,7 +252,7 @@ plainly rather than quietly deleting:
 
 Real-time collaboration · comments · public publishing · version history beyond
 undo · enterprise team management · brand management · a template marketplace ·
-PowerPoint *import* · analytics · offline mode.
+PowerPoint _import_ · analytics · offline mode.
 
 Every one of these is a reasonable thing to want. None is needed to stand up and
 give a lecture, which is what this MVP is for.

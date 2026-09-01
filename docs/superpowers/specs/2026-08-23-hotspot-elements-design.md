@@ -17,7 +17,7 @@ of its 13 variants.
 Two existing mechanisms come close but don't solve it:
 
 - `ElementAnimation.onAdvance` (`presentation.ts:168`) reveals an element on
-  the *next* global advance (click-anywhere / arrow key) — it's a build-up,
+  the _next_ global advance (click-anywhere / arrow key) — it's a build-up,
   not a targeted click on a specific thing.
 - The `nested`/"Dive" arrangement (`src/lib/present/arrange.ts:198`) already
   zooms into a scene placed inside another, but only as a whole-scene step in
@@ -46,7 +46,7 @@ live, on the stage or the console — same person who already drives
 ### A. Content model: a hotspot is a property of an element, not a new element type
 
 Add an optional field to `elementBase` (`presentation.ts:176`) rather than a
-14th `SceneElement` variant, since *any* existing whole element (a chart, a
+14th `SceneElement` variant, since _any_ existing whole element (a chart, a
 callout, an image, a heading) should be able to become a hotspot without
 changing what it visually is:
 
@@ -151,7 +151,7 @@ drafting, though it is then unreachable until one does).
 
 **Detail scenes are excluded from the ordinary sequence, deliberately with
 the smallest possible change to how position is tracked.** `sceneIndex`
-today (`session.ts:36`) is an index into the *full* `scenes` array — that
+today (`session.ts:36`) is an index into the _full_ `scenes` array — that
 meaning does not change, so the wire format (`PresentMessage`'s
 `sceneIndex`/`goto` command index, `protocol.ts:80,124`) and `World`'s
 `activeIndex` prop (an index into the full array it renders) both keep
@@ -183,7 +183,7 @@ working unmodified. What changes is how `next`/`prev` step through it:
   model — this is a picker-filtering change in that component, not a
   `goTo` change.
 - A new `dive(targetSceneId)` action resolves the id to an index (which may
-  be a detail *or* a main scene — nothing technically requires a hotspot's
+  be a detail _or_ a main scene — nothing technically requires a hotspot's
   target to be flagged `"detail"`, though authoring in section E always
   creates one that is), pushes the current `{ sceneIndex, step }` onto a new
   `divePath: { sceneIndex: number; step: number }[]` array on `SessionState`,
@@ -248,10 +248,10 @@ detail scene here" that creates an empty scene (setting its `flowRole` to
 `"detail"`), wires the hotspot to it, and drops the editor into that new
 scene — mirroring the existing gap-hover `+` affordance's spirit rather than
 forcing the author to pre-create a scene and hunt for it in a picker. The
-scene picker for attaching an *existing* scene as a target should still list
+scene picker for attaching an _existing_ scene as a target should still list
 every scene regardless of `flowRole` (a main scene can legitimately be a
 dive target too, per section C) — the `flowRole` filtering in section C
-applies to the *sequence* (next/prev/scene-jumper), not to what a hotspot may
+applies to the _sequence_ (next/prev/scene-jumper), not to what a hotspot may
 point at.
 
 ## Non-goals
@@ -264,7 +264,7 @@ point at.
   different hit-testing problem; not this spec.
 - No changes to the `nested`/"Dive" arrangement preset itself — hotspots are
   a separate, more general mechanism that happens to reuse the same camera
-  dive *feel*, not a replacement for it. Both can coexist: an author could
+  dive _feel_, not a replacement for it. Both can coexist: an author could
   still use `nested` for a whole-scene dive sequence and hotspots for
   point-specific ones.
 - No limit on how many hotspots a scene may have in this spec — if the audit
@@ -331,7 +331,7 @@ point at.
   presentation is, which `docs/UX.md`'s "the console works alone... yields to
   the stage" design explicitly guards against elsewhere.
 - The `flowRole` skip-logic in `next`/`prev`/`movementsOf` (section C) keeps
-  `sceneIndex` as an index into the *full* scenes array specifically to avoid
+  `sceneIndex` as an index into the _full_ scenes array specifically to avoid
   a second index space — but that means every future reader of `sceneIndex`
   has to remember it is not "the Nth main scene," it's "a position in the
   full array that happens to skip detail scenes when moving through it

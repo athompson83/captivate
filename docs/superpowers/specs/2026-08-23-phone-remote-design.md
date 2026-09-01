@@ -41,7 +41,7 @@ network-reachable channel specifically: a presentation's id is long-lived
 (it never changes for the life of the deck) and appears in ordinary,
 shareable-looking URLs, so a permanent channel keyed only by it is
 effectively addressable forever by anyone who ever saw that id, independent
-of whether channel *authorization* (section B) is later configured
+of whether channel _authorization_ (section B) is later configured
 correctly — defense in depth, not a replacement for section B, but a real
 second layer: even a misconfigured authorization check is less exposed
 against a channel that doesn't exist most of the time and rotates when it
@@ -114,7 +114,7 @@ by client-side checks that a malicious client could simply skip.
 ### D. Envelope: `PresentMessage` stays the payload, wrapped for the network
 
 `PresentMessage` (`protocol.ts:72`) — `state`/`command`/`pointer`/
-`annotations`/`recording` — is reused unchanged as the *content* of what
+`annotations`/`recording` — is reused unchanged as the _content_ of what
 crosses the network, exactly as the first draft proposed. What changes: it
 travels inside an envelope, not bare, because a network transport has
 failure modes `BroadcastChannel` structurally cannot (duplicate delivery,
@@ -197,7 +197,7 @@ the link still requires the phone to be logged into the presenter's own
 Captivate account — the same owner-scoped auth every other authenticated
 route already requires. This is deliberate: a token embedded in a QR code
 is a bearer credential that a photo of the code (or a compromised phone)
-would leak; requiring the *account* to authenticate means the QR is
+would leak; requiring the _account_ to authenticate means the QR is
 convenience (skip typing a URL), not security (that's the RLS in section C
 plus ordinary login).
 
@@ -221,7 +221,7 @@ somehow show a live mirror of the stage, which is out of scope for
 
 Instead: a **touchpad**, matching how a real laser pointer or a trackpad
 already works. A dedicated touch-target area on the remote route tracks
-finger movement *deltas* while a finger is down (`touchmove`'s
+finger movement _deltas_ while a finger is down (`touchmove`'s
 frame-to-frame `clientX`/`clientY` difference, scaled by a fixed
 sensitivity factor), accumulating into a normalized `{ x, y }` position
 (the same `NormalisedPoint` shape `protocol.ts:21-25` already defines for
@@ -233,7 +233,7 @@ finger immediately sends `pointer: { point: null, ... }` (the existing
 only while a button is held" in the desktop sense — read
 `annotation-layer.tsx`'s actual laser handling (`onPointerDown`/
 `onPointerMove`/`onPointerUp`, `annotation-layer.tsx:82-171`) and its own
-comment: on the console, the laser follows the mouse on hover *regardless*
+comment: on the console, the laser follows the mouse on hover _regardless_
 of whether a button is held, and only clears on pointer-up/pointer-leave —
 there is no "held" state on desktop to mirror. A touchscreen has no hover at
 all, so touch-presence is the correct equivalent of that hover state, not a

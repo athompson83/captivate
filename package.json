@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:rls": "supabase/tests/run.sh",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "verify": "npm run format:check && npm run typecheck && npm run lint && npm run test && npm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "predev": "node scripts/copy-mediapipe-wasm.mjs",

@@ -6,7 +6,7 @@ list). Scopes "AI should make the presentations more visually captivating."
 ## Problem
 
 Today, nothing in Captivate actually sources or generates an image. The AI
-authoring pipeline (`src/lib/ai/service.ts`) only ever produces a *prompt*:
+authoring pipeline (`src/lib/ai/service.ts`) only ever produces a _prompt_:
 scene generation creates an empty image placeholder (`url: "", alt:
 scene.imagePrompt`, `service.ts:483`) when the model thinks a scene needs a
 picture, and `suggestVisuals` (`service.ts:578`) returns text descriptions of
@@ -36,13 +36,13 @@ resolved:
    left as a permanent hotlink to an external CDN, per AGENTS.md's database
    rules). Pexels' license ("All photos and videos on Pexels are free to
    use," modification permitted, the only redistribution restriction is
-   against *reselling on competing stock-photo platforms*) has no equivalent
+   against _reselling on competing stock-photo platforms_) has no equivalent
    hotlink-only requirement, and is compatible with storing a chosen photo in
    Captivate's own storage the same way an uploaded one is. Attribution is
    still required by Pexels and is still tracked per section D — this
    decision is about storage rights, not about whether credit is owed.
 3. **Generation: the OpenAI Image API, `gpt-image-2`, as the sole
-   implemented provider for MVP.** No multi-provider abstraction is *used* in
+   implemented provider for MVP.** No multi-provider abstraction is _used_ in
    MVP, though section B's interface is still narrow-and-swappable in shape
    (see below) so a future provider change is a new implementation of one
    interface, not a rewrite. No model selection is exposed to the presenter
@@ -65,7 +65,7 @@ An image element with no `url` is already a recognized state (created by AI
 scene generation, or by an author dragging in an empty image slot). Per
 AGENTS.md's explicit warning against exactly this shape ("an empty image
 placeholder with a filled surface" is named as one of the regressions to
-watch for), the *stage* must keep rendering an empty placeholder as empty —
+watch for), the _stage_ must keep rendering an empty placeholder as empty —
 this feature lives entirely in the **editor's** picker UI, not in how the
 stage paints a missing image.
 
@@ -93,7 +93,7 @@ New file, `server-only` per AGENTS.md (it holds provider API keys):
 **The interface is narrow on purpose, not abstract for its own sake.** MVP
 implements exactly one stock provider and one generation provider — nothing
 in this spec asks for a provider-selection UI, and none should be built. The
-interface exists so a *future* provider swap (a pricing change, a
+interface exists so a _future_ provider swap (a pricing change, a
 deprecation) is a new implementation of one shape, not a rewrite of the
 picker/asset-persistence code in sections A and C that calls it:
 
@@ -109,7 +109,9 @@ interface StockSearchResult {
 }
 
 interface StockProvider {
-  search(query: string): Promise<{ ok: true; data: StockSearchResult[] } | { ok: false; error: string }>;
+  search(
+    query: string,
+  ): Promise<{ ok: true; data: StockSearchResult[] } | { ok: false; error: string }>;
 }
 
 interface GeneratedImageResult {
@@ -179,7 +181,7 @@ implementation detail:
    uploads (`src/lib/data/upload-limits.ts`) — reuse that same constant
    rather than inventing a second limit.
 3. **Verify, don't trust, the content**: check the response's MIME type
-   against `ALLOWED_MIME` (same file), and verify the *decoded* image format
+   against `ALLOWED_MIME` (same file), and verify the _decoded_ image format
    matches (a file claiming `image/jpeg` that isn't a real JPEG is rejected,
    not passed through) — the same posture AGENTS.md's validate-at-every-
    boundary rule already takes with user input and model output.
@@ -194,7 +196,7 @@ implementation detail:
 ### D. Provenance: structured fields, not one attribution string
 
 The original draft of this spec proposed a single `attribution: text`
-column. That's enough to *display* a credit line but not enough to answer
+column. That's enough to _display_ a credit line but not enough to answer
 "where did this specific asset actually come from" later — for a cost audit,
 a licensing question, or debugging a bad generation. Extend the `assets`
 table (new append-only migration per AGENTS.md's database rule, RLS
@@ -205,7 +207,7 @@ on an existing table, not a new one) with:
   existing rows need no backfill).
 - For `source: "stock"`: `provider_asset_id`, `original_page_url`,
   `creator_name`, `creator_page_url`, `license_ref` (e.g. `"Pexels
-  License"`), `verified_at` (timestamp — when this asset's licensing was
+License"`), `verified_at` (timestamp — when this asset's licensing was
   last confirmed against the provider's terms, so a future terms change has
   something to check existing assets against rather than only new ones).
 - For `source: "generated"`: `provider` (e.g. `"openai"`), `model` (e.g.
@@ -245,7 +247,7 @@ atomic operation, not a read-then-write:
   per-user generations today, both updated by the same reservation step.
 - **Reserve before calling the provider, reconcile after.** Immediately
   before calling OpenAI: atomically check (global monthly spend + this
-  request's *estimated* cost ≤ $100) AND (this user's generations today <
+  request's _estimated_ cost ≤ $100) AND (this user's generations today <
   25), and if both hold, atomically increment both counters by the
   estimate — a single database operation (e.g. a Postgres function with
   appropriate row locking, or an atomic `UPDATE ... WHERE` guard clause that
@@ -253,12 +255,12 @@ atomic operation, not a read-then-write:
   requests can't both pass the check before either commits. If the atomic
   reserve fails, the call to OpenAI never happens (see the graceful-
   degradation behavior below). After the provider responds, reconcile the
-  reservation to the *actual* reported cost — refund the difference if the
+  reservation to the _actual_ reported cost — refund the difference if the
   estimate was high, or (since the reservation already happened) accept a
   small overshoot if it was low, rather than under-reserving to begin with.
 - **Failure is graceful, not global.** When the monthly budget or a user's
   daily cap is exhausted, `generateImage` returns `{ ok: false, error: "..."
-  }` with language that's honest about *why* (budget exhausted vs. your
+}` with language that's honest about _why_ (budget exhausted vs. your
   daily limit reached — these are different situations for a presenter to
   understand), and — critically — this failure must not affect
   `searchStockPhotos`, direct upload, or browsing existing assets at all.
@@ -278,7 +280,7 @@ atomic operation, not a read-then-write:
 Captivate's own templates and audit findings (the "Recognising Shock"
 example presentation seen during the original project review) show this
 tool is used for clinical/medical and other technical instruction — content
-where a *wrong-looking-right* image is worse than no image. An AI-generated
+where a _wrong-looking-right_ image is worse than no image. An AI-generated
 ECG trace, drug label, dosage figure, procedure-sequence diagram, or
 quantitative chart is exactly the kind of image that can look authoritative
 while being fabricated, since the model has no grounding in the actual
@@ -295,7 +297,7 @@ data/waveform/label it's asked to render.
   numbers) with a stronger inline warning before generation proceeds, rather
   than after — the earlier the warning, the more likely it changes the
   author's choice rather than just documenting that they were told.
-- This is a guardrail on *use*, not a technical block on generation itself —
+- This is a guardrail on _use_, not a technical block on generation itself —
   Captivate does not have a way to verify a prompt's clinical intent with
   certainty, and false-positive blocking would just push authors to route
   around it. The honest mechanism is a clear, hard-to-miss warning, matching
@@ -363,7 +365,7 @@ a special case.
   are new, additive entry points; the existing text-only suggestion flow is
   untouched.
 - No video/audio sourcing — image only, per the user's original request.
-- No multi-provider abstraction *exposed* anywhere (no provider picker, no
+- No multi-provider abstraction _exposed_ anywhere (no provider picker, no
   model selection) — section B's interface is narrow and single-implementation
   for MVP, not a plugin system.
 - No high-quality tier, no multi-image batches — one medium 16:9 image per
@@ -413,7 +415,7 @@ a special case.
   atomic reserve-then-reconcile design tested exactly as prescribed above,
   not spot-checked.
 - **Licensing drift.** Attribution/storage-rights requirements are a live
-  legal surface — this amendment verified Pexels' and Unsplash's *current*
+  legal surface — this amendment verified Pexels' and Unsplash's _current_
   terms directly (see the Decisions section), but "current" means "as of
   this amendment," not permanently; `verified_at` (section D) exists
   specifically so a future terms change has something to check existing

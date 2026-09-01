@@ -59,7 +59,6 @@ describe("passwords that must be refused", () => {
     refuse("poiuytrewq");
   });
 
-
   it("refuses a password that is really the email or the name on the same form", () => {
     // Both halves of the login sitting in one place is not two secrets.
     refuse("alexsmith99", { email: "alex.smith@example.com" });

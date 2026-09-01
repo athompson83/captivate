@@ -667,9 +667,8 @@ export function usePresentSession({
       // The next scene in the *argument*. `sceneIndex + 1` would show the
       // console a detail scene the presenter is not about to walk into.
       nextScene:
-        scenes.find(
-          (candidate, i) => i > state.sceneIndex && candidate.flowRole !== "detail",
-        ) ?? null,
+        scenes.find((candidate, i) => i > state.sceneIndex && candidate.flowRole !== "detail") ??
+        null,
       channelAvailable: api.channel.available,
 
       next: () => api.send("next"),

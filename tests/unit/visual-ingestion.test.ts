@@ -88,7 +88,10 @@ describe("fetchImageBytes", () => {
   });
 
   it("accepts a JPEG too", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => respondWith(JPEG)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respondWith(JPEG)),
+    );
     const { fetchImageBytes } = await import("@/lib/ai/visual-sourcing");
     const result = await fetchImageBytes(PEXELS);
     expect(result.ok && result.data.extension).toBe("jpg");
@@ -134,9 +137,7 @@ describe("fetchImageBytes", () => {
     const { MAX_UPLOAD_BYTES } = await import("@/lib/data/upload-limits");
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        respondWith(PNG, { "content-length": String(MAX_UPLOAD_BYTES + 1) }),
-      ),
+      vi.fn(async () => respondWith(PNG, { "content-length": String(MAX_UPLOAD_BYTES + 1) })),
     );
     const { fetchImageBytes } = await import("@/lib/ai/visual-sourcing");
 
@@ -148,7 +149,10 @@ describe("fetchImageBytes", () => {
     // A tenth of the ceiling per chunk: eleven reads to exceed it, and the
     // stream would otherwise go on forever.
     const endless = endlessResponse(Math.ceil(MAX_UPLOAD_BYTES / 10));
-    vi.stubGlobal("fetch", vi.fn(async () => endless.response));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => endless.response),
+    );
     const { fetchImageBytes } = await import("@/lib/ai/visual-sourcing");
 
     expect(await fetchImageBytes(PEXELS)).toEqual({ ok: false, error: "too-large" });

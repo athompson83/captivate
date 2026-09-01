@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Loader2, Smartphone, X } from "lucide-react";
-import { endRemoteSession, startRemoteSession, type RemoteSession } from "@/lib/data/remote-sessions";
+import {
+  endRemoteSession,
+  startRemoteSession,
+  type RemoteSession,
+} from "@/lib/data/remote-sessions";
 
 /**
  * Pairing a phone.
@@ -155,7 +159,9 @@ function PairingSheet({
           <div>
             <h2 className="text-ink text-[15px] font-medium">Connect a phone</h2>
             <p className="text-ink-3 mt-0.5 text-[12px]">
-              {connected ? "A phone is connected." : "Scan this on a phone signed in to your account."}
+              {connected
+                ? "A phone is connected."
+                : "Scan this on a phone signed in to your account."}
             </p>
           </div>
           <button

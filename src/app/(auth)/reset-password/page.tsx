@@ -11,7 +11,12 @@ export const metadata: Metadata = {
 export default function ResetPasswordPage() {
   return (
     <div>
-      <h1 className="text-ink text-[24px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Reset your password</h1>
+      <h1
+        className="text-ink text-[24px] font-semibold tracking-tight"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        Reset your password
+      </h1>
       <p className="text-ink-3 mt-2 text-sm">
         Enter your email and we&apos;ll send you a link to set a new one.
       </p>

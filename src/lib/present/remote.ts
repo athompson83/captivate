@@ -60,12 +60,7 @@ export const STALE_AFTER_MS = 30_000;
 const SEEN_CEILING = 8000;
 
 export type RejectReason =
-  | "malformed"
-  | "wrong-session"
-  | "wrong-version"
-  | "own-echo"
-  | "duplicate"
-  | "stale";
+  "malformed" | "wrong-session" | "wrong-version" | "own-echo" | "duplicate" | "stale";
 
 export type Accepted = { ok: true; envelope: RemoteEnvelope };
 export type Rejected = { ok: false; reason: RejectReason };
@@ -172,12 +167,7 @@ export function seal(
  * not that the stage acted on it. The stage's next `state` broadcast is what
  * proves that, and it already flows.
  */
-export type RemoteStatus =
-  | "disconnected"
-  | "reconnecting"
-  | "connected"
-  | "sent"
-  | "confirmed";
+export type RemoteStatus = "disconnected" | "reconnecting" | "connected" | "sent" | "confirmed";
 
 /** How long a press may stay unconfirmed before the phone stops claiming it worked. */
 export const CONFIRM_TIMEOUT_MS = 4000;

@@ -40,7 +40,7 @@ engineering work to the Product Owner.
 
 ```bash
 npm run dev          # Next dev server
-npm run verify       # typecheck → lint → unit tests → build. Run this before every commit.
+npm run verify       # format → typecheck → lint → unit tests → build. Run before every commit.
 npm run test         # vitest run (unit + component)
 npm run test:watch   # vitest, watching
 npm run test:e2e     # Playwright (needs a dev server and Supabase env vars)

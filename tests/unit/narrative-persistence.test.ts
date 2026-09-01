@@ -543,8 +543,7 @@ describe("hotspot and flowRole persistence", () => {
     await flushEditor(PRESENTATION, { force: true });
 
     const sent = saveScene.mock.calls.at(-1)?.[0] as
-      | { content?: { elements: { hotspot?: { targetSceneId: string } | null }[] } }
-      | undefined;
+      { content?: { elements: { hotspot?: { targetSceneId: string } | null }[] } } | undefined;
     const written = sent?.content?.elements.find((el) => el.hotspot);
     expect(written?.hotspot?.targetSceneId).toBe(target);
   });

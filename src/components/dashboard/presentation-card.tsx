@@ -87,7 +87,7 @@ export function PresentationCard({
         "group border-line-subtle bg-raised relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border",
         "transition-[border-color,box-shadow,transform] duration-[var(--duration-base)]",
         "hover:border-line hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]",
-        "motion-reduce:transition-none motion-reduce:transform-none",
+        "motion-reduce:transform-none motion-reduce:transition-none",
         pending && "opacity-70",
       )}
     >

@@ -42,10 +42,7 @@ export function MiniatureWorld() {
       </div>
 
       {/* Chart scene, with a tiny nested detail scene — the dive. */}
-      <div
-        className="lw-scene"
-        style={{ left: "72.5%", top: "14%", width: "21%", height: "35%" }}
-      >
+      <div className="lw-scene" style={{ left: "72.5%", top: "14%", width: "21%", height: "35%" }}>
         <div className="lw-bar lw-bar--bright" style={{ width: "58%" }} />
         <div className="lw-col">
           <i style={{ height: "42%" }} />

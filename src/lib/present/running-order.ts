@@ -72,9 +72,6 @@ export function jumpTargets<T extends Pick<Scene, "id" | "flowRole">>(
  * Inside an aside this is the position of the main scene it hangs off, which
  * is the honest answer: the talk has not moved on.
  */
-export function ordinalAt(
-  scenes: readonly Pick<Scene, "flowRole">[],
-  sceneIndex: number,
-): number {
+export function ordinalAt(scenes: readonly Pick<Scene, "flowRole">[], sceneIndex: number): number {
   return runningOrderLength(scenes.slice(0, sceneIndex + 1));
 }

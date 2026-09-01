@@ -60,7 +60,11 @@ describe("what a crawler may index", () => {
   });
 
   it("the landing page, pricing and sign-up stay indexable", () => {
-    for (const file of ["src/app/page.tsx", "src/app/pricing/page.tsx", "src/app/(auth)/sign-up/page.tsx"]) {
+    for (const file of [
+      "src/app/page.tsx",
+      "src/app/pricing/page.tsx",
+      "src/app/(auth)/sign-up/page.tsx",
+    ]) {
       expect(read(file), file).not.toMatch(/robots:\s*\{\s*index:\s*false/);
     }
   });

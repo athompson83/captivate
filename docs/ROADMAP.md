@@ -119,7 +119,7 @@ may widen what `/present/[id]` itself loads.
   disagree with one another beat twenty that do not.
 - **A reference file as stored evidence.** Generating from a file is built
   (`src/lib/ingest/`): an author attaches a deck, document or notes and both
-  the map and the scenes are written from it. What is *not* built is keeping
+  the map and the scenes are written from it. What is _not_ built is keeping
   it — the text is read in the browser, sent with that one generation, and
   never stored, so regenerating a scene next week means attaching the file
   again. Making it an asset and offering it through the existing

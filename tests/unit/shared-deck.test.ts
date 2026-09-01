@@ -71,9 +71,7 @@ describe("parseSharedPayload", () => {
     // leaking them would still be stripped at the parse boundary.
     const deck = parseSharedPayload(
       payload({
-        scenes: [
-          sceneRow(3, { speakerNotes: "PRIVATE", speaker_notes: "ALSO PRIVATE" }),
-        ],
+        scenes: [sceneRow(3, { speakerNotes: "PRIVATE", speaker_notes: "ALSO PRIVATE" })],
       }),
     );
     expect(deck).not.toBeNull();

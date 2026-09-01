@@ -22,7 +22,8 @@ export async function generateMetadata({
   // Never indexed. A share link is the author's decision about who sees the
   // deck; putting one in a search result revokes that decision on their
   // behalf, and they would have no way of knowing it had happened.
-  if (!isSupabaseConfigured) return { title: "Shared presentation", robots: { index: false, follow: false } };
+  if (!isSupabaseConfigured)
+    return { title: "Shared presentation", robots: { index: false, follow: false } };
   const { token } = await params;
   const deck = await getSharedDeck(token).catch(() => null);
   return {

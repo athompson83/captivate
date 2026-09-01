@@ -30,7 +30,7 @@ itself — is what reads as "not premium."
 ## Goals
 
 - Bring dashboard / templates / library / settings / recordings chrome up to
-  the level of craft already present on the stage, using the *existing*
+  the level of craft already present on the stage, using the _existing_
   design language (`docs/DESIGN.md`) rather than inventing a new one.
 - Fix two concrete, evidence-based defects between the documented design
   intent and the shipped code (below).
@@ -59,7 +59,7 @@ itself — is what reads as "not premium."
    `docs/DESIGN.md` frames the product as "dark by default... it sits next to
    a dark projection." `src/components/ui/theme-provider.tsx`'s
    `readPreference()` returns `"system"` both when the user has never
-   expressed a preference *and* when they've explicitly chosen "System" in
+   expressed a preference _and_ when they've explicitly chosen "System" in
    Settings (`settings-panel.tsx` has a working Light/Dark/System toggle via
    `useTheme`/`setPref`) — both cases then defer to
    `matchMedia("(prefers-color-scheme: dark)")`. The user confirmed the fix:
@@ -215,7 +215,7 @@ judgment call, a deterministic one failing is a bug.
    `flight`) and `arrange.ts` (placement math) are unmodified by this
    workstream. `world.tsx` is touched only for the rendering-level polish
    section E asks for (the path/glow visual weight, the establish-section
-   hold-frame emphasis) — its culling/LOD *selection* logic (the `rendered`
+   hold-frame emphasis) — its culling/LOD _selection_ logic (the `rendered`
    memo's endpoint-based detail decisions, described in AGENTS.md) is
    unmodified. A diff to `camera.ts`/`arrange.ts`, or to `world.tsx`'s
    culling/LOD selection, is out of scope for this PR by definition; a diff

@@ -11,7 +11,10 @@ import type { RecordingSummary } from "@/lib/data/recordings";
  */
 
 vi.mock("@/lib/data/recordings", () => ({
-  getRecordingUrl: vi.fn(async () => ({ ok: true as const, data: { url: "https://example.com/rec.webm" } })),
+  getRecordingUrl: vi.fn(async () => ({
+    ok: true as const,
+    data: { url: "https://example.com/rec.webm" },
+  })),
   deleteRecording: vi.fn(async () => ({ ok: true as const, data: undefined })),
   renameRecording: vi.fn(async () => ({ ok: true as const, data: undefined })),
 }));

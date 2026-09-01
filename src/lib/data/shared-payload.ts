@@ -82,18 +82,16 @@ export function parseSharedPayload(raw: unknown): SharedDeck | null {
     themeId: presentation.themeId,
     aspectRatio: presentation.aspectRatio,
     journey,
-    sections: sections.map(
-      (s): Section => ({
-        id: s.id,
-        presentationId: presentation.id,
-        title: s.title,
-        label: s.label,
-        purpose: "",
-        position: s.position,
-        createdAt: "",
-        updatedAt: "",
-      }),
-    ),
+    sections: sections.map((s): Section => ({
+      id: s.id,
+      presentationId: presentation.id,
+      title: s.title,
+      label: s.label,
+      purpose: "",
+      position: s.position,
+      createdAt: "",
+      updatedAt: "",
+    })),
     scenes: scenes.map((row): Scene => {
       const placement = ScenePlacement.safeParse(row.placement);
       return {

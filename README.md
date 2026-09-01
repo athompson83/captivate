@@ -78,32 +78,33 @@ settings that need attention.
 | `npm test`          | Unit tests (Vitest)                                        |
 | `npm run test:e2e`  | End-to-end tests (Playwright)                              |
 | `npm run test:rls`  | Row-level-security isolation test against a local Postgres |
-| `npm run verify`    | Typecheck, lint, unit tests and build                      |
+| `npm run format`    | Rewrite every file the way Prettier wants it               |
+| `npm run verify`    | Format check, typecheck, lint, unit tests and build        |
 
 ---
 
 ## Documentation
 
-| Document                                              | Contents                                               |
-| ----------------------------------------------------- | ------------------------------------------------------ |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md)               | How the pieces fit together, and why                   |
-| [FEATURES.md](docs/FEATURES.md)                       | What is implemented, partial, and deferred             |
-| [DESIGN.md](docs/DESIGN.md)                           | Visual language and design tokens                      |
-| [UX.md](docs/UX.md)                                   | Interaction decisions and their reasoning              |
-| [DATABASE.md](docs/DATABASE.md)                       | Schema, indexes and row-level security                 |
-| [PRESENTATION_ENGINE.md](docs/PRESENTATION_ENGINE.md) | The stage, layouts, motion and auto-fit                |
-| [AI_ARCHITECTURE.md](docs/AI_ARCHITECTURE.md)         | Structured output, validation and fallbacks            |
-| [RECORDING.md](docs/RECORDING.md)                     | What the browser can and cannot do, honestly           |
-| [SECURITY.md](docs/SECURITY.md)                       | Threat model, controls and accepted risks              |
-| [TESTING.md](docs/TESTING.md)                         | What is tested and how to run it                       |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md)                   | Environment, migrations and hosting                    |
-| [FILE_STRUCTURE.md](docs/FILE_STRUCTURE.md)           | Where things live                                      |
-| [CONNECTIONS.md](docs/CONNECTIONS.md)                 | External services and how they are wired               |
-| [MVP_STATUS.md](docs/MVP_STATUS.md)                   | Honest status of every MVP requirement                 |
-| [PROJECT_CHECKLIST.md](PROJECT_CHECKLIST.md)          | Executive roadmap, acceptance criteria and evidence    |
-| [PROGRESS.md](PROGRESS.md)                            | Concise current state and session handoff               |
-| [APP_PROJECT_CONTROL_STANDARD.md](APP_PROJECT_CONTROL_STANDARD.md) | Standing delivery authority and closeout rules |
-| [AGENTS.md](AGENTS.md)                                | Conventions for anyone (or anything) editing this repo |
+| Document                                                           | Contents                                               |
+| ------------------------------------------------------------------ | ------------------------------------------------------ |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md)                            | How the pieces fit together, and why                   |
+| [FEATURES.md](docs/FEATURES.md)                                    | What is implemented, partial, and deferred             |
+| [DESIGN.md](docs/DESIGN.md)                                        | Visual language and design tokens                      |
+| [UX.md](docs/UX.md)                                                | Interaction decisions and their reasoning              |
+| [DATABASE.md](docs/DATABASE.md)                                    | Schema, indexes and row-level security                 |
+| [PRESENTATION_ENGINE.md](docs/PRESENTATION_ENGINE.md)              | The stage, layouts, motion and auto-fit                |
+| [AI_ARCHITECTURE.md](docs/AI_ARCHITECTURE.md)                      | Structured output, validation and fallbacks            |
+| [RECORDING.md](docs/RECORDING.md)                                  | What the browser can and cannot do, honestly           |
+| [SECURITY.md](docs/SECURITY.md)                                    | Threat model, controls and accepted risks              |
+| [TESTING.md](docs/TESTING.md)                                      | What is tested and how to run it                       |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md)                                | Environment, migrations and hosting                    |
+| [FILE_STRUCTURE.md](docs/FILE_STRUCTURE.md)                        | Where things live                                      |
+| [CONNECTIONS.md](docs/CONNECTIONS.md)                              | External services and how they are wired               |
+| [MVP_STATUS.md](docs/MVP_STATUS.md)                                | Honest status of every MVP requirement                 |
+| [PROJECT_CHECKLIST.md](PROJECT_CHECKLIST.md)                       | Executive roadmap, acceptance criteria and evidence    |
+| [PROGRESS.md](PROGRESS.md)                                         | Concise current state and session handoff              |
+| [APP_PROJECT_CONTROL_STANDARD.md](APP_PROJECT_CONTROL_STANDARD.md) | Standing delivery authority and closeout rules         |
+| [AGENTS.md](AGENTS.md)                                             | Conventions for anyone (or anything) editing this repo |
 
 ---
 
