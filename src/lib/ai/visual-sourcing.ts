@@ -79,8 +79,36 @@ export function isStockSearchConfigured(): boolean {
   return Boolean(process.env.PEXELS_API_KEY);
 }
 
+/**
+ * Which gateway generates images, resolved the same way the text provider is.
+ *
+ * Same reasoning as `AI_PROVIDER`: an operator adds a key, not a matched pair
+ * of variables, and OpenAI wins a tie so that adding an OpenRouter key beside
+ * a working OpenAI one does not silently move an existing deployment. The two
+ * resolve independently — running text through OpenRouter and images through
+ * OpenAI, or the reverse, is a reasonable thing to want and costs nothing to
+ * allow.
+ */
+export type ImageProviderName = "openai" | "openrouter";
+
+function resolveImageProvider(): ImageProviderName {
+  const named = process.env.CAPTIVATE_IMAGE_PROVIDER?.trim().toLowerCase();
+  if (named === "openai" || named === "openrouter") return named;
+  if (process.env.OPENAI_API_KEY) return "openai";
+  if (process.env.OPENROUTER_API_KEY) return "openrouter";
+  return "openai";
+}
+
+export const IMAGE_PROVIDER = resolveImageProvider();
+
+function imageKey(): string | undefined {
+  return IMAGE_PROVIDER === "openrouter"
+    ? process.env.OPENROUTER_API_KEY
+    : process.env.OPENAI_API_KEY;
+}
+
 export function isImageGenerationConfigured(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY);
+  return Boolean(imageKey());
 }
 
 export async function searchStockPhotos(query: string): Promise<Sourced<StockResult[]>> {
@@ -136,12 +164,115 @@ export interface GeneratedImage {
   reservationId: string;
 }
 
-const OpenAiImageResponse = z.object({
-  data: z.array(z.object({ b64_json: z.string().min(1) })).min(1),
+/**
+ * Both providers answer in this shape: an array of base64 payloads.
+ *
+ * OpenRouter's image endpoint is deliberately OpenAI-compatible here, which is
+ * why this whole change is a request-body difference and not a second code
+ * path. `media_type` is OpenRouter's addition and is optional — the data URL
+ * below honours it when it is there rather than asserting PNG, because a model
+ * that returns WebP with a `data:image/png` prefix is an image that renders
+ * nowhere.
+ */
+const GeneratedImageResponse = z.object({
+  data: z
+    .array(
+      z.object({
+        b64_json: z.string().min(1),
+        media_type: z.string().nullish(),
+      }),
+    )
+    .min(1),
 });
 
-const OPENAI_IMAGE_ENDPOINT = "https://api.openai.com/v1/images/generations";
-const IMAGE_MODEL = "gpt-image-2";
+const IMAGE_ENDPOINT: Record<ImageProviderName, string> = {
+  openai: "https://api.openai.com/v1/images/generations",
+  openrouter: "https://openrouter.ai/api/v1/images",
+};
+
+/**
+ * The same model through either gateway, for the same reason the text default
+ * is unchanged: the prompts in `service.ts` and the way a generated backdrop
+ * sits under text were tuned against `gpt-image-2`, so moving gateway and
+ * model together would leave nothing to attribute a difference to.
+ * `CAPTIVATE_IMAGE_MODEL` switches it — `google/gemini-3.1-flash-image` and
+ * `bytedance-seed/seedream-5-0-lite` are both markedly cheaper.
+ */
+const DEFAULT_IMAGE_MODEL: Record<ImageProviderName, string> = {
+  openai: "gpt-image-2",
+  openrouter: "openai/gpt-image-2",
+};
+
+const IMAGE_MODEL =
+  process.env.CAPTIVATE_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL[IMAGE_PROVIDER];
+
+/**
+ * What to ask for, in each gateway's vocabulary.
+ *
+ * OpenAI takes a literal pixel `size`; OpenRouter takes an `aspect_ratio`,
+ * because it fronts models whose native resolutions differ. `3:2` is
+ * 1536x1024 expressed the other way, so both return the picture this app has
+ * always placed — the deck is 16:9 and a wider backdrop would be the better
+ * choice, but changing the shape in the same step as the gateway is how a
+ * difference becomes unattributable.
+ */
+function imageRequestBody(prompt: string): Record<string, unknown> {
+  const common = { model: IMAGE_MODEL, prompt, n: 1, quality: "medium" };
+  return IMAGE_PROVIDER === "openrouter"
+    ? { ...common, aspect_ratio: "3:2" }
+    : { ...common, size: "1536x1024" };
+}
+
+/** Image types this deployment will store, and what to call the file. */
+const STORABLE: Record<string, { mimeType: string; extension: string }> = {
+  "image/png": { mimeType: "image/png", extension: "png" },
+  "image/jpeg": { mimeType: "image/jpeg", extension: "jpg" },
+  "image/webp": { mimeType: "image/webp", extension: "webp" },
+};
+
+/**
+ * What the bytes actually are, as opposed to what anything says they are.
+ *
+ * The accept path used to test for a PNG signature and store `image/png`,
+ * which was right while exactly one model could produce a generated image and
+ * silently wrong the moment another could: a WebP stored under a PNG content
+ * type renders nowhere, and the check that was supposed to catch a lie instead
+ * rejected a perfectly good picture. Sniffing answers both questions at once —
+ * is this an image at all, and which one — so the claim in the data URL never
+ * has to be trusted.
+ */
+export function sniffImage(bytes: Uint8Array): { mimeType: string; extension: string } | null {
+  const at = (i: number) => bytes[i] ?? -1;
+  if (at(0) === 0x89 && at(1) === 0x50 && at(2) === 0x4e && at(3) === 0x47)
+    return STORABLE["image/png"];
+  if (at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff) return STORABLE["image/jpeg"];
+  if (
+    at(0) === 0x52 &&
+    at(1) === 0x49 &&
+    at(2) === 0x46 &&
+    at(3) === 0x46 &&
+    at(8) === 0x57 &&
+    at(9) === 0x45 &&
+    at(10) === 0x42 &&
+    at(11) === 0x50
+  ) {
+    return STORABLE["image/webp"];
+  }
+  return null;
+}
+
+/**
+ * The type to put in the preview's data URL.
+ *
+ * A claim, used only so the browser paints the preview correctly. Nothing is
+ * stored on the strength of it — `sniffImage` reads the bytes when the author
+ * accepts — so an unrecognised value falls back to PNG rather than failing a
+ * generation that has already been paid for.
+ */
+function mediaType(declared: string | null | undefined): string {
+  const named = declared?.trim().toLowerCase() ?? "";
+  return named in STORABLE ? named : "image/png";
+}
 
 /**
  * Generates one image, after reserving the money for it.
@@ -157,7 +288,7 @@ export async function generateImage(
   prompt: string,
   presentationId: string | null = null,
 ): Promise<Sourced<GeneratedImage>> {
-  const key = process.env.OPENAI_API_KEY;
+  const key = imageKey();
   if (!key) return { ok: false, error: "Image generation isn't configured on this deployment." };
 
   // Checked before the reservation: a refusal must not consume budget, and the
@@ -202,25 +333,40 @@ export async function generateImage(
 
   const startedAt = Date.now();
   try {
-    const response = await fetch(OPENAI_IMAGE_ENDPOINT, {
+    const response = await fetch(IMAGE_ENDPOINT[IMAGE_PROVIDER], {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: IMAGE_MODEL,
-        prompt: trimmed,
-        n: 1,
-        size: "1536x1024",
-        quality: "medium",
-      }),
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        // Attribution only, and only on the gateway that asks for it. The
+        // product's name and its own public origin — never the author's.
+        ...(IMAGE_PROVIDER === "openrouter"
+          ? {
+              "X-Title": "Captivate",
+              ...(process.env.NEXT_PUBLIC_SITE_URL
+                ? { "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL }
+                : {}),
+            }
+          : {}),
+      },
+      body: JSON.stringify(imageRequestBody(trimmed)),
       signal: AbortSignal.timeout(90_000),
     });
 
     if (!response.ok) {
       await settle(supabase, ticket.id, "failed", `HTTP ${response.status}`, startedAt);
-      return { ok: false, error: "The image provider refused that request." };
+      // Out of credit is worth its own sentence rather than "refused that
+      // request", which sends whoever reads it to look at the prompt.
+      return {
+        ok: false,
+        error:
+          response.status === 402
+            ? "The image provider's account is out of credit. Search and upload still work."
+            : "The image provider refused that request.",
+      };
     }
 
-    const parsed = OpenAiImageResponse.safeParse(await response.json());
+    const parsed = GeneratedImageResponse.safeParse(await response.json());
     if (!parsed.success) {
       await settle(supabase, ticket.id, "invalid_output", "unreadable response", startedAt);
       return { ok: false, error: "The image provider returned something unreadable." };
@@ -232,7 +378,7 @@ export async function generateImage(
     return {
       ok: true,
       data: {
-        previewDataUrl: `data:image/png;base64,${parsed.data.data[0].b64_json}`,
+        previewDataUrl: `data:${mediaType(parsed.data.data[0].media_type)};base64,${parsed.data.data[0].b64_json}`,
         model: IMAGE_MODEL,
         prompt: trimmed,
         quality: "medium",

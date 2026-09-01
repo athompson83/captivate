@@ -13,10 +13,73 @@ import { z } from "zod";
  *   - retries once, feeding the validation error back, before giving up;
  *   - reports token usage so callers can record cost.
  *
- * Swapping providers means reimplementing this one function.
+ * There are two providers behind it now. The retry policy, the error strings
+ * and the schema validation are shared — they are the product's behaviour and
+ * must not differ by which key an operator happened to set — and each provider
+ * supplies only a `Conversation`: how to ask for one answer, and how to put a
+ * failed answer back in front of the model so it can correct itself. That
+ * second half is the part that genuinely differs. Anthropic wants the
+ * correction as a `tool_result` block answering the failed `tool_use`;
+ * OpenAI-compatible APIs want a `role: "tool"` message carrying the same
+ * `tool_call_id`. Both reject the naive version — a plain user turn after an
+ * unanswered tool call — and this repository has already shipped that bug once.
  */
 
-export const AI_MODEL = process.env.CAPTIVATE_AI_MODEL ?? "claude-sonnet-5";
+/** Which wire protocol the deployment talks. */
+export type AiProviderName = "anthropic" | "openrouter";
+
+const PROVIDERS = new Set<AiProviderName>(["anthropic", "openrouter"]);
+
+/**
+ * Which provider this deployment uses, and why it is resolved rather than set.
+ *
+ * An operator should be able to switch by adding a key, not by keeping two
+ * variables in step — the failure mode of "set the provider *and* the key" is
+ * a deployment that names OpenRouter, holds an Anthropic key, and reports
+ * itself unconfigured while both halves look present.
+ *
+ * Anthropic wins a tie because it is what every existing deployment is already
+ * on: adding an OpenRouter key next to a working Anthropic one must not
+ * silently move the whole product onto a different gateway. `CAPTIVATE_AI_PROVIDER`
+ * is there for the deliberate switch.
+ *
+ * With neither key set the answer is `anthropic`, which is not a claim that
+ * anything is configured — `isAiConfigured` is the only thing that says that —
+ * but it keeps `AI_MODEL` at a stable, priced default so the cost test and the
+ * status route have something honest to report.
+ */
+function resolveProvider(): AiProviderName {
+  const named = process.env.CAPTIVATE_AI_PROVIDER?.trim().toLowerCase();
+  if (named && PROVIDERS.has(named as AiProviderName)) return named as AiProviderName;
+  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  if (process.env.OPENROUTER_API_KEY) return "openrouter";
+  return "anthropic";
+}
+
+export const AI_PROVIDER = resolveProvider();
+
+/**
+ * The default model per provider.
+ *
+ * Both are Claude Sonnet 5 on purpose. Every prompt in `service.ts`, every
+ * schema cap, the token ceiling below and the shape of the structural
+ * fallbacks were tuned against that model, so changing the *gateway* and the
+ * *model* in one step would leave nothing to attribute a regression to.
+ * `CAPTIVATE_AI_MODEL` moves it in one variable once the gateway is known good
+ * — `openai/gpt-5.2`, `google/gemini-3-pro` and `deepseek/deepseek-v3.2` all
+ * support the forced tool call this depends on, and the last is roughly a
+ * tenth of the price.
+ *
+ * Anything set here needs a row in `ai_model_rates` or its generations settle
+ * at zero cost, silently. `tests/unit/generation-cost.test.ts` is the line
+ * that catches that.
+ */
+const DEFAULT_MODEL: Record<AiProviderName, string> = {
+  anthropic: "claude-sonnet-5",
+  openrouter: "anthropic/claude-sonnet-5",
+};
+
+export const AI_MODEL = process.env.CAPTIVATE_AI_MODEL?.trim() || DEFAULT_MODEL[AI_PROVIDER];
 
 /**
  * Ceiling on any single generation, as a guard against runaway cost.
@@ -32,8 +95,16 @@ export const AI_MODEL = process.env.CAPTIVATE_AI_MODEL ?? "claude-sonnet-5";
 const MAX_OUTPUT_TOKENS = 16_000;
 
 export function isAiConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return AI_PROVIDER === "openrouter"
+    ? Boolean(process.env.OPENROUTER_API_KEY)
+    : Boolean(process.env.ANTHROPIC_API_KEY);
 }
+
+/** What an operator has to set, named in the message they will actually see. */
+const KEY_NAME: Record<AiProviderName, string> = {
+  anthropic: "ANTHROPIC_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+};
 
 export type StructuredResult<T> =
   | { ok: true; data: T; usage: { input: number; output: number }; model: string }
@@ -96,6 +167,365 @@ export interface GenerateOptions<T> {
   attemptTimeoutMs?: number;
 }
 
+/** Tokens billed by one call. */
+interface Usage {
+  input: number;
+  output: number;
+}
+
+/**
+ * One answer, in the only vocabulary the shared loop understands.
+ *
+ * `unreadable` is not the same as `no_tool`: the model did call the tool, so
+ * insisting it call one would be answering a question nobody asked. It gets
+ * the correction path, with the parse failure as the thing to fix.
+ */
+type Attempt =
+  | { kind: "tool"; input: unknown; usage: Usage }
+  | { kind: "no_tool"; usage: Usage }
+  | { kind: "unreadable"; usage: Usage; detail: string }
+  | { kind: "truncated"; usage: Usage }
+  | { kind: "overloaded" }
+  | { kind: "error"; message: string };
+
+/**
+ * A conversation with one model, which remembers what it last said.
+ *
+ * The memory is the point. A correction has to reference the exact call that
+ * failed — by `tool_use` id or by `tool_call_id` — so it cannot be assembled
+ * by a caller holding only the parsed result.
+ */
+interface Conversation {
+  attempt(): Promise<Attempt>;
+  /** Put the last answer back with what was wrong with it. */
+  correct(problem: string): void;
+  /** The last answer called no tool. Say so. */
+  insist(): void;
+}
+
+// ---------------------------------------------------------------------------
+// Anthropic
+// ---------------------------------------------------------------------------
+
+function anthropicConversation<T>(
+  options: GenerateOptions<T>,
+  jsonSchema: Record<string, unknown>,
+  maxTokens: number,
+): Conversation {
+  const messages: Anthropic.MessageParam[] = [{ role: "user", content: options.prompt }];
+  let last: Anthropic.Message | null = null;
+  let lastToolUseId: string | null = null;
+
+  return {
+    async attempt() {
+      let response: Anthropic.Message;
+      try {
+        // No sampling parameters. `temperature`/`top_p`/`top_k` are removed on
+        // the Claude 5 family — the API answers 400 `invalid_request_error`,
+        // which took every AI feature down at once when the deployed model
+        // started rejecting them. Variation between drafts is the model's own;
+        // nothing replaces the knob.
+        response = await anthropic().messages.create(
+          {
+            model: AI_MODEL,
+            max_tokens: maxTokens,
+            system: options.system,
+            tools: [
+              {
+                name: options.toolName,
+                description: options.toolDescription,
+                input_schema: jsonSchema as Anthropic.Tool.InputSchema,
+              },
+            ],
+            tool_choice: { type: "tool", name: options.toolName },
+            messages,
+          },
+          { timeout: options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS },
+        );
+      } catch (error) {
+        const status = (error as { status?: number }).status;
+        if (status === 429 || status === 529) return { kind: "overloaded" };
+        return {
+          kind: "error",
+          message:
+            error instanceof Error
+              ? `The model couldn't be reached: ${error.message}`
+              : "The model couldn't be reached.",
+        };
+      }
+
+      last = response;
+      const usage = { input: response.usage.input_tokens, output: response.usage.output_tokens };
+
+      if (response.stop_reason === "max_tokens") return { kind: "truncated", usage };
+
+      const toolUse = response.content.find(
+        (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
+      );
+      if (!toolUse) {
+        lastToolUseId = null;
+        return { kind: "no_tool", usage };
+      }
+
+      lastToolUseId = toolUse.id;
+      return { kind: "tool", input: toolUse.input, usage };
+    },
+
+    correct(problem) {
+      if (!last || !lastToolUseId) return;
+      // The correction must arrive as a tool_result for the failed call, not
+      // as prose: the API rejects any user turn after a tool_use that does
+      // not answer it ("tool_use ids were found without tool_result blocks"),
+      // which meant this retry — the whole rescue path for a near-miss —
+      // could never run. Every schema failure fell straight through to the
+      // structural fallback while looking like a model error.
+      messages.push(
+        { role: "assistant", content: last.content },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: lastToolUseId,
+              is_error: true,
+              content: problem,
+            },
+          ],
+        },
+      );
+    },
+
+    insist() {
+      if (!last) return;
+      messages.push(
+        { role: "assistant", content: last.content },
+        {
+          role: "user",
+          content: `You must answer by calling the ${options.toolName} tool. Call it now.`,
+        },
+      );
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// OpenRouter
+// ---------------------------------------------------------------------------
+
+const OPENROUTER_CHAT_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+
+/**
+ * Only the fields this code reads, and every one of them optional where the
+ * spec allows it to be.
+ *
+ * OpenRouter fronts dozens of upstreams and normalises them onto the OpenAI
+ * shape; "normalises" is not "guarantees", and a response that is a little
+ * different from the one model we tested against must degrade to a readable
+ * error rather than a `TypeError` in a server component.
+ */
+const ChatCompletion = z.object({
+  choices: z
+    .array(
+      z.object({
+        finish_reason: z.string().nullish(),
+        message: z
+          .object({
+            content: z.string().nullish(),
+            tool_calls: z
+              .array(
+                z.object({
+                  id: z.string(),
+                  function: z.object({ name: z.string(), arguments: z.string() }),
+                }),
+              )
+              .nullish(),
+          })
+          .prefault({}),
+      }),
+    )
+    .min(1),
+  usage: z
+    .object({
+      prompt_tokens: z.number().nullish(),
+      completion_tokens: z.number().nullish(),
+    })
+    .nullish(),
+});
+
+/** An OpenAI-shaped message, carrying only what a correction turn needs. */
+type ChatMessage =
+  | { role: "system" | "user"; content: string }
+  | {
+      role: "assistant";
+      content: string | null;
+      tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[];
+    }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+function openRouterConversation<T>(
+  options: GenerateOptions<T>,
+  jsonSchema: Record<string, unknown>,
+  maxTokens: number,
+): Conversation {
+  const messages: ChatMessage[] = [
+    { role: "system", content: options.system },
+    { role: "user", content: options.prompt },
+  ];
+  let lastCall: { id: string; arguments: string } | null = null;
+  let lastContent: string | null = null;
+
+  return {
+    async attempt() {
+      let payload: unknown;
+      let status = 0;
+      try {
+        const response = await fetch(OPENROUTER_CHAT_ENDPOINT, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            // OpenRouter's attribution headers. The product's name and its own
+            // public origin, and deliberately nothing else — no account, no
+            // author, no prompt — because this is a third party being told
+            // who is calling, not who is asking.
+            "X-Title": "Captivate",
+            ...(process.env.NEXT_PUBLIC_SITE_URL
+              ? { "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL }
+              : {}),
+          },
+          body: JSON.stringify({
+            model: AI_MODEL,
+            max_tokens: maxTokens,
+            messages,
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: options.toolName,
+                  description: options.toolDescription,
+                  parameters: jsonSchema,
+                },
+              },
+            ],
+            // The named form, not `"required"`: there is exactly one tool and
+            // the whole design rests on the answer arriving through it, so
+            // letting the model pick which tool to call is a freedom with
+            // nothing on the other side of it.
+            tool_choice: { type: "function", function: { name: options.toolName } },
+          }),
+          signal: AbortSignal.timeout(options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS),
+        });
+        status = response.status;
+        if (!response.ok) {
+          if (status === 429 || status === 502 || status === 503) return { kind: "overloaded" };
+          if (status === 402) {
+            // Worth its own sentence. "The model couldn't be reached" sends an
+            // operator to look at networking, and the answer is a billing page.
+            return {
+              kind: "error",
+              message:
+                "The OpenRouter account is out of credit, so nothing was generated. Top it up and try again.",
+            };
+          }
+          if (status === 401 || status === 403) {
+            return {
+              kind: "error",
+              message: `The model provider rejected this deployment's credentials (HTTP ${status}). Check OPENROUTER_API_KEY.`,
+            };
+          }
+          return { kind: "error", message: `The model couldn't be reached (HTTP ${status}).` };
+        }
+        payload = await response.json();
+      } catch (error) {
+        // A timeout arrives here as an AbortError, and it is the common case
+        // rather than an exotic one, so it gets the sentence that says what to
+        // do about it.
+        if (error instanceof DOMException && error.name === "TimeoutError") {
+          return { kind: "error", message: "The model took too long to answer. Nothing was spent." };
+        }
+        return {
+          kind: "error",
+          message:
+            error instanceof Error
+              ? `The model couldn't be reached: ${error.message}`
+              : "The model couldn't be reached.",
+        };
+      }
+
+      const parsed = ChatCompletion.safeParse(payload);
+      if (!parsed.success) {
+        return { kind: "error", message: "The model provider returned something unreadable." };
+      }
+
+      const choice = parsed.data.choices[0];
+      const usage = {
+        input: parsed.data.usage?.prompt_tokens ?? 0,
+        output: parsed.data.usage?.completion_tokens ?? 0,
+      };
+
+      lastContent = choice.message.content ?? null;
+      const call = choice.message.tool_calls?.[0] ?? null;
+      lastCall = call ? { id: call.id, arguments: call.function.arguments } : null;
+
+      // Checked before the tool call rather than after: a model cut off
+      // mid-arguments still reports a `tool_calls` entry, and its JSON is
+      // truncated garbage. Reading that first would report "the arguments
+      // weren't valid JSON" — true, unactionable, and hiding the ceiling that
+      // actually caused it.
+      if (choice.finish_reason === "length") return { kind: "truncated", usage };
+      if (!call) return { kind: "no_tool", usage };
+
+      // Arguments arrive as a *string* here, where the Anthropic SDK hands
+      // back a parsed object. That is the one place a caller could see a
+      // difference between the two providers, so it is absorbed here.
+      try {
+        return { kind: "tool", input: JSON.parse(call.function.arguments), usage };
+      } catch {
+        return {
+          kind: "unreadable",
+          usage,
+          detail: "The arguments you sent were not valid JSON.",
+        };
+      }
+    },
+
+    correct(problem) {
+      if (!lastCall) return;
+      // The OpenAI convention's version of the same trap: an assistant message
+      // carrying `tool_calls` must be followed by a `tool` message for each
+      // one, or the next request is rejected outright.
+      messages.push(
+        {
+          role: "assistant",
+          content: lastContent,
+          tool_calls: [
+            {
+              id: lastCall.id,
+              type: "function",
+              function: { name: options.toolName, arguments: lastCall.arguments },
+            },
+          ],
+        },
+        { role: "tool", tool_call_id: lastCall.id, content: problem },
+      );
+    },
+
+    insist() {
+      messages.push(
+        { role: "assistant", content: lastContent ?? "" },
+        {
+          role: "user",
+          content: `You must answer by calling the ${options.toolName} tool. Call it now.`,
+        },
+      );
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The shared loop
+// ---------------------------------------------------------------------------
+
 export async function generateStructured<T>(
   options: GenerateOptions<T>,
 ): Promise<StructuredResult<T>> {
@@ -103,14 +533,17 @@ export async function generateStructured<T>(
     return {
       ok: false,
       reason: "not_configured",
-      error: "AI isn't configured on this deployment. Set ANTHROPIC_API_KEY to enable it.",
+      error: `AI isn't configured on this deployment. Set ${KEY_NAME[AI_PROVIDER]} to enable it.`,
     };
   }
 
   const jsonSchema = z.toJSONSchema(options.schema, { io: "input" }) as Record<string, unknown>;
   const maxTokens = Math.min(options.maxTokens ?? 4000, MAX_OUTPUT_TOKENS);
 
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: options.prompt }];
+  const conversation =
+    AI_PROVIDER === "openrouter"
+      ? openRouterConversation(options, jsonSchema, maxTokens)
+      : anthropicConversation(options, jsonSchema, maxTokens);
 
   let totalInput = 0;
   let totalOutput = 0;
@@ -118,51 +551,21 @@ export async function generateStructured<T>(
   // Two attempts: the first as asked, the second with the validation error so
   // the model can correct a near-miss rather than the user seeing a failure.
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    let response: Anthropic.Message;
-    try {
-      // No sampling parameters. `temperature`/`top_p`/`top_k` are removed on
-      // the Claude 5 family — the API answers 400 `invalid_request_error`,
-      // which took every AI feature down at once when the deployed model
-      // started rejecting them. Variation between drafts is the model's own;
-      // nothing replaces the knob.
-      response = await anthropic().messages.create(
-        {
-          model: AI_MODEL,
-          max_tokens: maxTokens,
-          system: options.system,
-          tools: [
-            {
-              name: options.toolName,
-              description: options.toolDescription,
-              input_schema: jsonSchema as Anthropic.Tool.InputSchema,
-            },
-          ],
-          tool_choice: { type: "tool", name: options.toolName },
-          messages,
-        },
-        { timeout: options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS },
-      );
-    } catch (error) {
-      const status = (error as { status?: number }).status;
-      if (status === 429 || status === 529) {
-        return {
-          ok: false,
-          reason: "overloaded",
-          error: "The model is busy right now. Try again in a moment — nothing was changed.",
-        };
-      }
+    const answer = await conversation.attempt();
+
+    if (answer.kind === "overloaded") {
       return {
         ok: false,
-        reason: "provider_error",
-        error:
-          error instanceof Error
-            ? `The model couldn't be reached: ${error.message}`
-            : "The model couldn't be reached.",
+        reason: "overloaded",
+        error: "The model is busy right now. Try again in a moment — nothing was changed.",
       };
     }
+    if (answer.kind === "error") {
+      return { ok: false, reason: "provider_error", error: answer.message };
+    }
 
-    totalInput += response.usage.input_tokens;
-    totalOutput += response.usage.output_tokens;
+    totalInput += answer.usage.input;
+    totalOutput += answer.usage.output;
 
     // The model ran out of room mid-answer. Its tool input is cut off, so the
     // schema rejects it and — with no other check — the author was told their
@@ -171,7 +574,7 @@ export async function generateStructured<T>(
     // simply too low. The retry cannot help either, since it re-answers under
     // the same ceiling with a longer conversation in front of it. Say what
     // happened and stop.
-    if (response.stop_reason === "max_tokens") {
+    if (answer.kind === "truncated") {
       return {
         ok: false,
         reason: "truncated",
@@ -180,19 +583,9 @@ export async function generateStructured<T>(
       };
     }
 
-    const toolUse = response.content.find(
-      (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
-    );
-
-    if (!toolUse) {
+    if (answer.kind === "no_tool") {
       if (attempt === 0) {
-        messages.push(
-          { role: "assistant", content: response.content },
-          {
-            role: "user",
-            content: `You must answer by calling the ${options.toolName} tool. Call it now.`,
-          },
-        );
+        conversation.insist();
         continue;
       }
       return {
@@ -203,7 +596,22 @@ export async function generateStructured<T>(
       };
     }
 
-    const parsed = options.schema.safeParse(toolUse.input);
+    if (answer.kind === "unreadable") {
+      if (attempt === 0) {
+        conversation.correct(
+          `${answer.detail}\n\nCall ${options.toolName} again with valid JSON that matches the schema exactly.`,
+        );
+        continue;
+      }
+      return {
+        ok: false,
+        reason: "invalid_output",
+        usage: { input: totalInput, output: totalOutput },
+        error: "The model's answer couldn't be read as structured output. Nothing was changed.",
+      };
+    }
+
+    const parsed = options.schema.safeParse(answer.input);
     if (parsed.success) {
       return {
         ok: true,
@@ -219,25 +627,8 @@ export async function generateStructured<T>(
         .map((i) => `- ${i.path.join(".") || "(root)"}: ${i.message}`)
         .join("\n");
 
-      // The correction must arrive as a tool_result for the failed call, not
-      // as prose: the API rejects any user turn after a tool_use that does
-      // not answer it ("tool_use ids were found without tool_result blocks"),
-      // which meant this retry — the whole rescue path for a near-miss —
-      // could never run. Every schema failure fell straight through to the
-      // structural fallback while looking like a model error.
-      messages.push(
-        { role: "assistant", content: response.content },
-        {
-          role: "user",
-          content: [
-            {
-              type: "tool_result",
-              tool_use_id: toolUse.id,
-              is_error: true,
-              content: `That input didn't match the schema:\n${issues}\n\nCall ${options.toolName} again with corrected input. Respect every length limit exactly.`,
-            },
-          ],
-        },
+      conversation.correct(
+        `That input didn't match the schema:\n${issues}\n\nCall ${options.toolName} again with corrected input. Respect every length limit exactly.`,
       );
       continue;
     }
