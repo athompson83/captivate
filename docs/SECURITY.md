@@ -153,13 +153,13 @@ warning would not harden anything; it would take the application down.
 The same reasoning covers every other `SECURITY DEFINER` function the linter
 names, and the list is worth reconciling in full rather than left as a count:
 
-| Function | Callable by | Why the grant is load-bearing |
-|---|---|---|
-| `captivate_owns_presentation` | `authenticated` | Invoked by the policies on `sections`, `scenes`, `lecture_notes` |
-| `captivate_shared_presentation` | `anon`, `authenticated` | The share link's only door; an anonymous audience has no other path |
-| `captivate_shared_asset` | `anon`, `authenticated` | The same, for media a shared scene references |
-| `captivate_asset_object_is_shared` | `anon`, `authenticated` | Invoked by the storage policy behind a shared deck's images |
-| `captivate_count_generations`, `captivate_reserve_generation`, `captivate_complete_generation`, `captivate_reserve_image_generation`, `captivate_settle_image_generation` | `authenticated` | Called by the server with the author's own JWT, which is the client a route handler already has — see `0020_ledger_integrity.sql` |
+| Function                                                                                                                                                                  | Callable by             | Why the grant is load-bearing                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `captivate_owns_presentation`                                                                                                                                             | `authenticated`         | Invoked by the policies on `sections`, `scenes`, `lecture_notes`                                                                  |
+| `captivate_shared_presentation`                                                                                                                                           | `anon`, `authenticated` | The share link's only door; an anonymous audience has no other path                                                               |
+| `captivate_shared_asset`                                                                                                                                                  | `anon`, `authenticated` | The same, for media a shared scene references                                                                                     |
+| `captivate_asset_object_is_shared`                                                                                                                                        | `anon`, `authenticated` | Invoked by the storage policy behind a shared deck's images                                                                       |
+| `captivate_count_generations`, `captivate_reserve_generation`, `captivate_complete_generation`, `captivate_reserve_image_generation`, `captivate_settle_image_generation` | `authenticated`         | Called by the server with the author's own JWT, which is the client a route handler already has — see `0020_ledger_integrity.sql` |
 
 The ledger five are the interesting row, because "the caller could call them
 directly" is true and is the threat 0020 and 0021 were written against, not a
@@ -412,9 +412,9 @@ a separate, per-scene, explicitly chosen action.
 - **No audit log of sign-ins.** Supabase records them; Captivate does not
   surface them.
 - **No global ceiling on _text_ generation.** Images have one, in
-  `public.ai_image_limits`; text is bounded per user only — 30 heavy and 200
-  light per hour on Pro, and a rolling 30-day allowance on Free — so total text
-  spend still scales with the number of accounts.
+  `public.ai_image_limits`; text is bounded per user only — a rolling 30-day
+  allowance on every plan, plus an hourly burst ceiling on the paid ones — so
+  total text spend still scales with the number of accounts.
   `captivate_reserve_image_generation` is the worked example of the shape this
   needs — a global counter checked under a global lock in the same statement
   that increments it, **and reading its own ceilings**. That last clause is not

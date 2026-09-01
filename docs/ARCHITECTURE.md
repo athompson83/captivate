@@ -281,11 +281,12 @@ See [SECURITY.md](SECURITY.md) for the full picture, including accepted risks.
 
 ## Billing
 
-Captivate sells one thing: **Captivate Pro**, at $12 a month or $96 a year.
-Free is the whole product with a bounded AI allowance — 10 generated
-presentations in any rolling 30 days — and Pro raises every ceiling and adds
-generated imagery. Nothing a person authored is ever locked by a lapsed
-subscription; only future model calls are limited.
+Captivate sells two tiers: **Captivate Basic** at $12 a month or $96 a year,
+and **Captivate Pro** at $25 a month or $200 a year. Free is the whole product
+with a bounded AI allowance — 10 generated presentations in any rolling 30 days
+— and both paid tiers raise every allowance and add generated imagery. Nothing
+a person authored is ever locked by a lapsed subscription; only future model
+calls are limited.
 
 Stripe owns every card field. The app redirects to Stripe-hosted Checkout and
 the Billing Portal, and a signature-verified webhook mirrors subscription state
@@ -294,12 +295,29 @@ a call to Stripe — which matters because an entitlement check sits in front of
 every AI generation, and a network hop there would put Stripe's uptime in front
 of Captivate's.
 
-The gate itself is deliberately tiny. `currentPlan()` resolves to `free` or
-`pro`, and that choice picks one of two `RateLimit` values fed to the
-_existing_ `captivate_reserve_generation` function. So the revenue boundary
-inherits, unchanged, the atomic per-user locking that was built for the spend
-boundary: counting and incrementing remain one statement, and a burst of
-concurrent requests still cannot all read the same count and pass.
+The gate itself is deliberately tiny. `currentPlan()` resolves to a `Plan`,
+and that plan picks a `Budget` — an _allowance_ plus, on the paid tiers, an
+hourly _burst ceiling_. The allowance is fed to the _existing_
+`captivate_reserve_generation` function, so the revenue boundary inherits,
+unchanged, the atomic per-user locking that was built for the spend boundary:
+counting and incrementing remain one statement, and a burst of concurrent
+requests still cannot all read the same count and pass.
+
+The two ceilings answer different questions and are enforced differently. The
+allowance is what was bought — the number shown in settings, the one that
+drains — and it is reserved atomically inside the SQL function, which takes a
+single window. The burst ceiling is abuse protection rather than a product
+promise, so it is pre-checked against the ledger before the reservation; that
+check is not atomic, and it does not need to be, because it sits an order of
+magnitude above anything ordinary use reaches and the allowance underneath it
+is still exact.
+
+Which tier a subscription grants comes from its price: the mirror row carries
+`price_id`, and `planForPriceId` maps it back through the `STRIPE_PRICE_*`
+variables. Each of those holds a comma-separated list so a rotated price still
+resolves — see [DEPLOYMENT.md](DEPLOYMENT.md). An unrecognised price resolves
+to the _lowest_ paid tier, because guessing upward would hand somebody Pro for
+Basic's money on a stale environment variable.
 
 `src/lib/billing/` holds it: `plans.ts` (pure, isomorphic, the single source of
 what each plan allows), `entitlement.ts` (the mirror read), `stripe.ts` (the

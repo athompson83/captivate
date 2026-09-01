@@ -1,7 +1,7 @@
 import "server-only";
 
 import { complete, reserve } from "./rate-limit";
-import { limitForCaller } from "@/lib/billing/entitlement";
+import { ceilingsForCaller } from "@/lib/billing/entitlement";
 import { logFailure } from "@/lib/observability";
 import { BUDGET_KINDS, type BudgetGroup } from "@/lib/billing/plans";
 import { referenceBlock, type Reference } from "@/lib/ingest/reference";
@@ -86,7 +86,7 @@ async function spend<T>(
     BUDGET_KINDS[group],
     prompt,
     presentationId,
-    await limitForCaller(group),
+    await ceilingsForCaller(group),
   );
   if (!ticket.ok) {
     // A refusal is usually the limit doing its job, and occasionally the

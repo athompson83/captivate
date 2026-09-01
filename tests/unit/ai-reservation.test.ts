@@ -38,7 +38,7 @@ describe("AI call reservation", () => {
     const rpc = mockRpc(() => TICKET);
     const { reserve } = await import("@/lib/ai/rate-limit");
 
-    const outcome = await reserve("visuals", ["visuals"], "a prompt", null, LIMIT);
+    const outcome = await reserve("visuals", ["visuals"], "a prompt", null, [LIMIT]);
     expect(outcome).toEqual({ ok: true, reservation: { id: TICKET } });
     expect(rpc).toHaveBeenCalledWith(
       "captivate_reserve_generation",
@@ -57,7 +57,7 @@ describe("AI call reservation", () => {
     mockRpc(() => null);
     const { reserve } = await import("@/lib/ai/rate-limit");
 
-    const outcome = await reserve("visuals", ["visuals"], "a prompt", null, LIMIT);
+    const outcome = await reserve("visuals", ["visuals"], "a prompt", null, [LIMIT]);
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {
       expect(outcome.error).toContain("30 AI generations");
@@ -73,7 +73,7 @@ describe("AI call reservation", () => {
     });
     const { reserve } = await import("@/lib/ai/rate-limit");
 
-    const outcome = await reserve("map", ["map"], "p", null, LIMIT);
+    const outcome = await reserve("map", ["map"], "p", null, [LIMIT]);
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(outcome.error).toContain("Nothing was spent");
   });
@@ -82,7 +82,7 @@ describe("AI call reservation", () => {
     const rpc = mockRpc(() => TICKET);
     const { reserve } = await import("@/lib/ai/rate-limit");
 
-    await reserve("map", ["map"], "x".repeat(9000), null, LIMIT);
+    await reserve("map", ["map"], "x".repeat(9000), null, [LIMIT]);
     const sent = rpc.mock.calls[0][1] as { p_prompt: string };
     expect(sent.p_prompt).toHaveLength(4000);
   });

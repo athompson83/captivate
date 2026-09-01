@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isBillingConfigured, isTestMode, planForPriceId, priceIdFor } from "@/lib/billing/stripe";
 
-const KEYS = ["STRIPE_SECRET_KEY", "STRIPE_PRICE_PRO_MONTHLY", "STRIPE_PRICE_PRO_ANNUAL"] as const;
+// Every variable the module reads. Missing the Basic ones here let one test's
+// environment leak into the next.
+const KEYS = [
+  "STRIPE_SECRET_KEY",
+  "STRIPE_PRICE_BASIC_MONTHLY",
+  "STRIPE_PRICE_BASIC_ANNUAL",
+  "STRIPE_PRICE_PRO_MONTHLY",
+  "STRIPE_PRICE_PRO_ANNUAL",
+] as const;
 
 beforeEach(() => KEYS.forEach((k) => delete process.env[k]));
 afterEach(() => KEYS.forEach((k) => delete process.env[k]));
@@ -57,9 +65,24 @@ describe("billing configuration", () => {
     expect(planForPriceId("price_pro_year")).toBe("pro");
   });
 
+  it("keeps recognising a superseded price, so rotating one cannot downgrade anybody", () => {
+    // A price in Stripe is immutable: changing what Pro costs means a second
+    // price, and everyone already subscribed stays on the first. With one id
+    // per variable, rotating it stops this resolving their tier at all and
+    // every existing Pro subscriber silently becomes Basic. The list is what
+    // stops that, and the head is still what a new checkout is opened against.
+    process.env.STRIPE_PRICE_PRO_MONTHLY = "price_pro_month_v2, price_pro_month_v1";
+    process.env.STRIPE_PRICE_BASIC_MONTHLY = "price_basic_month_v2,price_basic_month_v1";
+
+    expect(priceIdFor("pro", "month")).toBe("price_pro_month_v2");
+    expect(planForPriceId("price_pro_month_v2")).toBe("pro");
+    expect(planForPriceId("price_pro_month_v1")).toBe("pro");
+    expect(planForPriceId("price_basic_month_v1")).toBe("basic");
+  });
+
   it("does not recognise a price this deployment was never told about", () => {
-    // A rotated price, or a variable that never made it to the environment.
-    // `planFromSubscription` reads null as the lowest paid tier, so an
+    // A variable that never made it to the environment, or another account's
+    // price. `planFromSubscription` reads null as the lowest paid tier, so an
     // unrecognised price cannot quietly grant the highest one.
     process.env.STRIPE_PRICE_BASIC_MONTHLY = "price_basic_month";
     process.env.STRIPE_PRICE_PRO_MONTHLY = "price_pro_month";

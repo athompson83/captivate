@@ -5,6 +5,7 @@ import { usedGenerations } from "@/lib/ai/rate-limit";
 import { isBillingConfigured, planForPriceId } from "./stripe";
 import {
   BUDGET_KINDS,
+  ceilingsFor,
   limitFor,
   planFromGrant,
   planFromSubscription,
@@ -77,9 +78,20 @@ export async function currentPlan(): Promise<Plan> {
   }
 }
 
-/** The budget this caller's plan grants for one group of calls. */
+/** The allowance this caller's plan grants for one group of calls. */
 export async function limitForCaller(group: BudgetGroup): Promise<RateLimit> {
   return limitFor(await currentPlan(), group);
+}
+
+/**
+ * Every ceiling the caller has to clear, allowance first.
+ *
+ * The gate takes all of them. Taking only the allowance is what let a paid
+ * plan's burst ceiling exist as a number in a table and nowhere in the code
+ * that enforces anything — a month's worth spendable in an afternoon.
+ */
+export async function ceilingsForCaller(group: BudgetGroup): Promise<readonly RateLimit[]> {
+  return ceilingsFor(await currentPlan(), group);
 }
 
 export interface GrantSummary {

@@ -155,6 +155,12 @@ export function allowsImageGeneration(plan: Plan): boolean {
  * It adds to the deck allowance only. The other groups are large enough
  * relative to it that a deck's worth of drafts and drawings is already
  * covered, and metering four balances is a worse product than metering one.
+ *
+ * Not purchasable yet — there is no Checkout price, no credit balance and no
+ * webhook that grants one. It is the agreed shape of the top-up, kept here so
+ * the tier economics can be reasoned about and tested against, and it is
+ * deliberately not rendered anywhere a user can see: a control that looks
+ * buyable and is not is worse than its absence.
  */
 export const TOPUP = { price: "$5", decks: 10 } as const;
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PLAN_BUDGETS, PRICING, TOPUP, limitFor, type BudgetGroup } from "@/lib/billing/plans";
+import { PLAN_BUDGETS, PRICING, limitFor, type BudgetGroup } from "@/lib/billing/plans";
 import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
 
 export const metadata: Metadata = {
@@ -53,12 +53,6 @@ const ROWS: { label: string; free: string; basic: string; pro: string }[] = [
   },
   { label: "Stock cover photography", free: "Included", basic: "Included", pro: "Included" },
   { label: "AI image generation", free: "—", basic: "Included", pro: "Included" },
-  {
-    label: `Top up when you run out (${TOPUP.price} for ${TOPUP.decks} presentations)`,
-    free: "—",
-    basic: "Yes",
-    pro: "Yes",
-  },
 ];
 
 const freeDecks = PLAN_BUDGETS.free.deck[0].max;
@@ -80,7 +74,7 @@ export default function PricingPage() {
           <p className="mt-4 max-w-2xl text-[16px] leading-relaxed text-[var(--sky-ink-2)]">
             Captivate is free to use, and everything you make stays yours — editable, presentable
             and exportable — on every plan. Paid tiers raise the AI allowance and add generated
-            imagery. Allowances are counted over any 30 days, and you can top up if you run out.
+            imagery. Every allowance below is counted over any 30 days.
           </p>
 
           <div className="mt-12 grid gap-5 lg:grid-cols-3 2xl:gap-8">
@@ -181,9 +175,11 @@ export default function PricingPage() {
           </div>
 
           <p className="mt-8 max-w-3xl text-[13px] leading-relaxed text-[var(--sky-ink-3)]">
-            Limits are counted over a rolling window — the last 30 days on Free, the last hour on
-            Pro — not a calendar month. Cancelling keeps every presentation, asset and recording you
-            have made; only future AI generations are limited.
+            Your allowance is counted over a rolling 30 days on every plan, not a calendar month:
+            what you generated 31 days ago is back. Paid plans also carry an hourly ceiling well
+            above ordinary use, which exists to stop a runaway script spending a month’s allowance
+            in an afternoon. Cancelling keeps every presentation, asset and recording you have made;
+            only future AI generations are limited.
           </p>
         </section>
 

@@ -3,8 +3,8 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { checkRateLimit } from "./rate-limit";
-import { limitForCaller } from "@/lib/billing/entitlement";
+import { checkRateLimits } from "./rate-limit";
+import { ceilingsForCaller } from "@/lib/billing/entitlement";
 import { BUDGET_KINDS, type BudgetGroup } from "@/lib/billing/plans";
 import { REFERENCE_LIMIT } from "@/lib/ingest/reference";
 
@@ -37,7 +37,7 @@ export async function guard<T>(
     };
   }
 
-  const verdict = await checkRateLimit(await limitForCaller(group), BUDGET_KINDS[group]);
+  const verdict = await checkRateLimits(await ceilingsForCaller(group), BUDGET_KINDS[group]);
   if (!verdict.allowed) {
     return {
       ok: false,

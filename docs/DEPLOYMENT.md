@@ -14,8 +14,26 @@
 | `SUPABASE_SERVICE_ROLE_KEY`     | With billing  | **No**              | The Stripe webhook is the only writer of subscription state     |
 | `STRIPE_SECRET_KEY`             | No            | **No**              | Enables billing; absent means nobody is throttled               |
 | `STRIPE_WEBHOOK_SECRET`         | With billing  | **No**              | Verifies the webhook; it is that endpoint's only authentication |
-| `STRIPE_PRICE_PRO_MONTHLY`      | With billing  | **No**              | Price id for $12/month Captivate Pro                            |
-| `STRIPE_PRICE_PRO_ANNUAL`       | With billing  | **No**              | Price id for $96/year Captivate Pro                             |
+| `STRIPE_PRICE_BASIC_MONTHLY`    | With billing  | **No**              | Price id(s) for $12/month Captivate Basic                       |
+| `STRIPE_PRICE_BASIC_ANNUAL`     | With billing  | **No**              | Price id(s) for $96/year Captivate Basic                        |
+| `STRIPE_PRICE_PRO_MONTHLY`      | With billing  | **No**              | Price id(s) for $25/month Captivate Pro                         |
+| `STRIPE_PRICE_PRO_ANNUAL`       | With billing  | **No**              | Price id(s) for $200/year Captivate Pro                         |
+
+### Rotating a price
+
+Each `STRIPE_PRICE_*` variable holds a **comma-separated list, newest first**.
+A price in Stripe is immutable, so changing what a tier costs means creating a
+second price while every subscription already sold stays on the first one. The
+head of the list is what a new checkout is opened against; the rest are still
+recognised, which is what stops `planForPriceId` failing to resolve an existing
+subscriber's tier and quietly dropping them to the lowest paid plan. So a price
+change is:
+
+```
+STRIPE_PRICE_PRO_MONTHLY=price_new,price_old
+```
+
+Never replace the value outright while anybody is subscribed to the old price.
 
 The image-generation ceilings are deliberately not in this table. All three —
 the price of one image, the shared monthly budget, and `daily_max`, the _cap_ on

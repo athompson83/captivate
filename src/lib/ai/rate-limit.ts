@@ -80,6 +80,24 @@ export async function usedGenerations(
   }
 }
 
+/**
+ * Every ceiling, not just the allowance.
+ *
+ * A paid plan has two — a 30-day allowance and an hourly burst — and a call
+ * has to clear both. Checking only the first is what let the burst ceiling
+ * exist as a number in a table and nowhere else.
+ */
+export async function checkRateLimits(
+  limits: readonly RateLimit[],
+  kinds: string[],
+): Promise<RateVerdict> {
+  for (const limit of limits) {
+    const verdict = await checkRateLimit(limit, kinds);
+    if (!verdict.allowed) return verdict;
+  }
+  return { allowed: true };
+}
+
 export async function checkRateLimit(limit: RateLimit, kinds: string[]): Promise<RateVerdict> {
   try {
     const supabase = await supabaseServer();
@@ -134,23 +152,44 @@ export async function reserve(
   countKinds: string[],
   prompt: string,
   presentationId: string | null,
-  limit: RateLimit,
+  limits: readonly RateLimit[],
 ): Promise<ReserveOutcome> {
-  const refused = (error: string): ReserveOutcome => ({
+  const [allowance, ...burst] = limits;
+  const refused = (error: string, windowMinutes = allowance.windowMinutes): ReserveOutcome => ({
     ok: false,
     error,
-    retryAfterMinutes: limit.windowMinutes,
+    retryAfterMinutes: windowMinutes,
   });
 
   try {
+    /*
+     * The burst ceilings, then the allowance.
+     *
+     * The allowance is the one that decides what somebody paid for, so it is
+     * enforced by the statement that writes the ledger row — counted and
+     * inserted under the same per-user lock, exactly. A burst ceiling is
+     * abuse protection rather than a billing promise, and the reservation
+     * function takes one window, so it is checked here instead: a burst of
+     * genuinely simultaneous requests could put a couple of calls over it
+     * before the first is recorded. That is the honest limit of this without
+     * a second window in the database, and it is the right trade — the number
+     * that must never be wrong is the one somebody bought.
+     */
+    for (const ceiling of burst) {
+      const used = await usedGenerations(countKinds, ceiling.windowMinutes);
+      if (used !== null && used >= ceiling.max) {
+        return refused(overLimitMessage(ceiling), ceiling.windowMinutes);
+      }
+    }
+
     const supabase = await supabaseServer();
     const { data, error } = await supabase.rpc("captivate_reserve_generation", {
       p_kind: kind,
       p_count_kinds: countKinds,
       p_prompt: prompt.slice(0, 4000),
       p_presentation_id: presentationId,
-      p_window_minutes: limit.windowMinutes,
-      p_max: limit.max,
+      p_window_minutes: allowance.windowMinutes,
+      p_max: allowance.max,
     });
 
     // Unlike the pre-filter, this one fails closed. The pre-filter can be
@@ -161,7 +200,7 @@ export async function reserve(
       return refused(
         error
           ? "Couldn't reserve an AI call just now. Nothing was spent — try again."
-          : overLimitMessage(limit),
+          : overLimitMessage(allowance),
       );
     }
     return { ok: true, reservation: { id: data as unknown as string } };
