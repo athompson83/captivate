@@ -1,9 +1,8 @@
 import "server-only";
 
 import { complete, reserve } from "./rate-limit";
-import { limitForCaller } from "@/lib/billing/entitlement";
 import { logFailure } from "@/lib/observability";
-import { BUDGET_KINDS, type BudgetGroup } from "@/lib/billing/plans";
+import { type BudgetGroup } from "@/lib/billing/plans";
 import { referenceBlock, type Reference } from "@/lib/ingest/reference";
 import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
 import {
@@ -15,6 +14,7 @@ import {
   settleCover,
 } from "@/lib/editor/place-drawing";
 import { fillWithGeneratedImage, fillWithStockPhoto, isPhotoFillConfigured } from "./photo-fill";
+import { isStockSearchConfigured } from "./visual-sourcing";
 import type { SceneContent } from "@/lib/schema/presentation";
 import { BASE_SYSTEM, generateStructured, isAiConfigured, type StructuredResult } from "./provider";
 import {
@@ -78,16 +78,13 @@ async function spend<T>(
   group: BudgetGroup,
   run: () => Promise<StructuredResult<T>>,
 ): Promise<StructuredResult<T>> {
-  const ticket = await reserve(
-    kind,
-    // The group says what this draws on. Passing the kinds separately let a
-    // caller count one pool and charge another, which is how drafting an
-    // argument came to spend a deck.
-    BUDGET_KINDS[group],
-    prompt,
-    presentationId,
-    await limitForCaller(group),
-  );
+  // The group says what this draws on, and it is all the caller gets to say.
+  // Passing the kinds separately let a caller count one pool and charge
+  // another, which is how drafting an argument came to spend a deck; passing
+  // the ceilings let it name its own limit, which made the plan gate above
+  // this decoration. The database resolves the plan, reads its budgets and
+  // checks both ceilings under one lock.
+  const ticket = await reserve(kind, group, prompt, presentationId);
   if (!ticket.ok) {
     // A refusal is usually the limit doing its job, and occasionally the
     // ledger being unreachable. The two read identically to the author and
@@ -560,8 +557,23 @@ async function dressScenes(
       (element) => element.type === "image" && !element.url && !element.assetId,
     );
 
+  // Two different questions, and they were being answered by one flag.
+  //
+  // `isPhotoFillConfigured` is true if *either* stock search or image
+  // generation is configured — but generation only ever backfills the cover
+  // (it is the one auto-spending image in a deck, and per-scene generation
+  // would cost several times what a presentation sells for). So on a
+  // deployment with an image key and no stock key, every body scene's only
+  // possible picture is a drawing, while this told `drawingCap` that
+  // photographs were coming and it should stay conservative. The result was
+  // the reported one: a generated cover, and a twenty-minute talk carrying a
+  // single drawing with every other media slot empty.
+  //
+  // What sizes the drawing budget is whether *scenes* can get photographs,
+  // which is stock search alone.
+  const stockAvailable = isStockSearchConfigured();
   const photosAvailable = isPhotoFillConfigured();
-  const drawings = drawableScenes(scenes, drawingCap(totalSeconds, !photosAvailable));
+  const drawings = drawableScenes(scenes, drawingCap(totalSeconds, !stockAvailable));
   const drawn = new Set<unknown>(drawings);
   const photos = photosAvailable
     ? scenes.filter(
@@ -907,7 +919,8 @@ export async function generateDrawing(
 You draw single-colour line art that will be sketched stroke by stroke in front of an audience, one stage per press of "next". Rules:
 
 - Return only SVG path data (the d attribute) — absolute commands preferred. No markup, no colours, no fills: strokes on nothing.
-- Plan the stages first. Each stage adds exactly one idea, in the order a teacher at a whiteboard would build the picture; 2 to 8 stages, labelled. Number stages from 0; stage 0 is what appears on arrival.
+- Plan the stages first. Each stage adds exactly one idea, in the order a teacher at a whiteboard would build the picture; 2 to 4 stages, labelled. Number stages from 0; stage 0 is what appears on arrival, so 4 stages costs the presenter 3 presses. Never more than 4 — a picture that takes eight presses to finish stops being a build and becomes an obstacle between the presenter and their next point.
+- Every coordinate must be inside the viewBox you declare. Ink outside it is drawn over whatever else is on the scene.
 - Within a stage, order paths as they would be drawn by hand.
 - Aim for 20 to 120 paths total. Prefer fewer, longer, confident strokes over many fragments.
 - Never render words as paths — lettering drawn at stroke weight is illegible. Leave space for the author's own text instead, and say what goes where in the stage label.

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * The retry has to make a *second request*.
  *
- * `readTwice` exists for one moment: the redirect straight after sign-in, where
+ * `readWithRetry` exists for one moment: the redirect straight after sign-in, where
  * the session cookie is milliseconds old and a single PostgREST read can come
  * back 401 while the ones either side of it succeed. It is the only read on the
  * home page that throws on failure, so when it loses that race the whole page
@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * only `.limit()` was called inside:
  *
  *     let query = supabase.from("presentations").select(...)      // once
- *     await readTwice(() => query.limit(60))                      // "retry"
+ *     await readWithRetry(() => query.limit(60))                  // "retry"
  *
  * A PostgREST builder is a one-shot thenable. Re-awaiting one that has already
  * resolved returns the same cached result and never touches the network, so the
@@ -126,11 +126,12 @@ describe("a read that loses the race just after sign-in", () => {
     outcomes = [
       { data: null, error: { message: "connection refused" } },
       { data: null, error: { message: "connection refused" } },
+      { data: null, error: { message: "connection refused" } },
     ];
 
     const { listPresentations } = await import("@/lib/data/presentations");
     await expect(listPresentations()).rejects.toThrow(/connection refused/);
-    expect(builders).toBe(2);
+    expect(builders).toBe(3);
   });
 
   /**
@@ -177,6 +178,7 @@ describe("a read that loses the race just after sign-in", () => {
 
   it("degrades to no previews loudly rather than silently", async () => {
     outcomes = [
+      { data: null, error: { message: "connection refused" } },
       { data: null, error: { message: "connection refused" } },
       { data: null, error: { message: "connection refused" } },
     ];
@@ -230,14 +232,52 @@ describe("a read that loses the race just after sign-in", () => {
     stderr.mockRestore();
   });
 
+  /**
+   * One retry was not enough, and production said so twice.
+   *
+   * The second report was a dead home page with this in the edge log: a
+   * password grant at 19:55:43.7, then at 19:55:45.3 the four concurrent reads
+   * of `/home` on the new session — scenes, profile and recordings all 200,
+   * and `presentations` alone 401, 1.6 seconds after the token was minted. The
+   * author's own Try again, forty seconds later, worked first time.
+   *
+   * Nothing about that is a broken database. It is a token briefly newer than
+   * the thing being asked to trust it, and the fix is to wait longer than one
+   * short pause before concluding the work cannot be read.
+   */
+  it("keeps trying across the window a fresh session is refused in", async () => {
+    outcomes = [
+      { data: null, error: { message: "JWT expired" } },
+      { data: null, error: { message: "JWT expired" } },
+      { data: [ROW], error: null },
+    ];
+
+    const { listPresentations } = await import("@/lib/data/presentations");
+    const result = await listPresentations({ sort: "recent", limit: 8 });
+
+    expect(builders, "a second retry must be attempted").toBe(3);
+    expect(result).toHaveLength(1);
+  });
+
+  it("says which read came back empty rather than dying on null", async () => {
+    // Neither rows nor an error should be impossible, and it very nearly was
+    // not: `(data as Joined[]).map` on null is a TypeError whose stack points
+    // at this file instead of at the read, which is the least useful thing to
+    // put in front of somebody whose work did not appear.
+    outcomes = [{ data: null, error: null }];
+
+    const { listPresentations } = await import("@/lib/data/presentations");
+    await expect(listPresentations()).rejects.toThrow(/no rows and no error/);
+  });
+
   it("names the mistake when a closure hands back the same query twice", async () => {
     // The guard that stops this shipping again. Re-awaiting a settled builder
-    // is indistinguishable from a real retry at the call site, so `readTwice`
+    // is indistinguishable from a real retry at the call site, so `readWithRetry`
     // compares references and refuses to pretend it tried.
-    const { __readTwiceForTests } = await import("@/lib/data/presentations");
+    const { __readWithRetryForTests } = await import("@/lib/data/presentations");
     const settled = Promise.resolve({ data: null, error: { message: "JWT expired" } });
 
-    await expect(__readTwiceForTests(() => settled)).rejects.toThrow(/same query object twice/);
+    await expect(__readWithRetryForTests(() => settled)).rejects.toThrow(/same query object twice/);
   });
 
   it("retries every option shape, not just the default one", async () => {

@@ -12,6 +12,8 @@ import { formatDate } from "@/lib/utils/format";
 import { SHORTCUTS } from "@/lib/editor/shortcuts";
 import { BillingSection } from "./billing-section";
 import type { GrantSummary, SubscriptionSummary } from "@/lib/billing/entitlement";
+import type { GroupUsage } from "@/lib/billing/entitlement";
+import type { PaidPlan, Plan } from "@/lib/billing/plans";
 
 /**
  * Account settings.
@@ -35,7 +37,10 @@ export function SettingsPanel({
     testMode: boolean;
     summary: SubscriptionSummary | null;
     grant: GrantSummary | null;
-    usage: { decksUsed: number; deckAllowance: number };
+    usage: { plan: Plan; groups: GroupUsage[] };
+    credits: number;
+    sellable: PaidPlan[];
+    topUpAvailable: boolean;
   };
 }) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(updateProfile, null);
@@ -83,6 +88,9 @@ export function SettingsPanel({
         summary={billing.summary}
         grant={billing.grant}
         usage={billing.usage}
+        credits={billing.credits}
+        sellable={billing.sellable}
+        topUpAvailable={billing.topUpAvailable}
       />
 
       <section className="mt-10" aria-labelledby="appearance-heading">

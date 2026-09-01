@@ -195,6 +195,15 @@ export type SubscriptionRow = {
   stripe_subscription_id: string;
   status: string;
   price_id: string;
+  /**
+   * The tier this subscription grants, resolved from `price_id` at the moment
+   * the webhook wrote the row. Stored rather than re-derived: a Stripe price is
+   * immutable, so a price change means a new price and a rotated variable, and
+   * re-deriving would then resolve the old price to nothing and silently move
+   * its holder to the lowest paid tier. Null only for rows written before
+   * `0022_plan_budgets.sql`.
+   */
+  plan: "basic" | "pro" | null;
   billing_interval: "month" | "year";
   current_period_end: string | null;
   cancel_at_period_end: boolean;
@@ -203,6 +212,27 @@ export type SubscriptionRow = {
 };
 
 /** An entitlement granted rather than bought — see `0019_plan_grants.sql`. */
+/**
+ * Presentations bought outright, when a month's allowance ran out — see
+ * `0024_generation_credits.sql`. Readable by its owner and writable by nobody:
+ * the webhook grants with the service role, and the reservation spends as
+ * definer.
+ */
+export type GenerationCreditRow = {
+  id: string;
+  user_id: string;
+  presentations_granted: number;
+  stripe_checkout_session_id: string;
+  stripe_payment_intent_id: string | null;
+  stripe_event_id: string;
+  purchased_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PlanGrantRow = {
   user_id: string;
   plan: "pro" | "unlimited";
@@ -215,6 +245,8 @@ export type StripeEventRow = {
   id: string;
   type: string;
   received_at: string;
+  /** When the handler finished. Null is a claim whose work a retry may redo. */
+  completed_at: string | null;
 };
 
 export type Database = {
@@ -234,6 +266,7 @@ export type Database = {
       billing_customers: Table<BillingCustomerRow>;
       subscriptions: Table<SubscriptionRow>;
       plan_grants: Table<PlanGrantRow>;
+      generation_credits: Table<GenerationCreditRow>;
       stripe_events: Table<StripeEventRow>;
     };
     Views: Record<never, never>;
@@ -272,13 +305,39 @@ export type Database = {
       captivate_reserve_generation: {
         Args: {
           p_kind: string;
-          p_count_kinds: string[];
+          p_group: string;
           p_prompt: string;
           p_presentation_id: string | null;
-          p_window_minutes: number;
-          p_max: number;
         };
-        Returns: string | null;
+        Returns: {
+          id: string | null;
+          refusal: string | null;
+          limit_max: number | null;
+          limit_minutes: number | null;
+        }[];
+      };
+      captivate_current_plan: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      /**
+       * Not granted to `anon` or `authenticated` — see
+       * `0023_text_generation_cost.sql`. Declared so the schema stays a
+       * complete description of the database rather than of what the browser
+       * happens to be allowed to call.
+       */
+      captivate_credit_balance: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      captivate_model_cost: {
+        Args: {
+          p_model: string;
+          p_input_tokens: number | null;
+          p_output_tokens: number | null;
+          p_at: string | null;
+        };
+        Returns: number | null;
       };
       captivate_complete_generation: {
         Args: {

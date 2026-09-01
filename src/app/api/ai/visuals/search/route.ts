@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { isStockSearchConfigured, searchStockPhotos } from "@/lib/ai/visual-sourcing";
-import { checkRateLimit } from "@/lib/ai/rate-limit";
-import { limitForCaller } from "@/lib/billing/entitlement";
+import { checkRateLimits } from "@/lib/ai/rate-limit";
+import { ceilingsForCaller } from "@/lib/billing/entitlement";
 
 export const maxDuration = 20;
 
@@ -27,7 +27,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const verdict = await checkRateLimit(await limitForCaller("light"), ["visuals", "stock_search"]);
+  const verdict = await checkRateLimits(await ceilingsForCaller("light"), [
+    "visuals",
+    "stock_search",
+  ]);
   if (!verdict.allowed) {
     return NextResponse.json(
       { error: verdict.message },

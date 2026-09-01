@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { SettingsPanel } from "@/components/dashboard/settings-panel";
-import { deckUsage, grantSummary, subscriptionSummary } from "@/lib/billing/entitlement";
-import { isBillingConfigured, isTestMode } from "@/lib/billing/stripe";
+import {
+  creditBalance,
+  grantSummary,
+  planUsage,
+  subscriptionSummary,
+} from "@/lib/billing/entitlement";
+import { isBillingConfigured, isTestMode, priceIdFor, topUpPriceId } from "@/lib/billing/stripe";
+import { PAID_PLANS } from "@/lib/billing/plans";
 
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
@@ -13,7 +19,7 @@ export default async function SettingsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [profile, counts, summary, grant, usage] = await Promise.all([
+  const [profile, counts, summary, grant, usage, credits] = await Promise.all([
     supabase
       .from("profiles")
       .select("display_name, created_at")
@@ -30,7 +36,8 @@ export default async function SettingsPage() {
     ]),
     subscriptionSummary(),
     grantSummary(),
-    deckUsage(),
+    planUsage(),
+    creditBalance(),
   ]);
 
   return (
@@ -48,6 +55,11 @@ export default async function SettingsPage() {
         configured: isBillingConfigured(),
         testMode: isTestMode(),
         summary,
+        credits,
+        // Only the tiers this deployment has a price for. Offering one it
+        // cannot sell takes the click and answers with an error toast.
+        sellable: PAID_PLANS.filter((plan) => priceIdFor(plan) !== null),
+        topUpAvailable: topUpPriceId() !== null,
         grant,
         usage,
       }}

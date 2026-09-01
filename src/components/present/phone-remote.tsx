@@ -48,6 +48,12 @@ export function PhoneRemote({
   const [status, setStatus] = useState<RemoteStatus>("disconnected");
   const [sceneIndex, setSceneIndex] = useState<number | null>(null);
   const [totalScenes, setTotalScenes] = useState<number | null>(null);
+  // How far into this scene's builds the stage is. Already in the state
+  // message the remote subscribes to — the same presenter-facing class as the
+  // scene counter beside it, and nothing private: notes are never loaded here
+  // and this changes none of that.
+  const [step, setStep] = useState(0);
+  const [stepsInScene, setStepsInScene] = useState(1);
   const [blanked, setBlanked] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -74,6 +80,8 @@ export function PhoneRemote({
       if (message.type !== "state") return;
       setSceneIndex(message.sceneIndex);
       setTotalScenes(message.totalScenes);
+      setStep(message.step);
+      setStepsInScene(message.stepsInScene);
       if (pending.current?.check(message)) {
         settle("confirmed");
         setNote(null);
@@ -143,6 +151,8 @@ export function PhoneRemote({
     void channel.send({ type: "command", action: "blank" });
   };
 
+  const buildsLeft = Math.max(0, stepsInScene - 1 - step);
+
   const position = useMemo(() => {
     if (atIndex === null || totalScenes === null) return "—";
     return `${atIndex + 1} / ${totalScenes}`;
@@ -178,13 +188,31 @@ export function PhoneRemote({
             {STATUS_LABEL[status]}
           </p>
         </div>
-        <p className="shrink-0 text-[22px] font-semibold tabular-nums" aria-live="polite">
-          {position}
-        </p>
+        <div className="shrink-0 text-right">
+          <p className="text-[22px] font-semibold tabular-nums" aria-live="polite">
+            {position}
+          </p>
+          {/*
+            Whether the next press changes the slide.
+
+            Without it, "next" on a scene that builds looks broken from a phone
+            — the presenter presses, the picture does not change, and they
+            press again and overshoot in front of a room. Naming the remaining
+            presses is the difference between a pause and a mistake.
+          */}
+          {buildsLeft > 0 && (
+            <p className="text-[11px] text-white/55 tabular-nums" aria-live="polite">
+              +{buildsLeft} {buildsLeft === 1 ? "build" : "builds"} here
+            </p>
+          )}
+        </div>
       </header>
 
       {note && (
-        <p className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-[12.5px] text-white/80" role="alert">
+        <p
+          className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-[12.5px] text-white/80"
+          role="alert"
+        >
           {note}
         </p>
       )}
@@ -213,7 +241,11 @@ export function PhoneRemote({
         aria-pressed={blanked}
         className="mt-3 flex min-h-16 items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/[0.06] text-[15px] font-medium active:bg-white/15"
       >
-        {blanked ? <Circle className="size-5" aria-hidden /> : <Square className="size-5" aria-hidden />}
+        {blanked ? (
+          <Circle className="size-5" aria-hidden />
+        ) : (
+          <Square className="size-5" aria-hidden />
+        )}
         {blanked ? "Show the stage" : "Blank the stage"}
       </button>
     </main>

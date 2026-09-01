@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_DRAWING_STAGES,
   drawableScenes,
   drawingCap,
+  normaliseDrawing,
   replaceMediaWithDrawing,
   replaceMediaWithPhoto,
 } from "@/lib/editor/place-drawing";
@@ -178,5 +180,240 @@ describe("replaceMediaWithPhoto", () => {
       media: { url: "/api/assets/abc/content", alt: "their photo", assetId: "abc" },
     });
     expect(replaceMediaWithPhoto(content, photo)).toBeNull();
+  });
+});
+
+describe("a generated drawing is bounded before it is placed", () => {
+  const made = (paths: { d: string; stage: number }[], stageLabels: string[] = []) => ({
+    viewBox: { width: 400, height: 300 },
+    paths,
+    stageLabels,
+    alt: "",
+  });
+
+  it("grows the box to hold ink the model drew outside it", () => {
+    // The reported failure. A model declared a 400x300 box and drew out to
+    // (900, 700); the renderer had `overflow: visible`, so the strokes that
+    // escaped were painted across the bar chart beside them. Two drawing
+    // fragments floating over a graph is what that looks like from the room.
+    const safe = normaliseDrawing(made([{ d: "M 10 10 L 900 700", stage: 0 }]));
+
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(700);
+    // Grown, never cropped: the stroke is still all there.
+    expect(safe.paths[0].d).toBe("M 10 10 L 900 700");
+  });
+
+  it("leaves a well-behaved drawing exactly as it is", () => {
+    const original = made([{ d: "M 10 10 L 390 290", stage: 0 }]);
+    const safe = normaliseDrawing(original);
+
+    expect(safe.viewBox).toEqual({ width: 400, height: 300 });
+    expect(safe.paths).toEqual(original.paths);
+  });
+
+  it("costs the presenter no more than three presses", () => {
+    // The model was asked for "2 to 8 stages" and took it. Eight stages is
+    // eight advances spent on one picture while an audience waits.
+    const eight = made(
+      Array.from({ length: 8 }, (_, stage) => ({ d: `M 0 0 L 10 ${stage}`, stage })),
+      ["one", "two", "three", "four", "five", "six", "seven", "eight"],
+    );
+    const safe = normaliseDrawing(eight);
+
+    const stages = new Set(safe.paths.map((p) => p.stage));
+    expect(Math.max(...stages)).toBeLessThanOrEqual(MAX_DRAWING_STAGES - 1);
+    expect(Math.max(...stages)).toBe(3); // stage 0 on arrival, then three presses
+  });
+
+  it("keeps the build in order when it compresses it", () => {
+    // Folding must not shuffle the picture: what was drawn first still is.
+    const six = made(
+      Array.from({ length: 6 }, (_, stage) => ({ d: `M 0 0 L 10 ${stage}`, stage })),
+    );
+    const safe = normaliseDrawing(six);
+
+    const folded = safe.paths.map((p) => p.stage);
+    expect(folded).toEqual([...folded].sort((a, b) => a - b));
+    // Spread across the presses rather than crammed into the first.
+    expect(new Set(folded).size).toBe(MAX_DRAWING_STAGES);
+  });
+
+  it("renumbers sparse stages, which slip past a count of them", () => {
+    // The cap counts *distinct* stages; the renderer compares the press count
+    // against the stage *number*. A picture staged 0, 9, 19 has three of them,
+    // passes any count-based check, and still costs nineteen presses — and the
+    // schema allows values that high, so a model can really return it.
+    const sparse = made([
+      { d: "M 0 0 L 1 1", stage: 0 },
+      { d: "M 0 0 L 2 2", stage: 9 },
+      { d: "M 0 0 L 3 3", stage: 19 },
+    ]);
+    const safe = normaliseDrawing(sparse);
+
+    expect(safe.paths.map((p) => p.stage)).toEqual([0, 1, 2]);
+  });
+
+  it("returns a label for every press, never a hole", () => {
+    // A sparse array keeps its holes through `map`, so a folded target that
+    // collected no label serialised as `null` into a column typed as a string.
+    const six = made(
+      Array.from({ length: 6 }, (_, stage) => ({ d: `M 0 0 L 10 ${stage}`, stage })),
+      ["", "", "c", "d", "e", "f"],
+    );
+    const safe = normaliseDrawing(six);
+
+    expect(safe.stageLabels).toHaveLength(MAX_DRAWING_STAGES);
+    for (const label of safe.stageLabels) expect(typeof label).toBe("string");
+  });
+
+  it("keeps every stage label rather than dropping the folded ones", () => {
+    const six = made(
+      Array.from({ length: 6 }, (_, stage) => ({ d: `M 0 0 L 10 ${stage}`, stage })),
+      ["axes", "bars", "labels", "trend", "callout", "conclusion"],
+    );
+    const safe = normaliseDrawing(six);
+
+    // An author wrote these; folding two stages together must not lose one.
+    const joined = safe.stageLabels.join(" ");
+    for (const label of ["axes", "bars", "labels", "trend", "callout", "conclusion"]) {
+      expect(joined).toContain(label);
+    }
+  });
+
+  it("bounds the drawing on its way into the document, not afterwards", () => {
+    // The swap is the last thing that touches a generated picture before it is
+    // somebody's saved work, so it is where the guarantee has to hold.
+    const content = withPlaceholder();
+    const replaced = replaceMediaWithDrawing(
+      content,
+      made([{ d: "M 0 0 L 1200 900", stage: 0 }]),
+      "a prompt",
+    );
+
+    const element = replaced?.elements.find((e) => e.type === "drawing");
+    expect(element).toBeTruthy();
+    if (element?.type === "drawing") {
+      expect(element.viewBox.width).toBeGreaterThanOrEqual(1200);
+      expect(element.viewBox.height).toBeGreaterThanOrEqual(900);
+    }
+  });
+});
+
+describe("how many drawings a deck of a given length gets", () => {
+  it("doubles the rate when drawings are the only picture a scene can get", () => {
+    // A twenty-minute talk. Photographs available: two drawings is right,
+    // because photographs fill the rest. No stock provider: two drawings and
+    // eighteen empty slots is the reported "one drawing for a 20 minute
+    // presentation", so the rate has to rise.
+    expect(drawingCap(20 * 60, false)).toBe(2);
+    expect(drawingCap(20 * 60, true)).toBe(4);
+  });
+
+  it("is the stock provider that decides, not any image capability at all", () => {
+    // The bug this exists for: `isPhotoFillConfigured()` is true when *only*
+    // image generation is configured, and generation backfills the cover
+    // alone. So a deployment with an image key and no stock key was told
+    // photographs were coming to scenes that could never receive one.
+    // `dressScenes` asks `isStockSearchConfigured` now; this pins the
+    // arithmetic that made the difference visible.
+    const fiftyMinutes = 50 * 60;
+    expect(drawingCap(fiftyMinutes, false)).toBe(5);
+    expect(drawingCap(fiftyMinutes, true)).toBe(10);
+  });
+});
+
+describe("the box a drawing is measured into", () => {
+  const made = (d: string) => ({
+    viewBox: { width: 400, height: 300 },
+    paths: [{ d, stage: 0 }],
+    stageLabels: [],
+    alt: "",
+  });
+
+  it("finds the endpoint of an arc, whose flags are not coordinates", () => {
+    // The case the first version got wrong, and the reason it was wrong: an
+    // arc takes seven numbers and only the last two are a point. Read
+    // pairwise, `A 20 20 0 0 1 900 700` pairs a flag with the endpoint and
+    // concludes the picture is twenty units wide — so the box stayed at 400
+    // and the renderer clipped ink that really was at 900.
+    const safe = normaliseDrawing(made("M 10 10 A 20 20 0 0 1 900 700"));
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(700);
+  });
+
+  it("follows a horizontal line, which takes one ordinate and not two", () => {
+    const safe = normaliseDrawing(made("M 10 10 H 950"));
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(950);
+  });
+
+  it("follows a vertical line the same way", () => {
+    const safe = normaliseDrawing(made("M 10 10 V 800"));
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(800);
+  });
+
+  it("resolves relative commands against the point they start from", () => {
+    // `m 500 400 l 400 300` ends at (900, 700). Treated as absolute it ends at
+    // (400, 300) and fits the declared box, so the ink escapes unnoticed.
+    const safe = normaliseDrawing(made("m 500 400 l 400 300"));
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(700);
+  });
+
+  it("counts a curve's control points, which bound it", () => {
+    const safe = normaliseDrawing(made("M 0 0 C 880 660 890 670 900 700"));
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
+  });
+
+  /**
+   * An arc bulges past both of its endpoints, and the endpoints were all this
+   * measured.
+   *
+   * The fix for the flags-are-not-coordinates bug read the arc's last two
+   * numbers and threw the first five away, which is right about where the pen
+   * *lands* and silent about where it *goes*. `A 500 500 0 1 1 10 0` starts and
+   * ends ten units apart and sweeps almost all the way round a circle of radius
+   * five hundred: measured by its endpoints the picture is ten units wide, and
+   * the renderer clips a thousand units of ink.
+   */
+  it("measures the bulge of an arc, not just where it lands", () => {
+    const safe = normaliseDrawing(made("M 0 0 A 500 500 0 1 1 10 0"));
+    // The circle is centred at (5, -49.7), so the ink reaches x = 505.
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(505);
+  });
+
+  it("measures the bulge downwards too, where the sweep flag puts it", () => {
+    // The same arc turned the other way: same endpoints, centre at (5, 500),
+    // and the ink reaches y = 1000.
+    const safe = normaliseDrawing(made("M 0 0 A 500 500 0 1 0 10 0"));
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(999);
+  });
+
+  it("does not widen the box by a diameter for an arc that barely turns", () => {
+    // The cheap superset — pad the endpoints by the radii — is honest about
+    // the case above and ruinous here: a shallow arc of a large circle would
+    // grow the box by a thousand units and shrink the drawing inside its frame
+    // to nothing. The arc is bounded by the part of the ellipse it actually
+    // sweeps, so this one stays where the author drew it.
+    const safe = normaliseDrawing(made("M 0 0 A 500 500 0 0 1 20 20"));
+    expect(safe.viewBox).toEqual({ width: 400, height: 300 });
+  });
+
+  it("bounds a rotated arc in the frame it is drawn in, not the ellipse's", () => {
+    // A quarter-turn of an ellipse rotated 45 degrees. Nothing here works if
+    // the radii are read as if they were axis-aligned.
+    const safe = normaliseDrawing(made("M 0 0 A 600 200 45 1 1 10 10"));
+    expect(safe.viewBox.width).toBeGreaterThan(400);
+  });
+
+  it("treats a zero radius as the straight line the grammar says it is", () => {
+    const safe = normaliseDrawing(made("M 10 10 A 0 0 0 0 1 900 700"));
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(700);
+  });
+
+  it("still leaves a drawing that fits exactly as it is", () => {
+    const original = made("M 10 10 L 390 290 H 380 V 280 Z");
+    expect(normaliseDrawing(original).viewBox).toEqual({ width: 400, height: 300 });
   });
 });

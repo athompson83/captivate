@@ -24,7 +24,7 @@ import { ReferencePicker } from "./reference-picker";
 import type { Reference } from "@/lib/ingest/reference";
 import { createPresentation } from "@/lib/data/actions";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea } from "@/components/ui/input";
+import { Input, Suggest, Textarea } from "@/components/ui/input";
 import { Segmented, Badge } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils/cn";
@@ -370,44 +370,31 @@ function AiPath({ folderId }: { folderId: string | null }) {
 
           <ReferencePicker reference={reference} onChange={setReference} />
 
+          {/*
+            Both of these were `<input list>` with a `<datalist>`, which is the
+            correct element and is unusable on an iPad: WebKit rebuilds the
+            suggestion popup on every keystroke and the on-screen keyboard goes
+            with it, so the field could not be typed into a word at a time. See
+            `Suggest`.
+          */}
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="audience" className="text-ink-2 mb-1.5 block text-[13px] font-medium">
-                Audience
-              </label>
-              <input
-                id="audience"
-                list="audiences"
-                value={audience}
-                onChange={(e) => setAudience(e.target.value)}
-                placeholder="Who is in the room?"
-                className="border-line text-ink placeholder:text-ink-3 focus:border-accent w-full rounded-[var(--radius-md)] border bg-[var(--surface-inset)] px-3 py-2.5 text-sm outline-none"
-              />
-              <datalist id="audiences">
-                {AUDIENCES.map((a) => (
-                  <option key={a} value={a} />
-                ))}
-              </datalist>
-            </div>
+            <Suggest
+              id="audience"
+              label="Audience"
+              options={AUDIENCES}
+              value={audience}
+              onValueChange={setAudience}
+              placeholder="Who is in the room?"
+            />
 
-            <div>
-              <label htmlFor="tone" className="text-ink-2 mb-1.5 block text-[13px] font-medium">
-                Tone
-              </label>
-              <input
-                id="tone"
-                list="tones"
-                value={tone}
-                onChange={(e) => setTone(e.target.value)}
-                placeholder="How should it sound?"
-                className="border-line text-ink placeholder:text-ink-3 focus:border-accent w-full rounded-[var(--radius-md)] border bg-[var(--surface-inset)] px-3 py-2.5 text-sm outline-none"
-              />
-              <datalist id="tones">
-                {TONES.map((t) => (
-                  <option key={t} value={t} />
-                ))}
-              </datalist>
-            </div>
+            <Suggest
+              id="tone"
+              label="Tone"
+              options={TONES}
+              value={tone}
+              onValueChange={setTone}
+              placeholder="How should it sound?"
+            />
           </div>
 
           <div>

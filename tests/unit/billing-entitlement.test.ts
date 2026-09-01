@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PER_PRESENTATION, ceilingsFor, limitFor } from "@/lib/billing/plans";
 
 const maybeSingle = vi.fn();
+const rpc = vi.fn();
+// Table reads default to the single-row shape; the credit tests override it.
+const from = vi.fn<(table: string) => unknown>(() => ({
+  select: () => ({ eq: () => ({ maybeSingle }) }),
+}));
 vi.mock("@/lib/supabase/server", () => ({
   supabaseServer: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: "user-1" } } }) },
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle }) }) }),
+    from,
+    rpc,
   }),
 }));
 
@@ -12,61 +19,136 @@ afterEach(() => {
   delete process.env.STRIPE_SECRET_KEY;
   vi.clearAllMocks();
   vi.resetModules();
+  from.mockImplementation(() => ({ select: () => ({ eq: () => ({ maybeSingle }) }) }));
 });
 
+/**
+ * Resolving the plan moved into the database, so what is left to test here is
+ * the boundary: this reads an answer it did not compute, and everything it
+ * cannot trust is free.
+ *
+ * The resolution rules themselves — a grant outranking a subscription,
+ * `past_due` graced to the period end, an unrecognised price landing on the
+ * lowest paid tier — are `captivate_current_plan`'s now, and are exercised by
+ * `supabase/tests/rls_isolation.test.sql` against the real schema. Testing
+ * them here as well would only prove that a mock agrees with itself; that is
+ * exactly what the old version of this file did, while the function the
+ * reservation actually consulted was a different implementation.
+ */
 describe("currentPlan", () => {
-  it("treats everyone as pro when billing is not configured", async () => {
-    // A deployment that cannot charge must not throttle.
+  it("reports the plan the database resolved", async () => {
+    rpc.mockResolvedValue({ data: "pro", error: null });
     const { currentPlan } = await import("@/lib/billing/entitlement");
     expect(await currentPlan()).toBe("pro");
-    expect(maybeSingle).not.toHaveBeenCalled();
-  });
-
-  it("reads the mirror table when billing is configured", async () => {
-    process.env.STRIPE_SECRET_KEY = "sk_test_x";
-    maybeSingle.mockResolvedValue({
-      data: { status: "active", current_period_end: "2099-01-01T00:00:00Z" },
-      error: null,
-    });
-    const { currentPlan } = await import("@/lib/billing/entitlement");
-    expect(await currentPlan()).toBe("pro");
-  });
-
-  it("falls back to free when there is no subscription row", async () => {
-    process.env.STRIPE_SECRET_KEY = "sk_test_x";
-    maybeSingle.mockResolvedValue({ data: null, error: null });
-    const { currentPlan } = await import("@/lib/billing/entitlement");
-    expect(await currentPlan()).toBe("free");
+    expect(rpc).toHaveBeenCalledWith("captivate_current_plan");
   });
 
   it("fails closed to free when the read errors", async () => {
-    process.env.STRIPE_SECRET_KEY = "sk_test_x";
-    maybeSingle.mockResolvedValue({ data: null, error: { message: "boom" } });
+    rpc.mockResolvedValue({ data: null, error: { message: "boom" } });
     const { currentPlan } = await import("@/lib/billing/entitlement");
     expect(await currentPlan()).toBe("free");
   });
 
-  it("downgrades a cancelled subscription", async () => {
-    process.env.STRIPE_SECRET_KEY = "sk_test_x";
-    maybeSingle.mockResolvedValue({
-      data: { status: "canceled", current_period_end: "2099-01-01T00:00:00Z" },
-      error: null,
-    });
+  it("fails closed to free when the answer is not a plan at all", async () => {
+    // A schema drift, a renamed tier, a null. Anything unrecognised is free,
+    // because failing open is how a bug becomes free Pro for everybody.
+    for (const answer of ["enterprise", "", null, 7, undefined]) {
+      vi.resetModules();
+      rpc.mockResolvedValue({ data: answer, error: null });
+      const { currentPlan } = await import("@/lib/billing/entitlement");
+      expect(await currentPlan(), `${String(answer)} should not be a plan`).toBe("free");
+    }
+  });
+
+  it("fails closed to free when the database is unreachable", async () => {
+    rpc.mockRejectedValue(new Error("connection reset"));
     const { currentPlan } = await import("@/lib/billing/entitlement");
     expect(await currentPlan()).toBe("free");
   });
 });
 
 describe("limitForCaller", () => {
-  it("hands a free caller the 30-day deck budget", async () => {
-    process.env.STRIPE_SECRET_KEY = "sk_test_x";
-    maybeSingle.mockResolvedValue({ data: null, error: null });
-    const { limitForCaller } = await import("@/lib/billing/entitlement");
-    expect(await limitForCaller("deck")).toEqual({ windowMinutes: 43_200, max: 10 });
+  it("hands each caller the budget of the plan the database named", async () => {
+    for (const plan of ["free", "basic", "pro"] as const) {
+      vi.resetModules();
+      rpc.mockResolvedValue({ data: plan, error: null });
+      const { limitForCaller } = await import("@/lib/billing/entitlement");
+      expect(await limitForCaller("deck")).toEqual(limitFor(plan, "deck"));
+    }
   });
 
-  it("hands an unconfigured deployment the pro budget", async () => {
+  it("hands a caller it cannot place the free budget", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "boom" } });
     const { limitForCaller } = await import("@/lib/billing/entitlement");
-    expect(await limitForCaller("deck")).toEqual({ windowMinutes: 60, max: 30 });
+    expect(await limitForCaller("deck")).toEqual(limitFor("free", "deck"));
+  });
+
+  describe("ceilingsForCaller", () => {
+    const credits = (granted: number[]) => {
+      const rows = granted.map((presentations_granted) => ({ presentations_granted }));
+      return {
+        select: () => ({
+          eq: () => ({ is: () => ({ gt: async () => ({ data: rows, error: null }) }) }),
+        }),
+      };
+    };
+
+    it("raises the allowance by what a top-up bought, in this pool's own units", async () => {
+      // The bug this exists for: the pre-filter refused at the *base* allowance,
+      // so an author who had just bought ten presentations was answered 429
+      // before the statement that would have spent one. The credits were real,
+      // paid for, and unreachable. The SQL acceptance test could not see it —
+      // it calls the reservation directly and never passes through the gate.
+      rpc.mockResolvedValue({ data: "basic", error: null });
+      from.mockReturnValue(credits([10]));
+
+      const { ceilingsForCaller } = await import("@/lib/billing/entitlement");
+      const [drawing] = await ceilingsForCaller("drawing");
+      // Ten credits are a hundred drawings, because that is what ten
+      // presentations can ask for. A credit that only raised the deck pool would
+      // sell presentations that could not be illustrated.
+      expect(drawing.max).toBe(limitFor("basic", "drawing").max + 10 * PER_PRESENTATION.drawing);
+    });
+
+    it("leaves the burst ceiling alone, because a purchase buys quantity not speed", async () => {
+      rpc.mockResolvedValue({ data: "basic", error: null });
+      from.mockReturnValue(credits([10]));
+
+      const { ceilingsForCaller } = await import("@/lib/billing/entitlement");
+      const [, burst] = await ceilingsForCaller("drawing");
+      expect(burst).toEqual(ceilingsFor("basic", "drawing")[1]);
+    });
+
+    it("is the plan's own ceilings when nothing was bought", async () => {
+      rpc.mockResolvedValue({ data: "pro", error: null });
+      from.mockReturnValue(credits([]));
+
+      const { ceilingsForCaller } = await import("@/lib/billing/entitlement");
+      expect(await ceilingsForCaller("drawing")).toEqual(ceilingsFor("pro", "drawing"));
+    });
+
+    /**
+     * The deck allowance is the reservation's to decide, and only its.
+     *
+     * This function has one number — the total count — and no way to separate
+     * what a plan granted from what a credit paid for. The reservation can, and
+     * does. Keeping a second opinion here is how the two came to disagree
+     * exactly where it hurts: a purchase expires while the rows it paid for are
+     * still inside the rolling window, the headroom here falls back to the
+     * plan's allowance while those rows are still counted against it, and a 429
+     * is returned in front of the statement that would have said yes.
+     */
+    it("defers the deck allowance to the reservation rather than guessing", async () => {
+      rpc.mockResolvedValue({ data: "basic", error: null });
+      from.mockReturnValue(credits([10]));
+
+      const { ceilingsForCaller } = await import("@/lib/billing/entitlement");
+      const ceilings = await ceilingsForCaller("deck");
+
+      // The burst window still answers early — the reservation enforces it
+      // identically, so there is no second opinion to drift.
+      expect(ceilings).toEqual([ceilingsFor("basic", "deck")[1]]);
+      expect(ceilings.every((c) => c.windowMinutes === 60)).toBe(true);
+    });
   });
 });

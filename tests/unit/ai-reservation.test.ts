@@ -26,8 +26,13 @@ function mockRpc(impl: (name: string, args: Record<string, unknown>) => unknown)
   return rpc;
 }
 
-const LIMIT = { windowMinutes: 60, max: 30 };
 const TICKET = "aaaaaaaa-0000-4000-8000-000000000001";
+
+/** What the function returns: one row, whether it issued a ticket or refused. */
+const issued = () => [{ id: TICKET, refusal: null, limit_max: 25, limit_minutes: 43_200 }];
+const refused = (refusal: string, limit_max: number, limit_minutes: number) => [
+  { id: null, refusal, limit_max, limit_minutes },
+];
 
 describe("AI call reservation", () => {
   beforeEach(() => {
@@ -35,33 +40,63 @@ describe("AI call reservation", () => {
   });
 
   it("hands back the ticket the database issued", async () => {
-    const rpc = mockRpc(() => TICKET);
+    const rpc = mockRpc(issued);
     const { reserve } = await import("@/lib/ai/rate-limit");
 
-    const outcome = await reserve("visuals", ["visuals"], "a prompt", null, LIMIT);
+    const outcome = await reserve("visuals", "light", "a prompt", null);
     expect(outcome).toEqual({ ok: true, reservation: { id: TICKET } });
-    expect(rpc).toHaveBeenCalledWith(
-      "captivate_reserve_generation",
-      expect.objectContaining({
-        p_kind: "visuals",
-        p_count_kinds: ["visuals"],
-        p_window_minutes: 60,
-        p_max: 30,
-      }),
-    );
+    // The caller names the work and the budget, and nothing else. A window and
+    // a ceiling used to travel in this payload, which meant a browser issuing
+    // the same RPC could choose its own — so their absence is the fix, and it
+    // is asserted rather than assumed.
+    expect(rpc).toHaveBeenCalledWith("captivate_reserve_generation", {
+      p_kind: "visuals",
+      p_group: "light",
+      p_prompt: "a prompt",
+      p_presentation_id: null,
+    });
+    const sent = rpc.mock.calls[0][1] as Record<string, unknown>;
+    expect(Object.keys(sent)).not.toContain("p_max");
+    expect(Object.keys(sent)).not.toContain("p_window_minutes");
+  });
+
+  it("names the ceiling that refused it, and its window", async () => {
+    // Two ceilings, and they mean different things to an author: wait an hour,
+    // or wait out the month. A refusal that says "you have reached the limit"
+    // does not even say which.
+    mockRpc(() => refused("burst", 5, 60));
+    const { reserve } = await import("@/lib/ai/rate-limit");
+
+    const outcome = await reserve("scenes", "deck", "p", null);
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error).toContain("5 AI generations");
+      expect(outcome.error).toContain("the last 1 hour");
+      expect(outcome.retryAfterMinutes).toBe(60);
+    }
+  });
+
+  it("refuses a caller with no session rather than guessing who they are", async () => {
+    mockRpc(() => refused("signed-out", 0, 0));
+    const { reserve } = await import("@/lib/ai/rate-limit");
+
+    const outcome = await reserve("scenes", "deck", "p", null);
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.error).toContain("signed out");
   });
 
   it("refuses when the database declines to issue one", async () => {
-    // Null is how the function says "this would exceed the limit" — and it
-    // says it without writing a row, so nothing has been spent.
-    mockRpc(() => null);
+    // A row with no id is how the function says "this would exceed the limit"
+    // — and it says it without writing a ledger row, so nothing was spent.
+    mockRpc(() => refused("allowance", 25, 43_200));
     const { reserve } = await import("@/lib/ai/rate-limit");
 
-    const outcome = await reserve("visuals", ["visuals"], "a prompt", null, LIMIT);
+    const outcome = await reserve("visuals", "light", "a prompt", null);
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {
-      expect(outcome.error).toContain("30 AI generations");
-      expect(outcome.retryAfterMinutes).toBe(60);
+      expect(outcome.error).toContain("25 AI generations");
+      expect(outcome.error).toContain("the last 30 days");
+      expect(outcome.retryAfterMinutes).toBe(43_200);
     }
   });
 
@@ -73,16 +108,16 @@ describe("AI call reservation", () => {
     });
     const { reserve } = await import("@/lib/ai/rate-limit");
 
-    const outcome = await reserve("map", ["map"], "p", null, LIMIT);
+    const outcome = await reserve("map", "draft", "p", null);
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(outcome.error).toContain("Nothing was spent");
   });
 
   it("truncates an oversized prompt rather than sending it whole", async () => {
-    const rpc = mockRpc(() => TICKET);
+    const rpc = mockRpc(issued);
     const { reserve } = await import("@/lib/ai/rate-limit");
 
-    await reserve("map", ["map"], "x".repeat(9000), null, LIMIT);
+    await reserve("map", "draft", "x".repeat(9000), null);
     const sent = rpc.mock.calls[0][1] as { p_prompt: string };
     expect(sent.p_prompt).toHaveLength(4000);
   });
@@ -124,7 +159,9 @@ describe("a refused reservation never reaches the model", () => {
   });
 
   it("returns the refusal without calling the provider", async () => {
-    mockRpc((name) => (name === "captivate_reserve_generation" ? null : true));
+    mockRpc((name) =>
+      name === "captivate_reserve_generation" ? refused("allowance", 25, 43_200) : true,
+    );
     const generateStructured = vi.fn();
     vi.doMock("@/lib/ai/provider", async (importOriginal) => ({
       ...(await importOriginal<typeof import("@/lib/ai/provider")>()),

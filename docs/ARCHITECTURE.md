@@ -281,11 +281,20 @@ See [SECURITY.md](SECURITY.md) for the full picture, including accepted risks.
 
 ## Billing
 
-Captivate sells one thing: **Captivate Pro**, at $12 a month or $96 a year.
-Free is the whole product with a bounded AI allowance — 10 generated
-presentations in any rolling 30 days — and Pro raises every ceiling and adds
-generated imagery. Nothing a person authored is ever locked by a lapsed
-subscription; only future model calls are limited.
+Captivate sells **Captivate Basic** at $12 a month and **Captivate Pro** at $25
+a month, both monthly only, plus a $5 top-up. Free is the whole product with a
+bounded AI allowance. The three tiers are 10, 25 and 60 generated presentations
+in any rolling 30 days, and both paid tiers add generated imagery. Nothing a
+person authored is ever locked by a lapsed subscription; only future model calls
+are limited.
+
+Annual billing is deferred until there is enough measured cost per presentation
+to know that a year-long commitment is not a year-long commitment to an
+unprofitable price — a decision that cannot be unwound for anybody who has
+already paid. Deferring it means having no code path that opens an annual
+checkout, rather than a hidden control. The annual price ids are still read, but
+only to resolve a subscription bought before the withdrawal: recognising a price
+and offering it are different things.
 
 Stripe owns every card field. The app redirects to Stripe-hosted Checkout and
 the Billing Portal, and a signature-verified webhook mirrors subscription state
@@ -294,12 +303,56 @@ a call to Stripe — which matters because an entitlement check sits in front of
 every AI generation, and a network hop there would put Stripe's uptime in front
 of Captivate's.
 
-The gate itself is deliberately tiny. `currentPlan()` resolves to `free` or
-`pro`, and that choice picks one of two `RateLimit` values fed to the
-_existing_ `captivate_reserve_generation` function. So the revenue boundary
-inherits, unchanged, the atomic per-user locking that was built for the spend
-boundary: counting and incrementing remain one statement, and a burst of
-concurrent requests still cannot all read the same count and pass.
+**The gate is in the database.** `captivate_reserve_generation` takes what kind
+of work this is and which budget it draws on, and nothing else: not the ceiling,
+not the window, not the plan. It resolves the caller's plan
+(`captivate_current_plan`), reads that plan's budgets (`plan_budgets`), and
+checks the rolling allowance _and_ the hourly burst ceiling under the one
+advisory lock it already held — so counting, spending a credit and writing the
+ledger row are a single decision.
+
+That location is the point. PostgREST exposes these functions to
+`authenticated`, so nothing on the wire distinguishes the server's call from the
+same RPC issued straight from a browser. While the ceiling was an argument, a
+caller could name their own and the plan gate in front of it was decoration —
+the same hole `0021_reservation_ceilings.sql` had already closed for images. The
+burst ceiling had a second version of the problem: it was a separate application
+read, which is a read anybody can decline to perform and one that two
+simultaneous callers both pass. `supabase/tests/reservation_race.sh` races each
+ceiling with one place left and asserts exactly one ticket comes back.
+
+The application still holds the same numbers, for the pricing page and the
+settings meter, and `tests/unit/plan-budget-parity.test.ts` asserts the two
+copies agree — silent drift here refuses generations the product promised, or
+sells an allowance nobody is paying for.
+
+Which tier a subscription grants is **stored** on the row, resolved from its
+price when the webhook wrote it. Re-deriving it would mean that the day a price
+is rotated the old id resolves to nothing and its holder quietly becomes the
+lowest paid tier. An unrecognised price still resolves downward rather than
+upward, because guessing upward hands somebody Pro for Basic's money on a stale
+environment variable.
+
+A **top-up** is a credit ledger rather than a counter. One credit is one
+presentation — it raises every coupled pool by what a presentation can take from
+it, and is spent once, when a deck is actually generated. A credit that
+replenished only the deck pool would sell ten presentations that could not be
+illustrated. Credits are revoked on a refund or a dispute.
+
+What is *left* of a purchase is counted from the ledger rather than kept as a
+number: a credit is spent by the row the reservation writes, so the spend and
+the record of it are the same write. A stored remainder cannot be, and the gap
+was reachable — settling is done by the caller under their own JWT, and a row
+still pending may be written again, so an author could settle their own
+in-flight generation as a zero-token failure, take the refund, spend it, and let
+the truthful settlement land afterwards. Counting removes the window instead of
+narrowing it: a refunded row is one that does not count, and it counts again the
+instant the truth arrives. The plan's own allowance is counted separately from
+what credits paid for, so an allowance still renews while a balance is spent.
+
+Every settled text generation records what it cost, priced from `ai_model_rates`
+at the rate in force when the call was made — which is what makes an allowance a
+decision rather than a guess.
 
 `src/lib/billing/` holds it: `plans.ts` (pure, isomorphic, the single source of
 what each plan allows), `entitlement.ts` (the mirror read), `stripe.ts` (the

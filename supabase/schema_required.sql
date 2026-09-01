@@ -74,11 +74,27 @@ insert into required (kind, ident, feature) values
   ('function', 'public.captivate_asset_object_is_shared(text)',                   'storage for a shared deck'),
   ('function', 'public.captivate_replace_moments(uuid,jsonb)',                    'the narrative map'),
   ('function', 'public.captivate_set_scene_placements(uuid,jsonb)',               'the world canvas'),
-  ('function', 'public.captivate_reserve_generation(text,text[],text,uuid,integer,integer)', 'every AI call'),
+  -- Four arguments, not six. The window and the ceiling were arguments until
+  -- 0022, and that is precisely why they had to go: PostgREST resolves
+  -- `rpc/<name>` by signature, so a caller could name its own ceiling. If the
+  -- six-argument form ever reappears here, something has re-opened it.
+  ('function', 'public.captivate_reserve_generation(text,text,text,uuid)',        'every AI call'),
+  ('function', 'public.captivate_current_plan()',                                 'every AI call'),
+  ('function', 'public.captivate_budget_kinds(text)',                             'every AI call'),
+  ('function', 'public.captivate_per_presentation(text)',                         'top-up credits'),
+  ('function', 'public.captivate_credit_spent(uuid)',                             'top-up credits'),
+  ('function', 'public.captivate_credit_balance()',                               'the credit balance in settings'),
   ('function', 'public.captivate_complete_generation(uuid,text,text,integer,integer,text)',  'AI spend accounting'),
   ('function', 'public.captivate_reserve_image_generation(text,uuid)', 'image generation'),
   ('function', 'public.captivate_settle_image_generation(uuid,text,text,integer,text)', 'the image budget'),
-  ('function', 'public.captivate_remote_topic_open(text)',                         'the phone remote');
+  ('function', 'public.captivate_remote_topic_open(text)',                         'the phone remote'),
+  ('table',    'public.plan_budgets',                                             'every AI call'),
+  ('table',    'public.generation_credits',                                       'top-up credits'),
+  ('table',    'public.ai_model_rates',                                           'what a generation cost'),
+  ('column',   'public.subscriptions.plan',                                       'which tier a subscription grants'),
+  -- Without it every webhook collision reads as a finished duplicate, so a
+  -- delivery whose work failed is answered 200 and never retried.
+  ('column',   'public.stripe_events.completed_at',                               'retrying a webhook whose work failed');
 
 with checked as (
   select r.*,
@@ -106,8 +122,39 @@ select 'MISSING row level security on public.' || c.relname || '   → breaks: t
  where n.nspname = 'public'
    and c.relkind = 'r'
    and c.relname in ('presentations','scenes','sections','assets','lecture_notes',
-                     'recordings','moments','ai_generations','presentation_sessions','profiles')
+                     'recordings','moments','ai_generations','presentation_sessions','profiles',
+                     -- Bought presentations. Owner-scoped like the rest, and the
+                     -- one whose loss would let anybody read what anybody else
+                     -- paid for.
+                     'generation_credits')
    and not c.relrowsecurity;
+
+-- `generation_credits` is readable by its owner and writable by nobody: the
+-- balance is bought, not edited. An insert policy would let an author mint the
+-- product outright and an update policy would let them refill it, so the check
+-- is not "has a policy" but "has exactly the one".
+--
+-- And "owner-only" is a claim about *who* and *which rows*, not only about
+-- which verb. A single policy reading `for select to public using (true)`
+-- satisfies "exactly one, and it is a SELECT" while handing every signed-in
+-- caller every customer's purchase history, so the roles and the predicate are
+-- checked too — the predicate by looking for the owner comparison in it rather
+-- than by matching an exact string, because Postgres normalises what it stores
+-- and an equality test on the text would fail on a correct policy written with
+-- the operands the other way round.
+select 'MISSING owner-only select on public.generation_credits' ||
+       '   → breaks: a credit balance nobody can read, or one anybody can read'
+ where (select count(*) from pg_policies
+         where schemaname = 'public' and tablename = 'generation_credits') <> 1
+    or not exists (select 1 from pg_policies
+                    where schemaname = 'public'
+                      and tablename = 'generation_credits'
+                      and cmd = 'SELECT'
+                      -- Not `public`, and not a role list that includes it.
+                      and roles = '{authenticated}'::name[]
+                      and qual is not null
+                      and qual like '%auth.uid()%'
+                      and qual like '%user_id%');
 
 -- Two tables belong to the deployment rather than to any user, and their
 -- protection is the *absence* of a policy: RLS on with nothing granting access,
@@ -122,14 +169,20 @@ select 'MISSING row level security on public.' || c.relname ||
   join pg_namespace n on n.oid = c.relnamespace
  where n.nspname = 'public'
    and c.relkind = 'r'
-   and c.relname in ('ai_image_limits','stripe_events')
+   and c.relname in ('ai_image_limits','stripe_events',
+                     -- What every plan allows, and what a model costs. Both are
+                     -- read by definer functions and by nothing else: a policy
+                     -- on `plan_budgets` hands every caller the ceilings 0022
+                     -- exists to stop them choosing, and one on `ai_model_rates`
+                     -- lets them price their own usage at zero.
+                     'plan_budgets','ai_model_rates')
    and not c.relrowsecurity;
 
 select 'MISSING policy-free access control on public.' || tablename ||
        '   → breaks: ' || policyname || ' exposes a deployment-owned table'
   from pg_policies
  where schemaname = 'public'
-   and tablename in ('ai_image_limits','stripe_events');
+   and tablename in ('ai_image_limits','stripe_events','plan_budgets','ai_model_rates');
 
 -- Some things must be *absent*, and presence is not the same question as
 -- absence when Postgres allows overloading. `0021` drops the reservation's old
@@ -152,3 +205,20 @@ select 'FORBIDDEN function public.' || p.proname ||
    and p.proname = 'captivate_reserve_image_generation'
    and p.oid is distinct from
        to_regprocedure('public.captivate_reserve_image_generation(text,uuid)');
+
+-- The same question about the text reservation, and the same answer. `0022`
+-- drops the six-argument form because it took its window and its ceiling as
+-- arguments — and PostgREST resolves `rpc/<name>` by signature, so as long as
+-- that form is callable an authenticated caller can name its own limits no
+-- matter what the four-argument one enforces. Requiring the new signature does
+-- not reject a database that still carries the old one beside it, which a
+-- half-applied migration is exactly how you get.
+select 'FORBIDDEN function public.' || p.proname ||
+       '(' || pg_get_function_identity_arguments(p.oid) || ')' ||
+       '   → keeps: a reservation whose ceiling the caller chooses'
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname = 'captivate_reserve_generation'
+   and p.oid is distinct from
+       to_regprocedure('public.captivate_reserve_generation(text,text,text,uuid)');

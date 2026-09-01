@@ -5,6 +5,12 @@
  * entitlement gate reads these budgets, and the tests import it directly.
  * Nothing here touches Stripe, Supabase or the network — which is also why it
  * is safe to import from a client component.
+ *
+ * Everything below derives from two tables: how many presentations a plan is
+ * sold, and how much of each pool one presentation can consume. Nothing is
+ * written twice. A comment here once claimed Basic cost forty cents a
+ * presentation when the constants said twenty, and the comment was believed
+ * because it was the only place the sum appeared.
  */
 
 /**
@@ -15,7 +21,11 @@
  * seen at all. The ceilings are simply set where ordinary use never reaches
  * them.
  */
-export type Plan = "free" | "pro" | "unlimited";
+export type Plan = "free" | "basic" | "pro" | "unlimited";
+
+/** The plans somebody can actually buy, cheapest first. */
+export const PAID_PLANS = ["basic", "pro"] as const;
+export type PaidPlan = (typeof PAID_PLANS)[number];
 
 /**
  * The budget a call draws on. Named for what it bounds rather than for a price
@@ -23,52 +33,127 @@ export type Plan = "free" | "pro" | "unlimited";
  */
 export type BudgetGroup = "deck" | "draft" | "drawing" | "light";
 
+export const BUDGET_GROUPS = ["deck", "draft", "drawing", "light"] as const;
+
 export interface RateLimit {
   windowMinutes: number;
   max: number;
 }
 
+/**
+ * Every ceiling a call has to clear, allowance first.
+ *
+ * The allowance is what was bought and what drains — the number in settings,
+ * the one a top-up adds to. The burst ceiling is abuse protection: it is not a
+ * product promise, nobody reaches it in a day's work, and it cannot be bought.
+ * Selling a month's worth and metering it by the hour, which is what this used
+ * to do, gives an author no way to see what they have left and nothing for a
+ * top-up to top up.
+ */
+export type Budget = readonly [allowance: RateLimit, ...burst: RateLimit[]];
+
 const THIRTY_DAYS = 30 * 24 * 60;
 const ONE_HOUR = 60;
 
+const month = (max: number): RateLimit => ({ windowMinutes: THIRTY_DAYS, max });
+const hour = (max: number): RateLimit => ({ windowMinutes: ONE_HOUR, max });
+
 /**
- * Free is counted in *generated presentations*, not model calls.
+ * How much of each pool one complete presentation can consume.
  *
- * One deck is already a map call, a scenes call and several drawings. Counting
- * calls would spend a whole month's allowance on a single presentation and read
- * as a bait-and-switch, so `deck` counts the scenes pass — exactly one row per
- * deck — and the other groups carry their own ceilings so no account can run up
- * unbounded spend through a side door.
+ * These are *caps*, not averages, and that is the point. Generating a
+ * presentation is a map call, a scenes call and a staged drawing for every ten
+ * minutes of talk — up to ten of them on a deployment with no photo provider,
+ * where drawings are the only pictures there are. A plan whose drawing pool is
+ * the same size as its deck pool sells N presentations and can only illustrate
+ * one of them, which is what the previous shape did: sixty decks and sixty
+ * drawings. The pools are coupled, so they are sized together.
  *
- * The window is rolling, not calendar. Every string shown to a user therefore
- * says "in the last 30 days"; describing it as monthly would be a lie about
- * billing.
+ * `light` is the after-the-fact work on a deck somebody just made — speaker
+ * notes, a rewrite, a visual suggestion. Ten per presentation is generous
+ * because each one is a short call.
  */
-export const PLAN_BUDGETS: Record<Plan, Record<BudgetGroup, RateLimit>> = {
+export const PER_PRESENTATION: Record<BudgetGroup, number> = {
+  deck: 1,
+  draft: 2,
+  drawing: 10,
+  light: 10,
+};
+
+/**
+ * The one number a plan is sold on: presentations in any rolling 30 days.
+ *
+ * Rolling, not calendar. Every string shown to a user therefore says "in the
+ * last 30 days"; describing it as monthly would be a lie about billing.
+ */
+export const PRESENTATIONS: Record<Plan, number> = {
+  free: 10,
+  basic: 25,
+  pro: 60,
+  unlimited: 2000,
+};
+
+/**
+ * Presentations an hour — the burst ceiling, in the same currency as the
+ * allowance so the two cannot drift apart.
+ *
+ * Set where no author reaches it and a script hits it immediately. It is
+ * deliberately loose, because it is not what bounds spend: the 30-day
+ * allowance does that, and a month's worth costs the same whether it is spent
+ * in an afternoon or over four weeks. What this actually buys is a brake on
+ * concurrent load and a window in which runaway use is noticeable — so the
+ * cost of setting it tight is a paying author getting a 429 mid-batch with
+ * allowance still in hand, and the benefit is nothing.
+ *
+ * Free carries one too: a free account is the cheapest thing in the world to
+ * create, and its pools are now large enough to be worth draining.
+ */
+const BURST_PRESENTATIONS: Record<Plan, number> = {
+  free: 3,
+  basic: 10,
+  pro: 20,
+  unlimited: 200,
+};
+
+const budgetFor = (plan: Plan, group: BudgetGroup): Budget => [
+  month(PRESENTATIONS[plan] * PER_PRESENTATION[group]),
+  hour(BURST_PRESENTATIONS[plan] * PER_PRESENTATION[group]),
+];
+
+export const PLAN_BUDGETS: Record<Plan, Record<BudgetGroup, Budget>> = {
   free: {
-    deck: { windowMinutes: THIRTY_DAYS, max: 10 },
-    // Raised with the pooling below: a group is now one shared count rather
-    // than a number each kind inside it got separately, so these are the old
-    // per-kind ceilings added up rather than a new policy.
-    draft: { windowMinutes: THIRTY_DAYS, max: 40 },
-    drawing: { windowMinutes: THIRTY_DAYS, max: 20 },
-    light: { windowMinutes: THIRTY_DAYS, max: 100 },
+    deck: budgetFor("free", "deck"),
+    draft: budgetFor("free", "draft"),
+    drawing: budgetFor("free", "drawing"),
+    light: budgetFor("free", "light"),
+  },
+  basic: {
+    deck: budgetFor("basic", "deck"),
+    draft: budgetFor("basic", "draft"),
+    drawing: budgetFor("basic", "drawing"),
+    light: budgetFor("basic", "light"),
   },
   pro: {
-    deck: { windowMinutes: ONE_HOUR, max: 30 },
-    draft: { windowMinutes: ONE_HOUR, max: 60 },
-    drawing: { windowMinutes: ONE_HOUR, max: 30 },
-    light: { windowMinutes: ONE_HOUR, max: 300 },
+    deck: budgetFor("pro", "deck"),
+    draft: budgetFor("pro", "draft"),
+    drawing: budgetFor("pro", "drawing"),
+    light: budgetFor("pro", "light"),
   },
   unlimited: {
-    deck: { windowMinutes: ONE_HOUR, max: 500 },
-    draft: { windowMinutes: ONE_HOUR, max: 1000 },
-    drawing: { windowMinutes: ONE_HOUR, max: 500 },
-    light: { windowMinutes: ONE_HOUR, max: 5000 },
+    deck: budgetFor("unlimited", "deck"),
+    draft: budgetFor("unlimited", "draft"),
+    drawing: budgetFor("unlimited", "drawing"),
+    light: budgetFor("unlimited", "light"),
   },
 };
 
+/** The allowance: what was bought, what drains, what a top-up adds to. */
 export function limitFor(plan: Plan, group: BudgetGroup): RateLimit {
+  return PLAN_BUDGETS[plan][group][0];
+}
+
+/** Every ceiling the call has to clear, allowance included. */
+export function ceilingsFor(plan: Plan, group: BudgetGroup): readonly RateLimit[] {
   return PLAN_BUDGETS[plan][group];
 }
 
@@ -113,16 +198,91 @@ export function planFromGrant(
 
 /** How a plan is described where the holder can see it. */
 export function planLabel(plan: Plan): string {
-  return plan === "unlimited" ? "Unlimited" : plan === "pro" ? "Captivate Pro" : "Free";
+  switch (plan) {
+    case "unlimited":
+      return "Unlimited";
+    case "pro":
+      return "Captivate Pro";
+    case "basic":
+      return "Captivate Basic";
+    default:
+      return "Free";
+  }
 }
+
+/**
+ * What a plan costs a month, in cents. The amounts live in Stripe; these must
+ * be kept in step.
+ *
+ * Monthly only. Annual billing is deferred until there is enough measured cost
+ * per presentation to know an annual price is not a year-long commitment to an
+ * unprofitable one — a decision that cannot be unwound for anybody who has
+ * already paid. There is deliberately no annual figure here to render: copy
+ * that offers a plan the checkout will refuse is worse than no copy.
+ */
+export const MONTHLY_CENTS: Record<PaidPlan, number> = {
+  basic: 1200,
+  pro: 2500,
+};
+
+/**
+ * What a top-up costs and buys.
+ *
+ * Ten *presentations*, not ten rows in one table. Generating a presentation is
+ * a map call, a scenes call and up to ten staged drawings, so a credit raises
+ * every one of those pools by what one presentation can take from it and is
+ * spent once, when the deck is actually made. A credit that replenished the
+ * deck counter alone would sell somebody ten presentations and refuse them at
+ * the drawing pool with a balance still showing.
+ *
+ * Deliberately worse value per presentation than either paid tier, so it stays
+ * the answer to a month somebody went over rather than a way to live below the
+ * plan they need. `billing-plans` asserts that ordering.
+ *
+ * It expires, and the copy says so: a balance carried forever against a price
+ * paid once is a liability, not a feature.
+ */
+export const TOPUP = {
+  cents: 500,
+  presentations: 10,
+  validDays: 30,
+} as const;
+
+/** `1234` → `"$12.34"`, and `1200` → `"$12"`. Money is formatted in one place. */
+export function money(cents: number): string {
+  return cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`;
+}
+
+/**
+ * What one presentation costs on a plan, in cents.
+ *
+ * Derived, never written down. The ladder it produces is the product decision
+ * — Basic is the convenient tier, Pro is better value per presentation, and a
+ * top-up is dearer than both so it stays the answer to a month somebody went
+ * over rather than a way to live below the tier they need. `billing-plans`
+ * asserts that ordering rather than trusting it.
+ */
+export function centsPerPresentation(plan: PaidPlan): number {
+  return MONTHLY_CENTS[plan] / PRESENTATIONS[plan];
+}
+
+export function topUpCentsPerPresentation(): number {
+  return TOPUP.cents / TOPUP.presentations;
+}
+
+/** Display copy for the paid tiers. */
+export const PRICING: Record<PaidPlan, { monthly: string }> = {
+  basic: { monthly: money(MONTHLY_CENTS.basic) },
+  pro: { monthly: money(MONTHLY_CENTS.pro) },
+};
 
 /**
  * The plan a mirrored subscription row grants.
  *
- * `active` and `trialing` are Pro on the status alone. Requiring a future
- * period end would downgrade a paying customer for as long as a renewal webhook
- * took to arrive, and Stripe — not our copy of its timestamp — is the authority
- * on whether a subscription is live.
+ * `active` and `trialing` are the bought plan on the status alone. Requiring a
+ * future period end would downgrade a paying customer for as long as a renewal
+ * webhook took to arrive, and Stripe — not our copy of its timestamp — is the
+ * authority on whether a subscription is live.
  *
  * `past_due` is graced until the period ends: dunning is still retrying the
  * card, and cutting someone off mid-cycle over a temporary decline is hostile.
@@ -134,24 +294,30 @@ export function planLabel(plan: Plan): string {
  * becomes free Pro for everybody.
  */
 export function planFromSubscription(
-  subscription: { status: string; currentPeriodEndMs: number | null } | null,
+  subscription: {
+    status: string;
+    currentPeriodEndMs: number | null;
+    /**
+     * Which tier was bought. Resolved from the price when the webhook wrote
+     * the row and stored alongside it, so a price this deployment no longer
+     * names still resolves to the tier its holder paid for. Null only for a
+     * row written before that column existed, and then it is Basic — the
+     * *lowest* paid tier. Guessing upward would hand somebody Pro for Basic's
+     * money on nothing more than a stale environment variable.
+     */
+    plan: PaidPlan | null;
+  } | null,
   nowMs: number,
 ): Plan {
   if (!subscription) return "free";
-  if (subscription.status === "active" || subscription.status === "trialing") return "pro";
+  const bought: Plan = subscription.plan ?? "basic";
+  if (subscription.status === "active" || subscription.status === "trialing") return bought;
   if (subscription.status === "past_due") {
     return subscription.currentPeriodEndMs === null || subscription.currentPeriodEndMs > nowMs
-      ? "pro"
+      ? bought
       : "free";
   }
   return "free";
 }
 
-/** Display copy. The amounts live in Stripe; these must be kept in step. */
-export const PRO_PRICING = {
-  monthly: "$12",
-  annual: "$96",
-  annualSavingPercent: 33,
-} as const;
-
-export const FREE_ALLOWANCE_COPY = "10 presentations generated in any 30 days";
+export const FREE_ALLOWANCE_COPY = `${PRESENTATIONS.free} presentations generated in any 30 days`;

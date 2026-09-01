@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Stripe from "stripe";
 
@@ -16,16 +18,47 @@ const SECRET = "whsec_test_secret_for_signing";
 const upsert = vi.fn().mockResolvedValue({ error: null });
 const insert = vi.fn().mockResolvedValue({ error: null });
 const maybeSingle = vi.fn().mockResolvedValue({ data: null });
+/** The claim row a duplicate delivery collides with, and whether it finished. */
+const claim = vi.fn().mockResolvedValue({ data: null });
+/** Marking the claim finished, which is what makes the *next* delivery a duplicate. */
+const update = vi.fn().mockResolvedValue({ error: null });
+/** The claim being given back, so a Stripe retry is not answered as a duplicate. */
+const deleteClaim = vi.fn().mockResolvedValue({ error: null });
 
 vi.mock("@/lib/supabase/admin", () => ({
   supabaseAdmin: () => ({
-    from: () => ({
+    from: (table: string) => ({
       insert,
       upsert,
-      select: () => ({ eq: () => ({ maybeSingle }) }),
+      select: () => ({
+        eq: () => ({ maybeSingle: table === "stripe_events" ? claim : maybeSingle }),
+      }),
+      update: (patch: unknown) => ({ eq: () => update(table, patch) }),
+      delete: () => ({
+        eq: (_column: string, id: string) => deleteClaim(table, id),
+      }),
     }),
   }),
 }));
+
+/** Fails the way a Stripe API call fails: after the claim, before the write. */
+const retrieve = vi.fn();
+/** How many top-ups one session bought. */
+const listLineItems = vi.fn().mockResolvedValue({ data: [{ quantity: 1 }] });
+
+vi.mock("@/lib/billing/stripe", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/billing/stripe")>();
+  return {
+    ...actual,
+    // Signature verification stays real — it is what the rest of this file is
+    // about — and only the network call is replaced.
+    stripe: () => ({
+      webhooks: actual.stripe().webhooks,
+      subscriptions: { retrieve },
+      checkout: { sessions: { listLineItems } },
+    }),
+  };
+});
 
 const signed = (body: unknown, secret = SECRET) => {
   const payload = JSON.stringify(body);
@@ -60,12 +93,30 @@ const subscriptionEvent = (over: Record<string, unknown> = {}) => ({
   },
 });
 
+const checkoutEvent = () => ({
+  id: "evt_checkout",
+  type: "checkout.session.completed",
+  created: 1_790_000_000,
+  data: {
+    object: {
+      id: "cs_1",
+      mode: "subscription",
+      subscription: "sub_1",
+      client_reference_id: "user-1",
+    },
+  },
+});
+
 beforeEach(() => {
   process.env.STRIPE_SECRET_KEY = "sk_test_abc";
   process.env.STRIPE_WEBHOOK_SECRET = SECRET;
   vi.clearAllMocks();
   insert.mockResolvedValue({ error: null });
   maybeSingle.mockResolvedValue({ data: null });
+  deleteClaim.mockResolvedValue({ error: null });
+  listLineItems.mockResolvedValue({ data: [{ quantity: 1 }] });
+  claim.mockResolvedValue({ data: null });
+  update.mockResolvedValue({ error: null });
 });
 
 afterEach(() => {
@@ -120,14 +171,207 @@ describe("the webhook endpoint", () => {
   });
 
   it("treats a redelivered event as a no-op", async () => {
-    // Stripe retries; a retry must not double-apply.
+    // Stripe retries; a retry of work that *finished* must not double-apply.
     insert.mockResolvedValue({ error: { code: "23505" } });
+    claim.mockResolvedValue({ data: { completed_at: "2026-09-01T00:00:00Z" } });
     const { POST } = await import("@/app/api/stripe/webhook/route");
     const response = await POST(signed(subscriptionEvent()));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ duplicate: true });
     expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("grants a top-up when a delayed payment finally succeeds", async () => {
+    // Checkout with an asynchronous payment method *completes* before the money
+    // arrives, so the grant is right to refuse an unpaid session — but the
+    // event that says it arrived is a different one, and it used to fall
+    // through to the ignored default. Somebody was charged and got nothing.
+    const paid = {
+      id: "evt_async",
+      type: "checkout.session.async_payment_succeeded",
+      created: 1_790_000_000,
+      data: {
+        object: {
+          id: "cs_async",
+          mode: "payment",
+          payment_status: "paid",
+          payment_intent: "pi_async",
+          client_reference_id: "user-1",
+        },
+      },
+    };
+    listLineItems.mockResolvedValue({ data: [{ quantity: 1 }] });
+    claim.mockResolvedValue({ data: null });
+    update.mockResolvedValue({ error: null });
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    const response = await POST(signed(paid));
+
+    expect(response.status).toBe(200);
+    const granted = insert.mock.calls.map(([row]) => row as Record<string, unknown>);
+    const credit = granted.find((row) => "presentations_granted" in row);
+    expect(credit, "the paid session granted nothing").toBeTruthy();
+    expect(credit?.stripe_checkout_session_id).toBe("cs_async");
+    // Keyed on the session, so the `completed` delivery of the same purchase
+    // collides with this rather than granting a second balance.
+    expect(credit?.presentations_granted).toBe(10);
+  });
+
+  it("grants nothing for the same session while it is still unpaid", async () => {
+    const unpaid = {
+      id: "evt_async_pending",
+      type: "checkout.session.completed",
+      created: 1_790_000_000,
+      data: {
+        object: {
+          id: "cs_async",
+          mode: "payment",
+          payment_status: "unpaid",
+          client_reference_id: "user-1",
+        },
+      },
+    };
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    const response = await POST(signed(unpaid));
+
+    expect(response.status).toBe(200);
+    expect(insert.mock.calls.some(([row]) => "presentations_granted" in (row as object))).toBe(
+      false,
+    );
+  });
+
+  it("retries rather than permanently under-crediting a multi-quantity purchase", async () => {
+    // The quantity says how much was bought, and the row is keyed on the
+    // Checkout Session id — unique, so written once and never corrected. A
+    // fallback of one on a transient Stripe error does not grant "less for
+    // now"; it grants less forever, to somebody who paid for three.
+    const paid = {
+      id: "evt_qty",
+      type: "checkout.session.completed",
+      created: 1_790_000_000,
+      data: {
+        object: {
+          id: "cs_qty",
+          mode: "payment",
+          payment_status: "paid",
+          client_reference_id: "user-1",
+        },
+      },
+    };
+    listLineItems.mockRejectedValue(new Error("stripe unreachable"));
+
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    const response = await POST(signed(paid));
+
+    // 500 so Stripe comes back and reads the line items again.
+    expect(response.status).toBe(500);
+    // And nothing was granted at a guessed quantity in the meantime.
+    expect(insert.mock.calls.some(([row]) => "presentations_granted" in (row as object))).toBe(
+      false,
+    );
+    // The claim is left unfinished, which is what lets the retry through.
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("leaves the claim unfinished when the handler throws, so a retry redoes it", async () => {
+    // The claim is what makes a redelivery safe, and it is what makes a failed
+    // attempt unsafe: without releasing it, Stripe's retry is short-circuited
+    // as a duplicate of an event that was never applied, and somebody is billed
+    // for a subscription the product never mirrored. Every path that *returns*
+    // released already; this is the path that throws.
+    retrieve.mockRejectedValue(new Error("stripe unreachable"));
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    const response = await POST(signed(checkoutEvent()));
+
+    // 500, so Stripe retries at all.
+    expect(response.status).toBe(500);
+    // And nothing marked the claim done, which is what the retry checks.
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Releasing the claim by deleting it was the first answer, and it was not
+   * good enough: the delete and the mutation talk to the same database, so the
+   * outage that failed a credit insert is likely to fail the delete beside it.
+   * The handler still answers 500, Stripe retries, and the retry finds a claim
+   * nobody could release — duplicate 200, forever, for a customer who paid.
+   */
+  it("re-processes a delivery whose previous attempt never finished", async () => {
+    insert.mockResolvedValue({ error: { code: "23505" } });
+    claim.mockResolvedValue({ data: { completed_at: null } });
+    maybeSingle.mockResolvedValue({ data: { user_id: "user-1" } });
+    retrieve.mockResolvedValue({
+      id: "sub_1",
+      customer: "cus_1",
+      status: "active",
+      cancel_at_period_end: false,
+      items: {
+        data: [
+          {
+            current_period_end: 1_800_000_000,
+            price: { id: "price_month", recurring: { interval: "month" } },
+          },
+        ],
+      },
+    });
+
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    const response = await POST(signed(checkoutEvent()));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).not.toMatchObject({ duplicate: true });
+    expect(upsert, "the work the failed attempt never did must happen").toHaveBeenCalled();
+  });
+
+  it("still short-circuits a delivery whose claim did finish", async () => {
+    insert.mockResolvedValue({ error: { code: "23505" } });
+    claim.mockResolvedValue({ data: { completed_at: "2026-09-01T00:00:00Z" } });
+
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    const response = await POST(signed(checkoutEvent()));
+
+    expect(await response.json()).toMatchObject({ duplicate: true });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The migration must not undo the fix on the way in.
+   *
+   * The first draft of `0025` backfilled every existing row's `completed_at`
+   * to `received_at`, reasoning that under the old rule reaching the insert
+   * meant the handler finished. That is exactly backwards for the rows that
+   * matter: the old rule *deleted* the claim on failure, so a surviving legacy
+   * row is either a success or the correlated failure this column was added to
+   * rescue — and a blanket backfill marks the second kind complete, sending its
+   * retry down the duplicate path above. The two tests either side of this one
+   * would still pass while no real customer was ever recovered.
+   *
+   * Asserted against the migration text because there is nothing else to assert
+   * it against: the statement's effect is on rows that only exist in a
+   * deployment's history.
+   */
+  it("leaves a legacy claim unfinished so its retry can redo the work", async () => {
+    const migration = readFileSync(
+      resolve(process.cwd(), "supabase/migrations/0025_webhook_claim_completion.sql"),
+      "utf8",
+    );
+    const statements = migration
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("--"))
+      .join("\n");
+
+    expect(statements, "a legacy claim must not be marked complete").not.toMatch(
+      /update\s+public\.stripe_events/i,
+    );
+  });
+
+  it("marks the claim finished when the work succeeded", async () => {
+    maybeSingle.mockResolvedValue({ data: { user_id: "user-1" } });
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    await POST(signed(subscriptionEvent()));
+
+    const marked = update.mock.calls.find(([table]) => table === "stripe_events");
+    expect(marked, "an unfinished claim would be re-processed forever").toBeTruthy();
   });
 
   it("refuses to serve at all when billing is unconfigured", async () => {
