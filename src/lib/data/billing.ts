@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { isBillingConfigured, priceIdFor, stripe } from "@/lib/billing/stripe";
+import { PAID_PLANS } from "@/lib/billing/plans";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -19,14 +20,19 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
-const CheckoutInput = z.object({ interval: z.enum(["month", "year"]) });
+const CheckoutInput = z.object({
+  plan: z.enum(PAID_PLANS),
+  interval: z.enum(["month", "year"]),
+});
 
 /**
  * A Checkout Session for the signed-in user.
  *
- * The input carries only an interval. The price is read from the environment,
- * because a caller that names its own price is a caller that sets its own
- * price — and this action is reachable by anyone with an account.
+ * The input carries a tier and an interval — never a price. The price is read
+ * from the environment, because a caller that names its own price is a caller
+ * that sets its own price, and this action is reachable by anyone with an
+ * account. The tier is validated against the plans that can actually be
+ * bought: the same rule, applied to the half of the choice that is new.
  */
 export async function startCheckout(input: unknown): Promise<Result<{ url: string }>> {
   if (!isBillingConfigured()) {
@@ -34,9 +40,9 @@ export async function startCheckout(input: unknown): Promise<Result<{ url: strin
   }
 
   const parsed = CheckoutInput.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Choose a monthly or annual plan." };
+  if (!parsed.success) return { ok: false, error: "Choose a plan and a billing period." };
 
-  const price = priceIdFor(parsed.data.interval);
+  const price = priceIdFor(parsed.data.plan, parsed.data.interval);
   if (!price) return { ok: false, error: "That plan isn't available right now." };
 
   try {

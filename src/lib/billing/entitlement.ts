@@ -2,10 +2,9 @@ import "server-only";
 
 import { supabaseServer } from "@/lib/supabase/server";
 import { usedGenerations } from "@/lib/ai/rate-limit";
-import { isBillingConfigured } from "./stripe";
+import { isBillingConfigured, planForPriceId } from "./stripe";
 import {
   BUDGET_KINDS,
-  PLAN_BUDGETS,
   limitFor,
   planFromGrant,
   planFromSubscription,
@@ -48,14 +47,16 @@ export async function currentPlan(): Promise<Plan> {
       .maybeSingle();
 
     const granted = planFromGrant(
-      grant ? { plan: grant.plan, expiresAtMs: grant.expires_at ? Date.parse(grant.expires_at) : null } : null,
+      grant
+        ? { plan: grant.plan, expiresAtMs: grant.expires_at ? Date.parse(grant.expires_at) : null }
+        : null,
       Date.now(),
     );
     if (granted) return granted;
 
     const { data, error } = await supabase
       .from("subscriptions")
-      .select("status, current_period_end")
+      .select("status, price_id, current_period_end")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -67,6 +68,7 @@ export async function currentPlan(): Promise<Plan> {
       {
         status: data.status,
         currentPeriodEndMs: data.current_period_end ? Date.parse(data.current_period_end) : null,
+        plan: planForPriceId(data.price_id),
       },
       Date.now(),
     );
@@ -139,7 +141,7 @@ export async function subscriptionSummary(): Promise<SubscriptionSummary | null>
 
     const { data, error } = await supabase
       .from("subscriptions")
-      .select("status, billing_interval, current_period_end, cancel_at_period_end")
+      .select("status, price_id, billing_interval, current_period_end, cancel_at_period_end")
       .eq("user_id", user.id)
       .maybeSingle();
     if (error || !data) return null;
@@ -149,6 +151,7 @@ export async function subscriptionSummary(): Promise<SubscriptionSummary | null>
         {
           status: data.status,
           currentPeriodEndMs: data.current_period_end ? Date.parse(data.current_period_end) : null,
+          plan: planForPriceId(data.price_id),
         },
         Date.now(),
       ),
@@ -175,20 +178,83 @@ export async function subscriptionSummary(): Promise<SubscriptionSummary | null>
  * component render is impure, and because how an allowance is counted is this
  * module's business rather than a page's.
  */
-export async function deckUsage(): Promise<{ decksUsed: number; deckAllowance: number }> {
-  const budget = PLAN_BUDGETS.free.deck;
-  const allowance = { decksUsed: 0, deckAllowance: budget.max };
+export interface GroupUsage {
+  group: BudgetGroup;
+  label: string;
+  used: number;
+  allowance: number;
+  windowMinutes: number;
+}
+
+/** What each group is called where somebody is looking at their own usage. */
+const GROUP_LABELS: Record<BudgetGroup, string> = {
+  deck: "Presentations generated",
+  draft: "Narrative maps and single scenes",
+  drawing: "Staged drawings",
+  light: "Rewrites, notes and suggestions",
+};
+
+/**
+ * Every allowance the caller has, and how much of each is spent.
+ *
+ * Counted the same way the limiter counts it — the same kinds, the same
+ * window, the same database function — so the number shown in settings and the
+ * number enforced at the gate can never disagree. It did: settings read three
+ * of ten while the gate refused at ten, because the two were counting
+ * different kinds.
+ *
+ * All four groups rather than just decks. An author refused a rewrite while
+ * settings shows only a deck count has no way to find out why, which is the
+ * same complaint the deck counter was added to answer.
+ *
+ * It lives here rather than in the page because reading the clock during a
+ * component render is impure, and because how an allowance is counted is this
+ * module's business rather than a page's.
+ */
+export async function planUsage(): Promise<{ plan: Plan; groups: GroupUsage[] }> {
+  const plan = await currentPlan();
+
+  const empty = (): GroupUsage[] =>
+    (Object.keys(GROUP_LABELS) as BudgetGroup[]).map((group) => {
+      const budget = limitFor(plan, group);
+      return {
+        group,
+        label: GROUP_LABELS[group],
+        used: 0,
+        allowance: budget.max,
+        windowMinutes: budget.windowMinutes,
+      };
+    });
 
   try {
     const supabase = await supabaseServer();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return allowance;
+    if (!user) return { plan, groups: empty() };
 
-    const used = await usedGenerations(BUDGET_KINDS.deck, budget.windowMinutes);
-    return { decksUsed: used ?? 0, deckAllowance: budget.max };
+    const groups = await Promise.all(
+      (Object.keys(GROUP_LABELS) as BudgetGroup[]).map(async (group) => {
+        const budget = limitFor(plan, group);
+        const used = await usedGenerations(BUDGET_KINDS[group], budget.windowMinutes);
+        return {
+          group,
+          label: GROUP_LABELS[group],
+          used: used ?? 0,
+          allowance: budget.max,
+          windowMinutes: budget.windowMinutes,
+        };
+      }),
+    );
+    return { plan, groups };
   } catch {
-    return allowance;
+    return { plan, groups: empty() };
   }
+}
+
+/** The deck allowance alone, for the surfaces that only show that one. */
+export async function deckUsage(): Promise<{ decksUsed: number; deckAllowance: number }> {
+  const { groups } = await planUsage();
+  const deck = groups.find((g) => g.group === "deck");
+  return { decksUsed: deck?.used ?? 0, deckAllowance: deck?.allowance ?? 0 };
 }

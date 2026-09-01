@@ -1,5 +1,7 @@
 import "server-only";
 
+import { PAID_PLANS, type PaidPlan } from "./plans";
+
 import Stripe from "stripe";
 
 /**
@@ -35,15 +37,44 @@ export function stripe(): Stripe {
 }
 
 /**
- * The price for an interval, from the environment.
+ * The price for a plan and an interval, from the environment.
  *
  * The *only* place a price id enters the system. A checkout that accepted a
  * price from its caller would let anyone choose what they pay.
  */
-export function priceIdFor(interval: "month" | "year"): string | null {
+export function priceIdFor(plan: PaidPlan, interval: "month" | "year"): string | null {
   const raw =
-    interval === "month"
-      ? process.env.STRIPE_PRICE_PRO_MONTHLY
-      : process.env.STRIPE_PRICE_PRO_ANNUAL;
+    plan === "basic"
+      ? interval === "month"
+        ? process.env.STRIPE_PRICE_BASIC_MONTHLY
+        : process.env.STRIPE_PRICE_BASIC_ANNUAL
+      : interval === "month"
+        ? process.env.STRIPE_PRICE_PRO_MONTHLY
+        : process.env.STRIPE_PRICE_PRO_ANNUAL;
   return raw?.trim() || null;
+}
+
+/**
+ * Which tier a subscription's price belongs to.
+ *
+ * The mirror table has carried `price_id` since billing was built and nothing
+ * read it, because there was only ever one paid plan to be on. With two, the
+ * price *is* the tier, and reading it is what stops a Basic subscription
+ * granting Pro's allowance.
+ *
+ * Null for a price this deployment does not recognise — a rotated price, a
+ * missing variable — and `planFromSubscription` reads that as the lowest paid
+ * tier rather than the highest.
+ */
+export function planForPriceId(priceId: string | null): PaidPlan | null {
+  if (!priceId) return null;
+  const id = priceId.trim();
+  if (!id) return null;
+
+  for (const plan of PAID_PLANS) {
+    for (const interval of ["month", "year"] as const) {
+      if (priceIdFor(plan, interval) === id) return plan;
+    }
+  }
+  return null;
 }

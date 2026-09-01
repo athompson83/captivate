@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PLAN_BUDGETS, PRO_PRICING } from "@/lib/billing/plans";
+import { PLAN_BUDGETS, PRICING, TOPUP, limitFor, type BudgetGroup } from "@/lib/billing/plans";
 import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
 
 export const metadata: Metadata = {
@@ -10,44 +10,58 @@ export const metadata: Metadata = {
 };
 
 /**
- * What the two plans cost, built from the same budgets the gate enforces.
+ * What the three plans cost, built from the same budgets the gate enforces.
  *
  * Reading `PLAN_BUDGETS` rather than restating the numbers means this page
  * cannot drift from what a user actually gets — the failure mode of every
- * hand-written pricing table.
+ * hand-written pricing table. Every allowance below is a 30-day one, so the
+ * column says so once in its header rather than on every cell.
  */
-const free = PLAN_BUDGETS.free;
-const pro = PLAN_BUDGETS.pro;
+const allowance = (plan: "free" | "basic" | "pro", group: BudgetGroup) =>
+  String(limitFor(plan, group).max);
 
-const ROWS: { label: string; free: string; pro: string }[] = [
+const ROWS: { label: string; free: string; basic: string; pro: string }[] = [
   {
     label: "Editor, world canvas, presenting, recording, sharing, exports",
     free: "Everything",
+    basic: "Everything",
     pro: "Everything",
   },
   {
     label: "Presentations generated with AI",
-    free: `${free.deck.max} per 30 days`,
-    pro: `${pro.deck.max} per hour`,
+    free: allowance("free", "deck"),
+    basic: allowance("basic", "deck"),
+    pro: allowance("pro", "deck"),
   },
   {
     label: "Narrative maps and single scenes",
-    free: `${free.draft.max} per 30 days`,
-    pro: `${pro.draft.max} per hour`,
+    free: allowance("free", "draft"),
+    basic: allowance("basic", "draft"),
+    pro: allowance("pro", "draft"),
   },
   {
     label: "Staged drawings",
-    free: `${free.drawing.max} per 30 days`,
-    pro: `${pro.drawing.max} per hour`,
+    free: allowance("free", "drawing"),
+    basic: allowance("basic", "drawing"),
+    pro: allowance("pro", "drawing"),
   },
   {
     label: "Rewriting, speaker notes, suggestions",
-    free: `${free.light.max} per 30 days`,
-    pro: `${pro.light.max} per hour`,
+    free: allowance("free", "light"),
+    basic: allowance("basic", "light"),
+    pro: allowance("pro", "light"),
   },
-  { label: "Stock cover photography", free: "Included", pro: "Included" },
-  { label: "AI image generation", free: "—", pro: "Included" },
+  { label: "Stock cover photography", free: "Included", basic: "Included", pro: "Included" },
+  { label: "AI image generation", free: "—", basic: "Included", pro: "Included" },
+  {
+    label: `Top up when you run out (${TOPUP.price} for ${TOPUP.decks} presentations)`,
+    free: "—",
+    basic: "Yes",
+    pro: "Yes",
+  },
 ];
+
+const freeDecks = PLAN_BUDGETS.free.deck[0].max;
 
 export default function PricingPage() {
   return (
@@ -65,17 +79,18 @@ export default function PricingPage() {
           </h1>
           <p className="mt-4 max-w-2xl text-[16px] leading-relaxed text-[var(--sky-ink-2)]">
             Captivate is free to use, and everything you make stays yours — editable, presentable
-            and exportable — on either plan. Pro raises the AI limits and adds generated imagery.
+            and exportable — on every plan. Paid tiers raise the AI allowance and add generated
+            imagery. Allowances are counted over any 30 days, and you can top up if you run out.
           </p>
 
-          <div className="mt-12 grid gap-5 lg:grid-cols-2 2xl:gap-8">
+          <div className="mt-12 grid gap-5 lg:grid-cols-3 2xl:gap-8">
             <div className="lit-card p-7 sm:p-9">
               <h2 className="text-[15px] font-semibold text-[var(--sky-ink)]">Free</h2>
               <p className="mt-2 text-[40px] leading-none font-semibold tracking-tight text-[var(--sky-ink)]">
                 $0
               </p>
               <p className="mt-4 text-[14px] leading-relaxed text-[var(--sky-ink-3)]">
-                The whole product, with {free.deck.max} AI-generated presentations every 30 days.
+                The whole product, with {freeDecks} AI-generated presentations every 30 days.
               </p>
               <Link
                 href="/sign-up"
@@ -85,16 +100,35 @@ export default function PricingPage() {
               </Link>
             </div>
 
+            <div className="lit-card p-7 sm:p-9">
+              <h2 className="text-[15px] font-semibold text-[var(--sky-ink)]">Captivate Basic</h2>
+              <p className="mt-2 text-[40px] leading-none font-semibold tracking-tight text-[var(--sky-ink)]">
+                {PRICING.basic.monthly}
+                <span className="text-[16px] font-normal text-[var(--sky-ink-3)]"> / month</span>
+              </p>
+              <p className="mt-4 text-[14px] leading-relaxed text-[var(--sky-ink-3)]">
+                Or {PRICING.basic.annual} a year — about {PRICING.basic.saving}% less. Generated
+                imagery included.
+              </p>
+              <Link
+                href="/settings"
+                className="mt-7 inline-flex items-center rounded-[var(--radius-lg)] border border-[var(--sky-line-strong)] px-5 py-3 text-[14px] font-medium text-[var(--sky-ink-2)] transition-colors hover:text-[var(--sky-ink)]"
+              >
+                Choose in settings
+              </Link>
+            </div>
+
             <div className="lit-card border-[var(--sky-action)]/55 p-7 sm:p-9">
               <h2 className="text-[15px] font-semibold text-[var(--sky-action-text)]">
                 Captivate Pro
               </h2>
               <p className="mt-2 text-[40px] leading-none font-semibold tracking-tight text-[var(--sky-ink)]">
-                {PRO_PRICING.monthly}
+                {PRICING.pro.monthly}
                 <span className="text-[16px] font-normal text-[var(--sky-ink-3)]"> / month</span>
               </p>
               <p className="mt-4 text-[14px] leading-relaxed text-[var(--sky-ink-3)]">
-                Or {PRO_PRICING.annual} a year — about {PRO_PRICING.annualSavingPercent}% less.
+                Or {PRICING.pro.annual} a year — about {PRICING.pro.saving}% less. The allowance for
+                somebody presenting every week.
               </p>
               <Link
                 href="/settings"
@@ -116,14 +150,21 @@ export default function PricingPage() {
             role="region"
             aria-label="Plan comparison"
           >
-            <table className="w-full min-w-[560px] border-collapse text-[14px]">
+            <table className="w-full min-w-[680px] border-collapse text-[14px]">
               <thead>
                 <tr className="border-b border-[var(--sky-line)]">
                   <th className="py-3 text-left font-medium text-[var(--sky-ink-3)]">
                     What you get
                   </th>
-                  <th className="py-3 text-left font-medium text-[var(--sky-ink-3)]">Free</th>
-                  <th className="py-3 text-left font-medium text-[var(--sky-ink-3)]">Pro</th>
+                  <th className="py-3 text-left font-medium text-[var(--sky-ink-3)]">
+                    Free <span className="font-normal">/ 30 days</span>
+                  </th>
+                  <th className="py-3 text-left font-medium text-[var(--sky-ink-3)]">
+                    Basic <span className="font-normal">/ 30 days</span>
+                  </th>
+                  <th className="py-3 text-left font-medium text-[var(--sky-ink-3)]">
+                    Pro <span className="font-normal">/ 30 days</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -131,6 +172,7 @@ export default function PricingPage() {
                   <tr key={row.label} className="border-b border-[var(--sky-line)]/60">
                     <td className="py-3.5 pr-6 text-[var(--sky-ink-2)]">{row.label}</td>
                     <td className="py-3.5 pr-6 text-[var(--sky-ink-2)]">{row.free}</td>
+                    <td className="py-3.5 pr-6 text-[var(--sky-ink-2)]">{row.basic}</td>
                     <td className="py-3.5 text-[var(--sky-ink)]">{row.pro}</td>
                   </tr>
                 ))}

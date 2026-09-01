@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { SettingsPanel } from "@/components/dashboard/settings-panel";
-import { deckUsage, grantSummary, subscriptionSummary } from "@/lib/billing/entitlement";
+import { grantSummary, planUsage, subscriptionSummary } from "@/lib/billing/entitlement";
 import { isBillingConfigured, isTestMode } from "@/lib/billing/stripe";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -30,7 +30,7 @@ export default async function SettingsPage() {
     ]),
     subscriptionSummary(),
     grantSummary(),
-    deckUsage(),
+    planUsage(),
   ]);
 
   return (

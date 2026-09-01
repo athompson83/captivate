@@ -7,8 +7,8 @@ const maybeSingle = vi.fn();
 
 vi.mock("@/lib/billing/stripe", () => ({
   isBillingConfigured: () => true,
-  priceIdFor: (interval: "month" | "year") =>
-    interval === "month" ? "price_env_month" : "price_env_year",
+  priceIdFor: (plan: "basic" | "pro", interval: "month" | "year") =>
+    `price_env_${plan === "pro" ? "" : "basic_"}${interval === "month" ? "month" : "year"}`,
   stripe: () => ({
     checkout: { sessions: { create } },
     billingPortal: { sessions: { create: portalCreate } },
@@ -40,16 +40,37 @@ afterEach(() => vi.clearAllMocks());
 describe("startCheckout", () => {
   it("uses the price from the environment, never one supplied by the caller", async () => {
     const { startCheckout } = await import("@/lib/data/billing");
-    await startCheckout({ interval: "month", priceId: "price_attacker_chose_this" });
+    await startCheckout({
+      plan: "pro",
+      interval: "month",
+      priceId: "price_attacker_chose_this",
+    });
 
     const args = create.mock.calls[0][0];
     expect(args.line_items[0].price).toBe("price_env_month");
     expect(JSON.stringify(args)).not.toContain("price_attacker_chose_this");
   });
 
+  it("refuses a tier that is not one of the plans on sale", async () => {
+    // The tier is half of what decides the price, so it is validated like the
+    // interval rather than trusted. "unlimited" is granted, never bought.
+    const { startCheckout } = await import("@/lib/data/billing");
+    for (const plan of ["unlimited", "free", "enterprise", ""]) {
+      const result = await startCheckout({ plan, interval: "month" });
+      expect(result.ok, `${plan} should not be purchasable`).toBe(false);
+    }
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("buys the tier the caller chose, at that tier's own price", async () => {
+    const { startCheckout } = await import("@/lib/data/billing");
+    await startCheckout({ plan: "basic", interval: "month" });
+    expect(create.mock.calls[0][0].line_items[0].price).toBe("price_env_basic_month");
+  });
+
   it("stamps the session with the caller's own id so the webhook can find them", async () => {
     const { startCheckout } = await import("@/lib/data/billing");
-    const result = await startCheckout({ interval: "year" });
+    const result = await startCheckout({ plan: "pro", interval: "year" });
 
     const args = create.mock.calls[0][0];
     expect(args.client_reference_id).toBe("user-1");
@@ -77,7 +98,7 @@ describe("startCheckout", () => {
   it("reuses an existing Stripe customer instead of minting a second one", async () => {
     maybeSingle.mockResolvedValue({ data: { stripe_customer_id: "cus_existing" } });
     const { startCheckout } = await import("@/lib/data/billing");
-    await startCheckout({ interval: "month" });
+    await startCheckout({ plan: "pro", interval: "month" });
     expect(customerCreate).not.toHaveBeenCalled();
     expect(create.mock.calls[0][0].customer).toBe("cus_existing");
   });
