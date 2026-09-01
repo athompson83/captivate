@@ -242,6 +242,24 @@ export async function planUsage(): Promise<{ plan: Plan; groups: GroupUsage[] }>
   }
 }
 
+/**
+ * Presentations bought outright and not yet spent.
+ *
+ * Reported separately from the allowance rather than folded into it. They are
+ * different things to an author — one renews, the other does not and expires —
+ * and a single blended number could not say which of them is about to run out.
+ */
+export async function creditBalance(): Promise<number> {
+  try {
+    const supabase = await supabaseServer();
+    const { data, error } = await supabase.rpc("captivate_credit_balance");
+    if (error || typeof data !== "number") return 0;
+    return data;
+  } catch {
+    return 0;
+  }
+}
+
 /** The deck allowance alone, for the surfaces that only show that one. */
 export async function deckUsage(): Promise<{ decksUsed: number; deckAllowance: number }> {
   const { groups } = await planUsage();

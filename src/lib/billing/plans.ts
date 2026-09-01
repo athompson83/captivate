@@ -97,14 +97,21 @@ export const PRESENTATIONS: Record<Plan, number> = {
  * Presentations an hour — the burst ceiling, in the same currency as the
  * allowance so the two cannot drift apart.
  *
- * Nobody authors five presentations in an hour; a script does. Free carries
- * one too, because a free account is the cheapest thing in the world to
- * create and its pools are now large enough to be worth draining.
+ * Set where no author reaches it and a script hits it immediately. It is
+ * deliberately loose, because it is not what bounds spend: the 30-day
+ * allowance does that, and a month's worth costs the same whether it is spent
+ * in an afternoon or over four weeks. What this actually buys is a brake on
+ * concurrent load and a window in which runaway use is noticeable — so the
+ * cost of setting it tight is a paying author getting a 429 mid-batch with
+ * allowance still in hand, and the benefit is nothing.
+ *
+ * Free carries one too: a free account is the cheapest thing in the world to
+ * create, and its pools are now large enough to be worth draining.
  */
 const BURST_PRESENTATIONS: Record<Plan, number> = {
   free: 3,
-  basic: 5,
-  pro: 10,
+  basic: 10,
+  pro: 20,
   unlimited: 200,
 };
 
@@ -218,11 +225,26 @@ export const MONTHLY_CENTS: Record<PaidPlan, number> = {
   pro: 2500,
 };
 
-/** What a top-up costs and buys. */
+/**
+ * What a top-up costs and buys.
+ *
+ * Ten *presentations*, not ten rows in one table. Generating a presentation is
+ * a map call, a scenes call and up to ten staged drawings, so a credit raises
+ * every one of those pools by what one presentation can take from it and is
+ * spent once, when the deck is actually made. A credit that replenished the
+ * deck counter alone would sell somebody ten presentations and refuse them at
+ * the drawing pool with a balance still showing.
+ *
+ * Deliberately worse value per presentation than either paid tier, so it stays
+ * the answer to a month somebody went over rather than a way to live below the
+ * plan they need. `billing-plans` asserts that ordering.
+ *
+ * It expires, and the copy says so: a balance carried forever against a price
+ * paid once is a liability, not a feature.
+ */
 export const TOPUP = {
   cents: 500,
   presentations: 10,
-  /** Credits are usable for this long, and the copy has to say so. */
   validDays: 30,
 } as const;
 

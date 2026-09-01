@@ -212,6 +212,28 @@ export type SubscriptionRow = {
 };
 
 /** An entitlement granted rather than bought — see `0019_plan_grants.sql`. */
+/**
+ * Presentations bought outright, when a month's allowance ran out — see
+ * `0024_generation_credits.sql`. Readable by its owner and writable by nobody:
+ * the webhook grants with the service role, and the reservation spends as
+ * definer.
+ */
+export type GenerationCreditRow = {
+  id: string;
+  user_id: string;
+  presentations_granted: number;
+  presentations_remaining: number;
+  stripe_checkout_session_id: string;
+  stripe_payment_intent_id: string | null;
+  stripe_event_id: string;
+  purchased_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PlanGrantRow = {
   user_id: string;
   plan: "pro" | "unlimited";
@@ -243,6 +265,7 @@ export type Database = {
       billing_customers: Table<BillingCustomerRow>;
       subscriptions: Table<SubscriptionRow>;
       plan_grants: Table<PlanGrantRow>;
+      generation_credits: Table<GenerationCreditRow>;
       stripe_events: Table<StripeEventRow>;
     };
     Views: Record<never, never>;
@@ -302,6 +325,10 @@ export type Database = {
        * complete description of the database rather than of what the browser
        * happens to be allowed to call.
        */
+      captivate_credit_balance: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
       captivate_model_cost: {
         Args: {
           p_model: string;

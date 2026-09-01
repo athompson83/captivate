@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { openBillingPortal, startCheckout } from "@/lib/data/billing";
+import { openBillingPortal, startCheckout, startTopUp } from "@/lib/data/billing";
 import type { GrantSummary, GroupUsage, SubscriptionSummary } from "@/lib/billing/entitlement";
-import { PRICING, planLabel, type PaidPlan, type Plan } from "@/lib/billing/plans";
+import { PRICING, TOPUP, money, planLabel, type PaidPlan, type Plan } from "@/lib/billing/plans";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
@@ -24,6 +24,8 @@ export function BillingSection({
   summary,
   grant,
   usage,
+  credits,
+  topUpAvailable,
 }: {
   configured: boolean;
   testMode: boolean;
@@ -32,6 +34,10 @@ export function BillingSection({
   grant: GrantSummary | null;
   /** Every allowance this account has, and how much of each is spent. */
   usage: { plan: Plan; groups: GroupUsage[] };
+  /** Presentations bought outright and not yet spent. */
+  credits: number;
+  /** False when no top-up price is configured, so the buy control is absent. */
+  topUpAvailable: boolean;
 }) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -177,6 +183,39 @@ export function BillingSection({
         })}
       </ul>
       <p className="text-ink-3 mt-2 text-[12px]">Counted over any 30 days, not a calendar month.</p>
+
+      {/*
+       * Credits are shown beside the allowance, never folded into it. They are
+       * different things to an author — the allowance renews, credits do not
+       * and expire — and one blended number could not say which is about to
+       * run out. The buy control appears only where it can actually work: a
+       * paid plan, on a deployment that has a top-up price. A button that
+       * looks functional and is not is worse than its absence.
+       */}
+      {paid && (
+        <div className="border-line-subtle mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <div>
+            <p className="text-ink-2 text-[13px]">
+              Extra presentations{" "}
+              <span className="text-ink font-medium tabular-nums">{credits}</span>
+            </p>
+            <p className="text-ink-3 mt-0.5 text-[12px]">
+              Bought on top of your allowance, and used only once it runs out. Each one covers a
+              whole presentation — the map, the scenes and its drawings.
+            </p>
+          </div>
+          {topUpAvailable && (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={pending}
+              onClick={() => go(startTopUp, "Couldn't start checkout")}
+            >
+              Buy {TOPUP.presentations} more for {money(TOPUP.cents)}
+            </Button>
+          )}
+        </div>
+      )}
 
       {configured && testMode && (
         <p className="text-ink-3 mt-2 text-[12px]">

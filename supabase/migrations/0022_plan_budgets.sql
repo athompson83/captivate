@@ -73,7 +73,7 @@ create table if not exists public.plan_budgets (
 
 alter table public.plan_budgets enable row level security;
 
--- 10, 25 and 60 presentations in any rolling 30 days; 3, 5 and 10 an hour.
+-- 10, 25 and 60 presentations in any rolling 30 days; 3, 10 and 20 an hour.
 -- Every other figure is that number times what one presentation can consume:
 -- one deck call, two drafts, ten staged drawings and ten light actions.
 insert into public.plan_budgets (plan, budget_group, allowance_minutes, allowance_max, burst_minutes, burst_max)
@@ -82,14 +82,14 @@ values
   ('free',      'draft',   43200,    20, 60,    6),
   ('free',      'drawing', 43200,   100, 60,   30),
   ('free',      'light',   43200,   100, 60,   30),
-  ('basic',     'deck',    43200,    25, 60,    5),
-  ('basic',     'draft',   43200,    50, 60,   10),
-  ('basic',     'drawing', 43200,   250, 60,   50),
-  ('basic',     'light',   43200,   250, 60,   50),
-  ('pro',       'deck',    43200,    60, 60,   10),
-  ('pro',       'draft',   43200,   120, 60,   20),
-  ('pro',       'drawing', 43200,   600, 60,  100),
-  ('pro',       'light',   43200,   600, 60,  100),
+  ('basic',     'deck',    43200,    25, 60,   10),
+  ('basic',     'draft',   43200,    50, 60,   20),
+  ('basic',     'drawing', 43200,   250, 60,  100),
+  ('basic',     'light',   43200,   250, 60,  100),
+  ('pro',       'deck',    43200,    60, 60,   20),
+  ('pro',       'draft',   43200,   120, 60,   40),
+  ('pro',       'drawing', 43200,   600, 60,  200),
+  ('pro',       'light',   43200,   600, 60,  200),
   ('unlimited', 'deck',    43200,  2000, 60,  200),
   ('unlimited', 'draft',   43200,  4000, 60,  400),
   ('unlimited', 'drawing', 43200, 20000, 60, 2000),

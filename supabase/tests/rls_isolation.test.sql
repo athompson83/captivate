@@ -1161,3 +1161,216 @@ select 'cost_' || r.rolname || '_cannot_execute_captivate_model_cost' as check,
      'public.captivate_model_cost(text, integer, integer, timestamptz)',
      'EXECUTE'))::int as n
   from (values ('anon'), ('authenticated')) as r(rolname);
+
+-- ---- A top-up buys presentations, not a deck counter --------------------------
+-- The defect this is the acceptance test for: a credit that replenished only
+-- the deck pool would sell somebody ten presentations and refuse them at the
+-- drawing pool with a balance still showing. Generating a presentation is a map
+-- call, a scenes call and up to ten staged drawings, so a credit has to raise
+-- every one of those and be spent once, when the deck is actually made.
+insert into auth.users (id, email)
+values ('44444444-4444-4444-4444-444444444444', 'topup@example.com')
+on conflict (id) do nothing;
+
+insert into public.subscriptions
+  (user_id, stripe_subscription_id, status, price_id, plan, billing_interval, updated_from_event_at)
+values ('44444444-4444-4444-4444-444444444444', 'sub_topup', 'active',
+        'price_basic', 'basic', 'month', now())
+on conflict (user_id) do nothing;
+
+-- Basic's whole allowance, spent: 25 decks, 50 drafts, 250 drawings, 250 light.
+-- Aged past the burst hour so only the 30-day allowance can refuse.
+insert into public.ai_generations (owner_id, kind, prompt, status, created_at, output_tokens)
+select '44444444-4444-4444-4444-444444444444', k.kind, 'spent', 'succeeded',
+       now() - interval '5 hours', 100
+from (values ('scenes', 25), ('map', 50), ('drawing', 250), ('moment', 250)) as k(kind, n),
+     lateral generate_series(1, k.n);
+
+set role authenticated;
+set "request.jwt.claim.sub" = '44444444-4444-4444-4444-444444444444';
+select 'topup_every_pool_is_exhausted_first' as check,
+  (count(*) = 4)::int as n
+  from (values ('scenes', 'deck'), ('map', 'draft'), ('drawing', 'drawing'), ('moment', 'light'))
+         as g(kind, grp),
+       lateral public.captivate_reserve_generation(g.kind, g.grp, 'exhausted', null) r
+ where r.refusal = 'allowance';
+select 'topup_balance_is_zero_before_buying' as check,
+  (public.captivate_credit_balance() = 0)::int as n;
+reset role;
+
+insert into public.generation_credits
+  (user_id, presentations_granted, presentations_remaining,
+   stripe_checkout_session_id, stripe_payment_intent_id, stripe_event_id, expires_at)
+values ('44444444-4444-4444-4444-444444444444', 10, 10,
+        'cs_test_topup', 'pi_test_topup', 'evt_test_topup', now() + interval '30 days');
+
+-- Ten complete presentations. The rows are aged between them because the burst
+-- ceiling is a *rate* and a credit buys a *quantity*: ten presentations an hour
+-- is not what was sold, and raising the rate limit with a purchase would turn
+-- abuse protection into something buyable. This is the clock moving, not the
+-- ceiling moving.
+do $$
+declare
+  r record;
+  v record;
+  made int := 0;
+  drew int := 0;
+  drafted int := 0;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub',
+                     '44444444-4444-4444-4444-444444444444', true);
+
+  for i in 1..10 loop
+    select * into r from public.captivate_reserve_generation('scenes', 'deck', 'on credit', null);
+    exit when r.id is null;
+    made := made + 1;
+
+    select * into v from public.captivate_reserve_generation('map', 'draft', 'on credit', null);
+    exit when v.id is null;
+    drafted := drafted + 1;
+
+    for d in 1..10 loop
+      select * into v from public.captivate_reserve_generation('drawing', 'drawing', 'on credit', null);
+      exit when v.id is null;
+      drew := drew + 1;
+    end loop;
+
+    -- An hour passes.
+    --
+    -- Done outside the caller's own privileges, like the abandoned-reservation
+    -- probe above: a user may not edit their ledger, which is the whole point
+    -- of `complete` existing. Written as the author it silently updates nothing
+    -- and the loop stalls at the burst ceiling — which is what happened, and
+    -- is a fair summary of why RLS is on.
+    set local role postgres;
+    update public.ai_generations
+       set created_at = created_at - interval '2 hours'
+     where owner_id = '44444444-4444-4444-4444-444444444444'
+       and created_at > now() - interval '1 hour';
+    set local role authenticated;
+  end loop;
+
+  create temporary table topup_result as
+    select made as presentations, drafted as drafts, drew as drawings;
+end $$;
+reset role;
+
+select 'topup_buys_ten_complete_presentations' as check,
+  (presentations = 10 and drafts = 10 and drawings = 100)::int as n from topup_result;
+
+set role authenticated;
+set "request.jwt.claim.sub" = '44444444-4444-4444-4444-444444444444';
+select 'topup_balance_is_spent' as check,
+  (public.captivate_credit_balance() = 0)::int as n;
+select 'topup_eleventh_is_refused' as check,
+  (id is null and refusal = 'allowance')::int as n
+  from public.captivate_reserve_generation('scenes', 'deck', 'eleventh', null);
+reset role;
+
+-- ---- A credit is not spent on a call that never happened -----------------------
+-- The allowance already behaves this way and nobody had to write it: a call
+-- that never reached the model stops counting, so an author is not charged for
+-- our downtime. A credit is a stored balance, so the same courtesy has to be
+-- performed — and it has to survive the forgery 0020 is about, where the author
+-- settles their own in-flight row as a refund and the server writes the truth a
+-- moment later.
+insert into public.generation_credits
+  (user_id, presentations_granted, presentations_remaining,
+   stripe_checkout_session_id, stripe_event_id, expires_at)
+values ('44444444-4444-4444-4444-444444444444', 3, 3,
+        'cs_test_refund', 'evt_test_refund', now() + interval '30 days');
+
+set role authenticated;
+set "request.jwt.claim.sub" = '44444444-4444-4444-4444-444444444444';
+
+select id from public.captivate_reserve_generation('scenes', 'deck', 'downtime', null) \gset dead_
+select 'credit_is_held_while_in_flight' as check,
+  (public.captivate_credit_balance() = 2)::int as n;
+
+-- The provider was unreachable: no tokens, nothing made, nothing owed.
+select public.captivate_complete_generation(
+  :'dead_id', 'failed', null, null, null, 'the model could not be reached') \gset dead_settled_
+select 'credit_returned_when_nothing_reached_the_model' as check,
+  (public.captivate_credit_balance() = 3)::int as n;
+
+-- …and the truthful settlement arriving afterwards takes it again. Without
+-- this, forging a refund and letting the server correct it would be a free
+-- presentation — the same hole 0020 closed for the allowance.
+select public.captivate_complete_generation(
+  :'dead_id', 'succeeded', 'claude-sonnet-5', 1000, 2000, null) \gset dead_truth_
+select 'credit_retaken_when_the_truth_arrives' as check,
+  (public.captivate_credit_balance() = 2)::int as n;
+
+-- The balance is bought, not edited. No insert, no update, no reassignment:
+-- an author who can write here mints the product.
+select 'credit_sees_own_balance' as check,
+  (count(*) >= 1)::int as n from public.generation_credits;
+reset role;
+
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select 'bob_sees_alice_credits' as check, count(*) as n from public.generation_credits;
+select 'credit_balance_is_per_caller' as check,
+  (public.captivate_credit_balance() = 0)::int as n;
+
+do $$
+begin
+  begin
+    insert into public.generation_credits
+      (user_id, presentations_granted, presentations_remaining,
+       stripe_checkout_session_id, stripe_event_id, expires_at)
+    values ('22222222-2222-2222-2222-222222222222', 1000, 1000,
+            'cs_self_minted', 'evt_self_minted', now() + interval '99 days');
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    update public.generation_credits set presentations_remaining = 1000;
+  exception when insufficient_privilege then
+    null;
+  end;
+end $$;
+reset role;
+
+select 'credit_not_self_mintable' as check,
+  (count(*) = 0)::int as n from public.generation_credits
+  where stripe_checkout_session_id = 'cs_self_minted';
+select 'credit_not_self_writable' as check,
+  (count(*) = 0)::int as n from public.generation_credits
+  where presentations_remaining > presentations_granted or presentations_remaining = 1000;
+
+-- Expired and revoked balances are not "left". A refund or a chargeback takes
+-- the credits back; an expiry is the stated life the copy promised.
+update public.generation_credits set expires_at = now() - interval '1 day'
+ where stripe_checkout_session_id = 'cs_test_refund';
+set role authenticated;
+set "request.jwt.claim.sub" = '44444444-4444-4444-4444-444444444444';
+select 'credit_expired_is_not_spendable' as check,
+  (public.captivate_credit_balance() = 0)::int as n;
+select 'credit_expired_does_not_raise_the_ceiling' as check,
+  (id is null and refusal = 'allowance')::int as n
+  from public.captivate_reserve_generation('scenes', 'deck', 'after expiry', null);
+reset role;
+
+update public.generation_credits
+   set expires_at = now() + interval '30 days',
+       revoked_at = now(), revoked_reason = 'refund'
+ where stripe_checkout_session_id = 'cs_test_refund';
+set role authenticated;
+set "request.jwt.claim.sub" = '44444444-4444-4444-4444-444444444444';
+select 'credit_revoked_is_not_spendable' as check,
+  (public.captivate_credit_balance() = 0)::int as n;
+select 'credit_revoked_does_not_raise_the_ceiling' as check,
+  (id is null and refusal = 'allowance')::int as n
+  from public.captivate_reserve_generation('scenes', 'deck', 'after refund', null);
+reset role;
+
+-- Nothing about a credit is reachable signed out. The balance function is not
+-- published to `anon` at all, and the table's only policy is scoped to
+-- `authenticated`, so a signed-out reader sees nothing whatever exists.
+select 'credit_anon_cannot_execute_captivate_credit_balance' as check,
+  (not has_function_privilege('anon', 'public.captivate_credit_balance()', 'EXECUTE'))::int as n;
+set role anon;
+select 'anon_sees_credits' as check, count(*) as n from public.generation_credits;
+reset role;

@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PRESENTATIONS, PRICING, limitFor, type BudgetGroup } from "@/lib/billing/plans";
+import {
+  PRESENTATIONS,
+  PRICING,
+  TOPUP,
+  limitFor,
+  money,
+  type BudgetGroup,
+} from "@/lib/billing/plans";
 import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
 
 export const metadata: Metadata = {
@@ -53,6 +60,12 @@ const ROWS: { label: string; free: string; basic: string; pro: string }[] = [
   },
   { label: "Stock cover photography", free: "Included", basic: "Included", pro: "Included" },
   { label: "AI image generation", free: "—", basic: "Included", pro: "Included" },
+  {
+    label: `Top up when you run out (${money(TOPUP.cents)} for ${TOPUP.presentations} more presentations)`,
+    free: "—",
+    basic: "Yes",
+    pro: "Yes",
+  },
 ];
 
 const freeDecks = PRESENTATIONS.free;
@@ -76,7 +89,8 @@ export default function PricingPage() {
           <p className="mt-4 max-w-2xl text-[16px] leading-relaxed text-[var(--sky-ink-2)]">
             Captivate is free to use, and everything you make stays yours — editable, presentable
             and exportable — on every plan. Paid tiers raise the AI allowance and add generated
-            imagery. Every allowance below is counted over any 30 days.
+            imagery. Every allowance below is counted over any 30 days, and a paid plan can top up
+            if it runs out.
           </p>
 
           <div className="mt-12 grid gap-5 lg:grid-cols-3 2xl:gap-8">

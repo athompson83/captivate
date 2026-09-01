@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { isBillingConfigured, planForPriceId, stripe } from "@/lib/billing/stripe";
 import { shouldApply, subscriptionPatchFrom } from "@/lib/billing/webhook-events";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { TOPUP } from "@/lib/billing/plans";
 import { logFailure, logFailureSampled } from "@/lib/observability";
 
 /** Signature verification needs the raw body, which the Edge runtime cannot give us. */
@@ -62,9 +63,30 @@ export async function POST(request: Request) {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
+      const userId = session.client_reference_id ?? session.metadata?.user_id ?? null;
+
+      // A one-time payment is a top-up, not a plan. Two different products
+      // arrive on this one event type, and telling them apart by `mode` rather
+      // than by the metadata is deliberate: `mode` is Stripe's own record of
+      // what was actually bought, and metadata is whatever the session was
+      // created with.
+      if (session.mode === "payment") {
+        if (!userId) {
+          logFailure("stripe.webhook.unattributable", `${event.type} top-up missing user id`);
+          break;
+        }
+        // Only a session that is actually paid grants anything. An unpaid one
+        // arrives for asynchronous methods that may still fail.
+        if (session.payment_status !== "paid") break;
+        if (!(await grantTopUp(admin, userId, session, event.id))) {
+          logFailure("stripe.webhook.write", `${event.type} top-up could not be granted`);
+          return NextResponse.json({ error: "Write failed." }, { status: 500 });
+        }
+        break;
+      }
+
       const subscriptionId =
         typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
-      const userId = session.client_reference_id ?? session.metadata?.user_id ?? null;
       if (!subscriptionId || !userId) {
         // Somebody completed a checkout that cannot be attached to an account.
         // Answering 200 is right — retrying will not supply the missing id —
@@ -112,6 +134,38 @@ export async function POST(request: Request) {
       break;
     }
 
+    case "charge.refunded":
+    case "charge.dispute.created": {
+      // Money taken back takes the credits back. A balance that survives a
+      // refund is a product given away, and one that survives a chargeback is
+      // a product given away to somebody who said they never bought it.
+      //
+      // Revoked rather than deleted: the row is the history of a purchase, and
+      // a support conversation about a disputed balance starts from it.
+      const charge = event.data.object as Stripe.Charge & { payment_intent?: string | null };
+      const paymentIntent =
+        typeof charge.payment_intent === "string"
+          ? charge.payment_intent
+          : ((charge.payment_intent as { id?: string } | null)?.id ?? null);
+      if (!paymentIntent) break;
+
+      const { error } = await admin
+        .from("generation_credits")
+        .update({
+          revoked_at: new Date().toISOString(),
+          revoked_reason: event.type === "charge.refunded" ? "refund" : "dispute",
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("stripe_payment_intent_id", paymentIntent)
+        .is("revoked_at", null);
+
+      if (error) {
+        logFailure("stripe.webhook.write", `${event.type} could not revoke credits`);
+        return NextResponse.json({ error: "Write failed." }, { status: 500 });
+      }
+      break;
+    }
+
     default:
       // Everything else is recorded in `stripe_events` and deliberately
       // ignored — `invoice.payment_failed` included, because the status that
@@ -120,6 +174,56 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ received: true });
+}
+
+/**
+ * Grants the credits a paid top-up bought.
+ *
+ * Idempotent by construction rather than by checking first: the Checkout
+ * Session id is unique on the table, so a retry — or two deliveries of one
+ * event racing each other — collides instead of granting a second balance.
+ * A duplicate is success, because the credits are already there.
+ *
+ * The quantity comes from the *line item*, so buying two top-ups in one session
+ * grants twenty presentations rather than ten. Falling back to one is the safe
+ * direction: it grants less than was bought, which a person can report, rather
+ * than more, which nobody does.
+ */
+async function grantTopUp(
+  admin: ReturnType<typeof supabaseAdmin>,
+  userId: string,
+  session: Stripe.Checkout.Session,
+  eventId: string,
+): Promise<boolean> {
+  let quantity = 1;
+  try {
+    const items = await stripe().checkout.sessions.listLineItems(session.id, { limit: 1 });
+    quantity = items.data[0]?.quantity ?? 1;
+  } catch {
+    // Keep the fallback rather than failing: the payment succeeded, and
+    // granting the base quantity beats granting nothing.
+  }
+
+  const paymentIntent =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : ((session.payment_intent as { id?: string } | null)?.id ?? null);
+
+  const presentations = TOPUP.presentations * Math.max(1, quantity);
+  const expiresAt = new Date(Date.now() + TOPUP.validDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const { error } = await admin.from("generation_credits").insert({
+    user_id: userId,
+    presentations_granted: presentations,
+    presentations_remaining: presentations,
+    stripe_checkout_session_id: session.id,
+    stripe_payment_intent_id: paymentIntent,
+    stripe_event_id: eventId,
+    expires_at: expiresAt,
+  } as never);
+
+  // 23505 is the unique violation on the session id: already granted.
+  return !error || error.code === "23505";
 }
 
 async function applyPatch(

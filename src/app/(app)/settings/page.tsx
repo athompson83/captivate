@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { SettingsPanel } from "@/components/dashboard/settings-panel";
-import { grantSummary, planUsage, subscriptionSummary } from "@/lib/billing/entitlement";
-import { isBillingConfigured, isTestMode } from "@/lib/billing/stripe";
+import {
+  creditBalance,
+  grantSummary,
+  planUsage,
+  subscriptionSummary,
+} from "@/lib/billing/entitlement";
+import { isBillingConfigured, isTestMode, topUpPriceId } from "@/lib/billing/stripe";
 
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
@@ -13,7 +18,7 @@ export default async function SettingsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [profile, counts, summary, grant, usage] = await Promise.all([
+  const [profile, counts, summary, grant, usage, credits] = await Promise.all([
     supabase
       .from("profiles")
       .select("display_name, created_at")
@@ -31,6 +36,7 @@ export default async function SettingsPage() {
     subscriptionSummary(),
     grantSummary(),
     planUsage(),
+    creditBalance(),
   ]);
 
   return (
@@ -48,6 +54,8 @@ export default async function SettingsPage() {
         configured: isBillingConfigured(),
         testMode: isTestMode(),
         summary,
+        credits,
+        topUpAvailable: topUpPriceId() !== null,
         grant,
         usage,
       }}

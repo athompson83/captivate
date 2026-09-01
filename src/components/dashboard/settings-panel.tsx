@@ -38,6 +38,8 @@ export function SettingsPanel({
     summary: SubscriptionSummary | null;
     grant: GrantSummary | null;
     usage: { plan: Plan; groups: GroupUsage[] };
+    credits: number;
+    topUpAvailable: boolean;
   };
 }) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(updateProfile, null);
@@ -85,6 +87,8 @@ export function SettingsPanel({
         summary={billing.summary}
         grant={billing.grant}
         usage={billing.usage}
+        credits={billing.credits}
+        topUpAvailable={billing.topUpAvailable}
       />
 
       <section className="mt-10" aria-labelledby="appearance-heading">

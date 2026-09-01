@@ -90,6 +90,20 @@ if echo "$out" | grep -E "cost_" | grep -qvE "\|\s+1\s*$"; then
   echo "GENERATION COST TESTS FAILED"; exit 1
 fi
 
+# A top-up buys presentations rather than a deck counter. Every `topup_` probe
+# states a property that must hold — including that ten credits produce ten
+# *complete* presentations, drawings and all.
+if echo "$out" | grep -E "topup_" | grep -qvE "\|\s+1\s*$"; then
+  echo "TOP-UP CREDIT TESTS FAILED"; exit 1
+fi
+
+# The credit ledger itself: held while in flight, returned when nothing reached
+# the model, taken again when the truth arrives, and writable by nobody.
+# `bob_sees_alice_credits` must be 0 and is covered by the cross-user rule.
+if echo "$out" | grep -E "credit_" | grep -v "bob_sees_alice_credits" | grep -qvE "\|\s+1\s*$"; then
+  echo "CREDIT LEDGER TESTS FAILED"; exit 1
+fi
+
 # Every share-link assertion must hold (1 = the stated property was observed).
 if echo "$out" | grep -E "shared_link_" | grep -qvE "\|\s+1\s*$"; then
   echo "SHARE LINK TESTS FAILED"; exit 1

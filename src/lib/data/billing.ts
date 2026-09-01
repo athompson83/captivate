@@ -1,8 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { isBillingConfigured, priceIdFor, stripe } from "@/lib/billing/stripe";
+import { isBillingConfigured, priceIdFor, stripe, topUpPriceId } from "@/lib/billing/stripe";
 import { PAID_PLANS } from "@/lib/billing/plans";
+import { currentPlan } from "@/lib/billing/entitlement";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -69,6 +70,62 @@ export async function startCheckout(input: unknown): Promise<Result<{ url: strin
       allow_promotion_codes: true,
       success_url: `${site}/settings?checkout=success`,
       cancel_url: `${site}/settings?checkout=cancelled`,
+    });
+
+    if (!session.url) return { ok: false, error: "Couldn't start checkout. Nothing was charged." };
+    return { ok: true, data: { url: session.url } };
+  } catch {
+    return { ok: false, error: "Couldn't reach Stripe. Nothing was charged." };
+  }
+}
+
+/**
+ * A one-time Checkout Session for a top-up.
+ *
+ * `mode: "payment"`, not `subscription`: a top-up is a purchase, not a plan,
+ * and billing it as a recurring price would charge somebody every month for a
+ * balance they meant to buy once.
+ *
+ * Only for a paid plan. A top-up tops *up* an allowance, and offering one to a
+ * free account is selling the wrong thing — the answer there is a subscription,
+ * which is cheaper per presentation than credits are.
+ *
+ * Nothing is granted here. The credits appear when the webhook sees the payment
+ * succeed, because a client that could tell the server a purchase happened is a
+ * client that can grant itself the product.
+ */
+export async function startTopUp(): Promise<Result<{ url: string }>> {
+  if (!isBillingConfigured()) {
+    return { ok: false, error: "Billing isn't configured on this deployment." };
+  }
+
+  const price = topUpPriceId();
+  if (!price) return { ok: false, error: "Top-ups aren't available right now." };
+
+  try {
+    const supabase = await supabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "You're signed out. Sign in again to continue." };
+
+    const plan = await currentPlan();
+    if (plan === "free") {
+      return { ok: false, error: "Top-ups are for paid plans. Choose Basic or Pro first." };
+    }
+
+    const customer = await customerIdFor(user.id, user.email ?? undefined);
+    const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+
+    const session = await stripe().checkout.sessions.create({
+      mode: "payment",
+      customer,
+      line_items: [{ price, quantity: 1 }],
+      client_reference_id: user.id,
+      metadata: { user_id: user.id, kind: "topup" },
+      payment_intent_data: { metadata: { user_id: user.id, kind: "topup" } },
+      success_url: `${site}/settings?topup=success`,
+      cancel_url: `${site}/settings?topup=cancelled`,
     });
 
     if (!session.url) return { ok: false, error: "Couldn't start checkout. Nothing was charged." };

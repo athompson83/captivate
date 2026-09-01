@@ -40,7 +40,15 @@ const proSummary = (over: Partial<Record<string, unknown>> = {}) =>
 describe("the billing section", () => {
   it("offers an upgrade on free, and describes the window honestly", () => {
     render(
-      <BillingSection configured testMode={false} summary={null} grant={null} usage={usage} />,
+      <BillingSection
+        credits={0}
+        topUpAvailable={false}
+        configured
+        testMode={false}
+        summary={null}
+        grant={null}
+        usage={usage}
+      />,
     );
     expect(screen.getByText(/free/i)).toBeInTheDocument();
     expect(screen.getByText(/6 of 10/)).toBeInTheDocument();
@@ -54,7 +62,15 @@ describe("the billing section", () => {
     // way to find out why — the same complaint the deck counter answered, one
     // group along.
     render(
-      <BillingSection configured testMode={false} summary={null} grant={null} usage={usage} />,
+      <BillingSection
+        credits={0}
+        topUpAvailable={false}
+        configured
+        testMode={false}
+        summary={null}
+        grant={null}
+        usage={usage}
+      />,
     );
 
     expect(screen.getByText(/rewrites, notes and suggestions/i)).toBeInTheDocument();
@@ -66,6 +82,8 @@ describe("the billing section", () => {
     // it is the question a top-up exists to answer.
     render(
       <BillingSection
+        credits={0}
+        topUpAvailable={false}
         configured
         testMode={false}
         summary={proSummary()}
@@ -80,7 +98,15 @@ describe("the billing section", () => {
     // The bar is a div with a width. Without a label the only people who can
     // read the allowance are the ones who can see it.
     render(
-      <BillingSection configured testMode={false} summary={null} grant={null} usage={usage} />,
+      <BillingSection
+        credits={0}
+        topUpAvailable={false}
+        configured
+        testMode={false}
+        summary={null}
+        grant={null}
+        usage={usage}
+      />,
     );
 
     const bar = screen.getByRole("progressbar", { name: /presentations generated/i });
@@ -91,7 +117,15 @@ describe("the billing section", () => {
 
   it("lets a free account choose which tier to buy", () => {
     render(
-      <BillingSection configured testMode={false} summary={null} grant={null} usage={usage} />,
+      <BillingSection
+        credits={0}
+        topUpAvailable={false}
+        configured
+        testMode={false}
+        summary={null}
+        grant={null}
+        usage={usage}
+      />,
     );
 
     // Both tiers are offered, and the button names the one selected — an
@@ -105,6 +139,8 @@ describe("the billing section", () => {
   it("names the tier a subscriber is actually on", () => {
     render(
       <BillingSection
+        credits={0}
+        topUpAvailable={false}
         configured
         testMode={false}
         summary={proSummary({ plan: "basic" })}
@@ -118,7 +154,15 @@ describe("the billing section", () => {
 
   it("promises that nothing authored is ever locked", () => {
     render(
-      <BillingSection configured testMode={false} summary={null} grant={null} usage={usage} />,
+      <BillingSection
+        credits={0}
+        topUpAvailable={false}
+        configured
+        testMode={false}
+        summary={null}
+        grant={null}
+        usage={usage}
+      />,
     );
     expect(screen.getByText(/stays yours/i)).toBeInTheDocument();
   });
@@ -126,6 +170,8 @@ describe("the billing section", () => {
   it("offers billing management on pro instead of an upgrade", () => {
     render(
       <BillingSection
+        credits={0}
+        topUpAvailable={false}
         configured
         testMode={false}
         summary={proSummary()}
@@ -141,6 +187,8 @@ describe("the billing section", () => {
   it("says a cancelling subscription still runs to the period end", () => {
     render(
       <BillingSection
+        credits={0}
+        topUpAvailable={false}
         configured
         testMode={false}
         summary={proSummary({ cancelAtPeriodEnd: true })}
@@ -155,6 +203,8 @@ describe("the billing section", () => {
   it("explains a failing card without taking Pro away", () => {
     render(
       <BillingSection
+        credits={0}
+        topUpAvailable={false}
         configured
         testMode={false}
         summary={proSummary({ status: "past_due" })}
@@ -170,6 +220,8 @@ describe("the billing section", () => {
     // An unbuilt path is absent, not disabled with a tooltip.
     render(
       <BillingSection
+        credits={0}
+        topUpAvailable={false}
         configured={false}
         testMode={false}
         summary={null}
@@ -182,7 +234,17 @@ describe("the billing section", () => {
   });
 
   it("says when the deployment is pointed at test mode", () => {
-    render(<BillingSection configured testMode summary={null} grant={null} usage={usage} />);
+    render(
+      <BillingSection
+        credits={0}
+        topUpAvailable={false}
+        configured
+        testMode
+        summary={null}
+        grant={null}
+        usage={usage}
+      />,
+    );
     expect(screen.getByText(/test mode/i)).toBeInTheDocument();
   });
 });
@@ -194,7 +256,15 @@ describe("a granted plan", () => {
     // Somebody comped must not be shown a renewal date they do not have, nor
     // an upgrade button for a plan they already exceed.
     render(
-      <BillingSection configured testMode={false} summary={null} grant={grant} usage={usage} />,
+      <BillingSection
+        credits={0}
+        topUpAvailable={false}
+        configured
+        testMode={false}
+        summary={null}
+        grant={grant}
+        usage={usage}
+      />,
     );
     expect(screen.getByText(/unlimited/i)).toBeInTheDocument();
     expect(screen.getByText(/granted, not billed/i)).toBeInTheDocument();
@@ -205,6 +275,8 @@ describe("a granted plan", () => {
   it("outranks a subscription rather than competing with it", () => {
     render(
       <BillingSection
+        credits={0}
+        topUpAvailable={false}
         configured
         testMode={false}
         summary={proSummary()}
@@ -219,6 +291,8 @@ describe("a granted plan", () => {
   it("says when it runs out", () => {
     render(
       <BillingSection
+        credits={0}
+        topUpAvailable={false}
         configured
         testMode={false}
         summary={null}
@@ -227,5 +301,58 @@ describe("a granted plan", () => {
       />,
     );
     expect(screen.getByText(/until/i)).toBeInTheDocument();
+  });
+
+  it("shows purchased credits beside the allowance rather than folded into it", () => {
+    // Two different things to an author: the allowance renews, credits do not
+    // and expire. One blended number could not say which is about to run out.
+    render(
+      <BillingSection
+        credits={7}
+        topUpAvailable
+        configured
+        testMode={false}
+        summary={proSummary()}
+        grant={null}
+        usage={usage}
+      />,
+    );
+    expect(screen.getByText(/extra presentations/i)).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /buy 10 more for \$5/i })).toBeInTheDocument();
+  });
+
+  it("offers no top-up on free, because a subscription is the cheaper answer", () => {
+    render(
+      <BillingSection
+        credits={0}
+        topUpAvailable
+        configured
+        testMode={false}
+        summary={null}
+        grant={null}
+        usage={usage}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /buy .* more/i })).toBeNull();
+  });
+
+  it("hides the buy control entirely when there is no price to buy against", () => {
+    // An unbuilt path is absent, not disabled with a tooltip. The balance is
+    // still reported, because credits granted before the price was withdrawn
+    // are still spendable.
+    render(
+      <BillingSection
+        credits={3}
+        topUpAvailable={false}
+        configured
+        testMode={false}
+        summary={proSummary()}
+        grant={null}
+        usage={usage}
+      />,
+    );
+    expect(screen.getByText(/extra presentations/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /buy .* more/i })).toBeNull();
   });
 });
