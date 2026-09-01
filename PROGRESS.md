@@ -158,9 +158,9 @@ The RLS harness caught two things review would not have: Supabase's default
 privileges re-granted `anon` EXECUTE on the recreated function, and an existing
 probe asserting `count(*) = 0` was passing only because Bob owned no rows.
 
-Review found ten findings on the PRs in this session and every one of them was
-real; three were about claims rather than code, which is the failure this
-session kept repeating. The last of them is worth recording because it changed
+Ten review findings were raised on this PR and every one of them was real;
+three were about claims rather than code, which is the failure this session
+kept repeating. The last of them is worth recording because it changed
 the fix rather than the prose: the ceilings were read *before* the budget lock
 was taken, so a queue of callers each held the numbers from before an operator
 lowered them and was then admitted one at a time against a budget that no
