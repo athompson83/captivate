@@ -1,5 +1,5 @@
-import type { DrawnPath, SceneContent, SceneElement } from "@/lib/schema/presentation";
-import { elementId } from "./layouts";
+import type { DrawnPath, SceneContent, SceneElement, SceneLayout } from "@/lib/schema/presentation";
+import { elementId, layoutSlots } from "./layouts";
 
 /**
  * Re-exported rather than defined here: `settleCover` moved to `layouts.ts`,
@@ -134,4 +134,38 @@ export function drawableScenes<T extends { content: SceneContent; imagePrompt: s
         ),
     )
     .slice(0, cap);
+}
+
+/**
+ * The picture a scene needs, whether or not the model remembered to ask.
+ *
+ * `layoutFor` chooses the layout before a word is written, so a scene can be a
+ * `split-right` — half of it a picture — while the model wrote no image prompt
+ * for it. The composition then emitted no image element at all, and
+ * `drawableScenes` can only draw into a slot that exists: a twenty-minute talk
+ * with a four-drawing budget came back with one drawing, and its side-by-side
+ * scenes were text on one half and nothing on the other.
+ *
+ * So the *layout* decides whether there is a slot, and the model's prompt is
+ * only the preferred description of what goes in it. The fallback is built from
+ * the line the scene is actually making, which is what a person would
+ * illustrate.
+ *
+ * Here rather than in `ai/service.ts` because that module is `server-only` and
+ * this is pure layout arithmetic that a test should be able to import.
+ */
+export function imagePromptFor(scene: {
+  imagePrompt: string;
+  layout: SceneLayout;
+  heading?: string;
+  title?: string;
+  body?: string;
+}): string {
+  if (scene.imagePrompt.trim()) return scene.imagePrompt;
+  if (!layoutSlots(scene.layout).media) return "";
+
+  const subject = [scene.heading, scene.title, scene.body]
+    .map((part) => part?.trim() ?? "")
+    .find((part) => part.length > 0);
+  return subject ? `A staged line drawing illustrating: ${subject}` : "";
 }
