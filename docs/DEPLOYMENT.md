@@ -24,12 +24,23 @@ how many images one author may generate in a day — live in
 ceiling passed in by the caller is a ceiling the caller chooses; see
 [SECURITY.md](SECURITY.md). The table holds the cap and nothing else: the count
 it is compared against is derived from `public.ai_generations` at reservation
-time. Change them with SQL against that row:
+time. Change them with SQL against that row, taking the reservation's own lock
+so the change is a boundary rather than a suggestion:
 
 ```sql
+begin;
+select pg_advisory_xact_lock(hashtext('captivate_image_budget'));
 update public.ai_image_limits
    set cost_usd = 0.05, monthly_budget = 100.00, daily_max = 25;
+commit;
 ```
+
+The lock is not ceremony. `captivate_reserve_image_generation` holds it while it
+reads the ceilings and decides, so an update that takes it too cannot commit
+half-way through somebody's reservation, and every reservation that starts after
+it sees the new numbers. Run the `update` on its own and a burst already waiting
+to reserve is admitted against the budget you have just lowered — which is the
+one moment a lowered budget most needs to hold.
 
 **One-time step when applying `0021_reservation_ceilings.sql`.** It seeds that
 row with the documented defaults — 0.05, 100.00 and 25 — which are what

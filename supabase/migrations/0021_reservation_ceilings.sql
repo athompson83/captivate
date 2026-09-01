@@ -90,6 +90,16 @@ begin
     return;
   end if;
 
+  -- Before the ceilings are read, not after. The lock is what makes the
+  -- month's spend and this reservation a single decision, and the ceilings are
+  -- part of that decision: read outside it, a queue of requests waiting on the
+  -- lock would each hold the numbers from before an operator lowered them, and
+  -- would then be admitted one by one against a budget that no longer exists.
+  -- Lowering a ceiling has to bind the requests already in flight, or it is not
+  -- a spending safeguard. `docs/DEPLOYMENT.md` takes the same lock around the
+  -- update so the boundary is strict in both directions.
+  perform pg_advisory_xact_lock(hashtext('captivate_image_budget'));
+
   select l.cost_usd, l.monthly_budget, l.daily_max
     into v_cost, v_budget, v_daily
     from public.ai_image_limits l
@@ -102,8 +112,6 @@ begin
     return query select null::uuid, 'misconfigured'::text, null::integer;
     return;
   end if;
-
-  perform pg_advisory_xact_lock(hashtext('captivate_image_budget'));
 
   if v_presentation is not null and not public.captivate_owns_presentation(v_presentation) then
     v_presentation := null;
