@@ -665,6 +665,12 @@ function scene(layout: SceneLayout, elements: SceneElement[]): SceneContent {
  */
 function composeCover(content: LayoutContent): SceneContent {
   const base = composeScene("title", { ...content, media: undefined });
+  // The same fallback the composition beneath used, rather than the raw
+  // `heading`. A cover whose line was written only as a title got the title
+  // underneath and nothing over the veil — and the veil is a full-bleed
+  // photograph, so the deck opened on a picture with no words on it at all.
+  // Derived through `withHeading` so the two can never disagree about order.
+  const veilHeading = withHeading(layoutSlots("title"), content).heading;
   const beneath = base.elements.map((el) => ({
     ...el,
     animation: { ...el.animation, entrance: "none" as const, delay: 0 },
@@ -699,15 +705,15 @@ function composeCover(content: LayoutContent): SceneContent {
     },
   ];
 
-  if (content.heading) {
+  if (veilHeading) {
     veil.push({
       id: elementId("veil"),
       type: "heading",
       level: 1,
       frame: frame(M, 50, W * 0.84, 32),
       content: content.headingAccent
-        ? richTextAccent(content.heading, content.headingAccent)
-        : richText(content.heading),
+        ? richTextAccent(veilHeading, content.headingAccent)
+        : richText(veilHeading),
       hidden: false,
       locked: false,
       opacity: 1,

@@ -241,6 +241,22 @@ describe("the fold puts words in the slots a layout has", () => {
     expect(composed.elements.some((element) => element.type === "chart")).toBe(true);
   });
 
+  it("puts the cover's line over its veil, however it was written", () => {
+    // The veil is a full-bleed photograph over the title composition beneath
+    // it. It used to take `content.heading` raw while the composition beneath
+    // took the fallback, so a cover whose line was written only as a title
+    // opened on a picture with no words on it at all — and the first scene of
+    // every generated deck is a cover.
+    const composed = composeScene("cover", {
+      title: "There is no slide reel",
+      media: { url: "https://example.test/a.jpg", alt: "A lecture theatre" },
+    });
+
+    const veil = composed.elements.filter((element) => element.id.startsWith("veil"));
+    expect(veil).toHaveLength(2);
+    expect(JSON.stringify(veil)).toContain("There is no slide reel");
+  });
+
   it("still composes nothing when there was nothing to compose", () => {
     // An author who has genuinely written nothing must still see the empty
     // state, not a scene invented on their behalf.
