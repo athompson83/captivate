@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { BUDGET_GROUPS, ceilingsFor, type BudgetGroup, type Plan } from "@/lib/billing/plans";
+import {
+  BUDGET_GROUPS,
+  PER_PRESENTATION,
+  ceilingsFor,
+  type BudgetGroup,
+  type Plan,
+} from "@/lib/billing/plans";
 
 /**
  * The ceilings exist twice, and they must be the same twice.
@@ -18,6 +24,7 @@ import { BUDGET_GROUPS, ceilingsFor, type BudgetGroup, type Plan } from "@/lib/b
  */
 
 const MIGRATION = "supabase/migrations/0022_plan_budgets.sql";
+const CREDITS = "supabase/migrations/0024_generation_credits.sql";
 
 /** The `insert ... values` rows that seed `plan_budgets`. */
 function seededBudgets(): Map<string, { allowance: number[]; burst: number[] }> {
@@ -75,6 +82,28 @@ describe("the database and the product agree on every ceiling", () => {
     for (const group of BUDGET_GROUPS) {
       expect(block, `captivate_budget_kinds has no arm for '${group}'`).toContain(
         `when '${group}'`,
+      );
+    }
+  });
+
+  it("prices every group in presentations, the same way the product does", () => {
+    // `captivate_per_presentation` is what turns a credit into a presentation
+    // rather than a deck counter, and a group it has no arm for returns null.
+    // The reservation coalesces that to zero now, so the worst case is a credit
+    // buying no headroom in that pool rather than an unbounded ceiling — but
+    // the honest fix is for the two lists to agree, which is what this asserts.
+    const sql = readFileSync(CREDITS, "utf8");
+    const start = sql.indexOf("function public.captivate_per_presentation");
+    expect(start, "captivate_per_presentation moved or was renamed").toBeGreaterThan(-1);
+    const block = sql.slice(start, sql.indexOf("$$;", start));
+
+    for (const group of BUDGET_GROUPS) {
+      expect(block, `captivate_per_presentation has no arm for '${group}'`).toContain(
+        `when '${group}'`,
+      );
+      // And it agrees on the number, not just on having one.
+      expect(block, `${group} disagrees with PER_PRESENTATION`).toMatch(
+        new RegExp(`when '${group}'\\s+then ${PER_PRESENTATION[group]}\\b`),
       );
     }
   });

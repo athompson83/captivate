@@ -12,7 +12,7 @@
 | `OPENAI_API_KEY`                | No            | **No**              | Enables the picker's Generate tab                               |
 | `NEXT_PUBLIC_SITE_URL`          | In production | Yes                 | Absolute origin for email links                                 |
 | `SUPABASE_SERVICE_ROLE_KEY`     | With billing  | **No**              | The Stripe webhook is the only writer of subscription state     |
-| `STRIPE_SECRET_KEY`             | No            | **No**              | Enables billing; absent means nobody is throttled               |
+| `STRIPE_SECRET_KEY`             | No            | **No**              | Enables billing; absent leaves every account on Free — see below |
 | `STRIPE_WEBHOOK_SECRET`         | With billing  | **No**              | Verifies the webhook; it is that endpoint's only authentication |
 | `STRIPE_PRICE_BASIC_MONTHLY`    | With billing  | **No**              | Price id(s) for $12/month Captivate Basic                       |
 | `STRIPE_PRICE_PRO_MONTHLY`      | With billing  | **No**              | Price id(s) for $25/month Captivate Pro                         |
@@ -52,7 +52,7 @@ head of the list is what a new checkout is opened against; the rest are still
 recognised, which is what stops `planForPriceId` failing to resolve an existing
 subscriber's tier. So a price change is:
 
-```
+```dotenv
 STRIPE_PRICE_PRO_MONTHLY=price_new,price_old
 ```
 

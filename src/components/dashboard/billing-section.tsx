@@ -218,8 +218,13 @@ export function BillingSection({
        * run out. The buy control appears only where it can actually work: a
        * paid plan, on a deployment that has a top-up price. A button that
        * looks functional and is not is worse than its absence.
+       *
+       * The *balance* is shown on a wider rule than the button: credits outlive
+       * the subscription that bought them — the database goes on applying them
+       * to a Free allowance — so hiding them when a plan lapses would hide
+       * something the author can still spend.
        */}
-      {paid && (
+      {(credits > 0 || paid) && (
         <div className="border-line-subtle mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
           <div>
             <p className="text-ink-2 text-[13px]">
@@ -231,7 +236,7 @@ export function BillingSection({
               whole presentation — the map, the scenes and its drawings.
             </p>
           </div>
-          {topUpAvailable && (
+          {topUpAvailable && paid && (
             <Button
               variant="secondary"
               size="sm"

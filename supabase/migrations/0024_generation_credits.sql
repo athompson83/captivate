@@ -228,7 +228,15 @@ begin
   -- One credit is worth one presentation, which is worth this much of *this*
   -- pool. So ten credits raise the deck ceiling by ten and the drawing ceiling
   -- by a hundred — enough to illustrate all ten.
-  v_headroom := v_allowance_max + v_credits * public.captivate_per_presentation(p_group);
+  --
+  -- Coalesced, because a null here is not a smaller ceiling — it is *no*
+  -- ceiling: `v_used >= null` is null, the allowance branch is skipped, and the
+  -- reservation is granted unbounded. `captivate_budget_kinds` rejects an
+  -- unknown group before this today, so it is unreachable; it becomes reachable
+  -- the moment a group is added there and not here, which is a two-line change
+  -- with no other symptom. The parity test asserts both have every arm.
+  v_headroom :=
+    v_allowance_max + v_credits * coalesce(public.captivate_per_presentation(p_group), 0);
 
   v_used := public.captivate_count_generations(v_kinds, v_allowance_minutes);
   if v_used >= v_headroom then

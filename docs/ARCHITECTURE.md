@@ -281,12 +281,20 @@ See [SECURITY.md](SECURITY.md) for the full picture, including accepted risks.
 
 ## Billing
 
-Captivate sells two tiers: **Captivate Basic** at $12 a month or $96 a year,
-and **Captivate Pro** at $25 a month or $200 a year. Free is the whole product
-with a bounded AI allowance — 10 generated presentations in any rolling 30 days
-— and both paid tiers raise every allowance and add generated imagery. Nothing
-a person authored is ever locked by a lapsed subscription; only future model
-calls are limited.
+Captivate sells **Captivate Basic** at $12 a month and **Captivate Pro** at $25
+a month, both monthly only, plus a $5 top-up. Free is the whole product with a
+bounded AI allowance. The three tiers are 10, 25 and 60 generated presentations
+in any rolling 30 days, and both paid tiers add generated imagery. Nothing a
+person authored is ever locked by a lapsed subscription; only future model calls
+are limited.
+
+Annual billing is deferred until there is enough measured cost per presentation
+to know that a year-long commitment is not a year-long commitment to an
+unprofitable price — a decision that cannot be unwound for anybody who has
+already paid. Deferring it means having no code path that opens an annual
+checkout, rather than a hidden control. The annual price ids are still read, but
+only to resolve a subscription bought before the withdrawal: recognising a price
+and offering it are different things.
 
 Stripe owns every card field. The app redirects to Stripe-hosted Checkout and
 the Billing Portal, and a signature-verified webhook mirrors subscription state

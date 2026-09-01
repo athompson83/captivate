@@ -9,6 +9,7 @@ import {
   type BudgetGroup,
 } from "@/lib/billing/plans";
 import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
+import { topUpPriceId } from "@/lib/billing/stripe";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -60,13 +61,24 @@ const ROWS: { label: string; free: string; basic: string; pro: string }[] = [
   },
   { label: "Stock cover photography", free: "Included", basic: "Included", pro: "Included" },
   { label: "AI image generation", free: "—", basic: "Included", pro: "Included" },
-  {
-    label: `Top up when you run out (${money(TOPUP.cents)} for ${TOPUP.presentations} more presentations)`,
-    free: "—",
-    basic: "Yes",
-    pro: "Yes",
-  },
 ];
+
+/**
+ * The top-up row, only where a top-up can actually be bought.
+ *
+ * `STRIPE_PRICE_TOPUP` is optional and settings already hides the buy control
+ * without it. A public page promising a purchase the deployment cannot take is
+ * the same defect one surface further out.
+ */
+const TOPUP_ROW = {
+  label: `Top up when you run out (${money(TOPUP.cents)} for ${TOPUP.presentations} more presentations)`,
+  free: "—",
+  basic: "Yes",
+  pro: "Yes",
+};
+
+const topUpAvailable = topUpPriceId() !== null;
+const rows = topUpAvailable ? [...ROWS, TOPUP_ROW] : ROWS;
 
 const freeDecks = PRESENTATIONS.free;
 const basicDecks = PRESENTATIONS.basic;
@@ -89,8 +101,8 @@ export default function PricingPage() {
           <p className="mt-4 max-w-2xl text-[16px] leading-relaxed text-[var(--sky-ink-2)]">
             Captivate is free to use, and everything you make stays yours — editable, presentable
             and exportable — on every plan. Paid tiers raise the AI allowance and add generated
-            imagery. Every allowance below is counted over any 30 days, and a paid plan can top up
-            if it runs out.
+            imagery. Every allowance below is counted over any 30 days
+            {topUpAvailable ? ", and a paid plan can top up if it runs out" : ""}.
           </p>
 
           <div className="mt-12 grid gap-5 lg:grid-cols-3 2xl:gap-8">
@@ -177,7 +189,7 @@ export default function PricingPage() {
                 </tr>
               </thead>
               <tbody>
-                {ROWS.map((row) => (
+                {rows.map((row) => (
                   <tr key={row.label} className="border-b border-[var(--sky-line)]/60">
                     <td className="py-3.5 pr-6 text-[var(--sky-ink-2)]">{row.label}</td>
                     <td className="py-3.5 pr-6 text-[var(--sky-ink-2)]">{row.free}</td>

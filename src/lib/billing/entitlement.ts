@@ -5,6 +5,7 @@ import { usedGenerations } from "@/lib/ai/rate-limit";
 import type { PaidPlan } from "./plans";
 import {
   BUDGET_KINDS,
+  PER_PRESENTATION,
   ceilingsFor,
   limitFor,
   planFromGrant,
@@ -57,14 +58,31 @@ export async function limitForCaller(group: BudgetGroup): Promise<RateLimit> {
 }
 
 /**
- * Every ceiling the caller has to clear, allowance first.
+ * Every ceiling the caller has to clear, allowance first — credits included.
  *
- * The gate takes all of them. Taking only the allowance is what let a paid
- * plan's burst ceiling exist as a number in a table and nowhere in the code
- * that enforces anything — a month's worth spendable in an afternoon.
+ * The credits matter here specifically because this is a *pre-filter*. The
+ * reservation is the authority and it adds the top-up headroom itself, but it
+ * is only reached if this lets the request through: without the same headroom,
+ * an author at their plan's allowance was answered 429 before the statement
+ * that would have spent the credit they had just bought. Ten presentations,
+ * paid for, unreachable.
+ *
+ * The arithmetic mirrors `captivate_reserve_generation` exactly — one credit is
+ * one presentation, worth `PER_PRESENTATION[group]` of this pool — and it is
+ * keyed on what was *granted* rather than what remains, for the same reason:
+ * spending a credit both lowers the balance and raises the count, so a ceiling
+ * keyed on the remainder closes from both ends.
  */
 export async function ceilingsForCaller(group: BudgetGroup): Promise<readonly RateLimit[]> {
-  return ceilingsFor(await currentPlan(), group);
+  const [plan, credits] = await Promise.all([currentPlan(), grantedCredits()]);
+  const [allowance, ...burst] = ceilingsFor(plan, group);
+  if (credits <= 0) return [allowance, ...burst];
+  return [
+    { ...allowance, max: allowance.max + credits * PER_PRESENTATION[group] },
+    // A purchase does not raise the burst ceiling. That is abuse protection
+    // rather than something bought, and a top-up buys quantity, not speed.
+    ...burst,
+  ];
 }
 
 export interface GrantSummary {
@@ -239,6 +257,28 @@ export async function planUsage(): Promise<{ plan: Plan; groups: GroupUsage[] }>
     return { plan, groups };
   } catch {
     return { plan, groups: empty() };
+  }
+}
+
+/**
+ * Presentations bought and still live, spent or not.
+ *
+ * What the *ceiling* is raised by, as opposed to what is left to spend. See
+ * `ceilingsForCaller`.
+ */
+async function grantedCredits(): Promise<number> {
+  try {
+    const supabase = await supabaseServer();
+    const { data, error } = await supabase
+      .from("generation_credits")
+      .select("presentations_granted")
+      .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+      .is("revoked_at", null)
+      .gt("expires_at", new Date().toISOString());
+    if (error || !data) return 0;
+    return data.reduce((sum, row) => sum + (row.presentations_granted ?? 0), 0);
+  } catch {
+    return 0;
   }
 }
 

@@ -53,12 +53,25 @@ export async function POST(request: Request) {
   const admin = supabaseAdmin();
 
   // Idempotency first: a duplicate delivery stops here having changed nothing.
+  //
+  // Claiming the event before doing the work is what makes a retry safe, and it
+  // is also what makes a *failed* attempt unsafe: Stripe retries, the retry
+  // sees the claim, and the mutation that failed never happens again — a
+  // customer charged with no credits. So a handler that fails releases the
+  // claim on its way out, and `handled` is the flag that says whether it got
+  // that far. Releasing is best-effort: if it fails too, the retry is a no-op
+  // rather than a double-grant, because every mutation below is idempotent in
+  // its own right.
   const { error: seen } = await admin
     .from("stripe_events")
     .insert({ id: event.id, type: event.type } as never);
   if (seen?.code === "23505") {
     return NextResponse.json({ received: true, duplicate: true });
   }
+
+  const release = async () => {
+    await admin.from("stripe_events").delete().eq("id", event.id);
+  };
 
   switch (event.type) {
     case "checkout.session.completed": {
@@ -80,6 +93,7 @@ export async function POST(request: Request) {
         if (session.payment_status !== "paid") break;
         if (!(await grantTopUp(admin, userId, session, event.id))) {
           logFailure("stripe.webhook.write", `${event.type} top-up could not be granted`);
+          await release();
           return NextResponse.json({ error: "Write failed." }, { status: 500 });
         }
         break;
@@ -104,6 +118,7 @@ export async function POST(request: Request) {
       const subscription = await stripe().subscriptions.retrieve(subscriptionId);
       if (!(await applyPatch(admin, userId, subscription, event.created))) {
         logFailure("stripe.webhook.write", `${event.type} could not be applied`);
+        await release();
         return NextResponse.json({ error: "Write failed." }, { status: 500 });
       }
       break;
@@ -129,6 +144,7 @@ export async function POST(request: Request) {
 
       if (!(await applyPatch(admin, owner.user_id, subscription, event.created))) {
         logFailure("stripe.webhook.write", `${event.type} could not be applied`);
+        await release();
         return NextResponse.json({ error: "Write failed." }, { status: 500 });
       }
       break;
@@ -149,6 +165,24 @@ export async function POST(request: Request) {
           : ((charge.payment_intent as { id?: string } | null)?.id ?? null);
       if (!paymentIntent) break;
 
+      // `charge.refunded` fires for a *partial* refund too, and `charge.refunded`
+      // the boolean is what tells them apart — true only when the whole charge
+      // has been returned. Revoking the balance on a partial refund would take
+      // back ten presentations for a dollar returned, which is worse than not
+      // handling refunds at all.
+      //
+      // A partial refund of a top-up is not something the product can produce —
+      // one price, quantity bought whole — so it is logged rather than guessed
+      // at. Somebody deciding to return half of a five-dollar purchase should
+      // reach a person, not an algorithm dividing credits.
+      if (event.type === "charge.refunded" && charge.refunded !== true) {
+        logFailure(
+          "stripe.webhook.partial-refund",
+          `${event.type} for ${paymentIntent} refunded ${charge.amount_refunded} of ${charge.amount}; credits left intact`,
+        );
+        break;
+      }
+
       const { error } = await admin
         .from("generation_credits")
         .update({
@@ -161,6 +195,7 @@ export async function POST(request: Request) {
 
       if (error) {
         logFailure("stripe.webhook.write", `${event.type} could not revoke credits`);
+        await release();
         return NextResponse.json({ error: "Write failed." }, { status: 500 });
       }
       break;
