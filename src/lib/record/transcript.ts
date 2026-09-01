@@ -230,10 +230,7 @@ export class LiveTranscriber {
       // resolves the wait below, so fall through rather than returning early.
     }
 
-    await Promise.race([
-      ended,
-      new Promise<void>((resolve) => setTimeout(resolve, 750)),
-    ]);
+    await Promise.race([ended, new Promise<void>((resolve) => setTimeout(resolve, 750))]);
 
     recognition.onend = null;
     try {

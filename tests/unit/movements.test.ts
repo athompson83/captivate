@@ -159,12 +159,7 @@ describe("movements exclude detail scenes", () => {
   const sections = [section("a", "Opening", "OPEN"), section("b", "The evidence", "")];
 
   it("does not let a detail scene start or extend a movement", () => {
-    const scenes = [
-      scene(0, "a"),
-      scene(1, "a", "detail"),
-      scene(2, "a"),
-      scene(3, "b"),
-    ];
+    const scenes = [scene(0, "a"), scene(1, "a", "detail"), scene(2, "a"), scene(3, "b")];
     const movements = movementsOf(scenes, sections);
     expect(movements).toHaveLength(2);
     // The detail scene at index 1 sits inside movement "a" without splitting it.

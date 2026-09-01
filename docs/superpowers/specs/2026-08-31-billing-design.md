@@ -22,28 +22,28 @@ $96/year that raises the ceiling and unlocks paid imagery.
 
 **A lapsed subscription never takes anything away.** Every deck, asset,
 recording and share link a person made stays editable, presentable and
-exportable forever. Downgrading limits *future model calls* and nothing else.
+exportable forever. Downgrading limits _future model calls_ and nothing else.
 This is `AGENTS.md`'s "an unbuilt feature is absent, not disabled" applied to
 money: holding a user's own work hostage is the one thing a billing system
 must not do.
 
 ## What the plans are
 
-| | Free | Pro |
-| --- | --- | --- |
-| Editor, world canvas, present, record, share, export | everything | everything |
-| Presentations generated | 10 per 30 days | 30 per hour |
-| Narrative maps | 20 per 30 days | 30 per hour |
-| Staged drawings | 20 per 30 days | 30 per hour |
-| Text tools (rewrite, notes, moment) | 50 per 30 days | 200 per hour |
-| Stock cover photography | yes | yes |
-| AI image generation | no | yes, within the deployment budget |
+|                                                      | Free           | Pro                               |
+| ---------------------------------------------------- | -------------- | --------------------------------- |
+| Editor, world canvas, present, record, share, export | everything     | everything                        |
+| Presentations generated                              | 10 per 30 days | 30 per hour                       |
+| Narrative maps                                       | 20 per 30 days | 30 per hour                       |
+| Staged drawings                                      | 20 per 30 days | 30 per hour                       |
+| Text tools (rewrite, notes, moment)                  | 50 per 30 days | 200 per hour                      |
+| Stock cover photography                              | yes            | yes                               |
+| AI image generation                                  | no             | yes, within the deployment budget |
 
 ### Why the free allowance is counted in presentations
 
 Generating one deck is already several model calls: a map, a scenes pass, and
 two to six drawings. "Ten AI generations a month" counted per call would give a
-free user *one* presentation and read as a bait-and-switch. So the headline
+free user _one_ presentation and read as a bait-and-switch. So the headline
 allowance counts the unit a person actually recognises — a generated
 presentation, one `scenes` row — and the other kinds carry their own bounded
 sub-budgets so no account can run up unbounded spend through a side door.
@@ -52,7 +52,7 @@ sub-budgets so no account can run up unbounded spend through a side door.
 
 The existing limiter counts rows in a rolling window, so "per 30 days" means
 the last 30 days, not a calendar month that resets on the 1st. Every string
-shown to a user says *"in the last 30 days"*. A rolling window described as
+shown to a user says _"in the last 30 days"_. A rolling window described as
 monthly is a lie about billing, which is the worst kind of copy to get wrong.
 
 ## Data model
@@ -127,7 +127,7 @@ the real downgrade trigger.
 
 **`current_period_end` is nullable, and null means "trust the status".** Recent
 Stripe API versions removed the period from the Subscription object and moved
-it onto the subscription *item* (`items.data[0].current_period_end`). Reading
+it onto the subscription _item_ (`items.data[0].current_period_end`). Reading
 it the old way silently yields undefined, and a row written with a bogus period
 end would downgrade someone who just paid. So the webhook reads the item first,
 falls back to the subscription, and writes null when neither is present — and a
@@ -217,11 +217,11 @@ Stripe objects already created on the Captivate account
 (`acct_1UAUw5LBp2folCbt`), the same shape in both modes, addressable by the
 lookup keys `captivate_pro_monthly` and `captivate_pro_annual`:
 
-| | Test | Live |
-| --- | --- | --- |
-| Product | `prod_VAqzWXqAes4R1I` | `prod_VAqz4UKFh4sOfT` |
+|             | Test                             | Live                             |
+| ----------- | -------------------------------- | -------------------------------- |
+| Product     | `prod_VAqzWXqAes4R1I`            | `prod_VAqz4UKFh4sOfT`            |
 | Monthly $12 | `price_1UAVHlLBp2folCbtHJBXv7tR` | `price_1UAVIYLBp2folCbtKKjnkbx9` |
-| Annual $96 | `price_1UAVHoLBp2folCbtHnyV85LJ` | `price_1UAVIdLBp2folCbtXOr9PO3o` |
+| Annual $96  | `price_1UAVHoLBp2folCbtHnyV85LJ` | `price_1UAVIdLBp2folCbtXOr9PO3o` |
 
 Entitlement is derived from a price-id→plan map rather than assuming a single
 product, so a second Axtevi product later needs no migration.

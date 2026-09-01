@@ -23,12 +23,14 @@
 ### Task 1: `flowRole` on `Scene` — schema and migration
 
 **Files:**
+
 - Modify: `src/lib/schema/presentation.ts:542-560` (`Scene`)
 - Modify: `src/lib/data/presentations.ts:117-135` (`toScene`) — read the new column
 - Create: `supabase/migrations/0012_scene_flow_role.sql`
 - Test: `tests/unit/presentation-schema.test.ts` (extend)
 
 **Interfaces:**
+
 - Produces: `Scene.flowRole: "main" | "detail"`, defaulting to `"main"` — every later task in this plan that touches scene ordering (`session.ts`, `movement-rail.tsx`, `scene-jumper.tsx`) reads this field.
 
 - [ ] **Step 1: Write the failing schema test**
@@ -103,7 +105,7 @@ Check `SceneContent`'s actual minimal valid shape first — `grep -n "export con
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/unit/presentation-schema.test.ts -t "flowRole"`
-Expected: FAIL — `flowRole` isn't a recognized field yet (extra keys may be stripped or the third test may not fail as expected; confirm the *first two* fail on `parsed.data.flowRole` being `undefined`, not `"main"`).
+Expected: FAIL — `flowRole` isn't a recognized field yet (extra keys may be stripped or the third test may not fail as expected; confirm the _first two_ fail on `parsed.data.flowRole` being `undefined`, not `"main"`).
 
 - [ ] **Step 3: Add the field to the `Scene` schema**
 
@@ -221,11 +223,13 @@ git commit -m "feat: scenes carry a flowRole distinguishing main sequence from d
 ### Task 2: `hotspot` on `elementBase` — schema, self-target rejection, dangling-reference repair
 
 **Files:**
+
 - Modify: `src/lib/schema/presentation.ts:176-184` (`elementBase`)
 - Modify: `src/lib/schema/presentation.ts:640` area (`parseSceneContent`) — self-target rejection only; dangling-reference repair happens one level up (Task 3), since it needs the full scene list `parseSceneContent` doesn't have.
 - Test: `tests/unit/presentation-schema.test.ts` (extend)
 
 **Interfaces:**
+
 - Produces: `SceneElement.hotspot: { targetSceneId: string; label: string } | null`, read by Task 4 (stage rendering) and Task 6 (inspector).
 - Consumes: nothing new.
 
@@ -255,9 +259,8 @@ describe("SceneElement.hotspot", () => {
       hotspot: { targetSceneId: "00000000-0000-4000-8000-000000000099", label: "See detail" },
     });
     expect(parsed.success).toBe(true);
-    if (parsed.success) expect(parsed.data.hotspot?.targetSceneId).toBe(
-      "00000000-0000-4000-8000-000000000099",
-    );
+    if (parsed.success)
+      expect(parsed.data.hotspot?.targetSceneId).toBe("00000000-0000-4000-8000-000000000099");
   });
 });
 ```
@@ -387,7 +390,7 @@ export function parseSceneContent(
 Edit `src/lib/data/presentations.ts:118` (inside `toScene`):
 
 ```typescript
-  const { content, recovered } = parseSceneContent(row.content, row.id);
+const { content, recovered } = parseSceneContent(row.content, row.id);
 ```
 
 - [ ] **Step 9: Run the tests to verify they pass**
@@ -412,12 +415,14 @@ git commit -m "feat: elements carry an optional hotspot; self-targeting is rejec
 ### Task 3: Dangling hotspot repair across the full scene list
 
 **Files:**
+
 - Modify: `src/lib/data/presentations.ts:208-239` (`getPresentationDocument`)
 - Test: new test in `tests/unit/narrative-persistence.test.ts` or a new `tests/unit/hotspot-repair.test.ts` — check which existing file already covers `getPresentationDocument`-level behavior via `grep -rn "getPresentationDocument" tests/` first and extend that one if it exists.
 
 **Interfaces:**
+
 - Consumes: `Scene.hotspot` (Task 2), `Scene.id`.
-- Produces: `getPresentationDocument`'s existing `recoveredScenes: string[]` return value now also includes scenes whose *cross-scene* hotspot reference was repaired, not only scenes whose own content failed to parse.
+- Produces: `getPresentationDocument`'s existing `recoveredScenes: string[]` return value now also includes scenes whose _cross-scene_ hotspot reference was repaired, not only scenes whose own content failed to parse.
 
 **Why this can't live in `parseSceneContent`:** that function validates one scene's `content` in isolation (Task 2's self-target check works because the owning scene's id is a single extra parameter) — but "does this target scene still exist" requires the full set of scene ids for the presentation, which only exists once every scene has been loaded. `getPresentationDocument` (`presentations.ts:208`) is the one place that already has all scenes loaded together before returning them.
 
@@ -549,25 +554,25 @@ export function repairDanglingHotspots(scenes: Scene[]): {
 Wire it into `getPresentationDocument` (`presentations.ts:225-238`):
 
 ```typescript
-  const recoveredScenes: string[] = [];
-  const scenes = (scenesRes.data as SceneRow[]).map((row) => {
-    const { scene, recovered } = toScene(row);
-    if (recovered) recoveredScenes.push(scene.id);
-    return scene;
-  });
+const recoveredScenes: string[] = [];
+const scenes = (scenesRes.data as SceneRow[]).map((row) => {
+  const { scene, recovered } = toScene(row);
+  if (recovered) recoveredScenes.push(scene.id);
+  return scene;
+});
 
-  const { scenes: repairedScenes, repairedIds } = repairDanglingHotspots(scenes);
-  for (const id of repairedIds) {
-    if (!recoveredScenes.includes(id)) recoveredScenes.push(id);
-  }
+const { scenes: repairedScenes, repairedIds } = repairDanglingHotspots(scenes);
+for (const id of repairedIds) {
+  if (!recoveredScenes.includes(id)) recoveredScenes.push(id);
+}
 
-  return {
-    presentation: toPresentationRecord(presentationRes.data as PresentationRow),
-    sections: (sectionsRes.data as SectionRow[]).map(toSection),
-    scenes: repairedScenes,
-    moments: (momentsRes.data as MomentRow[]).map(toMoment),
-    recoveredScenes,
-  };
+return {
+  presentation: toPresentationRecord(presentationRes.data as PresentationRow),
+  sections: (sectionsRes.data as SectionRow[]).map(toSection),
+  scenes: repairedScenes,
+  moments: (momentsRes.data as MomentRow[]).map(toMoment),
+  recoveredScenes,
+};
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -596,10 +601,12 @@ git commit -m "fix: repair hotspots left dangling by a deleted target scene"
 ### Task 4: Protocol version and `divePath` on `PresentMessage`
 
 **Files:**
+
 - Modify: `src/lib/present/protocol.ts:72-151`
 - Test: `tests/unit/present.test.ts` (extend — check this file's existing scope first via `grep -n "describe(" tests/unit/present.test.ts`)
 
 **Interfaces:**
+
 - Produces: `PROTOCOL_VERSION` constant; `PresentMessage`'s `state` variant gains `protocolVersion: number` (defaulted) and `divePath: { sceneIndex: number; step: number }[]` (defaulted); `PresentMessage`'s `command` variant's `action` enum gains `"dive"`.
 - Consumes: nothing new.
 
@@ -735,10 +742,12 @@ git commit -m "feat: protocol version and divePath on PresentMessage, dive comma
 ### Task 5: Session store — `flowRole`-aware `next`/`prev`/`first`/`last`, `dive`, `divePath`
 
 **Files:**
+
 - Modify: `src/lib/present/session.ts`
 - Test: `tests/unit/present.test.ts` (extend)
 
 **Interfaces:**
+
 - Consumes: `Scene.flowRole` (Task 1), `PresentMessage`'s `protocolVersion`/`divePath`/`"dive"` action (Task 4).
 - Produces: `SessionState.divePath: { sceneIndex: number; step: number }[]`; `SessionApi`/`PresentSession` gain `dive: (targetSceneId: string) => void`; `PresentSession.nextScene` becomes flow-role-aware (skips a detail scene when previewing "what's next").
 
@@ -843,7 +852,13 @@ describe("session flowRole-aware navigation", () => {
               type: "heading" as const,
               frame: { x: 0, y: 0, w: 50, h: 20, rotation: 0 },
               content: [{ text: "T" }],
-              animation: { entrance: "fade", delay: 0, duration: 0.5, emphasis: "none", onAdvance: true },
+              animation: {
+                entrance: "fade",
+                delay: 0,
+                duration: 0.5,
+                emphasis: "none",
+                onAdvance: true,
+              },
             },
           ],
           background: { kind: "none" },
@@ -890,115 +905,114 @@ Expected: FAIL — no skip logic, no `dive` handling yet.
 Edit `src/lib/present/session.ts`. Add near the top of `createSession` (after `stepCounts` at line 145), closed over `scenes`:
 
 ```typescript
-  const isMain = (index: number) => scenes[index]?.flowRole !== "detail";
+const isMain = (index: number) => scenes[index]?.flowRole !== "detail";
 
-  /** Next index >= start where the scene is main-flow, or null if none. */
-  const nextMainIndex = (start: number): number | null => {
-    for (let i = start; i < scenes.length; i += 1) {
-      if (isMain(i)) return i;
-    }
-    return null;
-  };
+/** Next index >= start where the scene is main-flow, or null if none. */
+const nextMainIndex = (start: number): number | null => {
+  for (let i = start; i < scenes.length; i += 1) {
+    if (isMain(i)) return i;
+  }
+  return null;
+};
 
-  /** Previous index <= start where the scene is main-flow, or null if none. */
-  const prevMainIndex = (start: number): number | null => {
-    for (let i = start; i >= 0; i -= 1) {
-      if (isMain(i)) return i;
-    }
-    return null;
-  };
+/** Previous index <= start where the scene is main-flow, or null if none. */
+const prevMainIndex = (start: number): number | null => {
+  for (let i = start; i >= 0; i -= 1) {
+    if (isMain(i)) return i;
+  }
+  return null;
+};
 ```
 
 Rewrite `next` (`session.ts:218-242`):
 
 ```typescript
-  const next = () =>
-    update((current) => {
-      const steps = stepCounts[current.sceneIndex] ?? 1;
-      // Walk the builds within a scene before moving on to the next scene.
-      if (current.step < steps - 1) {
-        return {
-          step: current.step + 1,
-          startedAt: current.startedAt ?? clock(current),
-          blanked: false,
-          overview: false,
-        };
-      }
-      const nextIndex = nextMainIndex(current.sceneIndex + 1);
-      if (nextIndex === null) return { blanked: false, overview: false };
-
+const next = () =>
+  update((current) => {
+    const steps = stepCounts[current.sceneIndex] ?? 1;
+    // Walk the builds within a scene before moving on to the next scene.
+    if (current.step < steps - 1) {
       return {
-        sceneIndex: nextIndex,
-        step: 0,
-        stepsInScene: stepCounts[nextIndex] ?? 1,
-        sceneEnteredAt: clock(current),
+        step: current.step + 1,
         startedAt: current.startedAt ?? clock(current),
         blanked: false,
         overview: false,
       };
-    });
+    }
+    const nextIndex = nextMainIndex(current.sceneIndex + 1);
+    if (nextIndex === null) return { blanked: false, overview: false };
+
+    return {
+      sceneIndex: nextIndex,
+      step: 0,
+      stepsInScene: stepCounts[nextIndex] ?? 1,
+      sceneEnteredAt: clock(current),
+      startedAt: current.startedAt ?? clock(current),
+      blanked: false,
+      overview: false,
+    };
+  });
 ```
 
 Rewrite `prev` (`session.ts:244-260`) with the three-step precedence from the spec:
 
 ```typescript
-  const prev = () =>
-    update((current) => {
-      // 1. Reverse a build step first.
-      if (current.step > 0) return { step: current.step - 1, blanked: false, overview: false };
+const prev = () =>
+  update((current) => {
+    // 1. Reverse a build step first.
+    if (current.step > 0) return { step: current.step - 1, blanked: false, overview: false };
 
-      // 2. Return from a detail branch, if one is open.
-      if (current.divePath.length > 0) {
-        const popped = current.divePath[current.divePath.length - 1];
-        const steps = stepCounts[popped.sceneIndex] ?? 1;
-        return {
-          sceneIndex: popped.sceneIndex,
-          step: Math.max(0, Math.min(steps - 1, popped.step)),
-          stepsInScene: steps,
-          divePath: current.divePath.slice(0, -1),
-          sceneEnteredAt: clock(current),
-          blanked: false,
-          overview: false,
-        };
-      }
-
-      // 3. Ordinary linear movement, skipping detail scenes.
-      const prevIndex = prevMainIndex(current.sceneIndex - 1);
-      if (prevIndex === null) return { blanked: false, overview: false };
-
-      const steps = stepCounts[prevIndex] ?? 1;
+    // 2. Return from a detail branch, if one is open.
+    if (current.divePath.length > 0) {
+      const popped = current.divePath[current.divePath.length - 1];
+      const steps = stepCounts[popped.sceneIndex] ?? 1;
       return {
-        sceneIndex: prevIndex,
-        // Returning to a scene shows it fully built, not rewound.
-        step: steps - 1,
+        sceneIndex: popped.sceneIndex,
+        step: Math.max(0, Math.min(steps - 1, popped.step)),
         stepsInScene: steps,
+        divePath: current.divePath.slice(0, -1),
         sceneEnteredAt: clock(current),
         blanked: false,
         overview: false,
       };
-    });
+    }
+
+    // 3. Ordinary linear movement, skipping detail scenes.
+    const prevIndex = prevMainIndex(current.sceneIndex - 1);
+    if (prevIndex === null) return { blanked: false, overview: false };
+
+    const steps = stepCounts[prevIndex] ?? 1;
+    return {
+      sceneIndex: prevIndex,
+      // Returning to a scene shows it fully built, not rewound.
+      step: steps - 1,
+      stepsInScene: steps,
+      sceneEnteredAt: clock(current),
+      blanked: false,
+      overview: false,
+    };
+  });
 ```
 
 Add `dive`, next to `next`/`prev`:
 
 ```typescript
-  const dive = (targetIndex: number) =>
-    update((current) => {
-      const steps = stepCounts[targetIndex] ?? 1;
-      return {
-        sceneIndex: targetIndex,
-        step: 0,
-        stepsInScene: steps,
-        divePath: [
-          ...current.divePath,
-          { sceneIndex: current.sceneIndex, step: current.step },
-        ].slice(-20), // matches the protocol's divePath max(20)
-        sceneEnteredAt: clock(current),
-        startedAt: current.startedAt ?? clock(current),
-        blanked: false,
-        overview: false,
-      };
-    });
+const dive = (targetIndex: number) =>
+  update((current) => {
+    const steps = stepCounts[targetIndex] ?? 1;
+    return {
+      sceneIndex: targetIndex,
+      step: 0,
+      stepsInScene: steps,
+      divePath: [...current.divePath, { sceneIndex: current.sceneIndex, step: current.step }].slice(
+        -20,
+      ), // matches the protocol's divePath max(20)
+      sceneEnteredAt: clock(current),
+      startedAt: current.startedAt ?? clock(current),
+      blanked: false,
+      overview: false,
+    };
+  });
 ```
 
 Update `apply`'s `"first"`/`"last"` cases (`session.ts:302-307`) to use the skip-aware helpers, and add a `"dive"` case:
@@ -1058,7 +1072,7 @@ export function nextMainIndexInScenes(scenes: Scene[], start: number): number | 
 And refactor `createSession`'s internal `nextMainIndex` (Step 3) to call this shared helper instead of duplicating the loop:
 
 ```typescript
-  const nextMainIndex = (start: number) => nextMainIndexInScenes(scenes, start);
+const nextMainIndex = (start: number) => nextMainIndexInScenes(scenes, start);
 ```
 
 Add `dive: (targetSceneId: string) => { const idx = scenes.findIndex((s) => s.id === targetSceneId); if (idx >= 0) api.send("dive", idx); },` to the returned object, next to `goto`.
@@ -1085,11 +1099,13 @@ git commit -m "feat: flowRole-aware next/prev/first/last, dive, and divePath in 
 ### Task 6: `movementsOf` excludes detail scenes; `totalScenes`/progress reflect main scenes only
 
 **Files:**
+
 - Modify: `src/components/present/movement-rail.tsx:37-62` (`movementsOf`)
 - Modify: `src/lib/present/session.ts` (`totalScenes` computation)
 - Test: `tests/unit/movements.test.ts` (extend)
 
 **Interfaces:**
+
 - Consumes: `Scene.flowRole`.
 - Produces: `movementsOf`'s existing return type (`Movement[]`) unchanged in shape — only which scenes count toward a span changes.
 
@@ -1103,7 +1119,9 @@ import { movementsOf } from "@/components/present/movement-rail";
 describe("movementsOf excludes detail scenes", () => {
   it("does not fragment a movement when a detail scene sits inside it", () => {
     const sectionId = "00000000-0000-4000-8000-000000000010";
-    const sections = [{ id: sectionId, presentationId: "p1", position: 0, title: "Open", label: "OPEN" }];
+    const sections = [
+      { id: sectionId, presentationId: "p1", position: 0, title: "Open", label: "OPEN" },
+    ];
     const scenes = [
       makeScene("s0", 0, sectionId, "main"),
       makeScene("s1", 1, sectionId, "detail"),
@@ -1122,7 +1140,7 @@ Before finalizing this test, re-read `movementsOf`'s exact `start`/`end` semanti
 - [ ] **Step 2: Run the test to verify it fails or passes for the wrong reason**
 
 Run: `npx vitest run tests/unit/movements.test.ts -t "excludes detail scenes"`
-Expected: Before Step 3's fix, a detail scene with no `sectionId` (or a different one from its neighbors) would incorrectly start a *new* movement — adjust the test fixture to specifically exercise that case (a detail scene between two main scenes of the *same* section, since that is the fragmentation risk the spec calls out) and confirm it currently fails by producing 2+ movements instead of 1.
+Expected: Before Step 3's fix, a detail scene with no `sectionId` (or a different one from its neighbors) would incorrectly start a _new_ movement — adjust the test fixture to specifically exercise that case (a detail scene between two main scenes of the _same_ section, since that is the fragmentation risk the spec calls out) and confirm it currently fails by producing 2+ movements instead of 1.
 
 - [ ] **Step 3: Add the skip to `movementsOf`**
 
@@ -1218,6 +1236,7 @@ git commit -m "fix: movements and totalScenes exclude detail scenes"
 ### Task 7: Scene-jumper lists only main-flow scenes
 
 **Files:**
+
 - Modify: `src/components/present/scene-jumper.tsx:52-65` area (`searchable`)
 - Test: check for an existing `scene-jumper` test file (`grep -rln "SceneJumper" tests/unit/`); extend it if found, otherwise add a focused test inline per this task.
 
@@ -1268,23 +1287,23 @@ Expected: FAIL — both scenes currently render.
 Edit `src/components/present/scene-jumper.tsx:52-65`:
 
 ```typescript
-  const searchable = useMemo(
-    () =>
-      scenes
-        .map((scene, index) => ({
-          index,
-          scene,
-          text: [
-            scene.title,
-            // ... existing text-extraction logic unchanged ...
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase(),
-        }))
-        .filter(({ scene }) => scene.flowRole !== "detail"),
-    [scenes],
-  );
+const searchable = useMemo(
+  () =>
+    scenes
+      .map((scene, index) => ({
+        index,
+        scene,
+        text: [
+          scene.title,
+          // ... existing text-extraction logic unchanged ...
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase(),
+      }))
+      .filter(({ scene }) => scene.flowRole !== "detail"),
+  [scenes],
+);
 ```
 
 (Insert `.filter(({ scene }) => scene.flowRole !== "detail")` as the last step of the existing chain — map first so `index` stays the true index into the full array, matching `onSelect(index)`'s existing contract of an index into `scenes` as passed to the component, unchanged from today.)
@@ -1311,10 +1330,12 @@ git commit -m "fix: scene jumper only lists main-flow scenes"
 ### Task 8: Stage rendering — hotspot click/keyboard target, accessible name fallback
 
 **Files:**
+
 - Modify: `src/components/stage/stage.tsx` (`StageProps`, `Stage`, `ElementLayer`)
 - Test: `tests/unit/stage-render.test.tsx` (extend)
 
 **Interfaces:**
+
 - Produces: `StageProps.onHotspot?: (targetSceneId: string) => void` — undefined in editor/thumbnail contexts (hotspot clicks there mean "select the element," handled by whatever the editor canvas already does, unchanged), present in present mode.
 - Consumes: `SceneElement.hotspot` (Task 2), `Scene.title` (for the accessible-name fallback, passed in as a lookup).
 
@@ -1536,9 +1557,9 @@ function ElementLayer({
 }
 ```
 
-(The glyph is a small dot, not a rectangle around the element — per the spec's "no rectangle" rule. Refine its exact icon/shape during visual verification in Step 6; the placement/non-blocking `pointerEvents: "none"` and its position *inside* the element's own bounds, not around them, are the load-bearing parts of this step, not its exact glyph.)
+(The glyph is a small dot, not a rectangle around the element — per the spec's "no rectangle" rule. Refine its exact icon/shape during visual verification in Step 6; the placement/non-blocking `pointerEvents: "none"` and its position _inside_ the element's own bounds, not around them, are the load-bearing parts of this step, not its exact glyph.)
 
-Note the `style={{ position: "absolute", ...existing style, cursor: "pointer" }}` merge: `hotspotProps.style` above only sets `cursor`, and since it's spread *after* the `style` prop already set on `<motion.div style={style} ...>`... check carefully: JSX prop spread order means `{...hotspotProps}` after `style={style}` would **replace**, not merge, `style` if `hotspotProps` includes a `style` key. Fix by merging explicitly instead of relying on spread order:
+Note the `style={{ position: "absolute", ...existing style, cursor: "pointer" }}` merge: `hotspotProps.style` above only sets `cursor`, and since it's spread _after_ the `style` prop already set on `<motion.div style={style} ...>`... check carefully: JSX prop spread order means `{...hotspotProps}` after `style={style}` would **replace**, not merge, `style` if `hotspotProps` includes a `style` key. Fix by merging explicitly instead of relying on spread order:
 
 ```typescript
     <motion.div
@@ -1593,10 +1614,12 @@ git commit -m "feat: hotspot elements are real interactive controls in present m
 ### Task 9: Wire `dive` from `present-root.tsx`; confirm whole-stage click is not also triggered
 
 **Files:**
+
 - Modify: `src/components/present/present-root.tsx`
 - Test: new Playwright `lifecycle` spec, or a `tests/unit/present-load-boundary.test.tsx`-style component test — check which this codebase already uses for present-root-level interaction coverage (`grep -n "present-root\|advanceOnClick" tests/unit/*.tsx tests/e2e/*.ts`) and follow that file's existing pattern.
 
 **Interfaces:**
+
 - Consumes: `Stage`'s `onHotspot` (Task 8), `session.dive` (Task 5).
 
 - [ ] **Step 1: Wire `Stage`'s `onHotspot` to `session.dive` in `present-root.tsx`**
@@ -1684,11 +1707,13 @@ git commit -m "feat: wire hotspot clicks to session.dive; confirm no double-navi
 ### Task 10: Editor authoring — hotspot inspector control and "create detail scene here"
 
 **Files:**
+
 - Modify: `src/components/editor/inspector.tsx`
 - Modify: `src/lib/data/actions.ts` (a new or extended scene-creation action for "create detail scene here")
 - Test: `tests/unit/editor-selectors.test.tsx` or a new inspector-focused test — check existing inspector test coverage first (`grep -rln "inspector" tests/unit/`)
 
 **Interfaces:**
+
 - Consumes: `SceneElement.hotspot` (Task 2), `Scene.flowRole` (Task 1).
 - Produces: nothing new consumed elsewhere — this is the leaf authoring surface.
 
@@ -1699,6 +1724,7 @@ Run: `grep -n "function.*Inspector\|FieldGroup\|Field(" src/components/editor/in
 - [ ] **Step 2: Add the "Expands to detail scene" control**
 
 Add a new field group, following whatever pattern Step 1 found, exposing:
+
 - A toggle or picker to set/clear `element.hotspot`.
 - When set: a scene picker listing every scene in the presentation (all `flowRole`s — per the spec, a hotspot may target a main scene too), showing the target's title.
 - A "Create detail scene here" button that: calls a new server action (Step 3) creating a scene with `flowRole: "detail"`, sets the current element's `hotspot.targetSceneId` to the new scene's id, and navigates the editor into that new scene — mirroring the existing gap-hover `+` scene-insertion affordance's spirit (check `grep -rn "Add a scene\|insertion.*gap" src/components/editor/` for that existing pattern's exact action name to call analogously, e.g. a `createScene`-style action already exists per the codebase's own established scene-insertion flow — reuse it with `flowRole: "detail"` passed through rather than writing a second scene-creation path).
@@ -1735,15 +1761,15 @@ git commit -m "feat: author hotspots from the inspector, including create-detail
 - [ ] Run `npm run verify` — must exit 0.
 - [ ] Run `npm run test:rls` — confirm the new `scenes.flow_role` column doesn't need its own policy (it shouldn't, per Task 1's note) and that existing owner-scoped tests still pass with the new column present.
 - [ ] Walk every item in the amended spec's Testing section
-  (`docs/superpowers/specs/2026-08-23-hotspot-elements-design.md`) against
-  this plan's tasks and confirm each has a corresponding task — this plan's
-  tasks were written to cover: schema round-trip (Tasks 1-2), self-target
-  rejection (Task 2), dangling-reference repair (Task 3), dive/prev
-  precedence and nested dives (Task 5), protocol version/divePath defaulting
-  (Task 4), movements/totalScenes exclusion (Task 6), scene-jumper exclusion
-  (Task 7), whole-stage click non-interference and keyboard activation
-  (Tasks 8-9), and authoring (Task 10).
+      (`docs/superpowers/specs/2026-08-23-hotspot-elements-design.md`) against
+      this plan's tasks and confirm each has a corresponding task — this plan's
+      tasks were written to cover: schema round-trip (Tasks 1-2), self-target
+      rejection (Task 2), dangling-reference repair (Task 3), dive/prev
+      precedence and nested dives (Task 5), protocol version/divePath defaulting
+      (Task 4), movements/totalScenes exclusion (Task 6), scene-jumper exclusion
+      (Task 7), whole-stage click non-interference and keyboard activation
+      (Tasks 8-9), and authoring (Task 10).
 - [ ] Live walkthrough via the `run` skill covering the full loop: author a
-  hotspot, present, dive, retrace with back, confirm the movement rail and
-  scene counter never shifted during the detour, confirm a second, nested
-  dive also retraces correctly.
+      hotspot, present, dive, retrace with back, confirm the movement rail and
+      scene counter never shifted during the detour, confirm a second, nested
+      dive also retraces correctly.

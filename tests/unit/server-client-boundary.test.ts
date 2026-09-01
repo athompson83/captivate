@@ -141,9 +141,9 @@ describe("server/client module boundary", () => {
     '"use server" %s reaches no "use client" module',
     (_label, path) => {
       const leaks = clientModulesReachableFrom(path);
-      expect(
-        leaks.map(({ via }) => via.map((p) => p.slice(SRC.length + 1)).join(" → ")),
-      ).toEqual([]);
+      expect(leaks.map(({ via }) => via.map((p) => p.slice(SRC.length + 1)).join(" → "))).toEqual(
+        [],
+      );
     },
   );
 

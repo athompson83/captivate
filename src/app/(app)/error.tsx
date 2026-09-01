@@ -35,8 +35,8 @@ export default function AppError({
         <AlertTriangle className="text-ink-3 mx-auto size-6" aria-hidden />
         <h1 className="text-ink mt-3 text-[16px] font-medium">This page didn&apos;t load</h1>
         <p className="text-ink-3 mt-1.5 text-[13.5px] leading-relaxed">
-          Something went wrong reading your work — not writing it. Nothing has been changed or
-          lost, and the rest of Captivate is still available in the sidebar.
+          Something went wrong reading your work — not writing it. Nothing has been changed or lost,
+          and the rest of Captivate is still available in the sidebar.
         </p>
 
         <button
@@ -48,9 +48,7 @@ export default function AppError({
         </button>
 
         {error.digest && (
-          <p className="text-ink-3 mt-4 font-mono text-[11px]">
-            Reference {error.digest}
-          </p>
+          <p className="text-ink-3 mt-4 font-mono text-[11px]">Reference {error.digest}</p>
         )}
       </div>
     </div>

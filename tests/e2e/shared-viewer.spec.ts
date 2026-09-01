@@ -31,10 +31,7 @@ async function open(
   });
 
   await page.goto(await fixtureUrl());
-  const sceneCount = await page.evaluate(
-    (which) => window.sharedViewerFixture[which](),
-    variant,
-  );
+  const sceneCount = await page.evaluate((which) => window.sharedViewerFixture[which](), variant);
   await page.waitForSelector("[data-view]");
   return { problems, sceneCount };
 }

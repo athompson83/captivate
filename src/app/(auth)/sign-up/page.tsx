@@ -10,7 +10,12 @@ export const metadata: Metadata = {
 export default function SignUpPage() {
   return (
     <div>
-      <h1 className="text-ink text-[26px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Create your account</h1>
+      <h1
+        className="text-ink text-[26px] font-semibold tracking-tight"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        Create your account
+      </h1>
       <p className="text-ink-3 mt-2 text-sm">
         Build your first presentation in the next five minutes.
       </p>

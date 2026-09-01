@@ -35,9 +35,9 @@ export default function PrivacyPage() {
       <ul>
         <li>
           <strong>Your account.</strong> The email address you sign up with and the name you choose
-          to be called. Your password is checked against the policy
-          on the way past and handed straight to Supabase, which is what stores it; Captivate keeps
-          no copy of it and cannot recover it.
+          to be called. Your password is checked against the policy on the way past and handed
+          straight to Supabase, which is what stores it; Captivate keeps no copy of it and cannot
+          recover it.
         </li>
         <li>
           <strong>What you write.</strong> Presentations, movements, scenes, the narrative map,
@@ -66,8 +66,8 @@ export default function PrivacyPage() {
       </p>
       <ul>
         <li>
-          <strong>Anthropic</strong> — the text you ask AI to work from, when you generate or rewrite
-          anything.
+          <strong>Anthropic</strong> — the text you ask AI to work from, when you generate or
+          rewrite anything.
         </li>
         <li>
           <strong>OpenAI</strong> — the description you type, when you generate an image.
@@ -84,8 +84,9 @@ export default function PrivacyPage() {
         </li>
       </ul>
       <p>
-        A reference file you attach so AI can work from your own material is read in your browser and
-        is not uploaded; only the text extracted from it is sent, and only as part of the prompt.
+        A reference file you attach so AI can work from your own material is read in your browser
+        and is not uploaded; only the text extracted from it is sent, and only as part of the
+        prompt.
       </p>
 
       <h2>Who can see your work</h2>

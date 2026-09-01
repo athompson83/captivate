@@ -15,7 +15,7 @@ already behaves.
 Decisions taken with the owner, in order:
 
 1. **Sketched stroke by stroke** — real strokes in a drawing order, not a progressive
-   reveal of a raster image. The generated picture must therefore *be* vector line art.
+   reveal of a raster image. The generated picture must therefore _be_ vector line art.
 2. **The model writes SVG paths directly** — no image API, no image budget, no tracing
    dependency. Text call through the existing `generateStructured` boundary.
 3. **Presenter-paced stages** — `next` draws the next stage; this rides the existing
@@ -38,7 +38,10 @@ export const DrawnPath = z.object({
 export const DrawingElement = z.object({
   ...elementBase,
   type: z.literal("drawing"),
-  viewBox: z.object({ width: z.number().positive().max(4000), height: z.number().positive().max(4000) }),
+  viewBox: z.object({
+    width: z.number().positive().max(4000),
+    height: z.number().positive().max(4000),
+  }),
   paths: z.array(DrawnPath).min(1).max(400),
   /** Authoring aid: what each stage adds. Never sent to the audience. */
   stageLabels: z.array(z.string().max(120)).max(20).default([]),
@@ -53,7 +56,7 @@ export const DrawingElement = z.object({
 
 Load-bearing choices:
 
-- **We accept path *data*, never SVG markup.** The model returns `d` strings and a
+- **We accept path _data_, never SVG markup.** The model returns `d` strings and a
   viewBox; React builds `<path d={…}/>` itself. There is no markup to sanitise —
   no script, no `foreignObject`, no `href`, no entities — and `PATH_DATA` is the SVG
   path grammar alone, so a `d` smuggling anything else is rejected at the boundary.
@@ -77,11 +80,11 @@ the element rather than losing the scene.
 `buildStepCount` gains one case, structurally identical to the staggered list:
 
 ```ts
-if (el.type === "drawing") steps += maxStage(el.paths);   // stage 0 costs nothing
+if (el.type === "drawing") steps += maxStage(el.paths); // stage 0 costs nothing
 ```
 
 Everything else is inherited, deliberately: `next` walks steps before scenes
-(`session.ts`), `prev` returns to a scene *fully built* (`land(…, true)` — nobody
+(`session.ts`), `prev` returns to a scene _fully built_ (`land(…, true)` — nobody
 re-watches a diagram draw because they stepped back), the console and phone remote
 already carry `step` in `state` messages (no protocol bump), the shared viewer calls
 the same `buildStepCount`, and the recorder captures the tab so the recording shows
@@ -91,7 +94,7 @@ stage 0 contributes no steps and simply sketches itself on arrival.
 ## Rendering and animation
 
 `DrawnPicture` in `stage.tsx`, sibling of `StaggeredList`. All paths render always
-(so lengths can be measured); a path is *drawn* when `path.stage <= step`.
+(so lengths can be measured); a path is _drawn_ when `path.stage <= step`.
 
 - Each path's length is measured **once, in a ref callback** (commit phase, before
   paint) and written to `--len` on the element. Never during render — the React
@@ -153,14 +156,14 @@ using the identical keyframes, and skipped under reduced motion.
 
 ## Failure modes
 
-| failure | behaviour |
-| --- | --- |
+| failure                       | behaviour                                                                                                                               |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | model emits invalid path data | schema rejects; one retry with the error (existing `generateStructured` behaviour); then the route's 502 — nothing reaches the document |
-| stored path corrupted by hand | salvage drops that path, keeps the drawing, flags `recovered` |
-| whole element corrupt | salvage drops the element, keeps the scene |
-| JS off / measurement fails | drawing renders complete |
-| reservation refused | 502 with the limiter's own message; nothing spent |
-| 21st stage / 401st path | clamped at the schema; steps clamp to what exists |
+| stored path corrupted by hand | salvage drops that path, keeps the drawing, flags `recovered`                                                                           |
+| whole element corrupt         | salvage drops the element, keeps the scene                                                                                              |
+| JS off / measurement fails    | drawing renders complete                                                                                                                |
+| reservation refused           | 502 with the limiter's own message; nothing spent                                                                                       |
+| 21st stage / 401st path       | clamped at the schema; steps clamp to what exists                                                                                       |
 
 ## Tests
 
@@ -176,6 +179,6 @@ failing against the pre-change code where one exists to revert.
 ## Out of scope
 
 Uploading hand-made SVGs (sanitisation is a real project), per-path hand editing,
-raster "painted reveal" for photographs, and a drawn-route *between* scenes mid-flight
+raster "painted reveal" for photographs, and a drawn-route _between_ scenes mid-flight
 (the camera move is the transition; a route drawn under a flight fights the travel
 rule).

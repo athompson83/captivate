@@ -303,7 +303,12 @@ export function NarrativeMapView({
         <header className="mb-7">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-ink text-[21px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Narrative map</h1>
+              <h1
+                className="text-ink text-[21px] font-semibold tracking-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Narrative map
+              </h1>
               <p className="text-ink-3 mt-1 max-w-2xl text-[13px] leading-relaxed">
                 What each part of the argument has to accomplish, decided before anything is
                 rendered. Scenes are generated from this.

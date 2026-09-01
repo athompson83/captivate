@@ -49,7 +49,12 @@ export function RecordingsLibrary({
   return (
     <div className="app-page">
       <header className="mb-6">
-        <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Recordings</h1>
+        <h1
+          className="text-ink text-[22px] font-semibold tracking-tight"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          Recordings
+        </h1>
         <p className="text-ink-3 mt-1.5 max-w-2xl text-[13px] leading-relaxed">
           Everything you&apos;ve captured while presenting. Recordings are private to your account
           and stream through short-lived signed links.
@@ -417,7 +422,10 @@ export function PlaybackBody({
           </a>
         )}
         {vttUrl && (
-          <a href={vttUrl} download={`${recording.title.replace(/[^\w\s.-]/g, "").trim() || "recording"}.vtt`}>
+          <a
+            href={vttUrl}
+            download={`${recording.title.replace(/[^\w\s.-]/g, "").trim() || "recording"}.vtt`}
+          >
             <Button variant="secondary" size="sm">
               <Captions className="size-3.5" aria-hidden />
               Subtitles

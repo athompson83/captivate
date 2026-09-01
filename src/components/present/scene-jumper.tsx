@@ -57,26 +57,25 @@ export function SceneJumper({
       // into the argument. `jumpTargets` carries both numbers: `index` for
       // `onSelect`, which must stay the real array position, and `ordinal` for
       // the label, which must match the progress bar beside it.
-      jumpTargets(scenes)
-        .map(({ scene, index, ordinal }) => ({
-          index,
-          ordinal,
-          scene,
-          text: [
-            scene.title,
-            ...scene.content.elements.map((el) =>
-              el.type === "heading" || el.type === "text" || el.type === "quote"
-                ? plainText(el.content)
-                : el.type === "list"
-                  ? el.items.map((i) => plainText(i)).join(" ")
-                  : el.type === "callout"
-                    ? el.title
-                    : "",
-            ),
-          ]
-            .join(" ")
-            .toLowerCase(),
-        })),
+      jumpTargets(scenes).map(({ scene, index, ordinal }) => ({
+        index,
+        ordinal,
+        scene,
+        text: [
+          scene.title,
+          ...scene.content.elements.map((el) =>
+            el.type === "heading" || el.type === "text" || el.type === "quote"
+              ? plainText(el.content)
+              : el.type === "list"
+                ? el.items.map((i) => plainText(i)).join(" ")
+                : el.type === "callout"
+                  ? el.title
+                  : "",
+          ),
+        ]
+          .join(" ")
+          .toLowerCase(),
+      })),
     [scenes],
   );
 

@@ -72,7 +72,13 @@ describe("hotspot rendering on the stage", () => {
 
   it("renders no button where there is no hotspot", () => {
     render(
-      <Stage content={contentWith(null)} theme={theme} aspect="16:9" fixedScale={1} onHotspot={vi.fn()} />,
+      <Stage
+        content={contentWith(null)}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        onHotspot={vi.fn()}
+      />,
     );
     expect(screen.queryByRole("button")).toBeNull();
   });

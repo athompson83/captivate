@@ -30,7 +30,12 @@ export function TemplateGallery({ templates }: { templates: TemplatePreview[] })
   return (
     <div className="app-page">
       <header className="mb-2">
-        <h1 className="text-ink text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Templates</h1>
+        <h1
+          className="text-ink text-[22px] font-semibold tracking-tight"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          Templates
+        </h1>
         <p className="text-ink-3 mt-1.5 max-w-2xl text-[14px] leading-relaxed">
           Six structures rather than a hundred variations on a grid. Each one is a narrative shape
           that works — objectives and a case for teaching, problem and proof for a pitch — with
@@ -47,7 +52,7 @@ export function TemplateGallery({ templates }: { templates: TemplatePreview[] })
                 "group border-line-subtle bg-raised w-full overflow-hidden rounded-[var(--radius-lg)] border text-left",
                 "transition-[border-color,transform,box-shadow] duration-[var(--duration-base)]",
                 "hover:border-line hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]",
-                "motion-reduce:transition-none motion-reduce:transform-none",
+                "motion-reduce:transform-none motion-reduce:transition-none",
               )}
             >
               <span className="bg-sunken relative flex aspect-video items-center justify-center overflow-hidden">

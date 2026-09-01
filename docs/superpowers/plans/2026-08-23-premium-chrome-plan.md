@@ -12,7 +12,7 @@
 
 - `npm run verify` (typecheck → lint → unit tests → build) must pass before any task is considered done, per AGENTS.md.
 - No new colors, gradients, or a second accent — `docs/DESIGN.md`'s "deliberately avoided" list applies throughout.
-- `camera.ts` (flight interpolation) and `arrange.ts` (placement math) are not modified by any task in this plan. `world.tsx`'s culling/LOD *selection* logic (the `rendered` memo's endpoint-based detail decisions) is not modified — only its rendering-level output (path/glow visuals, the establish-section signpost) in Tasks 7–8.
+- `camera.ts` (flight interpolation) and `arrange.ts` (placement math) are not modified by any task in this plan. `world.tsx`'s culling/LOD _selection_ logic (the `rendered` memo's endpoint-based detail decisions) is not modified — only its rendering-level output (path/glow visuals, the establish-section signpost) in Tasks 7–8.
 - Every new CSS transition/animation this plan adds must respect `prefers-reduced-motion` (Tailwind's `motion-reduce:` variant, or an equivalent guard) — this is acceptance criterion 3 in the spec, not optional polish.
 - Movement/moment/scene vocabulary only — never "slide" in code comments or UI copy, per AGENTS.md's style rule.
 
@@ -21,12 +21,14 @@
 ### Task 1: Light theme surface tokens read as warm paper, with contrast verified
 
 **Files:**
+
 - Modify: `src/app/globals.css:37-41` (light-mode `--surface-*` tokens)
 - Modify: `src/lib/utils/color.ts` (add OKLCH→hex conversion, needed to contrast-check OKLCH tokens against the existing WCAG-based `contrastRatio`)
 - Test: `tests/unit/color-oklch.test.ts` (new)
 - Test: `tests/unit/theme-contrast.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: `contrastRatio(a: string, b: string): number` and `relativeLuminance(hex: string): number`, already exported from `src/lib/utils/color.ts:66-78` (hex-based, implements the real WCAG relative-luminance formula — reuse it rather than inventing a second one).
 - Produces: `parseOklch(css: string): Oklab` and `oklabToHex(lab: Oklab): string`, new exports from `src/lib/utils/color.ts`, for converting a CSS `oklch(L C H)` string to the hex format `contrastRatio` expects. Later tasks in this plan don't depend on these, but any future token-contrast test should reuse them rather than re-deriving the conversion.
 
@@ -141,7 +143,7 @@ git commit -m "feat: OKLCH-to-hex conversion for design-token contrast checks"
 
 - [ ] **Step 6: Write the failing contrast test against current tokens**
 
-This asserts the *current* light-mode tokens already meet the bar (they do — `text-primary` L=0.22 against `surface-base` L=0.985 is a huge lightness delta) and locks in that the upcoming chroma bump must not regress it:
+This asserts the _current_ light-mode tokens already meet the bar (they do — `text-primary` L=0.22 against `surface-base` L=0.985 is a huge lightness delta) and locks in that the upcoming chroma bump must not regress it:
 
 ```typescript
 // tests/unit/theme-contrast.test.ts
@@ -195,11 +197,11 @@ Expected: PASS (this test checks proposed values, not the file yet — it's here
 Edit `src/app/globals.css:37-41`:
 
 ```css
-  --surface-base: oklch(0.985 0.01 90);
-  --surface-sunken: oklch(0.955 0.015 90);
-  --surface-raised: oklch(0.99 0.006 90);
-  --surface-overlay: oklch(0.99 0.006 90);
-  --surface-inset: oklch(0.965 0.012 90);
+--surface-base: oklch(0.985 0.01 90);
+--surface-sunken: oklch(0.955 0.015 90);
+--surface-raised: oklch(0.99 0.006 90);
+--surface-overlay: oklch(0.99 0.006 90);
+--surface-inset: oklch(0.965 0.012 90);
 ```
 
 (Chroma raised roughly 3x on each token — enough to read as paper against a pure-white reference per manual comparison in Step 9, `--surface-raised`/`--surface-overlay` given a whisper of warmth too since they were previously pure white with no warmth at all.)
@@ -225,11 +227,13 @@ git commit -m "fix: light theme surface tokens now read as warm paper, not white
 ### Task 2: First-visit theme defaults to dark; explicit "System" still follows OS
 
 **Files:**
+
 - Modify: `src/components/ui/theme-provider.tsx`
 - Modify: `src/app/layout.tsx:60-64` (the pre-hydration bootstrap script — must change in the same commit as the provider; see the spec's Risk note)
 - Test: `tests/unit/theme-provider.test.tsx` (new)
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `readPreference(): "light" | "dark" | "system" | null` (return type changes — `null` now means "nothing stored," distinct from the literal `"system"`, which now only occurs when the user explicitly chose it in Settings). `getSnapshot()`'s resolved value changes: `null` preference resolves `"dark"` unconditionally (no `matchMedia` check); `"system"` preference still checks `matchMedia("(prefers-color-scheme: dark)")`. `useTheme()`'s public `{ pref, resolved, setPref }` shape is unchanged — `pref` is `"system"` in the UI-facing sense whenever nothing explicit is stored, so `settings-panel.tsx`'s existing Light/Dark/System control needs no changes (verify this in Step 6).
 
@@ -392,7 +396,7 @@ Read `src/components/dashboard/settings-panel.tsx` around its `useTheme`/`setPre
 
 - [ ] **Step 7: Manual verification of the no-flash property**
 
-The unit tests cover the resolved *value*; they don't cover paint timing. Via the `run` skill: clear all site data for `localhost:3000`, load `/home`, and check `console --errors` plus a screenshot taken as early as possible after `nav` — confirm no visible light flash before dark paints. This is what acceptance criterion 1 in the spec actually requires and a jsdom unit test structurally cannot observe.
+The unit tests cover the resolved _value_; they don't cover paint timing. Via the `run` skill: clear all site data for `localhost:3000`, load `/home`, and check `console --errors` plus a screenshot taken as early as possible after `nav` — confirm no visible light flash before dark paints. This is what acceptance criterion 1 in the spec actually requires and a jsdom unit test structurally cannot observe.
 
 - [ ] **Step 8: Run full verify gate**
 
@@ -411,11 +415,13 @@ git commit -m "fix: default to dark on first visit; explicit System still follow
 ### Task 3: Card hover/elevation transitions respect `prefers-reduced-motion`
 
 **Files:**
+
 - Modify: `src/components/dashboard/presentation-card.tsx:86-91`
 - Modify: `src/components/dashboard/template-gallery.tsx:44-51`
 - Test: `tests/unit/card-reduced-motion.test.tsx` (new)
 
 **Interfaces:**
+
 - Consumes: nothing new — Tailwind's built-in `motion-reduce:` variant, which compiles to a `@media (prefers-reduced-motion: reduce)` rule, no JS/React dependency (so `ReducedMotionProvider`, which only reaches `motion/react`, is correctly left untouched).
 - Produces: nothing other components depend on.
 
@@ -505,6 +511,7 @@ git commit -m "fix: card hover/elevation transitions respect prefers-reduced-mot
 ### Task 4: `asset-library.tsx` card parity and `recordings-library.tsx` row hover state
 
 **Files:**
+
 - Modify: `src/components/dashboard/asset-library.tsx:179` (asset card)
 - Modify: `src/components/dashboard/recordings-library.tsx:77-78` (recording row)
 - Test: extend `tests/unit/card-reduced-motion.test.tsx` from Task 3
@@ -520,7 +527,7 @@ git commit -m "fix: card hover/elevation transitions respect prefers-reduced-mot
   and no `motion-reduce:` guard.
 - `recordings-library.tsx` is a **list of rows**, not a card grid (line
   77-78: `border-line-subtle bg-raised ... rounded-[var(--radius-lg)] border
-  px-4 py-3.5`) — applying a card-style lift/shadow here would be
+px-4 py-3.5`) — applying a card-style lift/shadow here would be
   inconsistent with a row's own visual language, not a parity fix. The real
   gap is narrower: the row has no hover state at all today, so nothing
   signals it's interactive on hover.
@@ -560,7 +567,8 @@ Expected: FAIL — no `motion-reduce:` class, no `hover:shadow-` class on the as
 - [ ] **Step 3: Fix `asset-library.tsx:179`**
 
 ```typescript
-                className="group border-line-subtle bg-raised hover:border-line w-full overflow-hidden rounded-[var(--radius-md)] border text-left transition-[border-color,transform,box-shadow] duration-[var(--duration-fast)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)] motion-reduce:transition-none motion-reduce:transform-none"
+className =
+  "group border-line-subtle bg-raised hover:border-line w-full overflow-hidden rounded-[var(--radius-md)] border text-left transition-[border-color,transform,box-shadow] duration-[var(--duration-fast)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)] motion-reduce:transition-none motion-reduce:transform-none";
 ```
 
 (Added `box-shadow` to the transitioned properties, `hover:shadow-[var(--shadow-md)]` to match the other two card types, and the same `motion-reduce:` guard from Task 3.)
@@ -598,6 +606,7 @@ git commit -m "fix: asset card hover parity (shadow, reduced-motion) and recordi
 ### Task 5: Empty states meet the "three concrete next steps" bar everywhere
 
 **Files:**
+
 - Read: every empty-state render in `presentations-library.tsx`, `asset-library.tsx`, `recordings-library.tsx`, `src/app/(app)/notes/page.tsx` (or wherever the notes empty state lives — confirm via `grep -rn "No .* yet\|empty" src/components/dashboard/ src/app/\(app\)/notes/`)
 - Modify (only if a gap is found): the specific file
 
@@ -625,6 +634,7 @@ git commit -m "fix: <surface> empty state offers concrete next steps, not just a
 ### Task 6: Interactive control sizing meets the 28px minimum
 
 **Files:**
+
 - Read: sidebar (`src/components/dashboard/` shell/nav), card action buttons (`presentation-card.tsx`'s favorite/menu buttons), top bars (`src/components/editor/top-bar.tsx`)
 - Modify (only if a violation is found): the specific file
 
@@ -632,7 +642,7 @@ git commit -m "fix: <surface> empty state offers concrete next steps, not just a
 
 - [ ] **Step 1: Audit interactive control sizing**
 
-`docs/DESIGN.md` sets a 28px minimum for interactive controls. Note from reading `presentation-card.tsx` during planning: the favorite/menu buttons use `size-3`/`size-3.5` *icons* (12-14px) inside a `p-1` button — Tailwind `p-1` is 4px padding, giving a total hit target around 20-22px, likely under the 28px floor. Verify precisely: `grep -n "p-1\b" src/components/dashboard/presentation-card.tsx` and compute actual rendered size (icon size + padding × 2 + any border).
+`docs/DESIGN.md` sets a 28px minimum for interactive controls. Note from reading `presentation-card.tsx` during planning: the favorite/menu buttons use `size-3`/`size-3.5` _icons_ (12-14px) inside a `p-1` button — Tailwind `p-1` is 4px padding, giving a total hit target around 20-22px, likely under the 28px floor. Verify precisely: `grep -n "p-1\b" src/components/dashboard/presentation-card.tsx` and compute actual rendered size (icon size + padding × 2 + any border).
 
 - [ ] **Step 2: For any control under 28px, increase padding (not icon size)** to reach the floor without changing the visual weight of the icon itself — e.g. `p-1` → `p-1.5` or `p-2` depending on the icon size found in Step 1. Verify the new computed size meets 28px exactly (icon + 2×padding ≥ 28px).
 
@@ -650,11 +660,13 @@ git commit -m "fix: interactive controls meet the 28px minimum hit-target size"
 ### Task 7: Establish-section beat gets a signpost, reusing `MovementSignpost`
 
 **Files:**
+
 - Modify: `src/components/present/movement-rail.tsx:154-186` (`MovementSignpost`)
 - Modify: `src/components/present/present-root.tsx:58-59, 276-284`
 - Test: `tests/unit/movements.test.ts` (extend) or new `tests/unit/movement-signpost.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `session.establishing: string | null` (`src/lib/present/session.ts:69`, already exists — the sectionId being established, set for `ESTABLISH_MS` when a `next`/`prev`/`goto` crosses into a new section, per `maybeEstablish` at `session.ts:271-282`), `Movement` type (`movement-rail.tsx:20-27`, has `id`/`label`/`start`/`end`).
 - Produces: `MovementSignpost`'s prop shape grows to accept a `kind: "next" | "entering"` (default `"next"` to keep every existing call site — there's exactly one, in `present-root.tsx:279` — working unchanged unless explicitly updated).
 
@@ -750,14 +762,14 @@ Expected: PASS
 Edit `src/components/present/present-root.tsx`. Near the existing `signpost` computation (line 58-59), add a lookup for the establishing movement:
 
 ```typescript
-  const movements = useMemo(() => movementsOf(scenes, sections), [scenes, sections]);
-  const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
-  const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
+const movements = useMemo(() => movementsOf(scenes, sections), [scenes, sections]);
+const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
+const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
 
-  const establishingMovement = session.establishing
-    ? (movements.find((m) => m.id === session.establishing) ?? null)
-    : null;
-  const establishingIndex = establishingMovement ? movements.indexOf(establishingMovement) : -1;
+const establishingMovement = session.establishing
+  ? (movements.find((m) => m.id === session.establishing) ?? null)
+  : null;
+const establishingIndex = establishingMovement ? movements.indexOf(establishingMovement) : -1;
 ```
 
 Near the existing `MovementSignpost` render (line 278-284), add the establish variant — mutually exclusive with the "next" signpost since `establishing` and `signpostNext` describe different moments:
@@ -806,6 +818,7 @@ git commit -m "feat: name the movement during the establish-section hold"
 ### Task 8: Overview route/glow legibility at higher scene density
 
 **Files:**
+
 - Read: `src/components/stage/world.tsx:519-554` (route rendering)
 - Modify (only if a problem is found): same file
 

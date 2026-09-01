@@ -50,14 +50,14 @@ export default function TermsPage() {
 
       <h2>Plans and limits</h2>
       <p>
-        Captivate is free to use, with a monthly allowance of AI generations. Pro raises those limits
-        and adds generated imagery; what each plan includes is on the{" "}
+        Captivate is free to use, with a monthly allowance of AI generations. Pro raises those
+        limits and adds generated imagery; what each plan includes is on the{" "}
         <a href="/pricing">pricing page</a>, and the numbers there are read from the same
         configuration the limits are enforced with, so the two cannot disagree.
       </p>
       <p>
-        Reaching a limit stops further AI requests until the window rolls over. It never touches what
-        you have already made.
+        Reaching a limit stops further AI requests until the window rolls over. It never touches
+        what you have already made.
       </p>
       <p>
         Paid plans are billed through Stripe and can be cancelled from your settings at any time,
@@ -73,15 +73,15 @@ export default function TermsPage() {
 
       <h2>What is not promised</h2>
       <p>
-        Captivate is provided as it is. It is under active development, it can be unavailable, and it
-        can have defects. Keep your own copy of anything you cannot afford to lose — the deck export
-        exists partly for that.
+        Captivate is provided as it is. It is under active development, it can be unavailable, and
+        it can have defects. Keep your own copy of anything you cannot afford to lose — the deck
+        export exists partly for that.
       </p>
 
       <h2>Ending it</h2>
       <p>
-        You can stop using Captivate whenever you like. An account that is used to break these terms,
-        to attack the service, or to process content that is unlawful may be suspended.
+        You can stop using Captivate whenever you like. An account that is used to break these
+        terms, to attack the service, or to process content that is unlawful may be suspended.
       </p>
 
       <h2>Getting in touch</h2>

@@ -54,9 +54,10 @@ export function DrawingControls({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: trimmed, presentationId }),
     }).catch(() => null);
-    const data = (await response?.json().catch(() => null)) as
-      | { drawing?: GeneratedDrawing; error?: string }
-      | null;
+    const data = (await response?.json().catch(() => null)) as {
+      drawing?: GeneratedDrawing;
+      error?: string;
+    } | null;
     setBusy(false);
 
     if (!response?.ok || !data?.drawing) {
@@ -143,7 +144,11 @@ export function DrawingControls({
           step={0.1}
           value={element.paceSeconds}
           onChange={(v) =>
-            onPatch((el) => ({ ...el, paceSeconds: v }), "Change drawing pace", `pace-${element.id}`)
+            onPatch(
+              (el) => ({ ...el, paceSeconds: v }),
+              "Change drawing pace",
+              `pace-${element.id}`,
+            )
           }
           format={(v) => `${v.toFixed(1)}s`}
         />
@@ -171,7 +176,11 @@ export function DrawingControls({
           step={0.5}
           value={element.strokeWidth}
           onChange={(v) =>
-            onPatch((el) => ({ ...el, strokeWidth: v }), "Change stroke width", `stroke-${element.id}`)
+            onPatch(
+              (el) => ({ ...el, strokeWidth: v }),
+              "Change stroke width",
+              `stroke-${element.id}`,
+            )
           }
           format={(v) => String(v)}
         />

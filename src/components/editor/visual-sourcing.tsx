@@ -62,9 +62,10 @@ export function StockSearch({
     }).catch(() => null);
     setBusy(false);
 
-    const data = (await response?.json().catch(() => null)) as
-      | { results?: StockResult[]; error?: string }
-      | null;
+    const data = (await response?.json().catch(() => null)) as {
+      results?: StockResult[];
+      error?: string;
+    } | null;
     if (!response?.ok) {
       setNotice(data?.error ?? "Couldn't search for images.");
       setResults(null);
@@ -203,9 +204,10 @@ export function ImageGeneration({
     }).catch(() => null);
     setBusy(false);
 
-    const data = (await response?.json().catch(() => null)) as
-      | { image?: Generated; error?: string }
-      | null;
+    const data = (await response?.json().catch(() => null)) as {
+      image?: Generated;
+      error?: string;
+    } | null;
     if (!response?.ok || !data?.image) {
       setNotice(data?.error ?? "Couldn't generate an image.");
       return;

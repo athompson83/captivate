@@ -18,7 +18,9 @@ test.describe("public surface", () => {
     // The feature sections must actually describe the product, not be empty
     // chrome — and in this product's own vocabulary, since the landing page is
     // where a reader first meets it.
-    await expect(page.getByRole("heading", { name: /A narrative map, not an outline/i })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /A narrative map, not an outline/i }),
+    ).toBeVisible();
     await expect(page.getByRole("heading", { name: /A camera, not a clicker/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Record the real thing/i })).toBeVisible();
   });
@@ -42,10 +44,7 @@ test.describe("public surface", () => {
     // Read from the constant the server enforces rather than a literal. Raising
     // the minimum left this asserting the old one, so the test was demanding
     // that the form keep promising something the action would refuse.
-    await expect(page.getByLabel("Password")).toHaveAttribute(
-      "minlength",
-      String(PASSWORD_MIN),
-    );
+    await expect(page.getByLabel("Password")).toHaveAttribute("minlength", String(PASSWORD_MIN));
   });
 
   test("the app area either works or explains what is missing", async ({ page }) => {
@@ -94,10 +93,9 @@ test.describe("public surface", () => {
      * must answer 404 for an id it cannot resolve, including on a deployment
      * with no database, where the client it would otherwise build throws.
      */
-    const response = await request.get(
-      "/api/assets/00000000-0000-4000-8000-000000000000/content",
-      { maxRedirects: 0 },
-    );
+    const response = await request.get("/api/assets/00000000-0000-4000-8000-000000000000/content", {
+      maxRedirects: 0,
+    });
     expect(response.status(), `answered ${response.status()}`).toBeLessThan(500);
     expect(response.status()).not.toBe(307);
   });

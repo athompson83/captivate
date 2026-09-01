@@ -15,7 +15,9 @@ const source = join(root, "node_modules", "@mediapipe", "tasks-vision", "wasm");
 const target = join(root, "public", "mediapipe", "wasm");
 
 if (!existsSync(source)) {
-  console.warn("[mediapipe] wasm assets not found in node_modules; segmentation will be unavailable");
+  console.warn(
+    "[mediapipe] wasm assets not found in node_modules; segmentation will be unavailable",
+  );
   process.exit(0);
 }
 

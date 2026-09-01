@@ -26,7 +26,12 @@ describe("create flow keeps a draft across a mode switch", () => {
   it("still has the title after going to AI and back", async () => {
     const user = userEvent.setup();
     render(
-      <CreateFlow initialMode="template" initialTemplateId="lecture" folders={[]} folderId={null} />,
+      <CreateFlow
+        initialMode="template"
+        initialTemplateId="lecture"
+        folders={[]}
+        folderId={null}
+      />,
     );
 
     const title = screen.getByLabelText(/title/i);
@@ -51,7 +56,8 @@ describe("create flow keeps a draft across a mode switch", () => {
     await user.click(screen.getByRole("radio", { name: /from a template/i }));
     await user.click(screen.getByRole("radio", { name: /with ai/i }));
 
-    expect((screen.getByLabelText(/what is this presentation about/i) as HTMLTextAreaElement).value)
-      .toBe("A 50-minute lecture on sepsis");
+    expect(
+      (screen.getByLabelText(/what is this presentation about/i) as HTMLTextAreaElement).value,
+    ).toBe("A 50-minute lecture on sepsis");
   });
 });

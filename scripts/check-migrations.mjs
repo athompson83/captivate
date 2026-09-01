@@ -46,15 +46,22 @@ if (!url) {
 
 let stdout;
 try {
-  ({ stdout } = await run("psql", [url, "-q", "-f", join(root, "supabase", "schema_required.sql")], {
-    maxBuffer: 8 * 1024 * 1024,
-  }));
+  ({ stdout } = await run(
+    "psql",
+    [url, "-q", "-f", join(root, "supabase", "schema_required.sql")],
+    {
+      maxBuffer: 8 * 1024 * 1024,
+    },
+  ));
 } catch (error) {
   console.error("Could not question the database:", error.stderr || error.message);
   process.exit(2);
 }
 
-const lines = stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+const lines = stdout
+  .split("\n")
+  .map((l) => l.trim())
+  .filter(Boolean);
 const missing = lines.filter((l) => l.startsWith("MISSING"));
 /*
  * Absence is a requirement too, and it is not the negation of the list above.

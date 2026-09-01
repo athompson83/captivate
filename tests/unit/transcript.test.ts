@@ -19,7 +19,11 @@ describe("cueFromFinalResult", () => {
   });
 
   it("never overlaps the previous cue", () => {
-    const cue = cueFromFinalResult("a fairly long sentence with quite a few words in it", 10_000, 9_500);
+    const cue = cueFromFinalResult(
+      "a fairly long sentence with quite a few words in it",
+      10_000,
+      9_500,
+    );
     expect(cue!.startMs).toBe(9_500);
   });
 
