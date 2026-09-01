@@ -114,12 +114,19 @@
    * tile, the front door's rules. Never behind body text; four hues under a
    * paragraph is a background, and this is a signature.
    *
-   * The stops interpolate in OKLab rather than sRGB, which is the whole reason
-   * the ramp is stored in OKLCH: sRGB runs indigo to violet through a grey
-   * middle, and this gradient is three hue turns in a row.
+   * `in oklab` is load-bearing and is not implied by the stops being written
+   * in OKLCH: without it a browser blends in sRGB, which runs indigo to violet
+   * through a grey middle, and this gradient is three hue turns in a row.
+   *
+   * Two things a use site has to know. It needs an sRGB fallback declaration
+   * before the one that reads this, because a browser that parses `oklch()`
+   * but not `in oklab` (Firefox 113-127) drops the whole declaration rather
+   * than degrading. And these are fill-grade colours: clipped into text on a
+   * dark ground the indigo end is 2.79:1, so text takes the `-text` ramp on
+   * `.marketing` instead.
    */
   --brand-gradient: linear-gradient(
-    120deg,
+    in oklab 120deg,
     var(--brand-indigo) 0%,
     var(--brand-violet) 43%,
     var(--brand-magenta) 68%,
@@ -541,6 +548,16 @@ body {
     --sky-coral: oklch(0.696 0.196 17);
     --sky-amber: oklch(0.775 0.148 52);
 
+    /*
+     * The brand sweep at text lightness, for the one place it is clipped into
+     * type. The identity ramp is fill-grade: its indigo is 2.79:1 on this
+     * ground, so the opening word of the emphasised phrase was below the 3:1
+     * floor that even large text has. Amber and the action's text violet are
+     * already text-grade and are reused as they are, so the ramp is four
+     * values and not eight. */
+    --sky-indigo-text: oklch(0.7 0.19 272);
+    --sky-magenta-text: oklch(0.72 0.21 340);
+
     --sky-violet: oklch(0.64 0.22 288);
     --sky-cyan: oklch(0.83 0.11 186);
     --sky-ink: oklch(0.97 0.008 90);
@@ -631,12 +648,27 @@ body {
   /* Used on exactly one phrase per page. A gradient across a whole heading
      makes none of it emphatic. */
   .lit-text {
+    /*
+     * Two declarations on purpose. A browser that parses `oklch()` but not a
+     * gradient's `in oklab` — Firefox 113 through 127 — drops the whole
+     * declaration, and this one is clipped into text over `color: transparent`,
+     * so losing it does not mean a duller sweep, it means an invisible
+     * headline. The first line is that browser's sRGB sweep; the second wins
+     * everywhere else.
+     */
     background: linear-gradient(
       96deg,
-      var(--brand-indigo) 0%,
-      var(--brand-violet) 30%,
-      var(--brand-magenta) 64%,
-      var(--brand-amber) 100%
+      var(--sky-indigo-text) 0%,
+      var(--sky-action-text) 30%,
+      var(--sky-magenta-text) 64%,
+      var(--sky-amber) 100%
+    );
+    background: linear-gradient(
+      96deg in oklab,
+      var(--sky-indigo-text) 0%,
+      var(--sky-action-text) 30%,
+      var(--sky-magenta-text) 64%,
+      var(--sky-amber) 100%
     );
     -webkit-background-clip: text;
     background-clip: text;

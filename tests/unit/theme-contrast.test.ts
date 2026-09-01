@@ -267,6 +267,23 @@ describe("the public site's palette", () => {
     }
   });
 
+  it("keeps every stop of the emphasised phrase readable", () => {
+    // `.lit-text` clips a four-stop sweep into a heading. It used to take the
+    // identity ramp, which is fill-grade: its indigo is 2.79:1 on this ground,
+    // so the opening word of the phrase was under the 3:1 floor that even
+    // large text has. Held to 4.5:1 rather than 3:1 — the phrase is set large
+    // today, and a stop that only clears the large-text floor is one type
+    // change away from failing.
+    for (const stop of ["sky-indigo-text", "sky-action-text", "sky-magenta-text", "sky-amber"]) {
+      for (const ground of ["sky-ground", "sky-deep"]) {
+        expect(
+          contrastRatio(hex(sky(stop)), hex(sky(ground))),
+          `${stop} on ${ground}`,
+        ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      }
+    }
+  });
+
   it("does not use the action's fill value as text", () => {
     // The distinction the two tokens exist for. If they ever converge, one of
     // them is being used for the wrong half of the job.

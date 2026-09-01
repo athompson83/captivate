@@ -64,9 +64,16 @@ action; coral and amber are emphasis and never a destructive control.
 kit's 120° and its stated stops. It marks the things that carry the brand
 rather than an interface state: the mark's tile, a rule on the front door.
 Never behind body text. Four hues under a paragraph is a background; this is a
-signature. The stops interpolate in OKLab rather than sRGB, which is the whole
-reason the ramp is stored in OKLCH: sRGB runs indigo to violet through a grey
-middle, and this gradient is three hue turns in a row.
+signature. Both gradients declare `in oklab`, which is load-bearing and is
+_not_ implied by the stops being written in OKLCH — without it a browser blends
+in sRGB, which runs indigo to violet through a grey middle, and this is three
+hue turns in a row. A use site needs an sRGB fallback declaration before the
+one that reads the token: a browser that parses `oklch()` but not `in oklab`
+drops the whole declaration rather than degrading.
+
+The identity ramp is fill-grade. Clipped into text on the front door's ground
+its indigo end is 2.79:1, so the emphasised phrase takes a `-text` ramp of the
+same sweep at text lightness instead.
 
 ### The front door
 
