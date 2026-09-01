@@ -132,6 +132,33 @@ function dirtyFlags(): Record<string, unknown> {
 
 window.editorFixture = {
   mount() {
+    /**
+     * The one route the editor fetches directly.
+     *
+     * `build.ts` stands in for every `"use server"` module, but the narrative view
+     * also reaches `/api/ai/evidence` over plain `fetch`, and this bundle runs from
+     * `file://` — where a relative URL resolves to `file:///api/ai/evidence` and is
+     * refused by CORS before it is even attempted. The editor already treats a
+     * failure here as "no evidence to offer" and carries on, so the failure is not
+     * a defect; it is just noise that would drown a real console error in any test
+     * that visits the narrative view.
+     *
+     * Answered with an empty list rather than removed, so the view renders the same
+     * "nothing pinned yet" path a fresh account sees.
+     */
+    const realFetch = window.fetch.bind(window);
+    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/api/ai/evidence")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ evidence: [] }), {
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      }
+      return realFetch(input, init);
+    }) as typeof window.fetch;
+
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;inset:0";
     document.body.appendChild(host);

@@ -310,7 +310,12 @@ export function NarrativeMapView({
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            {/* Wraps. The row outside this one already did, but the controls
+                inside it did not, so at 390px the cluster stayed one 476px
+                line and "Generate scenes" — the whole point of the map gate —
+                was 86px past the right edge of a pane that cannot scroll
+                sideways. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <PlannedLength
                 seconds={targetSeconds}
                 onChange={(value) =>
@@ -638,7 +643,7 @@ function GenerateControl({
 }) {
   const [depth, setDepth] = useState<"outline" | "full">("full");
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <Segmented
         label="How much should be written"
         size="sm"

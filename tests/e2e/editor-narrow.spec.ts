@@ -100,9 +100,35 @@ test.describe("the editor on a narrow screen", () => {
       await selectTheHeading(page);
       expect(await offscreen(page), "with an element selected").toEqual([]);
 
+      // All three views, because the editor is three surfaces sharing a
+      // header and each can lose a control off the side on its own. The
+      // narrative map did: its header row wrapped but the controls inside it
+      // did not, so the cluster stayed one 476px line and **Generate scenes**
+      // — the whole point of the map gate — sat 86px past the right edge of a
+      // pane with no sideways scroll.
+      for (const view of ["Narrative", "Journey", "Scene"]) {
+        await page.getByRole("radio", { name: view }).click();
+        await expect(page.getByRole("radio", { name: view })).toHaveAttribute(
+          "aria-checked",
+          "true",
+        );
+        expect(await offscreen(page), `in the ${view} view`).toEqual([]);
+      }
+
       expect(problems).toEqual([]);
     });
   }
+
+  test("the map gate's own button is on the screen", async ({ page }) => {
+    await open(page, 390, 780);
+    await page.getByRole("radio", { name: "Narrative" }).click();
+
+    // Named rather than left to the general rule above, because this is the
+    // one control the whole narrative view exists to offer: review the
+    // argument, then generate from it.
+    const generate = page.getByRole("button", { name: "Generate scenes" });
+    await expect(generate).toBeInViewport({ ratio: 1 });
+  });
 
   test("the navigator collapses rather than taking half the window", async ({ page }) => {
     await open(page, 390, 780);
