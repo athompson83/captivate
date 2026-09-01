@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase/server";
+import { logFailure } from "@/lib/observability";
 import {
   AspectRatio,
   JourneyConfig,
@@ -41,7 +42,17 @@ const DEFAULT_TEMPLATE_SECONDS = 15 * 60;
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string };
 
 const ok = <T>(data: T): Result<T> => ({ ok: true, data });
-const fail = (error: string): Result<never> => ({ ok: false, error });
+/**
+ * Every handled mutation failure, in one place.
+ *
+ * These are the failures that lose somebody's work while telling them only
+ * "couldn't save". Logging here rather than at each `return fail(...)` means
+ * the next one added is recorded the day it is written.
+ */
+const fail = (error: string): Result<never> => {
+  logFailure("data.mutation", error);
+  return { ok: false, error };
+};
 
 const Uuid = z.string().uuid();
 
@@ -285,9 +296,7 @@ const SharingInput = z.object({ id: Uuid, enabled: z.boolean() });
  * write had already killed. With the condition, exactly one write claims the
  * slot and the other caller is handed the token that actually stuck.
  */
-export async function setSharing(
-  input: unknown,
-): Promise<Result<{ shareToken: string | null }>> {
+export async function setSharing(input: unknown): Promise<Result<{ shareToken: string | null }>> {
   const parsed = SharingInput.safeParse(input);
   if (!parsed.success) return fail("Invalid sharing request.");
   const supabase = await client();
