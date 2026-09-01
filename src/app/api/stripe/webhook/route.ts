@@ -58,10 +58,9 @@ export async function POST(request: Request) {
   // is also what makes a *failed* attempt unsafe: Stripe retries, the retry
   // sees the claim, and the mutation that failed never happens again — a
   // customer charged with no credits. So a handler that fails releases the
-  // claim on its way out, and `handled` is the flag that says whether it got
-  // that far. Releasing is best-effort: if it fails too, the retry is a no-op
-  // rather than a double-grant, because every mutation below is idempotent in
-  // its own right.
+  // claim on its way out. Releasing is best-effort: if it fails too, the retry
+  // is a no-op rather than a double-grant, because every mutation below is
+  // idempotent in its own right.
   const { error: seen } = await admin
     .from("stripe_events")
     .insert({ id: event.id, type: event.type } as never);
@@ -73,139 +72,154 @@ export async function POST(request: Request) {
     await admin.from("stripe_events").delete().eq("id", event.id);
   };
 
-  switch (event.type) {
-    case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.client_reference_id ?? session.metadata?.user_id ?? null;
+  // Every path that returns early releases the claim itself. This catches the
+  // other way out: a throw. `subscriptions.retrieve` is a network call to
+  // Stripe and fails like one, and an escaping exception is the worst version
+  // of the bug the claim exists to prevent — the framework answers 500, Stripe
+  // retries, and the retry is short-circuited as a duplicate of an event that
+  // was never applied. A subscription somebody is being billed for, never
+  // mirrored, and nothing anywhere saying so.
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const userId = session.client_reference_id ?? session.metadata?.user_id ?? null;
 
-      // A one-time payment is a top-up, not a plan. Two different products
-      // arrive on this one event type, and telling them apart by `mode` rather
-      // than by the metadata is deliberate: `mode` is Stripe's own record of
-      // what was actually bought, and metadata is whatever the session was
-      // created with.
-      if (session.mode === "payment") {
-        if (!userId) {
-          logFailure("stripe.webhook.unattributable", `${event.type} top-up missing user id`);
+        // A one-time payment is a top-up, not a plan. Two different products
+        // arrive on this one event type, and telling them apart by `mode` rather
+        // than by the metadata is deliberate: `mode` is Stripe's own record of
+        // what was actually bought, and metadata is whatever the session was
+        // created with.
+        if (session.mode === "payment") {
+          if (!userId) {
+            logFailure("stripe.webhook.unattributable", `${event.type} top-up missing user id`);
+            break;
+          }
+          // Only a session that is actually paid grants anything. An unpaid one
+          // arrives for asynchronous methods that may still fail.
+          if (session.payment_status !== "paid") break;
+          if (!(await grantTopUp(admin, userId, session, event.id))) {
+            logFailure("stripe.webhook.write", `${event.type} top-up could not be granted`);
+            await release();
+            return NextResponse.json({ error: "Write failed." }, { status: 500 });
+          }
           break;
         }
-        // Only a session that is actually paid grants anything. An unpaid one
-        // arrives for asynchronous methods that may still fail.
-        if (session.payment_status !== "paid") break;
-        if (!(await grantTopUp(admin, userId, session, event.id))) {
-          logFailure("stripe.webhook.write", `${event.type} top-up could not be granted`);
+
+        const subscriptionId =
+          typeof session.subscription === "string"
+            ? session.subscription
+            : session.subscription?.id;
+        if (!subscriptionId || !userId) {
+          // Somebody completed a checkout that cannot be attached to an account.
+          // Answering 200 is right — retrying will not supply the missing id —
+          // but dropping it in silence means a paid subscription simply never
+          // arrives and nothing anywhere says so.
+          logFailure(
+            "stripe.webhook.unattributable",
+            `${event.type} missing ${!subscriptionId ? "subscription" : "user"} id`,
+          );
+          break;
+        }
+
+        // Re-fetch rather than trusting the session's summary: the subscription
+        // object is where status, price and period actually live.
+        const subscription = await stripe().subscriptions.retrieve(subscriptionId);
+        if (!(await applyPatch(admin, userId, subscription, event.created))) {
+          logFailure("stripe.webhook.write", `${event.type} could not be applied`);
           await release();
           return NextResponse.json({ error: "Write failed." }, { status: 500 });
         }
         break;
       }
 
-      const subscriptionId =
-        typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
-      if (!subscriptionId || !userId) {
-        // Somebody completed a checkout that cannot be attached to an account.
-        // Answering 200 is right — retrying will not supply the missing id —
-        // but dropping it in silence means a paid subscription simply never
-        // arrives and nothing anywhere says so.
-        logFailure(
-          "stripe.webhook.unattributable",
-          `${event.type} missing ${!subscriptionId ? "subscription" : "user"} id`,
-        );
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId =
+          typeof subscription.customer === "string"
+            ? subscription.customer
+            : subscription.customer.id;
+
+        const { data: owner } = await admin
+          .from("billing_customers")
+          .select("user_id")
+          .eq("stripe_customer_id", customerId)
+          .maybeSingle();
+        // No mapping yet means checkout has not completed for this customer; the
+        // session event will establish it.
+        if (!owner) break;
+
+        if (!(await applyPatch(admin, owner.user_id, subscription, event.created))) {
+          logFailure("stripe.webhook.write", `${event.type} could not be applied`);
+          await release();
+          return NextResponse.json({ error: "Write failed." }, { status: 500 });
+        }
         break;
       }
 
-      // Re-fetch rather than trusting the session's summary: the subscription
-      // object is where status, price and period actually live.
-      const subscription = await stripe().subscriptions.retrieve(subscriptionId);
-      if (!(await applyPatch(admin, userId, subscription, event.created))) {
-        logFailure("stripe.webhook.write", `${event.type} could not be applied`);
-        await release();
-        return NextResponse.json({ error: "Write failed." }, { status: 500 });
-      }
-      break;
-    }
+      case "charge.refunded":
+      case "charge.dispute.created": {
+        // Money taken back takes the credits back. A balance that survives a
+        // refund is a product given away, and one that survives a chargeback is
+        // a product given away to somebody who said they never bought it.
+        //
+        // Revoked rather than deleted: the row is the history of a purchase, and
+        // a support conversation about a disputed balance starts from it.
+        const charge = event.data.object as Stripe.Charge & { payment_intent?: string | null };
+        const paymentIntent =
+          typeof charge.payment_intent === "string"
+            ? charge.payment_intent
+            : ((charge.payment_intent as { id?: string } | null)?.id ?? null);
+        if (!paymentIntent) break;
 
-    case "customer.subscription.created":
-    case "customer.subscription.updated":
-    case "customer.subscription.deleted": {
-      const subscription = event.data.object as Stripe.Subscription;
-      const customerId =
-        typeof subscription.customer === "string"
-          ? subscription.customer
-          : subscription.customer.id;
+        // `charge.refunded` fires for a *partial* refund too, and `charge.refunded`
+        // the boolean is what tells them apart — true only when the whole charge
+        // has been returned. Revoking the balance on a partial refund would take
+        // back ten presentations for a dollar returned, which is worse than not
+        // handling refunds at all.
+        //
+        // A partial refund of a top-up is not something the product can produce —
+        // one price, quantity bought whole — so it is logged rather than guessed
+        // at. Somebody deciding to return half of a five-dollar purchase should
+        // reach a person, not an algorithm dividing credits.
+        if (event.type === "charge.refunded" && charge.refunded !== true) {
+          logFailure(
+            "stripe.webhook.partial-refund",
+            `${event.type} for ${paymentIntent} refunded ${charge.amount_refunded} of ${charge.amount}; credits left intact`,
+          );
+          break;
+        }
 
-      const { data: owner } = await admin
-        .from("billing_customers")
-        .select("user_id")
-        .eq("stripe_customer_id", customerId)
-        .maybeSingle();
-      // No mapping yet means checkout has not completed for this customer; the
-      // session event will establish it.
-      if (!owner) break;
+        const { error } = await admin
+          .from("generation_credits")
+          .update({
+            revoked_at: new Date().toISOString(),
+            revoked_reason: event.type === "charge.refunded" ? "refund" : "dispute",
+            updated_at: new Date().toISOString(),
+          } as never)
+          .eq("stripe_payment_intent_id", paymentIntent)
+          .is("revoked_at", null);
 
-      if (!(await applyPatch(admin, owner.user_id, subscription, event.created))) {
-        logFailure("stripe.webhook.write", `${event.type} could not be applied`);
-        await release();
-        return NextResponse.json({ error: "Write failed." }, { status: 500 });
-      }
-      break;
-    }
-
-    case "charge.refunded":
-    case "charge.dispute.created": {
-      // Money taken back takes the credits back. A balance that survives a
-      // refund is a product given away, and one that survives a chargeback is
-      // a product given away to somebody who said they never bought it.
-      //
-      // Revoked rather than deleted: the row is the history of a purchase, and
-      // a support conversation about a disputed balance starts from it.
-      const charge = event.data.object as Stripe.Charge & { payment_intent?: string | null };
-      const paymentIntent =
-        typeof charge.payment_intent === "string"
-          ? charge.payment_intent
-          : ((charge.payment_intent as { id?: string } | null)?.id ?? null);
-      if (!paymentIntent) break;
-
-      // `charge.refunded` fires for a *partial* refund too, and `charge.refunded`
-      // the boolean is what tells them apart — true only when the whole charge
-      // has been returned. Revoking the balance on a partial refund would take
-      // back ten presentations for a dollar returned, which is worse than not
-      // handling refunds at all.
-      //
-      // A partial refund of a top-up is not something the product can produce —
-      // one price, quantity bought whole — so it is logged rather than guessed
-      // at. Somebody deciding to return half of a five-dollar purchase should
-      // reach a person, not an algorithm dividing credits.
-      if (event.type === "charge.refunded" && charge.refunded !== true) {
-        logFailure(
-          "stripe.webhook.partial-refund",
-          `${event.type} for ${paymentIntent} refunded ${charge.amount_refunded} of ${charge.amount}; credits left intact`,
-        );
+        if (error) {
+          logFailure("stripe.webhook.write", `${event.type} could not revoke credits`);
+          await release();
+          return NextResponse.json({ error: "Write failed." }, { status: 500 });
+        }
         break;
       }
 
-      const { error } = await admin
-        .from("generation_credits")
-        .update({
-          revoked_at: new Date().toISOString(),
-          revoked_reason: event.type === "charge.refunded" ? "refund" : "dispute",
-          updated_at: new Date().toISOString(),
-        } as never)
-        .eq("stripe_payment_intent_id", paymentIntent)
-        .is("revoked_at", null);
-
-      if (error) {
-        logFailure("stripe.webhook.write", `${event.type} could not revoke credits`);
-        await release();
-        return NextResponse.json({ error: "Write failed." }, { status: 500 });
-      }
-      break;
+      default:
+        // Everything else is recorded in `stripe_events` and deliberately
+        // ignored — `invoice.payment_failed` included, because the status that
+        // matters arrives on the subscription event.
+        break;
     }
-
-    default:
-      // Everything else is recorded in `stripe_events` and deliberately
-      // ignored — `invoice.payment_failed` included, because the status that
-      // matters arrives on the subscription event.
-      break;
+  } catch (error) {
+    logFailure("stripe.webhook.threw", error);
+    await release();
+    return NextResponse.json({ error: "Handler failed." }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });

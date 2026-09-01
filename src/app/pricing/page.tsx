@@ -13,7 +13,8 @@ import { topUpPriceId } from "@/lib/billing/stripe";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Captivate is free to use. Pro raises the AI limits and adds generated imagery.",
+  description:
+    "Captivate is free to use. Basic and Pro raise the AI limits and add generated imagery.",
   alternates: { canonical: "/pricing" },
 };
 

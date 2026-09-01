@@ -16,16 +16,37 @@ const SECRET = "whsec_test_secret_for_signing";
 const upsert = vi.fn().mockResolvedValue({ error: null });
 const insert = vi.fn().mockResolvedValue({ error: null });
 const maybeSingle = vi.fn().mockResolvedValue({ data: null });
+/** The claim being given back, so a Stripe retry is not answered as a duplicate. */
+const deleteClaim = vi.fn().mockResolvedValue({ error: null });
 
 vi.mock("@/lib/supabase/admin", () => ({
   supabaseAdmin: () => ({
-    from: () => ({
+    from: (table: string) => ({
       insert,
       upsert,
       select: () => ({ eq: () => ({ maybeSingle }) }),
+      delete: () => ({
+        eq: (_column: string, id: string) => deleteClaim(table, id),
+      }),
     }),
   }),
 }));
+
+/** Fails the way a Stripe API call fails: after the claim, before the write. */
+const retrieve = vi.fn();
+
+vi.mock("@/lib/billing/stripe", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/billing/stripe")>();
+  return {
+    ...actual,
+    // Signature verification stays real — it is what the rest of this file is
+    // about — and only the network call is replaced.
+    stripe: () => ({
+      webhooks: actual.stripe().webhooks,
+      subscriptions: { retrieve },
+    }),
+  };
+});
 
 const signed = (body: unknown, secret = SECRET) => {
   const payload = JSON.stringify(body);
@@ -60,12 +81,27 @@ const subscriptionEvent = (over: Record<string, unknown> = {}) => ({
   },
 });
 
+const checkoutEvent = () => ({
+  id: "evt_checkout",
+  type: "checkout.session.completed",
+  created: 1_790_000_000,
+  data: {
+    object: {
+      id: "cs_1",
+      mode: "subscription",
+      subscription: "sub_1",
+      client_reference_id: "user-1",
+    },
+  },
+});
+
 beforeEach(() => {
   process.env.STRIPE_SECRET_KEY = "sk_test_abc";
   process.env.STRIPE_WEBHOOK_SECRET = SECRET;
   vi.clearAllMocks();
   insert.mockResolvedValue({ error: null });
   maybeSingle.mockResolvedValue({ data: null });
+  deleteClaim.mockResolvedValue({ error: null });
 });
 
 afterEach(() => {
@@ -128,6 +164,22 @@ describe("the webhook endpoint", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ duplicate: true });
     expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("gives the claim back when the handler throws, so the retry is not a no-op", async () => {
+    // The claim is what makes a redelivery safe, and it is what makes a failed
+    // attempt unsafe: without releasing it, Stripe's retry is short-circuited
+    // as a duplicate of an event that was never applied, and somebody is billed
+    // for a subscription the product never mirrored. Every path that *returns*
+    // released already; this is the path that throws.
+    retrieve.mockRejectedValue(new Error("stripe unreachable"));
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    const response = await POST(signed(checkoutEvent()));
+
+    // 500, so Stripe retries at all.
+    expect(response.status).toBe(500);
+    // And the claim is gone, so the retry gets past the duplicate check.
+    expect(deleteClaim).toHaveBeenCalledWith("stripe_events", "evt_checkout");
   });
 
   it("refuses to serve at all when billing is unconfigured", async () => {
