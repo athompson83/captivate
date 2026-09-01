@@ -7,9 +7,9 @@
 - Control-graph node: HOSTED_RUNTIME_VERIFICATION (live app in owner-driven test loop)
 - Current milestone: Production readiness — discoverability, the signed-in
   coverage gap, password policy, and a trust surface
-- Branch: `claude/premium-ui-presentation-akzjzs` → PR #48, merged; branch
+- Branch: `claude/premium-ui-presentation-akzjzs` → PR #51, merged; branch
   restarted from `main` for the follow-up
-- `main`: PRs #22–#48 merged and deployed via Vercel auto-deploy
+- `main`: PRs #22–#51 merged and deployed via Vercel auto-deploy
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -22,12 +22,77 @@
   build calls, so the reverse leaves `/settings` and `/pricing` reading tables
   that do not exist yet. Verified back out of production afterwards: exactly one
   `captivate_reserve_generation` overload, 16 `plan_budgets` rows, 3
-  `ai_model_rates` rows, `stripe_events.completed_at` and
+  `ai_model_rates` rows (9 after `0027`), `stripe_events.completed_at` and
   `ai_generations.credit_id` present, one select-only policy on
   `generation_credits`, and `captivate_credit_spent` / `captivate_model_cost`
   executable by no role at all.
 
 ## Latest Session
+
+### Four releases: the spend boundary, a second gateway, and the stage itself
+
+Shipped to production on 2026-09-01 as PRs #48, #49, #50 and #51.
+
+**#48 — the spend boundary rebuilt.** `captivate_reserve_generation` took its
+window and its ceiling as _arguments_, and PostgREST exposes it to
+`authenticated`, so the plan gate in front of it was decoration. It now takes a
+kind and a budget group and nothing else. Three tiers, a top-up that buys whole
+presentations rather than a deck counter, and every text generation priced from
+an effective-dated rate table. Eight review rounds; the two that took longest
+are recorded above.
+
+**#49 — a test that would have gone stale.** `plan-budget-parity` asserted the
+SQL and `plans.ts` agree by reading a _named migration_, which is correct until
+something redefines those functions. It now reads the last file that defines
+each, the way Postgres applies them.
+
+**#50 — one key runs the whole product.** Captivate needed two accounts to be
+whole: Anthropic for text, OpenAI for pictures. An OpenRouter key now does
+both, with the gateway resolved from _which keys are set_ rather than from a
+setting kept in step with them — the failure mode of the latter is a deployment
+that names one provider, holds the other's key, and reports itself unconfigured
+while both halves look present. The retry policy, error text and schema
+validation stay shared; a provider supplies only a `Conversation`.
+
+Also in #50: every generated card was a plain circle, because the generation
+schema never offered the model an `icon` field to answer. `layouts.ts` had read
+`card.icon` since cards existed. The pipe was built and the tap was never
+opened, which is why widening the icon set alone would have changed nothing
+visible.
+
+**#51 — the stage got a ground.** The twelve existing themes are chosen by
+_room_ and every one is lit by a single light, which reads as a page. `bloom`
+and `mesh` are several offset washes from the theme's own tokens, mixed toward
+transparent in OKLab. Four themes use them. The palette test asserted only that
+ink and canvas were different _strings_; it now imports `MIN_CONTRAST` from the
+health check, so no palette can ship that the app's own report would mark a
+deck down for.
+
+### What the reviews cost, and what that says
+
+CodeRabbit found seven real defects across the four. **Three were positions I
+had argued for**: that a forged refund's overdraw was bounded to one per
+purchase (it is repeatable for the length of a provider call), that best-effort
+release of a failed webhook claim was safe because the mutations are idempotent
+(that answers double-granting, not the correlated failure), and that a
+provider's declared image media type could be trusted into a preview because
+the accept path sniffs the bytes later (it does, and by then the generation is
+paid for). Each was internally consistent and wrong at the step where money
+moves.
+
+Codex ran out of review credits partway through #48 and reviewed nothing after
+`639072d`. Four PRs of billing and provider code went out on a single reviewer.
+That is worth restoring before the next change to the spend path.
+
+### Still unset in Vercel
+
+`STRIPE_PRICE_BASIC_MONTHLY`, `STRIPE_PRICE_PRO_MONTHLY` and
+`STRIPE_PRICE_TOPUP`. The paid tiers are visible and not purchasable, which is
+the intended degradation rather than a fault — the top-up row is absent from
+`/pricing` and the plan controls in settings are hidden. No tool in this
+session writes a Vercel environment variable, and the connector's grant covers
+only `proficiencyai`. `OPENROUTER_API_KEY` is likewise unset, so nothing in the
+second gateway has touched a live API.
 
 ### The spend boundary, rebuilt and released — PR #48
 
