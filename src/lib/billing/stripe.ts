@@ -37,7 +37,7 @@ export function stripe(): Stripe {
 }
 
 /**
- * The price ids for a plan and an interval, current first.
+ * The price ids configured for a plan and an interval, current first.
  *
  * The *only* place a price id enters the system. A checkout that accepted a
  * price from its caller would let anyone choose what they pay.
@@ -51,7 +51,7 @@ export function stripe(): Stripe {
  * after the current one keeps them recognised as the tier they bought while
  * new checkouts go to the price at the head.
  */
-function priceIdsFor(plan: PaidPlan, interval: "month" | "year"): string[] {
+function priceIdsFor(plan: PaidPlan, interval: BillingInterval): string[] {
   const raw =
     plan === "basic"
       ? interval === "month"
@@ -60,28 +60,50 @@ function priceIdsFor(plan: PaidPlan, interval: "month" | "year"): string[] {
       : interval === "month"
         ? process.env.STRIPE_PRICE_PRO_MONTHLY
         : process.env.STRIPE_PRICE_PRO_ANNUAL;
-  return (raw ?? "")
+  return list(raw);
+}
+
+const list = (raw: string | undefined): string[] =>
+  (raw ?? "")
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
+
+/**
+ * Annual is *recognised* but never *sold*.
+ *
+ * Annual billing is deferred until measured cost per presentation says a
+ * year-long commitment is a safe one, so there is no way to check out against
+ * an annual price. The variables are still read, because a subscription
+ * bought before that decision must keep resolving to the tier its holder paid
+ * for — recognising a price and offering it are different things, and
+ * conflating them is how somebody gets downgraded for having bought early.
+ */
+export type BillingInterval = "month" | "year";
+export const SELLABLE_INTERVAL = "month" as const;
+
+/** The price a new checkout is opened against. Monthly, always. */
+export function priceIdFor(plan: PaidPlan): string | null {
+  return priceIdsFor(plan, SELLABLE_INTERVAL)[0] ?? null;
 }
 
-/** The price a new checkout is opened against: the head of the list. */
-export function priceIdFor(plan: PaidPlan, interval: "month" | "year"): string | null {
-  return priceIdsFor(plan, interval)[0] ?? null;
+/** The one-time price a top-up is bought at, if this deployment has one. */
+export function topUpPriceId(): string | null {
+  return list(process.env.STRIPE_PRICE_TOPUP)[0] ?? null;
 }
 
 /**
  * Which tier a subscription's price belongs to.
  *
- * The mirror table has carried `price_id` since billing was built and nothing
- * read it, because there was only ever one paid plan to be on. With two, the
- * price *is* the tier, and reading it is what stops a Basic subscription
- * granting Pro's allowance.
+ * The mirror row carries `price_id`, and the tier it resolves to is stored
+ * next to it — so this is consulted when a subscription is *written*, and the
+ * stored answer is what entitlement reads afterwards. That is what keeps a
+ * rotated or retired price from silently changing what somebody already
+ * bought.
  *
- * Superseded ids count, which is the whole reason the variables are lists.
- * Null only for a price no variable names at all, and `planFromSubscription`
- * reads that as the lowest paid tier rather than the highest.
+ * Superseded and annual ids both count. Null only for a price no variable
+ * names at all, and `planFromSubscription` reads that as the lowest paid tier
+ * rather than the highest.
  */
 export function planForPriceId(priceId: string | null): PaidPlan | null {
   if (!priceId) return null;

@@ -22,17 +22,20 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 const CheckoutInput = z.object({
   plan: z.enum(PAID_PLANS),
-  interval: z.enum(["month", "year"]),
 });
 
 /**
  * A Checkout Session for the signed-in user.
  *
- * The input carries a tier and an interval — never a price. The price is read
+ * The input carries a tier and nothing else — never a price. The price is read
  * from the environment, because a caller that names its own price is a caller
  * that sets its own price, and this action is reachable by anyone with an
  * account. The tier is validated against the plans that can actually be
- * bought: the same rule, applied to the half of the choice that is new.
+ * bought.
+ *
+ * There is no interval to choose. Annual billing is deferred, and the way to
+ * defer it is to have no code path that can open an annual checkout — not a
+ * hidden control, which is one prop away from being visible again.
  */
 export async function startCheckout(input: unknown): Promise<Result<{ url: string }>> {
   if (!isBillingConfigured()) {
@@ -40,9 +43,9 @@ export async function startCheckout(input: unknown): Promise<Result<{ url: strin
   }
 
   const parsed = CheckoutInput.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Choose a plan and a billing period." };
+  if (!parsed.success) return { ok: false, error: "Choose a plan." };
 
-  const price = priceIdFor(parsed.data.plan, parsed.data.interval);
+  const price = priceIdFor(parsed.data.plan);
   if (!price) return { ok: false, error: "That plan isn't available right now." };
 
   try {

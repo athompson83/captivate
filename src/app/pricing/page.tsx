@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PLAN_BUDGETS, PRICING, limitFor, type BudgetGroup } from "@/lib/billing/plans";
+import { PRESENTATIONS, PRICING, limitFor, type BudgetGroup } from "@/lib/billing/plans";
 import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
 
 export const metadata: Metadata = {
@@ -55,7 +55,9 @@ const ROWS: { label: string; free: string; basic: string; pro: string }[] = [
   { label: "AI image generation", free: "—", basic: "Included", pro: "Included" },
 ];
 
-const freeDecks = PLAN_BUDGETS.free.deck[0].max;
+const freeDecks = PRESENTATIONS.free;
+const basicDecks = PRESENTATIONS.basic;
+const proDecks = PRESENTATIONS.pro;
 
 export default function PricingPage() {
   return (
@@ -101,8 +103,7 @@ export default function PricingPage() {
                 <span className="text-[16px] font-normal text-[var(--sky-ink-3)]"> / month</span>
               </p>
               <p className="mt-4 text-[14px] leading-relaxed text-[var(--sky-ink-3)]">
-                Or {PRICING.basic.annual} a year — about {PRICING.basic.saving}% less. Generated
-                imagery included.
+                {basicDecks} AI-generated presentations every 30 days, generated imagery included.
               </p>
               <Link
                 href="/settings"
@@ -121,8 +122,8 @@ export default function PricingPage() {
                 <span className="text-[16px] font-normal text-[var(--sky-ink-3)]"> / month</span>
               </p>
               <p className="mt-4 text-[14px] leading-relaxed text-[var(--sky-ink-3)]">
-                Or {PRICING.pro.annual} a year — about {PRICING.pro.saving}% less. The allowance for
-                somebody presenting every week.
+                {proDecks} every 30 days — the allowance for somebody presenting every week, at
+                better value per presentation.
               </p>
               <Link
                 href="/settings"

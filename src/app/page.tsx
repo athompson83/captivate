@@ -15,7 +15,7 @@ import { getCurrentUser } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { Hero } from "@/components/marketing/hero";
 import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
-import { FREE_ALLOWANCE_COPY, PRO_PRICING } from "@/lib/billing/plans";
+import { FREE_ALLOWANCE_COPY, PRICING } from "@/lib/billing/plans";
 
 /**
  * The one page whose canonical really is the origin.
@@ -201,8 +201,7 @@ export default async function LandingPage() {
               </h2>
               <p className="mt-4 text-[15px] leading-relaxed text-[var(--sky-ink-2)]">
                 {FREE_ALLOWANCE_COPY}, every presenting and recording feature included. Captivate
-                Pro is {PRO_PRICING.monthly} a month, or {PRO_PRICING.annual} a year — about{" "}
-                {PRO_PRICING.annualSavingPercent}% less.
+                Basic is {PRICING.basic.monthly} a month and Captivate Pro is {PRICING.pro.monthly}.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">

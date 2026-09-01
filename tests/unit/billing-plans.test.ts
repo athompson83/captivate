@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUDGET_GROUPS,
   BUDGET_KINDS,
-  PRICING,
+  PER_PRESENTATION,
+  PRESENTATIONS,
   TOPUP,
   allowsImageGeneration,
   ceilingsFor,
+  centsPerPresentation,
   limitFor,
   planFromSubscription,
   planLabel,
+  topUpCentsPerPresentation,
 } from "@/lib/billing/plans";
 import { AI_KINDS } from "@/lib/ai/schemas";
+import { drawingCap } from "@/lib/editor/place-drawing";
 
 const NOW = Date.parse("2026-09-01T00:00:00Z");
 const FUTURE = Date.parse("2026-10-01T00:00:00Z");
@@ -20,15 +25,38 @@ describe("plan budgets", () => {
     expect(limitFor("free", "deck")).toEqual({ windowMinutes: 43_200, max: 10 });
   });
 
-  it("sells Pro by the month and keeps half its old hourly cap as a burst", () => {
-    // This asserted the hourly ceiling *as the allowance*, which is what the
-    // pricing change moved away from: a month's worth metered by the hour is
-    // a number nobody can see themselves spending, and nothing a top-up can
-    // add to. The hourly figure survives as the burst ceiling, at the half
-    // the change specified.
-    expect(limitFor("pro", "deck")).toEqual({ windowMinutes: 43_200, max: 200 });
-    expect(ceilingsFor("pro", "deck")[1]).toEqual({ windowMinutes: 60, max: 15 });
-    expect(ceilingsFor("pro", "light")[1]).toEqual({ windowMinutes: 60, max: 150 });
+  it("sells each plan a number of presentations, and sizes every pool from it", () => {
+    // The allowances the owner approved as the launch guardrails. Everything
+    // else in the table is these numbers times what one presentation can
+    // consume — asserted here rather than restated, because the failure this
+    // guards against is a pool being edited on its own.
+    expect(PRESENTATIONS).toEqual({ free: 10, basic: 25, pro: 60, unlimited: 2000 });
+
+    for (const plan of ["free", "basic", "pro", "unlimited"] as const) {
+      for (const group of BUDGET_GROUPS) {
+        expect(limitFor(plan, group).max).toBe(PRESENTATIONS[plan] * PER_PRESENTATION[group]);
+      }
+    }
+  });
+
+  it("can illustrate every presentation it sells", () => {
+    // The defect this exists for: Basic was sixty decks and sixty drawings, so
+    // a customer who used their allowance could illustrate one presentation in
+    // every one they generated — and a top-up that replenished only the deck
+    // counter would have sold them presentations they could not finish. The
+    // bound comes from the generator, not from a number copied into this file:
+    // `drawingCap` is what actually decides how many drawings a deck asks for.
+    const worstCase = drawingCap(60 * 60 * 24, true);
+    expect(PER_PRESENTATION.drawing).toBeGreaterThanOrEqual(worstCase);
+
+    for (const plan of ["free", "basic", "pro"] as const) {
+      expect(limitFor(plan, "drawing").max).toBeGreaterThanOrEqual(
+        limitFor(plan, "deck").max * worstCase,
+      );
+      // And a map for each of them, which is the other call every generation
+      // makes before it writes a scene.
+      expect(limitFor(plan, "draft").max).toBeGreaterThanOrEqual(limitFor(plan, "deck").max);
+    }
   });
 
   it("gives every group its counted kinds, and every kind exactly one group", () => {
@@ -51,7 +79,7 @@ describe("plan budgets", () => {
   });
 
   it("bounds every free group, so no side door is unmetered", () => {
-    for (const group of ["deck", "draft", "drawing", "light"] as const) {
+    for (const group of BUDGET_GROUPS) {
       const limit = limitFor("free", group);
       expect(limit.max).toBeGreaterThan(0);
       expect(limit.windowMinutes).toBe(43_200);
@@ -60,6 +88,7 @@ describe("plan budgets", () => {
 
   it("makes paid image generation the one capability free does not have", () => {
     expect(allowsImageGeneration("free")).toBe(false);
+    expect(allowsImageGeneration("basic")).toBe(true);
     expect(allowsImageGeneration("pro")).toBe(true);
   });
 });
@@ -114,30 +143,10 @@ describe("planFromSubscription", () => {
 });
 
 describe("the tiers are worth what they cost", () => {
-  const decks = (plan: "free" | "basic" | "pro") => limitFor(plan, "deck").max;
-
   it("is a ladder: every paid tier beats the one below it in every group", () => {
-    for (const group of ["deck", "draft", "drawing", "light"] as const) {
+    for (const group of BUDGET_GROUPS) {
       expect(limitFor("basic", group).max).toBeGreaterThan(limitFor("free", group).max);
       expect(limitFor("pro", group).max).toBeGreaterThan(limitFor("basic", group).max);
-    }
-  });
-
-  it("holds the ratios the pricing change was specified in", () => {
-    // Basic is fifteen per cent of Pro, on the allowance and on the burst
-    // ceiling both, so the two numbers describe one decision.
-    for (const group of ["deck", "draft", "drawing", "light"] as const) {
-      // Both percentages in the change are relative to what Pro used to
-      // advertise — the new Pro is half of it, Basic fifteen per cent — so
-      // against each other Basic is thirty per cent of Pro. The point of the
-      // assertion is that the allowance and the burst agree on that, rather
-      // than one of them being set by hand and drifting.
-      const [proMonth, proHour] = ceilingsFor("pro", group);
-      const [basicMonth, basicHour] = ceilingsFor("basic", group);
-      expect(basicMonth.max / proMonth.max).toBeCloseTo(0.3, 2);
-      // The hourly numbers are small enough that rounding 4.5 up to 5 moves
-      // the ratio, so this is held to one place rather than two.
-      expect(basicHour!.max / proHour!.max).toBeCloseTo(0.3, 1);
     }
   });
 
@@ -146,8 +155,8 @@ describe("the tiers are worth what they cost", () => {
     // ceiling is abuse protection and is not a product promise. Metering a
     // month's worth by the hour, which is what this used to do, leaves an
     // author no way to see what is left.
-    for (const plan of ["basic", "pro"] as const) {
-      for (const group of ["deck", "draft", "drawing", "light"] as const) {
+    for (const plan of ["free", "basic", "pro"] as const) {
+      for (const group of BUDGET_GROUPS) {
         const ceilings = ceilingsFor(plan, group);
         expect(ceilings).toHaveLength(2);
         expect(ceilings[0].windowMinutes).toBe(43_200);
@@ -159,16 +168,38 @@ describe("the tiers are worth what they cost", () => {
     }
   });
 
+  it("keeps the burst ceiling in the same currency as the allowance", () => {
+    // Both are presentations times the same per-presentation cost, so a change
+    // to one pool cannot leave the hourly cap describing a different product
+    // from the monthly one — which is how a plan ends up with a burst ceiling
+    // it can never reach, or one that bites in ordinary use.
+    for (const plan of ["free", "basic", "pro"] as const) {
+      for (const group of BUDGET_GROUPS) {
+        const [allowance, burst] = ceilingsFor(plan, group);
+        expect(burst!.max % PER_PRESENTATION[group]).toBe(0);
+        expect(allowance.max % PER_PRESENTATION[group]).toBe(0);
+      }
+    }
+  });
+
   it("prices a top-up above both tiers, per presentation", () => {
     // A top-up is for the month somebody went over, not a way to live below
-    // the tier they need. Cents per deck, so the ladder is checked in money.
-    const cents = (money: string) => Number(money.replace("$", "")) * 100;
-    const topUp = cents(TOPUP.price) / TOPUP.decks;
-    expect(topUp).toBeGreaterThan(cents(PRICING.basic.monthly) / decks("basic"));
-    expect(topUp).toBeGreaterThan(cents(PRICING.pro.monthly) / decks("pro"));
-    expect(cents(PRICING.basic.monthly) / decks("basic")).toBeGreaterThan(
-      cents(PRICING.pro.monthly) / decks("pro"),
-    );
+    // the tier they need — and Pro has to be better value than Basic, or the
+    // upgrade is a worse deal than staying put. Every figure is derived from
+    // the canonical constants; a comment here once claimed Basic cost forty
+    // cents when the constants said twenty, and nothing contradicted it.
+    const basic = centsPerPresentation("basic");
+    const pro = centsPerPresentation("pro");
+    const topUp = topUpCentsPerPresentation();
+
+    expect(topUp).toBeGreaterThan(basic);
+    expect(topUp).toBeGreaterThan(pro);
+    expect(basic).toBeGreaterThan(pro);
+  });
+
+  it("gives a top-up a stated life, because a credit that never expires is a liability", () => {
+    expect(TOPUP.presentations).toBeGreaterThan(0);
+    expect(TOPUP.validDays).toBeGreaterThan(0);
   });
 
   it("names every plan somebody can be on", () => {

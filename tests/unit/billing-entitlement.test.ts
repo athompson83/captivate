@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { limitFor } from "@/lib/billing/plans";
 
 const maybeSingle = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({
@@ -105,6 +106,9 @@ describe("limitForCaller", () => {
 
   it("hands an unconfigured deployment the pro budget", async () => {
     const { limitForCaller } = await import("@/lib/billing/entitlement");
-    expect(await limitForCaller("deck")).toEqual({ windowMinutes: 43_200, max: 200 });
+    // The Pro allowance, whatever it currently is — read from the plan rather
+    // than restated, because this test is about *which plan* an unconfigured
+    // deployment falls back to, not about the number.
+    expect(await limitForCaller("deck")).toEqual(limitFor("pro", "deck"));
   });
 });

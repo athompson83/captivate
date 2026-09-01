@@ -34,7 +34,6 @@ export function BillingSection({
   usage: { plan: Plan; groups: GroupUsage[] };
 }) {
   const { toast } = useToast();
-  const [interval, setInterval] = useState<"month" | "year">("month");
   const [pending, startTransition] = useTransition();
 
   const paid = summary?.plan === "pro" || summary?.plan === "basic";
@@ -123,23 +122,16 @@ export function BillingSection({
                 { value: "pro", label: "Pro" },
               ]}
             />
-            <Segmented
-              label="Billing interval"
-              size="sm"
-              value={interval}
-              onChange={setInterval}
-              options={[
-                { value: "month", label: `${PRICING[tier].monthly}/mo` },
-                { value: "year", label: `${PRICING[tier].annual}/yr` },
-              ]}
-            />
+            {/* Monthly only. An annual selector would be a control that looks
+                functional and is not: there is no annual price to check out
+                against, and annual billing is held until measured cost per
+                presentation says a year-long commitment is a safe one. */}
+            <span className="text-ink-3 text-[13px]">{PRICING[tier].monthly}/mo</span>
             <Button
               variant="primary"
               size="sm"
               loading={pending}
-              onClick={() =>
-                go(() => startCheckout({ plan: tier, interval }), "Couldn't start checkout")
-              }
+              onClick={() => go(() => startCheckout({ plan: tier }), "Couldn't start checkout")}
             >
               Upgrade to {tier === "pro" ? "Pro" : "Basic"}
             </Button>

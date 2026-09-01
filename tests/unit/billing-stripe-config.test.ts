@@ -37,17 +37,27 @@ describe("billing configuration", () => {
     process.env.STRIPE_PRICE_PRO_MONTHLY = "price_pro_month";
     process.env.STRIPE_PRICE_PRO_ANNUAL = "price_pro_year";
 
-    expect(priceIdFor("basic", "month")).toBe("price_basic_month");
-    expect(priceIdFor("basic", "year")).toBe("price_basic_year");
-    expect(priceIdFor("pro", "month")).toBe("price_pro_month");
-    expect(priceIdFor("pro", "year")).toBe("price_pro_year");
+    // Monthly only: annual billing is deferred, so there is no code path that
+    // can open an annual checkout. The annual variables are still read, but
+    // only by `planForPriceId` below — recognising a price and offering it are
+    // different things.
+    expect(priceIdFor("basic")).toBe("price_basic_month");
+    expect(priceIdFor("pro")).toBe("price_pro_month");
   });
 
   it("returns null rather than an empty string for an unset price", () => {
     process.env.STRIPE_PRICE_PRO_MONTHLY = "   ";
-    delete process.env.STRIPE_PRICE_PRO_ANNUAL;
-    expect(priceIdFor("pro", "month")).toBeNull();
-    expect(priceIdFor("pro", "year")).toBeNull();
+    expect(priceIdFor("pro")).toBeNull();
+  });
+
+  it("still resolves an annual subscription's tier, even though annual is not sold", () => {
+    // Somebody who bought an annual plan before it was withdrawn keeps it.
+    // Failing to recognise their price would drop them to the lowest paid
+    // tier, which is a downgrade nobody asked for.
+    process.env.STRIPE_PRICE_PRO_ANNUAL = "price_pro_year";
+    process.env.STRIPE_PRICE_BASIC_ANNUAL = "price_basic_year";
+    expect(planForPriceId("price_pro_year")).toBe("pro");
+    expect(planForPriceId("price_basic_year")).toBe("basic");
   });
 
   it("maps a subscription's price back to the tier it bought", () => {
@@ -74,7 +84,7 @@ describe("billing configuration", () => {
     process.env.STRIPE_PRICE_PRO_MONTHLY = "price_pro_month_v2, price_pro_month_v1";
     process.env.STRIPE_PRICE_BASIC_MONTHLY = "price_basic_month_v2,price_basic_month_v1";
 
-    expect(priceIdFor("pro", "month")).toBe("price_pro_month_v2");
+    expect(priceIdFor("pro")).toBe("price_pro_month_v2");
     expect(planForPriceId("price_pro_month_v2")).toBe("pro");
     expect(planForPriceId("price_pro_month_v1")).toBe("pro");
     expect(planForPriceId("price_basic_month_v1")).toBe("basic");
