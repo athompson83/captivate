@@ -125,6 +125,80 @@ describe("light theme contrast after the warmth bump", () => {
 });
 
 /**
+ * Everything above reads the light block. The dark theme is the one most of
+ * this application is looked at in, and it had never been held to the same
+ * threshold — which is how `--text-muted` came to be 4.11:1 on
+ * `--surface-overlay`, the ground of every menu and popover in the product,
+ * and stay there. The defect was invisible because the guard did not look.
+ */
+describe("dark theme contrast", () => {
+  const SURFACES = [
+    "surface-base",
+    "surface-sunken",
+    "surface-raised",
+    "surface-overlay",
+    "surface-inset",
+  ];
+
+  const dark = (name: string) => {
+    const value = DARK[name];
+    if (!value) throw new Error(`--${name} is not an oklch() token in the dark block`);
+    return value;
+  };
+
+  it("reads the real dark tokens out of globals.css", () => {
+    expect(Object.keys(DARK).length).toBeGreaterThan(10);
+    for (const surface of SURFACES) expect(dark(surface)).toMatch(/^oklch\(/);
+  });
+
+  it("keeps every ink readable on every dark surface", () => {
+    for (const ink of ["text-primary", "text-secondary", "text-muted"]) {
+      for (const surface of SURFACES) {
+        expect(
+          contrastRatio(hex(dark(ink)), hex(dark(surface))),
+          `${ink} on ${surface}`,
+        ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      }
+    }
+  });
+
+  it("keeps every status and accent tone AA-legible on every dark surface", () => {
+    for (const fg of ["accent-text", "ai-text", "danger", "success"]) {
+      for (const surface of SURFACES) {
+        expect(
+          contrastRatio(hex(dark(fg)), hex(dark(surface))),
+          `${fg} on ${surface}`,
+        ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      }
+    }
+  });
+});
+
+/**
+ * The primary action, in both themes.
+ *
+ * A filled violet button with a label on it is the most-clicked thing in the
+ * product and was the one pairing with no assertion at all — so the brand
+ * kit's "violet leads action" could have been adopted at any lightness and
+ * nothing would have objected. The kit's own violet clears AA with white by a
+ * margin of about a point; that margin is what this protects.
+ */
+describe("the primary action carries its label", () => {
+  for (const [theme, tokens] of [
+    ["light", TOKENS],
+    ["dark", DARK],
+  ] as const) {
+    it(`meets AA in the ${theme} theme`, () => {
+      const accent = tokens["accent"];
+      const contrast = tokens["accent-contrast"];
+      if (!accent || !contrast) throw new Error(`--accent/--accent-contrast missing from ${theme}`);
+
+      expect(contrastRatio(hex(contrast), hex(accent))).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+    });
+  }
+});
+
+/**
  * The warning pair, in both themes.
  *
  * Added with the generated-image guardrail, which is the first thing in the app

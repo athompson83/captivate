@@ -28,6 +28,9 @@ captivate/
 │  │  ├─ auth/                     OAuth-style callback, POST-only sign-out
 │  │  ├─ layout.tsx                Fonts, theme bootstrap, providers
 │  │  ├─ page.tsx                  Landing
+│  │  ├─ icon.png                  Favicon, apple-icon.png, opengraph-image.jpg
+│  │  │                            — Next's file conventions, so the tags are
+│  │  │                            generated rather than hand-written
 │  │  └─ globals.css               Design tokens
 │  │
 │  ├─ components/
@@ -110,13 +113,21 @@ captivate/
 │  │
 │  └─ proxy.ts                     Session refresh and route gating
 │
+├─ public/
+│  ├─ brand/                       The kit's artwork: the app icon, the symbol
+│  │                               on its own, and the endorsed lockup
+│  ├─ mediapipe/                   Segmentation runtime for background removal
+│  └─ models/                      Its weights
+│
 ├─ supabase/
-│  ├─ migrations/                  0001 core … 0008, applied in name order
+│  ├─ migrations/                  0001 core … 0021, applied in name order
 │  └─ tests/                       RLS isolation suite + runner
 │
 ├─ tests/
-│  ├─ unit/                        23 files, 485 tests
-│  ├─ e2e/                         smoke, journey, atmosphere, atmosphere-lifecycle
+│  ├─ unit/                        76 files
+│  ├─ e2e/                         15 specs across four Playwright projects:
+│  │                               smoke and authenticated need a server,
+│  │                               shader and lifecycle need neither
 │  └─ setup.ts                     jsdom shims
 │
 └─ docs/                           This documentation

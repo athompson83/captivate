@@ -7,9 +7,9 @@ A darkened stage lit by a coloured spotlight.
 That is not decoration — it is the reason for every colour decision. Captivate
 is used in lecture theatres and meeting rooms, often with the lights down. The
 interface is dark by default because it sits next to a dark projection; the
-light on that stage is the mark's own, an indigo key with a coral rim, because
-the brand is a gradient and a product that only ever shows one end of it is
-showing the part that is not the brand.
+light on that stage is the mark's own — violet leading, coral and amber at the
+rim — because the brand is a gradient and a product that only ever shows one
+end of it is showing the part that is not the brand.
 
 It also settles what Captivate is _not_. It does not look like PowerPoint,
 Google Slides, Keynote, Canva or Gamma, because none of those start from "you
@@ -26,10 +26,11 @@ adjusted without hue drift.
 | ------------------------------------------------ | ----------------------------------------- |
 | `surface-base` / `sunken` / `raised` / `overlay` | Four elevations, no more                  |
 | `text-primary` / `secondary` / `muted`           | Three text weights, no more               |
-| `accent`                                         | Indigo. Primary actions, selection, focus |
+| `accent`                                         | Violet. Primary actions, selection, focus |
 | `ai`                                             | Magenta. **Only** AI affordances          |
 | `record`                                         | Crimson. **Only** recording               |
 | `success` / `warning` / `danger`                 | Status                                    |
+| `brand-*`                                        | The kit's ramp. Identity, not a role      |
 | `brand-gradient`                                 | The mark's sweep. Signature marks only    |
 
 The semantic separation is load-bearing. Magenta means "a model is involved"
@@ -39,25 +40,49 @@ user learns each in one exposure.
 That separation is why the accent moved and the AI colour moved with it. The
 accent was gold at oklch L 0.8 H 72 and `warning` was L 0.8 H 75 — three
 degrees apart, so in the dark theme a warning and a primary action were the
-same colour. The accent is the mark's indigo now, AI is its magenta rather
-than the orchid that sat too close to it, and the warm end of the gradient
-belongs to the front door's key light.
+same colour.
 
-`brand-gradient` is the whole sweep — indigo through violet and magenta to
-coral. It marks the things that carry the brand rather than an interface
-state: the wordmark's tile, a rule on the front door. Never behind body text.
-Four hues under a paragraph is a background; this is a signature.
+There are two layers now, and the distinction decides where a new colour goes:
 
-Light mode is warm paper rather than clinical white, and keeps the same
-relationships with a darker accent for contrast.
+- the `--brand-*` ramp is **identity**. Eight values — ink, navy, indigo,
+  violet, magenta, coral, amber, paper — taken from the Captivate Brand &
+  Style Kit v1.0 and its companion token file, converted to OKLCH, and
+  identical in both themes. An identity that changed with the time of day
+  would not be one.
+- everything else is a **role**, derived to clear WCAG AA on the ground it
+  sits on. That derivation is not cosmetic: the kit's success, warning and
+  danger are fills meant to carry ink, and all three fall below 4.5:1 as text
+  on paper, so the role tokens keep the kit's hue and take the lightness
+  contrast needs.
+
+`accent` is the kit's violet, #6D39F7, at the same value in both themes —
+white clears AA on it at 5.87:1, which is what makes one accent possible where
+the light theme previously needed a darker violet of its own. Violet leads
+action; coral and amber are emphasis and never a destructive control.
+
+`brand-gradient` is the whole sweep — indigo, violet, magenta, amber at the
+kit's 120° and its stated stops. It marks the things that carry the brand
+rather than an interface state: the mark's tile, a rule on the front door.
+Never behind body text. Four hues under a paragraph is a background; this is a
+signature. The stops interpolate in OKLab rather than sRGB, which is the whole
+reason the ramp is stored in OKLCH: sRGB runs indigo to violet through a grey
+middle, and this gradient is three hue turns in a row.
+
+Both themes are one hue family. Dark surfaces are midnight — the same
+lightness ladder they always had, but blue rather than a grey with an opinion,
+with `surface-raised` at #061436 exactly. Light mode is the kit's cool paper
+rather than the warm cream it used to be, so a screenshot taken in the light
+theme is recognisably the same product.
 
 ---
 
 ## Type
 
-- **Inter** — interface. Neutral, excellent at small sizes.
-- **Fraunces** — presentation display. An editorial serif with real character,
-  because a lecture title deserves better than a UI font at 80px.
+- **Inter** — interface and body copy.
+- **Manrope** — display. The kit's display face, and a geometric sans because
+  Captivate's own logotype is one. It replaced Fraunces, an editorial serif
+  that said something true about a lecture title and something wrong about a
+  spatial tool.
 - **Space Grotesk** — the Signal and Chalk themes.
 - **JetBrains Mono** — code.
 
@@ -71,8 +96,17 @@ rem" so it scales with the presentation rather than the browser.
 
 ## Space and shape
 
-4px base rhythm. Six radius steps from 4px to 28px, used consistently: small
-controls small, panels large, the stage largest.
+4px base rhythm. Six radius steps from 4px to 32px, used consistently: small
+controls small, panels large, the stage largest. The kit sets two ranges —
+controls 8–14px, cards 14–22px — and each step sits inside the range for the
+role its name is used in. `md` is 12 rather than the kit's 14 because most of
+its uses are 32px-square icon buttons, where 14px is within a pixel of a
+circle.
+
+Motion is the kit's three durations — 120ms for hover and focus, 220ms for
+panels and control state, 420ms for a spatial reveal — on `--ease-brand`,
+`cubic-bezier(.2, .8, .2, 1)`. A stage flight is longer than any of them
+because a camera crossing the world is not interface motion.
 
 Five elevation levels, all soft and low-contrast. Elevation separates surfaces;
 it does not decorate them.

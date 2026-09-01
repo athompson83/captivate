@@ -1,4 +1,5 @@
-import { Sparkles } from "lucide-react";
+import Image from "next/image";
+import mark from "../../../public/brand/captivate-icon.png";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -10,6 +11,13 @@ import { cn } from "@/lib/utils/cn";
  * size and its own colour tokens. A maker's mark that is only on three of the
  * four surfaces reads as an oversight rather than a name, and that is exactly
  * what copying the string a fifth time would have produced.
+ *
+ * The symbol is the artwork from the brand kit; the two names are set in live
+ * type. That split is deliberate. The ribbon is three hue turns and a fold —
+ * nothing CSS can draw — while a picture of the words would be fixed at one
+ * colour, and the words have to be legible on a dark canvas, on paper, and on
+ * the public site's own fixed palette. The kit's own logo page does the same:
+ * one symbol, and the endorsement set beneath it.
  *
  * The two names are set as a stack, not a run-on sentence: "Captivate" keeps
  * the size and weight it had, and "by Axtevi" sits under it small, spaced and
@@ -25,14 +33,12 @@ import { cn } from "@/lib/utils/cn";
  */
 type Tone = "app" | "sky";
 
-const TONE: Record<Tone, { icon: string; product: string; maker: string }> = {
+const TONE: Record<Tone, { product: string; maker: string }> = {
   app: {
-    icon: "text-white",
     product: "text-ink",
     maker: "text-ink-3",
   },
   sky: {
-    icon: "text-white",
     product: "text-[var(--sky-ink)]",
     maker: "text-[var(--sky-ink-3)]",
   },
@@ -54,24 +60,26 @@ export function Wordmark({
   return (
     <span className={cn("flex items-center gap-2.5", className)}>
       {/*
-       * The tile carries the mark's own gradient rather than a flat accent:
-       * the brand is a sweep from indigo to coral, and a single swatch of it
-       * is the one part that is not the brand.
+       * The symbol carries its own ground and its own corner radius, so it is
+       * drawn rather than framed: a tile inside a tile reads as a favicon that
+       * has been pasted into the page. `alt` is empty because the names are
+       * right beside it — the kit's mark is not a second label.
+       *
+       * The kit's floor for the symbol is 24px, which both sizes clear.
        */}
-      <span
-        className={cn(
-          "flex items-center justify-center",
-          md ? "size-8 rounded-[var(--radius-md)]" : "size-7 rounded-[var(--radius-sm)]",
-        )}
-        style={{ background: "var(--brand-gradient)" }}
-      >
-        <Sparkles className={cn(md ? "size-4" : "size-3.5", palette.icon)} aria-hidden />
-      </span>
+      <Image
+        src={mark}
+        alt=""
+        width={md ? 32 : 28}
+        height={md ? 32 : 28}
+        className={cn("shrink-0", md ? "size-8" : "size-7")}
+        priority
+      />
 
       {/*
        * `leading-none` on both lines, with the gap set explicitly: the default
        * line box adds descender space that puts the maker's line visibly lower
-       * on the left of the tile than on the right, which is the difference
+       * on the left of the symbol than on the right, which is the difference
        * between a lockup and two things that happen to be next to each other.
        */}
       <span className="flex flex-col gap-[3px]">
@@ -82,6 +90,9 @@ export function Wordmark({
             md ? "text-[15px]" : "text-[14px]",
             "leading-none",
           )}
+          // Manrope, the kit's display face — the logotype is a geometric sans
+          // and the interface face is not.
+          style={{ fontFamily: "var(--font-display)" }}
         >
           Captivate
         </span>

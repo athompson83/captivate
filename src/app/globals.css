@@ -1,44 +1,87 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Captivate design tokens.
-   Metaphor: a darkened stage lit by a warm spotlight. Content is the subject;
-   chrome recedes. Gold = the presenter's light (primary action). Orchid = AI.
-   Crimson = live recording. Nothing else competes for attention.
+   Captivate design tokens, reconciled against the Captivate Brand & Style Kit
+   v1.0 and its companion token file.
+
+   Midnight owns the canvas; violet leads action; coral and amber create
+   emphasis. Content is the subject and chrome recedes — a scene is the only
+   thing on a page allowed to be loud.
+
+   Two layers, and the distinction matters when adding a colour:
+
+   - the `--brand-*` ramp is the identity. Those are the kit's values exactly,
+     they do not vary by theme, and they are what the mark is made of.
+   - everything else is a *role* — a surface, an ink, a status — derived to
+     clear WCAG AA on the ground it actually sits on. Several kit colours are
+     fills that carry ink, not foregrounds: success (#28C98B), warning
+     (#FFB547) and danger (#F04464) all fall below 4.5:1 as text on paper, so
+     the role tokens keep the kit's hue and take the lightness contrast needs.
+     Contrast is asserted in tests/unit/theme-contrast.test.ts.
 --------------------------------------------------------------------------- */
 
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display), Georgia, serif;
+  --font-display: var(--font-display), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
 
   /* Spacing rhythm: 4px base. Tailwind defaults already match. */
+  /*
+   * The kit sets two ranges — controls 8-14px, cards 14-22px — and a token
+   * ladder of 8 / 14 / 22 / 32. These six names carry both roles, so each is
+   * placed inside the range for the role it is actually used in: `sm` and `md`
+   * are controls, `lg` and `xl` are cards, `2xl` is the kit's 32.
+   *
+   * `md` is 12 rather than the kit's 14 on purpose. It is this file's most-used
+   * radius and most of its 111 uses are 32px-square icon buttons, where 14px is
+   * within a pixel of a circle — the ladder's ceiling is meant for a control
+   * with a control's width, not for a square.
+   */
   --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-  --radius-2xl: 28px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-2xl: 32px;
 
   /* Motion. Fast for UI, expressive for the stage. */
+  /*
+   * `--ease-brand` is the kit's core easing — quick intent, soft arrival — and
+   * is the default for anything that is not a stage flight. The other three
+   * remain for the curves it cannot express: an overshoot, and a symmetric
+   * in-out for something that returns to where it started.
+   */
+  --ease-brand: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /*
+   * fast / base / slow are the kit's FAST, STANDARD and EXPRESSIVE. `instant`
+   * sits below the scale for a colour swap with no movement in it, and `stage`
+   * above it: a camera crossing the world is not interface motion.
+   */
   --duration-instant: 90ms;
-  --duration-fast: 150ms;
+  --duration-fast: 120ms;
   --duration-base: 220ms;
-  --duration-slow: 380ms;
+  --duration-slow: 420ms;
   --duration-stage: 620ms;
 }
 
 :root {
   color-scheme: light;
 
-  --surface-base: oklch(0.985 0.01 90);
-  --surface-sunken: oklch(0.955 0.015 90);
-  --surface-raised: oklch(0.99 0.006 90);
-  --surface-overlay: oklch(0.99 0.006 90);
-  --surface-inset: oklch(0.965 0.012 90);
+  /*
+   * Paper, cool rather than warm. The light theme used to be warmed to hue 90
+   * on the reasoning that a cream page is kinder than a white one; the kit
+   * settles it the other way — paper is #F7F8FC and mist is #E8EBF5, both blue
+   * — and one hue family across both themes is what stops a screenshot taken
+   * in the light theme from looking like a different product.
+   */
+  --surface-base: oklch(0.985 0.005 275);
+  --surface-sunken: oklch(0.955 0.012 275);
+  --surface-raised: oklch(0.99 0.004 275);
+  --surface-overlay: oklch(0.99 0.004 275);
+  --surface-inset: oklch(0.965 0.01 275);
 
   --text-primary: oklch(0.22 0.012 265);
   --text-secondary: oklch(0.44 0.012 265);
@@ -50,23 +93,48 @@
   --border-strong: oklch(0.74 0.01 265);
 
   /*
-   * The mark's own sweep — indigo through violet and magenta to coral — for
-   * the places that carry the brand rather than an interface state: the
-   * wordmark's tile, the front door's rules. Never behind body text; four
-   * hues under a paragraph is a background, and this is a signature.
+   * The brand ramp. These are the kit's eight hexes converted to OKLCH, and
+   * the only colours in this file that are the same in both themes: an
+   * identity that changed with the time of day would not be one.
+   *
+   * #061436 #101B64 #2938F2 #6D39F7 #E83ABF #FF5D71 #FF9855 #F7F8FC
+   */
+  --brand-ink: oklch(0.204 0.07 264);
+  --brand-navy: oklch(0.273 0.127 269);
+  --brand-indigo: oklch(0.485 0.267 268);
+  --brand-violet: oklch(0.535 0.258 286);
+  --brand-magenta: oklch(0.653 0.244 340);
+  --brand-coral: oklch(0.696 0.196 17);
+  --brand-amber: oklch(0.775 0.148 52);
+  --brand-paper: oklch(0.98 0.005 275);
+
+  /*
+   * The spatial gradient: the kit's 120deg sweep at its stated stops, for the
+   * places that carry the brand rather than an interface state — the mark's
+   * tile, the front door's rules. Never behind body text; four hues under a
+   * paragraph is a background, and this is a signature.
+   *
+   * The stops interpolate in OKLab rather than sRGB, which is the whole reason
+   * the ramp is stored in OKLCH: sRGB runs indigo to violet through a grey
+   * middle, and this gradient is three hue turns in a row.
    */
   --brand-gradient: linear-gradient(
-    118deg,
-    oklch(0.5 0.24 274) 0%,
-    oklch(0.55 0.24 296) 38%,
-    oklch(0.62 0.25 342) 70%,
-    oklch(0.74 0.18 42) 100%
+    120deg,
+    var(--brand-indigo) 0%,
+    var(--brand-violet) 43%,
+    var(--brand-magenta) 68%,
+    var(--brand-amber) 100%
   );
 
-  --accent: oklch(0.52 0.21 279);
-  --accent-hover: oklch(0.46 0.22 279);
-  --accent-soft: oklch(0.95 0.045 285);
-  --accent-text: oklch(0.42 0.19 280);
+  /*
+   * Violet leads action, in both themes and at the kit's exact value — white
+   * clears AA on it at 5.87:1, which is what makes one accent possible where
+   * the light theme previously needed a darker violet of its own.
+   */
+  --accent: oklch(0.535 0.258 286);
+  --accent-hover: oklch(0.47 0.25 286);
+  --accent-soft: oklch(0.95 0.045 288);
+  --accent-text: oklch(0.44 0.22 287);
   --accent-contrast: oklch(0.99 0 0);
 
   --ai: oklch(0.55 0.22 330);
@@ -94,21 +162,37 @@
   --shadow-md: 0 4px 12px oklch(0.22 0.012 265 / 0.09), 0 1px 3px oklch(0.22 0.012 265 / 0.05);
   --shadow-lg: 0 12px 32px oklch(0.22 0.012 265 / 0.12), 0 2px 8px oklch(0.22 0.012 265 / 0.06);
   --shadow-xl: 0 24px 64px oklch(0.22 0.012 265 / 0.16), 0 4px 12px oklch(0.22 0.012 265 / 0.08);
-  --ring: 0 0 0 2px var(--surface-base), 0 0 0 4px var(--accent);
+  --ring:
+    0 0 0 2px var(--surface-base), 0 0 0 4px var(--accent), 0 0 0 7px oklch(0.535 0.258 286 / 0.35);
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --surface-base: oklch(0.165 0.012 265);
-  --surface-sunken: oklch(0.135 0.012 265);
-  --surface-raised: oklch(0.205 0.013 265);
-  --surface-overlay: oklch(0.245 0.014 265);
-  --surface-inset: oklch(0.185 0.012 265);
+  /*
+   * Midnight owns the canvas. These were a near-neutral blue-grey — chroma
+   * 0.012, which is a grey with an opinion — and the kit's ground is a
+   * saturated blue-black. The lightness of each step is unchanged, so the
+   * ramp's separation is what it was; only the blue is real now.
+   *
+   * `--surface-raised` is #061436 exactly: the brand's ink, which is what a
+   * card sitting on the canvas ought to be made of.
+   */
+  --surface-base: oklch(0.165 0.062 264);
+  --surface-sunken: oklch(0.135 0.055 265);
+  --surface-raised: oklch(0.204 0.07 264);
+  --surface-overlay: oklch(0.245 0.08 265);
+  --surface-inset: oklch(0.185 0.066 264);
 
   --text-primary: oklch(0.97 0.004 265);
   --text-secondary: oklch(0.76 0.01 265);
-  --text-muted: oklch(0.6 0.012 265);
+  /*
+   * 0.64, not 0.6. Muted text on `--surface-overlay` — the ground of every
+   * menu and popover in the application — was 4.11:1 and had been since the
+   * dark theme was written: the contrast test only ever read the light block,
+   * so nothing failed. It is 4.87:1 now, and the test reads both.
+   */
+  --text-muted: oklch(0.64 0.012 265);
   --text-inverse: oklch(0.18 0.012 265);
 
   --border-subtle: oklch(0.27 0.013 265);
@@ -116,14 +200,14 @@
   --border-strong: oklch(0.45 0.016 265);
 
   /*
-   * The mark's indigo, not a tint of it. A violet light enough to take dark
-   * text (the amber this replaced was oklch L 0.8) washes out to lavender and
-   * stops being the brand; this is the colour the logo is, and white sits on
-   * it at about 5.8:1.
+   * The same violet as the light theme — the kit's #6D39F7 — because a primary
+   * action that is one colour in the room and another on the projector is two
+   * brands. Only the states around it differ: `hover` lightens here and
+   * darkens there, and `accent-text` has to clear AA on a dark ground.
    */
-  --accent: oklch(0.58 0.25 278);
-  --accent-hover: oklch(0.64 0.24 280);
-  --accent-soft: oklch(0.3 0.085 282);
+  --accent: oklch(0.535 0.258 286);
+  --accent-hover: oklch(0.6 0.25 288);
+  --accent-soft: oklch(0.3 0.085 287);
   --accent-text: oklch(0.8 0.15 288);
   --accent-contrast: oklch(0.99 0 0);
 
@@ -147,7 +231,8 @@
   --shadow-md: 0 4px 14px oklch(0 0 0 / 0.45), 0 1px 3px oklch(0 0 0 / 0.3);
   --shadow-lg: 0 12px 36px oklch(0 0 0 / 0.5), 0 2px 8px oklch(0 0 0 / 0.35);
   --shadow-xl: 0 28px 72px oklch(0 0 0 / 0.6), 0 4px 12px oklch(0 0 0 / 0.4);
-  --ring: 0 0 0 2px var(--surface-base), 0 0 0 4px var(--accent);
+  --ring:
+    0 0 0 2px var(--surface-base), 0 0 0 4px var(--accent), 0 0 0 7px oklch(0.535 0.258 286 / 0.35);
 }
 
 @theme inline {
