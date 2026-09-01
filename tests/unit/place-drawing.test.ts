@@ -118,6 +118,20 @@ describe("drawingCap", () => {
     expect(drawingCap(3600)).toBe(6); // 60 min
     expect(drawingCap(14_400)).toBe(6); // capped
     expect(drawingCap(0)).toBe(1); // no target set
+  });
+
+  it("draws twice as often when drawings are the only pictures there are", () => {
+    // With no stock or image key, a drawing is the deck's whole visual
+    // vocabulary. One per ten minutes gave a twenty-minute talk two pictures
+    // and eighteen empty slots.
+    expect(drawingCap(1200, true)).toBe(4); // 20 min
+    expect(drawingCap(3600, true)).toBe(10); // 60 min, at the ceiling
+    expect(drawingCap(14_400, true)).toBe(10); // capped
+    expect(drawingCap(0, true)).toBe(1); // still one when no target is set
+
+    // And the rate is unchanged where photographs are filling the rest.
+    expect(drawingCap(1200, false)).toBe(2);
+    expect(drawingCap(1200)).toBe(2);
     expect(drawingCap(Number.NaN)).toBe(1);
   });
 });

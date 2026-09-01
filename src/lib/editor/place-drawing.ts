@@ -94,10 +94,20 @@ export function replaceMediaWithPhoto(
  * How many staged drawings a deck of this length deserves: one per ten
  * minutes, at least one, and bounded the way every other array here is —
  * each drawing is a full model call someone is paying for.
+ *
+ * Unless drawings are the only pictures available. A deployment with no stock
+ * or image key has exactly one source of imagery, and at one per ten minutes a
+ * twenty-scene deck came back with two drawings and eighteen empty slots — the
+ * author's report was "no good images, just a couple okay drawing animations",
+ * which is precisely what this cap produces when nothing else can fill in
+ * behind it. So the rate doubles and the ceiling rises when there is no
+ * alternative, and stays where it was when photographs are doing the rest.
  */
-export function drawingCap(totalSeconds: number): number {
+export function drawingCap(totalSeconds: number, soleSource = false): number {
+  const perSeconds = soleSource ? 300 : 600;
+  const ceiling = soleSource ? 10 : 6;
   if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return 1;
-  return Math.min(6, Math.max(1, Math.ceil(totalSeconds / 600)));
+  return Math.min(ceiling, Math.max(1, Math.ceil(totalSeconds / perSeconds)));
 }
 
 /**
