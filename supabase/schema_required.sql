@@ -74,11 +74,23 @@ insert into required (kind, ident, feature) values
   ('function', 'public.captivate_asset_object_is_shared(text)',                   'storage for a shared deck'),
   ('function', 'public.captivate_replace_moments(uuid,jsonb)',                    'the narrative map'),
   ('function', 'public.captivate_set_scene_placements(uuid,jsonb)',               'the world canvas'),
-  ('function', 'public.captivate_reserve_generation(text,text[],text,uuid,integer,integer)', 'every AI call'),
+  -- Four arguments, not six. The window and the ceiling were arguments until
+  -- 0022, and that is precisely why they had to go: PostgREST resolves
+  -- `rpc/<name>` by signature, so a caller could name its own ceiling. If the
+  -- six-argument form ever reappears here, something has re-opened it.
+  ('function', 'public.captivate_reserve_generation(text,text,text,uuid)',        'every AI call'),
+  ('function', 'public.captivate_current_plan()',                                 'every AI call'),
+  ('function', 'public.captivate_budget_kinds(text)',                             'every AI call'),
+  ('function', 'public.captivate_per_presentation(text)',                         'top-up credits'),
+  ('function', 'public.captivate_credit_balance()',                               'the credit balance in settings'),
   ('function', 'public.captivate_complete_generation(uuid,text,text,integer,integer,text)',  'AI spend accounting'),
   ('function', 'public.captivate_reserve_image_generation(text,uuid)', 'image generation'),
   ('function', 'public.captivate_settle_image_generation(uuid,text,text,integer,text)', 'the image budget'),
-  ('function', 'public.captivate_remote_topic_open(text)',                         'the phone remote');
+  ('function', 'public.captivate_remote_topic_open(text)',                         'the phone remote'),
+  ('table',    'public.plan_budgets',                                             'every AI call'),
+  ('table',    'public.generation_credits',                                       'top-up credits'),
+  ('table',    'public.ai_model_rates',                                           'what a generation cost'),
+  ('column',   'public.subscriptions.plan',                                       'which tier a subscription grants');
 
 with checked as (
   select r.*,
