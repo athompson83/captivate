@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 import { isBillingConfigured, stripe } from "@/lib/billing/stripe";
 import { shouldApply, subscriptionPatchFrom } from "@/lib/billing/webhook-events";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { logFailure } from "@/lib/observability";
+import { logFailure, logFailureSampled } from "@/lib/observability";
 
 /** Signature verification needs the raw body, which the Edge runtime cannot give us. */
 export const runtime = "nodejs";
@@ -41,7 +41,11 @@ export async function POST(request: Request) {
     // Either somebody is posting forgeries at the endpoint or the deployment's
     // signing secret no longer matches Stripe's. Both are worth knowing about,
     // and neither is distinguishable from the 400 alone.
-    logFailure("stripe.webhook.signature", error);
+    //
+    // Sampled because this is the one logging site here that an unauthenticated
+    // caller can reach at will: a bot with a junk signature header could
+    // otherwise mint lines without limit and bury everything else in them.
+    logFailureSampled("stripe.webhook.signature", error);
     return NextResponse.json({ error: "Bad signature." }, { status: 400 });
   }
 

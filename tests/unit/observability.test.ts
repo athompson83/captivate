@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { __detailOfForTests, logFailure } from "@/lib/observability";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  __detailOfForTests,
+  __resetSamplingForTests,
+  logFailure,
+  logFailureSampled,
+} from "@/lib/observability";
 
 /**
  * What the operator gets, and what they must not.
@@ -52,5 +57,52 @@ describe("logging a failure", () => {
       throw new Error("stderr is gone");
     });
     expect(() => logFailure("data.mutation", "anything")).not.toThrow();
+  });
+});
+
+/**
+ * The webhook is the one logging site an unauthenticated caller can reach.
+ *
+ * A bot posting rubbish signatures at `/api/stripe/webhook` would otherwise
+ * mint a line per request, and an observability change that lets an outsider
+ * bury the signal is worse than the silence it replaced.
+ */
+describe("a failure anyone can trigger", () => {
+  beforeEach(() => __resetSamplingForTests());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("prints the first and counts the rest", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    for (let i = 0; i < 500; i += 1) logFailureSampled("stripe.webhook.signature", "bad signature");
+
+    // One line for five hundred attempts, not five hundred.
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("says how many it stood in for once the window passes", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+    try {
+      logFailureSampled("stripe.webhook.signature", "bad signature", 1000);
+      for (let i = 0; i < 9; i += 1)
+        logFailureSampled("stripe.webhook.signature", "bad signature", 1000);
+      vi.advanceTimersByTime(1500);
+      logFailureSampled("stripe.webhook.signature", "bad signature", 1000);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // A burst must still read as a burst, or throttling has hidden the thing
+    // it was meant to bound.
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy.mock.calls[1][0]).toContain("+9 more");
+  });
+
+  it("counts each operation separately", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logFailureSampled("one", "x");
+    logFailureSampled("two", "x");
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 });

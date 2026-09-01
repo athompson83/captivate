@@ -62,5 +62,53 @@ export function logFailure(operation: string, error: unknown): void {
   }
 }
 
+/**
+ * The same line, but bounded when the thing failing is reachable by anyone.
+ *
+ * `logFailure` assumes a failure is worth a line each time, which holds for the
+ * paths behind a session. It does not hold on a public endpoint: the Stripe
+ * webhook takes an unauthenticated POST, so a bot sending rubbish signatures
+ * can mint log lines without limit and bury the genuine signal underneath its
+ * own noise — turning an observability improvement into a way to hide things.
+ *
+ * So repeats inside `windowMs` are counted rather than printed, and the next
+ * line through carries how many it stood in for. The count is what keeps this
+ * honest: a burst still says it was a burst, at one line instead of thousands.
+ *
+ * Best-effort by construction. The state is per-instance and a serverless
+ * instance is short-lived, so this bounds the volume one worker can emit rather
+ * than the volume the fleet can. That is the part that costs money, and a
+ * shared counter would need a store that can itself fail inside a failure path.
+ *
+ * Keyed by the operation label, which is always a constant in this codebase and
+ * never anything a caller supplies — a map keyed by attacker-supplied strings
+ * would be a leak wearing a throttle's clothes.
+ */
+const seen = new Map<string, { at: number; suppressed: number }>();
+
+export function logFailureSampled(operation: string, error: unknown, windowMs = 60_000): void {
+  const now = Date.now();
+  const previous = seen.get(operation);
+
+  if (previous && now - previous.at < windowMs) {
+    previous.suppressed += 1;
+    return;
+  }
+
+  const suppressed = previous?.suppressed ?? 0;
+  seen.set(operation, { at: now, suppressed: 0 });
+  logFailure(
+    operation,
+    suppressed > 0
+      ? `${detailOf(error)} (+${suppressed} more in the last ${Math.round(windowMs / 1000)}s)`
+      : error,
+  );
+}
+
 /** Exposed so the redaction rules can be tested without capturing stderr. */
 export const __detailOfForTests = detailOf;
+
+/** Exposed so the sampling window can be tested without waiting for it. */
+export function __resetSamplingForTests(): void {
+  seen.clear();
+}
