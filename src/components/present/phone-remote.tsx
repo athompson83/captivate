@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BuildPips } from "./build-pips";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Circle, Radio, Square } from "lucide-react";
 import { RemoteChannel } from "@/lib/present/remote-channel";
@@ -201,9 +202,18 @@ export function PhoneRemote({
             presses is the difference between a pause and a mistake.
           */}
           {buildsLeft > 0 && (
-            <p className="text-[11px] text-white/55 tabular-nums" aria-live="polite">
-              +{buildsLeft} {buildsLeft === 1 ? "build" : "builds"} here
-            </p>
+            <div className="mt-0.5 flex items-center justify-end gap-1.5">
+              {/*
+                A phone is held low and looked at in glances, so the row of
+                pips earns more here than in the console: the presenter can see
+                how much of the scene is left without lifting the phone into
+                reading distance.
+              */}
+              <BuildPips total={stepsInScene} current={step} tone="dark" />
+              <p className="text-[11px] text-white/55 tabular-nums">
+                +{buildsLeft} {buildsLeft === 1 ? "build" : "builds"} here
+              </p>
+            </div>
           )}
         </div>
       </header>
