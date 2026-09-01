@@ -57,7 +57,7 @@ Status values are limited to `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `D
 - Confirm `STRIPE_WEBHOOK_SECRET` is the signing secret of the endpoint matching the mode of `STRIPE_SECRET_KEY`. Test and live endpoints have different secrets, and a mismatch fails every delivery while everything else looks correct.
 - Delete the two disposable `webhook-probe@example.com` customers left by the end-to-end proof (tagged `delete_me`); the MCP in use cannot delete customers.
 
-Before public launch, owner decisions are still needed for email policy/provider, legal terms/privacy, and final shipped/live acceptance; these do not block current engineering.
+Before public launch the owner still needs to: enable leaked-password protection in the Supabase dashboard (Auth → Policies — dashboard-only, no management token available to the agent); set `NEXT_PUBLIC_SUPPORT_EMAIL` in Vercel so the legal pages can name a real address; decide email policy and provider; review the privacy and terms wording, whose facts are code-derived but which has had no legal review; and accept the release as shipped/live. None of these blocks current engineering.
 
 ## Deferred
 
