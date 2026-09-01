@@ -8,7 +8,11 @@ import { SetupRequired } from "@/components/setup-required";
 import { PresenterConsole } from "@/components/present/presenter-console";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Presenter console" };
+// Presenter-facing, and the console is where the private notes live.
+export const metadata: Metadata = {
+  title: "Presenter console",
+  robots: { index: false, follow: false },
+};
 
 export default async function ConsolePage({ params }: { params: Promise<{ id: string }> }) {
   if (!isSupabaseConfigured) return <SetupRequired />;

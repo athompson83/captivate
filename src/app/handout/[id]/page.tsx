@@ -27,7 +27,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const doc = await getPresentationDocument(id).catch(() => null);
-  return { title: doc ? `${doc.presentation.title} — handout` : "Handout" };
+  // Reachable by link, which is what makes it unlisted rather than public.
+  return {
+    title: doc ? `${doc.presentation.title} — handout` : "Handout",
+    robots: { index: false, follow: false },
+  };
 }
 
 export default async function HandoutPage({ params }: { params: Promise<{ id: string }> }) {

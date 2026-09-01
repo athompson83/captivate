@@ -140,9 +140,17 @@ export function layoutSlots(layout: SceneLayout): LayoutSlots {
       };
 
     case "closing":
+      // A body slot, because a closing scene almost always lists what to take
+      // away — and without one every bullet handed to this layout was
+      // discarded in silence. Five of the shipped templates do exactly that.
+      //
+      // The body is centred as a *block* rather than as text: a bulleted list
+      // with centred lines leaves its markers stranded at the left margin,
+      // which reads as a rendering fault rather than as a choice.
       return {
-        heading: frame(M, 38, W * 0.8, 18),
-        subheading: frame(M, 60, W * 0.6, 12),
+        heading: frame(M, 26, W * 0.8, 16),
+        body: frame((100 - W * 0.56) / 2, 46, W * 0.56, 34),
+        subheading: frame(M, 82, W * 0.6, 10),
       };
 
     default:
@@ -390,7 +398,8 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
   }
 
   if (content.bullets?.length && slots.body) {
-    elements.push(listElement(content.bullets, slots.body, align, nextDelay()));
+    // Always left, even on a centred layout: see the closing slots above.
+    elements.push(listElement(content.bullets, slots.body, "left", nextDelay()));
   } else if (content.body && slots.body && layout !== "code") {
     elements.push(
       textElement(content.body, slots.body, align, nextDelay(), {
@@ -402,7 +411,7 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
   }
 
   if (content.bulletsB?.length && slots.bodyB) {
-    elements.push(listElement(content.bulletsB, slots.bodyB, align, nextDelay()));
+    elements.push(listElement(content.bulletsB, slots.bodyB, "left", nextDelay()));
   }
 
   if (content.code && slots.body && layout === "code") {
@@ -426,7 +435,9 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
         exit: "none",
       },
       style: {
-        size: 0.42,
+        // 0.6, up from 0.42. Code on a slide is read by a room, not by the
+        // person who wrote it.
+        size: 0.6,
         weight: 400,
         align: "left",
         valign: "top",
@@ -489,7 +500,11 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
           exit: "none",
         },
         style: {
-          size: 0.44,
+          // 0.66, up from 0.44. A card column is a quarter of the stage
+          // wide, which is room enough for body text; at 0.44 the three cards
+          // read as grey texture rather than as three points. The callout now
+          // fits its own body, so a longer one shrinks rather than clipping.
+          size: 0.66,
           weight: 400,
           align: "left",
           valign: "top",
@@ -678,7 +693,18 @@ function listElement(
       exit: "none",
     },
     style: {
-      size: 0.56,
+      /**
+       * Near the theme's own body scale, not half of it.
+       *
+       * 0.92, up from 0.56. The scale exists so body text reads from the back
+       * of a room; composing a list at just over half of it produced bullets
+       * around twenty pixels on a 1600-pixel stage — unreadable on a
+       * projector, and stranded in the top third of a frame that runs to the
+       * bottom of the scene. Growing them is safe because `fitTextSize` only
+       * ever shrinks: a list too long for its box still gets pulled back, and
+       * a short one now fills the space it was given.
+       */
+      size: 0.92,
       weight: 400,
       align,
       valign: "top",
@@ -696,14 +722,45 @@ function listElement(
  * Re-flow an existing scene into a different layout, preserving its content.
  * Used by the editor's layout picker, so switching layout never loses text.
  */
+/**
+ * A cover whose picture never arrived is a title slide.
+ *
+ * Composing a cover always lays down a veil — a full-bleed image over the
+ * title — because generation fills that slot from a stock search *after* the
+ * scene exists. Until it does, the veil is an empty placeholder with the
+ * deck's title drawn on it, over the same title drawn beneath: one scene, two
+ * copies of its heading, and a grey rectangle across the whole stage.
+ *
+ * So the veil is stripped wherever a picture is not going to arrive. The
+ * generation pass calls this once its sourcing has finished; `relayoutScene`
+ * calls it because the editor's "change layout" control has no sourcing pass
+ * at all, and a cover chosen for a scene with no image is a title slide the
+ * moment it is chosen.
+ */
+export function settleCover(content: SceneContent): SceneContent {
+  if (content.layout !== "cover") return content;
+  const unfilled = content.elements.some(
+    (element) =>
+      element.type === "image" &&
+      element.id.startsWith("veil_") &&
+      !element.url &&
+      !element.assetId,
+  );
+  if (!unfilled) return content;
+  return {
+    ...content,
+    elements: content.elements.filter((element) => !element.id.startsWith("veil_")),
+  };
+}
+
 export function relayoutScene(content: SceneContent, layout: SceneLayout): SceneContent {
   const extracted = extractContent(content);
   const next = composeScene(layout, extracted);
-  return {
+  return settleCover({
     ...next,
     background: content.background,
     themeOverride: content.themeOverride,
-  };
+  });
 }
 
 /** Pull structured content back out of a composed scene. */

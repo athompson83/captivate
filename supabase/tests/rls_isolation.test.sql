@@ -447,7 +447,73 @@ select public.captivate_complete_generation(
   'the answer was cut off') \gset spent_settled_
 select 'failed_with_spend_counts' as check,
   (public.captivate_count_generations(array['spent'], 60) = 1)::int as n;
+
+-- ---- The ledger is not the caller's to rewrite --------------------------------
+-- `complete` runs with the caller's own JWT, so nothing on the wire tells the
+-- server settling a call apart from the author settling it themselves — and
+-- `ai_generations` is selectable by its owner, so the pending row's id is one
+-- query away. A zero-token failure is the single terminal state that does not
+-- count, which turned the allowance into three requests: reserve, forge the
+-- refund, keep the answer.
+--
+-- No check inside the function can tell the two callers apart, because they
+-- hold the same credential. What can be said instead is that the server writes
+-- the truth *last*: a settlement recording spend is final, and one recording
+-- none may still be corrected. The forgery is superseded rather than refused.
+select public.captivate_reserve_generation('forge', array['forge'], 'unlimited', null, 60, 5)
+  \gset forge_
+select 'ledger_forged_refund_is_accepted' as check,
+  (public.captivate_complete_generation(
+     :'forge_captivate_reserve_generation', 'failed', null, 0, 0, 'nothing to see'))::int as n;
+select 'ledger_server_truth_supersedes_forgery' as check,
+  (public.captivate_complete_generation(
+     :'forge_captivate_reserve_generation', 'succeeded', 'test-model', 900, 5000, null))::int as n;
+select 'ledger_forged_refund_does_not_free_allowance' as check,
+  (public.captivate_count_generations(array['forge'], 60) = 1)::int as n;
+
+-- …and once spend is recorded, it cannot be taken back off.
+select 'ledger_settled_spend_is_final' as check,
+  (not public.captivate_complete_generation(
+     :'forge_captivate_reserve_generation', 'failed', null, 0, 0, 'refund me'))::int as n;
+
+-- The state that is neither: a near-miss the provider never reported usage for
+-- records no spend and still counts, because only a *failed* call with no
+-- tokens is skipped. A rule keyed on "recorded no spend" would leave this row
+-- rewritable and hand the forgery back — after the server had already written
+-- the truth. What may be rewritten is the non-counting state itself, nothing
+-- wider.
+select public.captivate_reserve_generation('nearmiss', array['nearmiss'], 'no usage', null, 60, 5)
+  \gset nearmiss_
+select 'ledger_nearmiss_without_usage_counts' as check,
+  (public.captivate_complete_generation(
+     :'nearmiss_captivate_reserve_generation', 'invalid_output', 'test-model', null, null, 'unreadable')
+   and public.captivate_count_generations(array['nearmiss'], 60) = 1)::int as n;
+select 'ledger_counting_row_is_final_even_with_no_tokens' as check,
+  (not public.captivate_complete_generation(
+     :'nearmiss_captivate_reserve_generation', 'failed', null, 0, 0, 'refund me'))::int as n;
+select 'ledger_nearmiss_still_counts_after_forgery' as check,
+  (public.captivate_count_generations(array['nearmiss'], 60) = 1)::int as n;
 reset role;
+
+-- None of the spend functions is reachable signed out. Each returns false or
+-- null on a null `auth.uid()` anyway, so this is about surface rather than a
+-- second gate: Supabase grants `anon` EXECUTE on new functions by default, and
+-- an endpoint nobody may usefully call should not be published at all.
+select 'ledger_anon_cannot_execute_' || p.proname as check,
+       (not has_function_privilege('anon', p.oid, 'EXECUTE'))::int as n
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname in ('captivate_complete_generation', 'captivate_settle_image_generation',
+                     'captivate_count_generations', 'captivate_reserve_generation',
+                     'captivate_reserve_image_generation')
+ order by p.proname;
+
+-- The share link is the counter-example, and must stay anonymous: revoking the
+-- grant above one function too far would take every unauthenticated viewer
+-- with it.
+select 'ledger_anon_keeps_share_link' as check,
+       has_function_privilege('anon', 'public.captivate_shared_presentation(uuid)', 'EXECUTE')::int as n;
 
 -- Bob cannot complete Alice's reservation, and cannot see it either.
 set role authenticated;
@@ -494,15 +560,18 @@ select coalesce(id::text, '') as id, coalesce(refusal, '') as refusal
 select 'image_reserve_over_daily_cap_refused' as check,
   (:'daily_id' = '' and :'daily_refusal' = 'daily')::int as n;
 
--- Settling reconciles the estimate to what was charged, once.
+-- Settling records how the call went, once — and does not restate the price.
 select 'image_settle_own_pending' as check,
   (public.captivate_settle_image_generation(
-     :'first_id'::uuid, 'succeeded', 0.02, 'test-image-model', 4200, null))::int as n;
+     :'first_id'::uuid, 'succeeded', 'test-image-model', 4200, null))::int as n;
 select 'image_settle_is_not_replayable' as check,
   (not public.captivate_settle_image_generation(
-     :'first_id'::uuid, 'succeeded', 0.00, 'test-image-model', 1, null))::int as n;
-select 'image_settled_cost_recorded' as check,
-  (select (cost_usd = 0.02 and duration_ms = 4200)::int
+     :'first_id'::uuid, 'succeeded', 'test-image-model', 1, null))::int as n;
+-- The estimate the reservation checked against the budget is the figure that
+-- stands. Letting a settlement rewrite it let a caller zero their own cost and
+-- free the shared monthly budget, or inflate it and exhaust it for everybody.
+select 'image_settled_cost_is_the_reserved_estimate' as check,
+  (select (cost_usd = 0.04 and duration_ms = 4200)::int
      from public.ai_generations where id = :'first_id'::uuid) as n;
 reset role;
 
@@ -512,11 +581,11 @@ set role authenticated;
 set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
 select 'bob_settles_alice_image' as check,
   (public.captivate_settle_image_generation(
-     :'first_id'::uuid, 'succeeded', 0.00, 'stolen', 1, null))::int as n;
+     :'first_id'::uuid, 'succeeded', 'stolen', 1, null))::int as n;
 reset role;
 
 select 'image_cost_survived_bob' as check,
-  (select (cost_usd = 0.02)::int from public.ai_generations where id = :'first_id'::uuid) as n;
+  (select (cost_usd = 0.04)::int from public.ai_generations where id = :'first_id'::uuid) as n;
 
 -- ---- Shared-link assets ------------------------------------------------------
 -- A shared deck's scene content can reference uploaded media. The RPC that

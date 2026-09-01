@@ -3,6 +3,7 @@
 import { signUp } from "@/lib/auth/actions";
 import { Input } from "@/components/ui/input";
 import { FormMessage, SubmitButton, fieldError, useAuthAction } from "./forms";
+import { PASSWORD_MIN } from "@/lib/auth/password";
 
 export function SignUpForm() {
   const [state, formAction] = useAuthAction(signUp);
@@ -35,9 +36,9 @@ export function SignUpForm() {
         type="password"
         autoComplete="new-password"
         required
-        minLength={8}
-        placeholder="At least 8 characters"
-        hint="At least 8 characters."
+        minLength={PASSWORD_MIN}
+        placeholder={`At least ${PASSWORD_MIN} characters`}
+        hint={`At least ${PASSWORD_MIN} characters. Avoid anything close to your name or email.`}
         error={fieldError(state, "password")}
       />
 

@@ -97,7 +97,8 @@ describe("generateImage", () => {
 
     const result = await generateImage("a lighthouse at dusk");
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.previewDataUrl.startsWith("data:image/png;base64,")).toBe(true);
+    if (result.ok)
+      expect(result.data.previewDataUrl.startsWith("data:image/png;base64,")).toBe(true);
 
     const settled = rpc.mock.calls.find(([name]) => name === "captivate_settle_image_generation");
     expect(settled, "a spent ticket must be reconciled").toBeTruthy();
@@ -109,13 +110,24 @@ describe("generateImage", () => {
     const rpc = mockDb({ id: "aaaaaaaa-0000-4000-8000-000000000001", refusal: null });
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) }) as unknown as Response),
+      vi.fn(
+        async () => ({ ok: false, status: 500, json: async () => ({}) }) as unknown as Response,
+      ),
     );
     const { generateImage, IMAGE_COST_ESTIMATE_USD } = await import("@/lib/ai/visual-sourcing");
 
     expect((await generateImage("a lighthouse")).ok).toBe(false);
+
+    // The price is set once, by the reservation that checked it against the
+    // budget under a lock. Settling records how the call went and nothing else.
+    const reserved = rpc.mock.calls.find(([name]) => name === "captivate_reserve_image_generation");
+    expect(reserved?.[1].p_estimate_usd).toBe(IMAGE_COST_ESTIMATE_USD);
+
     const settled = rpc.mock.calls.find(([name]) => name === "captivate_settle_image_generation");
     expect(settled?.[1].p_status).toBe("failed");
-    expect(settled?.[1].p_cost_usd).toBe(IMAGE_COST_ESTIMATE_USD);
+    // Settling carried a price while running under the caller's own JWT, which
+    // meant a browser could settle its own reservation at zero and free the
+    // deployment's shared monthly budget. The parameter is gone, not ignored.
+    expect(settled?.[1]).not.toHaveProperty("p_cost_usd");
   });
 });

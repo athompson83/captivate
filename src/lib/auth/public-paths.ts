@@ -26,6 +26,11 @@ const PUBLIC_PREFIXES = [
   // What Pro costs. Somebody deciding whether to pay does not have an account
   // yet, so a pricing page behind the gate cannot do its one job.
   "/pricing",
+  // The same reasoning, and more so: someone deciding whether to trust the
+  // product with their material reads these *before* signing up, and a privacy
+  // page you have to have an account to read is no use to anyone.
+  "/privacy",
+  "/terms",
 ];
 
 /**
@@ -42,7 +47,22 @@ const PUBLIC_PREFIXES = [
  * verifies is its authentication, which is exactly why it cannot use the
  * session one.
  */
-const PUBLIC_EXACT = new Set(["/api/stripe/webhook"]);
+const PUBLIC_EXACT = new Set([
+  "/api/stripe/webhook",
+  /*
+   * The two files a crawler asks for before it will look at anything else.
+   *
+   * Both are generated routes, so the matcher's static-asset escape hatch does
+   * not cover them, and without an entry here an unauthenticated request for
+   * either is answered with a redirect to `/sign-in`. That is the same failure
+   * the share link had: the feature is built, deployed and correct, and the
+   * only client that matters never reaches it. A `robots.txt` that 307s is
+   * strictly worse than none, because it hands the crawler a login page and
+   * lets it draw its own conclusions about the rest of the site.
+   */
+  "/robots.txt",
+  "/sitemap.xml",
+]);
 
 /**
  * `/api/assets/<uuid>/content` serves a private file, and is public *here*

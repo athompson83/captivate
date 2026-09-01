@@ -76,7 +76,7 @@ insert into required (kind, ident, feature) values
   ('function', 'public.captivate_reserve_generation(text,text[],text,uuid,integer,integer)', 'every AI call'),
   ('function', 'public.captivate_complete_generation(uuid,text,text,integer,integer,text)',  'AI spend accounting'),
   ('function', 'public.captivate_reserve_image_generation(text,uuid,numeric,numeric,integer)', 'image generation'),
-  ('function', 'public.captivate_settle_image_generation(uuid,text,numeric,text,integer,text)', 'the image budget'),
+  ('function', 'public.captivate_settle_image_generation(uuid,text,text,integer,text)', 'the image budget'),
   ('function', 'public.captivate_remote_topic_open(text)',                         'the phone remote');
 
 with checked as (

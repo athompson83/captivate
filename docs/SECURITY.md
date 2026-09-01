@@ -252,10 +252,33 @@ means no ticket, and a client that cannot obtain one does not call the model.
 Recording the outcome is a second function rather than an `UPDATE` policy on the
 table, because the table deliberately has none — the limiter counts exactly
 these rows, so being able to edit them is how a caller would erase their own
-spend. `captivate_complete_generation` moves a row from `pending` to a terminal
-status and no other way, only for the caller's own row, only once, and never
-touches `kind`, `prompt`, `owner_id` or `created_at`. A completed row still
-counts.
+spend. `captivate_complete_generation` sets only the outcome columns, only for
+the caller's own row, and never touches `kind`, `prompt`, `owner_id` or
+`created_at`. A completed row still counts.
+
+That function is called by the server with the author's own JWT, which is also
+all a browser needs to call it directly, so it cannot recognise its own caller.
+It did not have to until `0018` stopped charging for calls that never reached
+the model: `failed` with no output tokens became a terminal state that does not
+count, and an author could settle their own in-flight reservation into it, keep
+the answer, and repeat without limit. `0020` answers it with ordering rather
+than identity. The server settles _after_ the model replies, so the row is left
+rewritable exactly while it is not counting against anybody — still in flight,
+or sitting in that one skipped state — and final in every state that counts.
+The only settlement a later call can overwrite is the one claiming nothing was
+owed, and the server's write is the later call. The rule names the non-counting
+state rather than "recorded no spend", because an `invalid_output` with no usage
+records no spend and still counts; the looser reading left that row rewritable
+and handed the forgery back a second time. `ledger_*` in
+`rls_isolation.test.sql` walks that sequence; the two probes for it fail against
+the previous migration.
+
+Image settlement takes the same shape one step further: it no longer carries a
+price at all. `captivate_reserve_image_generation` writes the estimate under the
+lock that checked it against the shared monthly budget, and settling records
+only how the call went. While the price was a settlement parameter, a caller
+could zero their own to release the deployment's budget or inflate it to
+exhaust it for everyone.
 
 Both properties are asserted in `supabase/tests/rls_isolation.test.sql`, and the
 concurrency property — the one no single-connection probe can show — in

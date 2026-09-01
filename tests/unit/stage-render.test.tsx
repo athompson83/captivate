@@ -232,7 +232,14 @@ describe("text auto-fit", () => {
       bullets: ["Tachycardia first", "Narrow pulse pressure", "Delayed capillary refill"],
     });
     const { container } = renderStage(content);
-    expect(fontSizeOf(container.querySelector("ul"))).toBeCloseTo(3.4 * 16 * 0.56, 2);
+
+    // Derived from what the composer actually chose rather than restating the
+    // constant: the property under test is that auto-fit left it alone, and a
+    // hardcoded size makes this fail whenever the type scale is tuned, which
+    // says nothing about fitting.
+    const list = content.elements.find((element) => element.type === "list");
+    const authored = list && "style" in list ? list.style.size : 0;
+    expect(fontSizeOf(container.querySelector("ul"))).toBeCloseTo(3.4 * 16 * authored, 2);
   });
 
   it("applies the same fit in a thumbnail as on the stage", () => {

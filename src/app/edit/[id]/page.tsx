@@ -16,7 +16,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const doc = await getPresentationDocument(id).catch(() => null);
-  return { title: doc ? `${doc.presentation.title} — Edit` : "Edit" };
+  // A deck being edited belongs to one author; a crawler only ever gets the
+  // sign-in redirect, and should not be asking in the first place.
+  return {
+    title: doc ? `${doc.presentation.title} — Edit` : "Edit",
+    robots: { index: false, follow: false },
+  };
 }
 
 export default async function EditPage({ params }: { params: Promise<{ id: string }> }) {

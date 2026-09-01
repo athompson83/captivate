@@ -6,9 +6,9 @@ import type { Database } from "./database.types";
 
 /**
  * Service-role client. Bypasses RLS, so it must only be used where the server
- * has *already* established ownership by another means. No code currently
- * calls this — it exists for a future elevated-access path, not an active
- * one.
+ * has *already* established ownership by another means — today that is the
+ * Stripe webhook and the subscription state it writes, neither of which has a
+ * user session to act under.
  *
  * Never import this from a client component. `server-only` makes that a build
  * error rather than a silent key leak.
