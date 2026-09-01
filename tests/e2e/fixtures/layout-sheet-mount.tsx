@@ -114,6 +114,50 @@ const CONTENT: Record<string, LayoutContent> = {
   custom: { heading: "Custom", body: "An author-arranged scene." },
 };
 
+/**
+ * The same layouts, given bullets of the length a model actually writes.
+ *
+ * The sheet above is phrases — "Tachycardia", "Cool peripheries" — which is
+ * content a list fit can never fail on, so the overflow guard passed for the
+ * whole time the fit was broken. These are bullets from the deck that was
+ * being presented when text was reported running off the bottom of the frame,
+ * verbatim, plus one item with an authored line break: `Runs` renders a
+ * newline as a `<br>`, and a fit that counts characters cannot see one.
+ */
+const LONG: Partial<Record<SceneLayout, LayoutContent>> = {
+  bullets: {
+    heading: "Everyone is bolting a chatbot onto their product",
+    bullets: [
+      "It starts from the tool, not the problem.",
+      "It treats AI as a feature to bolt on somewhere convenient.",
+      "It ends in a chatbot, a summary button, or an AI-powered badge.",
+      "Every competitor asking the same question\nends up with the same feature.",
+    ],
+  },
+  "two-column": {
+    heading: "'Where can I add AI?' is the wrong question",
+    bullets: [
+      "It starts from the tool, not the problem.",
+      "It treats AI as a feature to bolt on somewhere convenient.",
+      "It ends in a chatbot, a summary button, or an AI-powered badge.",
+    ],
+    bulletsB: [
+      "It never touches your pricing, your ops, or your model.",
+      "It's easy to answer, which is exactly the problem.",
+      "Every competitor asking the same question ends up with the same feature.",
+    ],
+  },
+  "split-right": {
+    heading: "The unlock sits underneath the product",
+    bullets: [
+      "Too expensive: something you would only do for your biggest customer, now doable for everyone.",
+      "Too slow: something that took a specialist a week, now possible in minutes.",
+    ],
+  },
+};
+
+const LONG_ORDER: SceneLayout[] = ["bullets", "two-column", "split-right"];
+
 const ORDER: SceneLayout[] = [
   "title",
   "cover",
@@ -151,6 +195,26 @@ function Sheet() {
                 // that never gets a picture degrades to the title slide
                 // beneath it.
                 content={settleCover(composeScene(layout, CONTENT[layout] ?? {}))}
+                theme={THEME}
+                aspect="16:9"
+                surface="card"
+                fixedScale={CELL / STAGE_BASE_WIDTH}
+                className="h-full w-full rounded-[6px]"
+              />
+            </div>
+          </figure>
+        ))}
+        {LONG_ORDER.map((layout) => (
+          <figure key={`long-${layout}`} data-sheet-cell style={{ margin: 0 }}>
+            <figcaption
+              data-sheet-label
+              style={{ color: "#c9c9d4", fontSize: 12, marginBottom: 5 }}
+            >
+              {layout} (long)
+            </figcaption>
+            <div style={{ width: CELL, height: Math.round(CELL / (16 / 9)) }}>
+              <Stage
+                content={settleCover(composeScene(layout, LONG[layout] ?? {}))}
                 theme={THEME}
                 aspect="16:9"
                 surface="card"

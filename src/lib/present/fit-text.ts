@@ -18,6 +18,23 @@
  * there is too much text, which is a content problem the author should see.
  */
 
+/**
+ * How far the estimate rounds against overflow.
+ *
+ * `WIDTH_RATIO` is an *average* glyph. A particular line is not an average:
+ * "The unlock sits underneath the product" in a 38-unit heading slot wraps to
+ * three lines in a browser where the average model predicts two, and the third
+ * one is below the frame. Wrapping is a step function, so being a few per cent
+ * optimistic about width is not a few per cent of overflow — it is a whole
+ * line.
+ *
+ * Applied when fitting, never when measuring, so text is chosen a little
+ * smaller than it might have been rather than a little larger than fits. The
+ * browser composition sheet is what holds this honest; it caught both cases
+ * this exists for.
+ */
+const FIT_SAFETY = 1.35;
+
 /** Rough advance width of an average glyph, as a fraction of the font size. */
 const WIDTH_RATIO: Record<"display" | "sans" | "mono", number> = {
   // Editorial serifs are a little narrower per glyph than a grotesque.
@@ -38,6 +55,8 @@ export interface FitOptions {
   family?: "display" | "sans" | "mono";
   /** Explicit line count, for lists where each item is its own line. */
   lines?: number;
+  /** From `textMetrics`: the words of each authored line, for real wrapping. */
+  authoredLines?: number[][];
   minScale?: number;
 }
 
@@ -51,6 +70,7 @@ export function fitTextSize(options: FitOptions): number {
     lineHeight,
     family = "sans",
     lines,
+    authoredLines,
     minScale = 0.45,
   } = options;
 
@@ -58,8 +78,46 @@ export function fitTextSize(options: FitOptions): number {
     return desiredSize;
   }
 
-  const ratio = WIDTH_RATIO[family];
+  const ratio = WIDTH_RATIO[family] * FIT_SAFETY;
   const floor = desiredSize * minScale;
+
+  /*
+   * When the caller passed `textMetrics`, wrap for real.
+   *
+   * The quadratic below flows characters and allows one partial line for the
+   * whole run, which is a good estimate for a paragraph in a wide box and a
+   * bad one for a heading in a narrow column: a line break leaves the tail of
+   * every line empty whenever the next word does not fit, and a heading has
+   * few enough lines that the error is a whole one. A split scene's heading
+   * slot is 38 units wide, and that is where it showed — the browser
+   * composition sheet caught it overflowing while every arithmetic test here
+   * agreed with itself.
+   */
+  if (authoredLines && !lines) {
+    const item = { characters, longestWord, authoredLines };
+    const heightAt = (size: number) =>
+      wrappedLines(item, boxWidth / (size * ratio)) * size * lineHeight;
+    /*
+     * A single unbreakable word should still fit across the box where that can
+     * be done above the readable floor — the same rule the quadratic path
+     * applies, and it is a *width* constraint, so wrapping cannot express it:
+     * a long word in a tall box breaks onto more lines and still fits
+     * vertically, which is not the outcome wanted.
+     */
+    const wordLimited = longestWord > 0 ? boxWidth / (longestWord * ratio) : Infinity;
+
+    if (heightAt(desiredSize) <= boxHeight) {
+      return Math.max(floor, Math.min(desiredSize, wordLimited));
+    }
+    let low = floor;
+    let high = desiredSize;
+    for (let i = 0; i < 30; i++) {
+      const mid = (low + high) / 2;
+      if (heightAt(mid) <= boxHeight) low = mid;
+      else high = mid;
+    }
+    return Math.max(floor, Math.min(low, wordLimited));
+  }
 
   // Height constraint.
   //
@@ -92,16 +150,32 @@ export function fitTextSize(options: FitOptions): number {
   return Math.max(floor, Math.min(desiredSize, fitted));
 }
 
-/** Characters and longest word of a plain string. */
-export function textMetrics(text: string): { characters: number; longestWord: number } {
+/**
+ * Characters, longest word, and the authored lines of a plain string.
+ *
+ * `authoredLines` is the text split on the newlines the author typed, each as its own
+ * list of word lengths. `Runs` renders a `\n` as a `<br>`, so those really are
+ * separate lines on the stage — counting the whole item as one flow of
+ * characters undercounts its height by however many breaks it holds.
+ */
+export function textMetrics(text: string): {
+  characters: number;
+  longestWord: number;
+  authoredLines: number[][];
+} {
   const trimmed = text.trim();
-  if (!trimmed) return { characters: 0, longestWord: 0 };
+  if (!trimmed) return { characters: 0, longestWord: 0, authoredLines: [] };
 
   let longestWord = 0;
-  for (const word of trimmed.split(/\s+/)) {
-    if (word.length > longestWord) longestWord = word.length;
+  const authoredLines: number[][] = [];
+  for (const line of trimmed.split("\n")) {
+    const words = line.trim() ? line.trim().split(/\s+/) : [];
+    for (const word of words) {
+      if (word.length > longestWord) longestWord = word.length;
+    }
+    authoredLines.push(words.map((word) => word.length));
   }
-  return { characters: trimmed.length, longestWord };
+  return { characters: trimmed.length, longestWord, authoredLines };
 }
 
 /**
@@ -118,8 +192,8 @@ export const LIST_MARKER_GAP_EMS = 0.6;
 export const LIST_ITEM_GAP_EMS = 0.55;
 
 export interface ListFitOptions {
-  /** One entry per item, in order. */
-  items: { characters: number; longestWord: number }[];
+  /** One entry per item, in order — `textMetrics` of the item's plain text. */
+  items: { characters: number; longestWord: number; authoredLines?: number[][] }[];
   boxWidth: number;
   boxHeight: number;
   desiredSize: number;
@@ -142,11 +216,62 @@ export interface ListFitOptions {
  * that what is laid out fits the box it was given — rather than reproducing
  * the search and asserting a number.
  */
+/**
+ * How many lines an item wraps to, wrapped the way a browser wraps it.
+ *
+ * `ceil(characters / charactersPerLine)` is not that, and undercounts twice
+ * over: it packs words across line ends, where a real line break leaves the
+ * tail of a line empty whenever the next word does not fit; and it flattens
+ * the newlines the author typed, which `Runs` renders as `<br>`.
+ *
+ * Greedy, because that is what CSS does, and still a pure function of the
+ * text and the width — no measurement, so the thumbnail and the projector
+ * agree. A word longer than the line gets its own line and is broken there by
+ * `overflow-wrap`, which is counted as the lines it needs.
+ */
+function wrappedLines(
+  item: { characters: number; longestWord: number; authoredLines?: number[][] },
+  charactersPerLine: number,
+): number {
+  if (charactersPerLine <= 0) return Infinity;
+
+  // Without word data there is nothing better than the character estimate.
+  if (!item.authoredLines) return Math.ceil(item.characters / charactersPerLine);
+
+  let total = 0;
+  for (const words of item.authoredLines) {
+    if (words.length === 0) {
+      total += 1;
+      continue;
+    }
+    let used = 0;
+    let lines = 1;
+    for (const word of words) {
+      if (word > charactersPerLine) {
+        // Broken across lines by `overflow-wrap: break-word`.
+        if (used > 0) lines += 1;
+        lines += Math.ceil(word / charactersPerLine) - 1;
+        used = word % charactersPerLine;
+        continue;
+      }
+      const needs = used === 0 ? word : used + 1 + word;
+      if (needs > charactersPerLine) {
+        lines += 1;
+        used = word;
+      } else {
+        used = needs;
+      }
+    }
+    total += lines;
+  }
+  return total;
+}
+
 export function listHeightAt(size: number, options: ListFitOptions): number {
   const { items, boxWidth, lineHeight, family = "sans", ordered = false } = options;
   if (items.length === 0 || size <= 0) return 0;
 
-  const ratio = WIDTH_RATIO[family];
+  const ratio = WIDTH_RATIO[family] * FIT_SAFETY;
   const markerEms =
     (ordered ? LIST_ORDERED_MARKER_WIDTH_EMS : LIST_MARKER_WIDTH_EMS) + LIST_MARKER_GAP_EMS;
   const textWidth = boxWidth - markerEms * size;
@@ -156,7 +281,7 @@ export function listHeightAt(size: number, options: ListFitOptions): number {
   let lines = 0;
   for (const item of items) {
     // An item always occupies at least one line, however short it is.
-    lines += Math.max(1, Math.ceil(item.characters / charactersPerLine));
+    lines += Math.max(1, wrappedLines(item, charactersPerLine));
   }
 
   return lines * size * lineHeight + LIST_ITEM_GAP_EMS * size * (items.length - 1);

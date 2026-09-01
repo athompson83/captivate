@@ -14,9 +14,14 @@ import { bundleFixture } from "./fixtures/build";
  *
  * What is asserted here is the part a machine can judge: that every layout
  * and every theme draws something, without a console error, and that no text
- * is cut off by the box it sits in. The last is a standing guard rather than
- * a regression — nothing violates it today — and it is worth having because
- * the boxes really do clip, so the failure it watches for would be silent.
+ * is cut off by the box it sits in. The last is a real regression guard now:
+ * a deck was presented with the last line of a bullet below the frame while
+ * this passed, because it skipped every `overflow: visible` element — which a
+ * `ul` is — and because the sheet's own bullets were phrases like "Cool
+ * peripheries", content no fit can fail on. Both are fixed here, and between
+ * them they caught two more overflows the arithmetic tests could not: the
+ * per-glyph estimate is an average, and a heading in a narrow column wraps a
+ * line further than an average predicts.
  *
  * Looking is still the point. The sheets are here to be rendered and read.
  *
@@ -44,7 +49,23 @@ const OVERFLOWING = () =>
     .filter((node) => {
       const el = node as HTMLElement;
       if (!el.childElementCount && !el.textContent?.trim()) return false;
-      if (getComputedStyle(el).overflow === "visible") return false;
+
+      /*
+       * Skipping every `overflow: visible` element is what let a list run off
+       * the bottom of a scene unnoticed: a `ul` sets no overflow, so it is
+       * `visible` by computed style and was never measured. The stage clips
+       * further up, so the text was cut off on the projector while nothing
+       * here reported a thing.
+       *
+       * A text box with a height of its own is measured whatever its overflow
+       * is. What the skip is really for is the elements that paint outside
+       * their box on purpose — a bare scene region on the world canvas — and
+       * those are the ones with no fixed height to overflow.
+       */
+      const style = getComputedStyle(el);
+      const fixedHeight = style.height !== "auto" && el.clientHeight > 0;
+      if (style.overflow === "visible" && !fixedHeight) return false;
+
       return el.scrollHeight > el.clientHeight + 4 || el.scrollWidth > el.clientWidth + 4;
     })
     .map((node) => (node as HTMLElement).textContent?.slice(0, 60) ?? "");

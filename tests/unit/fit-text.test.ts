@@ -147,10 +147,16 @@ describe("fitTextSize", () => {
 
 describe("textMetrics", () => {
   it("counts characters and the longest word", () => {
-    expect(textMetrics("hello wonderful world")).toEqual({ characters: 21, longestWord: 9 });
+    expect(textMetrics("hello wonderful world")).toEqual({
+      characters: 21,
+      longestWord: 9,
+      // The words of each authored line, for wrapping a list for real rather
+      // than dividing its characters by a line's capacity.
+      authoredLines: [[5, 9, 5]],
+    });
   });
 
   it("returns zeroes for empty input", () => {
-    expect(textMetrics("   ")).toEqual({ characters: 0, longestWord: 0 });
+    expect(textMetrics("   ")).toEqual({ characters: 0, longestWord: 0, authoredLines: [] });
   });
 });

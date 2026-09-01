@@ -357,7 +357,7 @@ export async function buildScenesFromMap(
       data: {
         scenes: briefs.map((brief, index) => ({
           momentId: brief.momentId,
-          ...materialise(
+          ...materialiseFallback(
             fallbackScene(
               {
                 title: brief.title,
@@ -472,7 +472,7 @@ ${referenceBlock(context.reference ?? null)}`,
       data: {
         scenes: briefs.map((brief, index) => ({
           momentId: brief.momentId,
-          ...materialise(
+          ...materialiseFallback(
             fallbackScene(
               {
                 title: brief.title,
@@ -500,7 +500,7 @@ ${referenceBlock(context.reference ?? null)}`,
     if (!scene) {
       return {
         momentId: brief.momentId,
-        ...materialise(
+        ...materialiseFallback(
           fallbackScene(
             {
               title: brief.title,
@@ -614,7 +614,7 @@ export async function buildSingleScene(
       ok: true,
       data: {
         scenes: [
-          materialise(
+          materialiseFallback(
             fallbackScene(
               {
                 title: instruction.slice(0, 60) || "New scene",
@@ -655,9 +655,28 @@ ${instruction}`,
   return { ok: true, data: { scenes: [materialise(result.data)], source: "model" } };
 }
 
-/** Turn validated model content into a real, composed scene. */
-function materialise(scene: GeneratedScene): MaterialisedScene {
-  const imagePrompt = imagePromptFor(scene);
+/** A structural fallback scene: no model wrote it, and none will dress it. */
+function materialiseFallback(scene: GeneratedScene): MaterialisedScene {
+  return materialise(scene, { deriveImagePrompt: false });
+}
+
+/**
+ * Turn validated model content into a real, composed scene.
+ *
+ * `deriveImagePrompt` is false for the structural fallbacks. They are built
+ * from the map with no model in the loop, and they return *without* passing
+ * through `dressScenes` — so nothing will ever fill a slot created here, and
+ * nothing will run `settleCover` to strip an unfilled one. Deriving a prompt
+ * for them put an empty full-stage veil on the cover, which is a dashed
+ * placeholder with the title overlapping it, and an empty frame on every side
+ * scene besides. A structural deck is deliberately text: that is what it has
+ * to work with.
+ */
+function materialise(
+  scene: GeneratedScene,
+  { deriveImagePrompt = true }: { deriveImagePrompt?: boolean } = {},
+): MaterialisedScene {
+  const imagePrompt = deriveImagePrompt ? imagePromptFor(scene) : scene.imagePrompt;
   const layoutContent: LayoutContent = {
     eyebrow: scene.eyebrow || undefined,
     // The title, when there is no heading. `title` is the scene's name in the
