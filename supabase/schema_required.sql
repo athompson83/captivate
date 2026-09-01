@@ -118,8 +118,25 @@ select 'MISSING row level security on public.' || c.relname || '   → breaks: t
  where n.nspname = 'public'
    and c.relkind = 'r'
    and c.relname in ('presentations','scenes','sections','assets','lecture_notes',
-                     'recordings','moments','ai_generations','presentation_sessions','profiles')
+                     'recordings','moments','ai_generations','presentation_sessions','profiles',
+                     -- Bought presentations. Owner-scoped like the rest, and the
+                     -- one whose loss would let anybody read what anybody else
+                     -- paid for.
+                     'generation_credits')
    and not c.relrowsecurity;
+
+-- `generation_credits` is readable by its owner and writable by nobody: the
+-- balance is bought, not edited. An insert policy would let an author mint the
+-- product outright and an update policy would let them refill it, so the check
+-- is not "has a policy" but "has exactly the one".
+select 'MISSING owner-only select on public.generation_credits' ||
+       '   → breaks: a credit balance nobody can read, or one anybody can write'
+ where (select count(*) from pg_policies
+         where schemaname = 'public' and tablename = 'generation_credits') <> 1
+    or not exists (select 1 from pg_policies
+                    where schemaname = 'public'
+                      and tablename = 'generation_credits'
+                      and cmd = 'SELECT');
 
 -- Two tables belong to the deployment rather than to any user, and their
 -- protection is the *absence* of a policy: RLS on with nothing granting access,
@@ -134,14 +151,20 @@ select 'MISSING row level security on public.' || c.relname ||
   join pg_namespace n on n.oid = c.relnamespace
  where n.nspname = 'public'
    and c.relkind = 'r'
-   and c.relname in ('ai_image_limits','stripe_events')
+   and c.relname in ('ai_image_limits','stripe_events',
+                     -- What every plan allows, and what a model costs. Both are
+                     -- read by definer functions and by nothing else: a policy
+                     -- on `plan_budgets` hands every caller the ceilings 0022
+                     -- exists to stop them choosing, and one on `ai_model_rates`
+                     -- lets them price their own usage at zero.
+                     'plan_budgets','ai_model_rates')
    and not c.relrowsecurity;
 
 select 'MISSING policy-free access control on public.' || tablename ||
        '   → breaks: ' || policyname || ' exposes a deployment-owned table'
   from pg_policies
  where schemaname = 'public'
-   and tablename in ('ai_image_limits','stripe_events');
+   and tablename in ('ai_image_limits','stripe_events','plan_budgets','ai_model_rates');
 
 -- Some things must be *absent*, and presence is not the same question as
 -- absence when Postgres allows overloading. `0021` drops the reservation's old
