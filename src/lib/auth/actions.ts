@@ -17,7 +17,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 export type ActionResult =
   { ok: true; message?: string } | { ok: false; error: string; field?: string };
 
-import { PASSWORD_MAX, PASSWORD_MIN, passwordProblem } from "./password";
+import { PASSWORD_MAX, passwordProblem } from "./password";
 
 const Email = z.string().trim().toLowerCase().email("Enter a valid email address").max(320);
 /**

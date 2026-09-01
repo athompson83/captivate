@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { PASSWORD_MIN } from "../../src/lib/auth/password";
 
 /**
  * Smoke tests that hold regardless of whether the deployment has database
@@ -38,7 +39,13 @@ test.describe("public surface", () => {
     await page.goto("/sign-up");
     await expect(page.getByLabel("Your name")).toBeVisible();
     await expect(page.getByLabel("Email")).toBeVisible();
-    await expect(page.getByLabel("Password")).toHaveAttribute("minlength", "8");
+    // Read from the constant the server enforces rather than a literal. Raising
+    // the minimum left this asserting the old one, so the test was demanding
+    // that the form keep promising something the action would refuse.
+    await expect(page.getByLabel("Password")).toHaveAttribute(
+      "minlength",
+      String(PASSWORD_MIN),
+    );
   });
 
   test("the app area either works or explains what is missing", async ({ page }) => {
