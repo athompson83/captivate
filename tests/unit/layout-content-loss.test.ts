@@ -226,7 +226,16 @@ describe("the fold puts words in the slots a layout has", () => {
     );
 
     expect(composed.layout).toBe("bullets");
-    expect(JSON.stringify(composed.elements)).toContain("Reteach from it");
+
+    // Every point, in order. Asserting only the fourth would pass a regression
+    // that kept it and dropped the three before it.
+    const list = composed.elements.find((element) => element.type === "list");
+    expect(list?.type === "list" && list.items.map((item) => item[0].text)).toEqual([
+      "Draft it",
+      "Differentiate it",
+      "Mark it",
+      "Reteach from it",
+    ]);
   });
 
   it("gives an author the layout they picked, even when it crops", () => {
@@ -241,7 +250,14 @@ describe("the fold puts words in the slots a layout has", () => {
     });
 
     expect(composed.layout).toBe("three-up");
-    expect(composed.elements.filter((element) => element.type === "callout")).toHaveLength(3);
+
+    // Which three, and in the order they were written: cropping to the *last*
+    // three would satisfy a count and lose the sequence. A bullet-derived card
+    // carries its text in `content`; its title is empty by construction.
+    const drawn = composed.elements
+      .filter((element) => element.type === "callout")
+      .map((element) => (element.type === "callout" ? element.content[0].text : ""));
+    expect(drawn).toEqual(["Draft it", "Differentiate it", "Mark it"]);
   });
 
   it("still crops a three-up an author filled by hand", () => {
@@ -252,7 +268,12 @@ describe("the fold puts words in the slots a layout has", () => {
     });
 
     expect(composed.layout).toBe("three-up");
-    expect(composed.elements.filter((element) => element.type === "callout")).toHaveLength(3);
+
+    // The first three the author typed, in their order.
+    const drawn = composed.elements
+      .filter((element) => element.type === "callout")
+      .map((element) => (element.type === "callout" ? element.title : ""));
+    expect(drawn).toEqual(["a", "b", "c"]);
   });
 
   it("draws all three cards from a three-up given only bullets", () => {
