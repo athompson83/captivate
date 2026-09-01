@@ -26,6 +26,11 @@ const PUBLIC_PREFIXES = [
   // What Pro costs. Somebody deciding whether to pay does not have an account
   // yet, so a pricing page behind the gate cannot do its one job.
   "/pricing",
+  // The same reasoning, and more so: someone deciding whether to trust the
+  // product with their material reads these *before* signing up, and a privacy
+  // page you have to have an account to read is no use to anyone.
+  "/privacy",
+  "/terms",
 ];
 
 /**

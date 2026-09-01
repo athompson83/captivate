@@ -56,3 +56,17 @@ export const PRIVATE_PATH_PREFIXES = [
   "/reset-password",
   "/api",
 ] as const;
+
+/**
+ * Where a reader can write to about their data.
+ *
+ * An env var rather than a constant because the address belongs to whoever
+ * runs the deployment, and inventing one would be worse than having none — a
+ * privacy page naming a mailbox nobody reads is a promise that fails silently.
+ * Where it is unset the legal pages say so plainly instead of printing a
+ * plausible-looking address.
+ */
+export function supportEmail(): string | null {
+  const value = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim();
+  return value ? value : null;
+}

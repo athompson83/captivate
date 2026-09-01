@@ -13,6 +13,8 @@ const PUBLIC_ROUTES = [
   { path: "/", priority: 1, changeFrequency: "monthly" as const },
   { path: "/pricing", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/sign-up", priority: 0.5, changeFrequency: "yearly" as const },
+  { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
+  { path: "/terms", priority: 0.3, changeFrequency: "yearly" as const },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
