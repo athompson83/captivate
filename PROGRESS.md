@@ -7,21 +7,72 @@
 - Control-graph node: HOSTED_RUNTIME_VERIFICATION (live app in owner-driven test loop)
 - Current milestone: Production readiness — discoverability, the signed-in
   coverage gap, password policy, and a trust surface
-- Branch: `claude/premium-ui-presentation-akzjzs` → PR #44, merged; branch is
-  at `main`
-- `main`: PRs #22–#44 merged and deployed via Vercel auto-deploy
+- Branch: `claude/premium-ui-presentation-akzjzs` → PR #48, merged; branch
+  restarted from `main` for the follow-up
+- `main`: PRs #22–#48 merged and deployed via Vercel auto-deploy
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
 - Production: live and in use at `https://www.axtevi.com`; the owner tests
   deployed builds and reports defects
-- Database: canonical Supabase project `qnbwyymwhvqprjtyfdmb`. Migrations
-  `0017_billing.sql`, `0018_allowance_accounting.sql`,
-  `0019_plan_grants.sql`, `0020_ledger_integrity.sql` and
-  `0021_reservation_ceilings.sql` are **applied to production**, the last two
-  verified by querying the function signatures and grants back out of it.
+- Database: canonical Supabase project `qnbwyymwhvqprjtyfdmb`. Every migration
+  through `0026_pin_helper_search_path.sql` is **applied to production**.
+  `0022`–`0026` were applied on 2026-09-01 ahead of the PR #48 deploy — that
+  order is required, because `0022` drops the reservation overload the previous
+  build calls, so the reverse leaves `/settings` and `/pricing` reading tables
+  that do not exist yet. Verified back out of production afterwards: exactly one
+  `captivate_reserve_generation` overload, 16 `plan_budgets` rows, 3
+  `ai_model_rates` rows, `stripe_events.completed_at` and
+  `ai_generations.credit_id` present, one select-only policy on
+  `generation_credits`, and `captivate_credit_spent` / `captivate_model_cost`
+  executable by no role at all.
 
 ## Latest Session
+
+### The spend boundary, rebuilt and released — PR #48
+
+Shipped to production on 2026-09-01: three tiers (Free, Basic $12, Pro $25), a
+$5 top-up for ten presentations, and a reservation that can no longer be talked
+out of enforcing any of it.
+
+The headline defect was that `captivate_reserve_generation` took its window and
+its ceiling as **arguments**, and PostgREST exposes it to `authenticated` — so
+the plan gate in front of it was decoration and any browser could name its own
+limit. It now takes a kind and a budget group and nothing else. The hourly
+burst ceiling, previously an application read a caller could simply decline to
+perform, is decided inside the same lock.
+
+Eight review rounds, each of which found something real. The two that took
+longest to get right are worth recording because both of my first answers were
+wrong:
+
+- **A forged refund made a credit reusable, not merely double-spendable.**
+  Settling runs under the author's own JWT, so "this call failed and produced
+  nothing" is a sentence an author can write about their own in-flight
+  reservation. I argued the overdraw was bounded to one per purchase; it is
+  not, because the forge can be repeated for the whole length of a provider
+  call. A credit-backed row now counts regardless of what the caller says about
+  it until it is fifteen minutes old, which is longer than any route may run.
+- **Best-effort release of a failed webhook claim is not enough.** I reasoned
+  it was safe because every mutation is idempotent — which answers
+  double-granting and not the correlated failure: the delete and the mutation
+  talk to the same database, so the outage that fails the credit insert fails
+  the release beside it, and every retry thereafter returns a duplicate 200
+  over a customer who paid. `stripe_events.completed_at` makes the claim say
+  whether the work finished.
+
+Also in the release: a drawing bounded to its own frame by a real SVG path
+parser (arcs measured from the ellipse they sweep, not from their endpoints), a
+combobox that does not dismiss the iPad keyboard on every keystroke, and a
+sign-in read that retries across the window in which a fresh session is
+refused.
+
+**Still unset in Vercel**, so the paid tiers are visible and not yet
+purchasable: `STRIPE_PRICE_BASIC_MONTHLY`, `STRIPE_PRICE_PRO_MONTHLY`,
+`STRIPE_PRICE_TOPUP`. The degradation is correct rather than broken — the
+top-up row is absent from `/pricing` and the plan controls in settings are
+hidden — and this session has no tool that writes a Vercel environment
+variable.
 
 ### Owner-reported defects — PRs #43 and #44
 
@@ -357,7 +408,7 @@ made. The acceptance test exhausts every allowance, buys a top-up, and asserts
 ten complete presentations come out — ten decks, ten maps, a hundred drawings —
 with the eleventh refused.
 
-What is *left* of a purchase is counted from the ledger rather than kept as a
+What is _left_ of a purchase is counted from the ledger rather than kept as a
 number, which is the second thing review found here. A stored remainder was
 reachable: settling is done by the caller under their own JWT and a pending row
 may be written again, so an author could settle their own in-flight generation
