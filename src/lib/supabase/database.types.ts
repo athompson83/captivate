@@ -222,7 +222,6 @@ export type GenerationCreditRow = {
   id: string;
   user_id: string;
   presentations_granted: number;
-  presentations_remaining: number;
   stripe_checkout_session_id: string;
   stripe_payment_intent_id: string | null;
   stripe_event_id: string;

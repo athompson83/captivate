@@ -81,6 +81,14 @@ export async function POST(request: Request) {
   // mirrored, and nothing anywhere saying so.
   try {
     switch (event.type) {
+      // A top-up bought with an asynchronous payment method is *completed*
+      // before it is paid, and the branch below is right to grant nothing then
+      // — but the event that says the money arrived is a different one, and it
+      // used to fall through to `default` and be ignored. Somebody was charged
+      // and got nothing. Both events carry a Checkout Session and the grant is
+      // idempotent on its id, so they share the path: whichever arrives paid
+      // grants, and the other is a no-op.
+      case "checkout.session.async_payment_succeeded":
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.client_reference_id ?? session.metadata?.user_id ?? null;
@@ -105,6 +113,10 @@ export async function POST(request: Request) {
           }
           break;
         }
+
+        // Only a subscription checkout reaches here. An asynchronous payment
+        // for anything but a top-up is not something this product sells.
+        if (event.type === "checkout.session.async_payment_succeeded") break;
 
         const subscriptionId =
           typeof session.subscription === "string"
@@ -264,7 +276,6 @@ async function grantTopUp(
   const { error } = await admin.from("generation_credits").insert({
     user_id: userId,
     presentations_granted: presentations,
-    presentations_remaining: presentations,
     stripe_checkout_session_id: session.id,
     stripe_payment_intent_id: paymentIntent,
     stripe_event_id: eventId,

@@ -82,6 +82,7 @@ insert into required (kind, ident, feature) values
   ('function', 'public.captivate_current_plan()',                                 'every AI call'),
   ('function', 'public.captivate_budget_kinds(text)',                             'every AI call'),
   ('function', 'public.captivate_per_presentation(text)',                         'top-up credits'),
+  ('function', 'public.captivate_credit_spent(uuid)',                             'top-up credits'),
   ('function', 'public.captivate_credit_balance()',                               'the credit balance in settings'),
   ('function', 'public.captivate_complete_generation(uuid,text,text,integer,integer,text)',  'AI spend accounting'),
   ('function', 'public.captivate_reserve_image_generation(text,uuid)', 'image generation'),
@@ -129,14 +130,28 @@ select 'MISSING row level security on public.' || c.relname || '   → breaks: t
 -- balance is bought, not edited. An insert policy would let an author mint the
 -- product outright and an update policy would let them refill it, so the check
 -- is not "has a policy" but "has exactly the one".
+--
+-- And "owner-only" is a claim about *who* and *which rows*, not only about
+-- which verb. A single policy reading `for select to public using (true)`
+-- satisfies "exactly one, and it is a SELECT" while handing every signed-in
+-- caller every customer's purchase history, so the roles and the predicate are
+-- checked too — the predicate by looking for the owner comparison in it rather
+-- than by matching an exact string, because Postgres normalises what it stores
+-- and an equality test on the text would fail on a correct policy written with
+-- the operands the other way round.
 select 'MISSING owner-only select on public.generation_credits' ||
-       '   → breaks: a credit balance nobody can read, or one anybody can write'
+       '   → breaks: a credit balance nobody can read, or one anybody can read'
  where (select count(*) from pg_policies
          where schemaname = 'public' and tablename = 'generation_credits') <> 1
     or not exists (select 1 from pg_policies
                     where schemaname = 'public'
                       and tablename = 'generation_credits'
-                      and cmd = 'SELECT');
+                      and cmd = 'SELECT'
+                      -- Not `public`, and not a role list that includes it.
+                      and roles = '{authenticated}'::name[]
+                      and qual is not null
+                      and qual like '%auth.uid()%'
+                      and qual like '%user_id%');
 
 -- Two tables belong to the deployment rather than to any user, and their
 -- protection is the *absence* of a policy: RLS on with nothing granting access,
@@ -187,3 +202,20 @@ select 'FORBIDDEN function public.' || p.proname ||
    and p.proname = 'captivate_reserve_image_generation'
    and p.oid is distinct from
        to_regprocedure('public.captivate_reserve_image_generation(text,uuid)');
+
+-- The same question about the text reservation, and the same answer. `0022`
+-- drops the six-argument form because it took its window and its ceiling as
+-- arguments — and PostgREST resolves `rpc/<name>` by signature, so as long as
+-- that form is callable an authenticated caller can name its own limits no
+-- matter what the four-argument one enforces. Requiring the new signature does
+-- not reject a database that still carries the old one beside it, which a
+-- half-applied migration is exactly how you get.
+select 'FORBIDDEN function public.' || p.proname ||
+       '(' || pg_get_function_identity_arguments(p.oid) || ')' ||
+       '   → keeps: a reservation whose ceiling the caller chooses'
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname = 'captivate_reserve_generation'
+   and p.oid is distinct from
+       to_regprocedure('public.captivate_reserve_generation(text,text,text,uuid)');

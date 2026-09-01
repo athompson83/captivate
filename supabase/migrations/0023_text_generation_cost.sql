@@ -126,6 +126,14 @@ begin
   if p_status is null or p_status not in ('succeeded', 'failed', 'invalid_output') then
     return false;
   end if;
+  -- The tokens are the caller's to report and this is the first thing that
+  -- prices them, so a negative count is a negative `cost_usd` — and the whole
+  -- point of this column is that the sum of it is what allowances get argued
+  -- from. A ledger somebody can subtract from is worse than no ledger, because
+  -- it still looks like evidence.
+  if coalesce(p_input_tokens, 0) < 0 or coalesce(p_output_tokens, 0) < 0 then
+    return false;
+  end if;
 
   update public.ai_generations g
      set status         = p_status,

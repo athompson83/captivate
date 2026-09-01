@@ -337,8 +337,18 @@ A **top-up** is a credit ledger rather than a counter. One credit is one
 presentation — it raises every coupled pool by what a presentation can take from
 it, and is spent once, when a deck is actually generated. A credit that
 replenished only the deck pool would sell ten presentations that could not be
-illustrated. Credits come back when a call never reaches the model, exactly as
-the allowance does, and are revoked on a refund or a dispute.
+illustrated. Credits are revoked on a refund or a dispute.
+
+What is *left* of a purchase is counted from the ledger rather than kept as a
+number: a credit is spent by the row the reservation writes, so the spend and
+the record of it are the same write. A stored remainder cannot be, and the gap
+was reachable — settling is done by the caller under their own JWT, and a row
+still pending may be written again, so an author could settle their own
+in-flight generation as a zero-token failure, take the refund, spend it, and let
+the truthful settlement land afterwards. Counting removes the window instead of
+narrowing it: a refunded row is one that does not count, and it counts again the
+instant the truth arrives. The plan's own allowance is counted separately from
+what credits paid for, so an allowance still renews while a balance is spent.
 
 Every settled text generation records what it cost, priced from `ai_model_rates`
 at the rate in force when the call was made — which is what makes an allowance a

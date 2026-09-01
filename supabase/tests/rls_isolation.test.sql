@@ -1131,6 +1131,18 @@ select 'cost_recorded_for_failed_call_with_usage' as check,
 select id from public.captivate_reserve_generation('rewrite', 'light', 'unknown', null) \gset unk_
 select public.captivate_complete_generation(
   :'unk_id', 'succeeded', 'a-model-nobody-priced', 1000, 1000, null) \gset unk_settled_
+-- The tokens are the caller's to report, and this is what prices them. A
+-- negative count is a negative cost, and the sum of this column is what an
+-- allowance gets argued from — a ledger somebody can subtract from is worse
+-- than no ledger, because it still looks like evidence.
+select id from public.captivate_reserve_generation('scenes', 'deck', 'negative', null) \gset neg_
+select 'cost_negative_tokens_are_refused' as check,
+  (public.captivate_complete_generation(
+     :'neg_id', 'succeeded', 'claude-sonnet-5', -1000000, -1000000, null) = false)::int as n;
+select 'cost_negative_tokens_wrote_nothing' as check,
+  (status = 'pending' and coalesce(cost_usd, 0) = 0)::int as n
+  from public.ai_generations where id = :'neg_id'::uuid;
+
 select 'cost_unknown_model_is_not_invented' as check,
   (coalesce(cost_usd, 0) = 0)::int as n
   from public.ai_generations where id = :'unk_id';
@@ -1199,9 +1211,9 @@ select 'topup_balance_is_zero_before_buying' as check,
 reset role;
 
 insert into public.generation_credits
-  (user_id, presentations_granted, presentations_remaining,
+  (user_id, presentations_granted,
    stripe_checkout_session_id, stripe_payment_intent_id, stripe_event_id, expires_at)
-values ('44444444-4444-4444-4444-444444444444', 10, 10,
+values ('44444444-4444-4444-4444-444444444444', 10,
         'cs_test_topup', 'pi_test_topup', 'evt_test_topup', now() + interval '30 days');
 
 -- Ten complete presentations. The rows are aged between them because the burst
@@ -1225,15 +1237,23 @@ begin
     select * into r from public.captivate_reserve_generation('scenes', 'deck', 'on credit', null);
     exit when r.id is null;
     made := made + 1;
+    -- Settled, because the server settles. A reservation left pending is an
+    -- *abandoned* one after fifteen minutes, and the allowance stops counting
+    -- it — deliberately, since nothing was made. A credit follows the same
+    -- rule, so a loop that reserved and walked away would give every credit
+    -- back and prove the opposite of what it set out to.
+    perform public.captivate_complete_generation(r.id, 'succeeded', 'claude-sonnet-5', 900, 1800, null);
 
     select * into v from public.captivate_reserve_generation('map', 'draft', 'on credit', null);
     exit when v.id is null;
     drafted := drafted + 1;
+    perform public.captivate_complete_generation(v.id, 'succeeded', 'claude-sonnet-5', 400, 900, null);
 
     for d in 1..10 loop
       select * into v from public.captivate_reserve_generation('drawing', 'drawing', 'on credit', null);
       exit when v.id is null;
       drew := drew + 1;
+      perform public.captivate_complete_generation(v.id, 'succeeded', 'claude-sonnet-5', 200, 400, null);
     end loop;
 
     -- An hour passes.
@@ -1271,14 +1291,13 @@ reset role;
 -- ---- A credit is not spent on a call that never happened -----------------------
 -- The allowance already behaves this way and nobody had to write it: a call
 -- that never reached the model stops counting, so an author is not charged for
--- our downtime. A credit is a stored balance, so the same courtesy has to be
--- performed — and it has to survive the forgery 0020 is about, where the author
--- settles their own in-flight row as a refund and the server writes the truth a
--- moment later.
+-- our downtime. A credit behaves the same way and for the same reason, and it
+-- has to survive the forgery 0020 is about: the author settles their own
+-- in-flight row as a refund and the server writes the truth a moment later.
 insert into public.generation_credits
-  (user_id, presentations_granted, presentations_remaining,
+  (user_id, presentations_granted,
    stripe_checkout_session_id, stripe_event_id, expires_at)
-values ('44444444-4444-4444-4444-444444444444', 3, 3,
+values ('44444444-4444-4444-4444-444444444444', 3,
         'cs_test_refund', 'evt_test_refund', now() + interval '30 days');
 
 set role authenticated;
@@ -1318,15 +1337,15 @@ do $$
 begin
   begin
     insert into public.generation_credits
-      (user_id, presentations_granted, presentations_remaining,
+      (user_id, presentations_granted,
        stripe_checkout_session_id, stripe_event_id, expires_at)
-    values ('22222222-2222-2222-2222-222222222222', 1000, 1000,
+    values ('22222222-2222-2222-2222-222222222222', 1000,
             'cs_self_minted', 'evt_self_minted', now() + interval '99 days');
   exception when insufficient_privilege then
     null;
   end;
   begin
-    update public.generation_credits set presentations_remaining = 1000;
+    update public.generation_credits set presentations_granted = 1000;
   exception when insufficient_privilege then
     null;
   end;
@@ -1338,7 +1357,94 @@ select 'credit_not_self_mintable' as check,
   where stripe_checkout_session_id = 'cs_self_minted';
 select 'credit_not_self_writable' as check,
   (count(*) = 0)::int as n from public.generation_credits
-  where presentations_remaining > presentations_granted or presentations_remaining = 1000;
+  where presentations_granted = 1000;
+
+-- ---- A refund cannot be laundered into a second presentation ------------------
+-- One round of forge-refund-then-respend is not the bug; it is the honest
+-- behaviour of a refund plus a race, and it costs one presentation. The bug was
+-- that it *repeated*: with the balance kept as a number that a settlement
+-- incremented, the truthful re-debit found the balance already spent, could not
+-- take anything back, and marked the row charged anyway. So every in-flight row
+-- could be laundered into another free presentation, indefinitely, from a single
+-- purchase.
+--
+-- Counting the ledger instead removes the window rather than narrowing it: a
+-- refunded row is one that does not count, and it counts again the instant the
+-- truth lands, with no order to get between.
+do $$
+declare
+  e1 uuid;
+  e2 uuid;
+  e3 uuid;
+  r  record;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub',
+                     '44444444-4444-4444-4444-444444444444', true);
+
+  -- Two of the three bought above are left; take them both.
+  select id into e1 from public.captivate_reserve_generation('scenes', 'deck', 'launder', null);
+  select id into e2 from public.captivate_reserve_generation('scenes', 'deck', 'launder', null);
+
+  -- Forge a refund on the second, spend what it gave back, then let the server
+  -- write the truth about the second — the sequence 0020 exists for.
+  perform public.captivate_complete_generation(e2, 'failed', null, null, null, 'forged');
+  select id into e3 from public.captivate_reserve_generation('scenes', 'deck', 'laundered', null);
+  perform public.captivate_complete_generation(e2, 'succeeded', 'claude-sonnet-5', 10, 20, null);
+
+  -- Now round two. This is the assertion: the same trick on the third row must
+  -- not free anything, because the purchase is already fully spent.
+  perform public.captivate_complete_generation(e3, 'failed', null, null, null, 'forged again');
+  select * into r from public.captivate_reserve_generation('scenes', 'deck', 'round two', null);
+
+  create temporary table launder_result as
+    select (e1 is not null and e2 is not null and e3 is not null) as three_were_bought,
+           (r.id is null and r.refusal = 'allowance') as fourth_refused,
+           public.captivate_credit_balance() as balance;
+end $$;
+reset role;
+
+select 'credit_laundering_stops_at_what_was_bought' as check,
+  (three_were_bought and fourth_refused and balance = 0)::int as n from launder_result;
+
+-- ---- The plan's own allowance still renews while credits are spent ------------
+-- A credit-backed presentation is not drawn from the plan, so it must not be
+-- counted against the plan. Counting every deck together meant an author who
+-- bought ten credits and spent them sat at 35 against an allowance of 25 — and
+-- when their oldest base-allowance deck aged out of the rolling window, the slot
+-- it freed was invisible. The count was still over, so a credit was looked for,
+-- and there were none. A renewed allowance, refused, with nothing to buy that
+-- would fix it.
+do $$
+declare
+  r record;
+begin
+  -- One base-allowance deck falls out of the 30-day window. Done as postgres:
+  -- an author may not edit their own ledger, which is why `complete` exists.
+  set local role postgres;
+  update public.ai_generations
+     set created_at = now() - interval '31 days'
+   where id = (select g.id from public.ai_generations g
+                where g.owner_id = '44444444-4444-4444-4444-444444444444'
+                  and g.kind = 'scenes'
+                  and g.credit_id is null
+                  and g.created_at > now() - interval '30 days'
+                order by g.created_at
+                limit 1);
+
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub',
+                     '44444444-4444-4444-4444-444444444444', true);
+  select * into r from public.captivate_reserve_generation('scenes', 'deck', 'renewed', null);
+
+  create temporary table renewal_result as
+    select r.id is not null as admitted,
+           (select g.credit_id is null from public.ai_generations g where g.id = r.id) as on_the_plan;
+end $$;
+reset role;
+
+select 'allowance_renews_independently_of_credits' as check,
+  (admitted and on_the_plan)::int as n from renewal_result;
 
 -- Expired and revoked balances are not "left". A refund or a chargeback takes
 -- the credits back; an expiry is the stated life the copy promised.

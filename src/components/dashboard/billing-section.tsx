@@ -78,8 +78,9 @@ export function BillingSection({
 
       {!configured ? (
         <p className="text-ink-3 mt-1 text-[13px]">
-          Billing isn&rsquo;t configured on this deployment, so every feature is available without a
-          subscription.
+          Billing isn&rsquo;t configured on this deployment, so there is nothing to subscribe to.
+          Accounts are on the Free plan and its allowances until an administrator grants one — see{" "}
+          <span className="text-ink-2">plan_grants</span> in the deployment guide.
         </p>
       ) : grant ? (
         <>

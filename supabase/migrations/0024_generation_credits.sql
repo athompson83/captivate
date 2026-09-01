@@ -23,10 +23,9 @@
 create table if not exists public.generation_credits (
   id                         uuid        primary key default gen_random_uuid(),
   user_id                    uuid        not null references auth.users (id) on delete cascade,
-  -- What was bought never changes, so "what did I actually pay for?" is
-  -- answerable after the balance has been spent down.
+  -- What was bought, and the only quantity stored. What is *left* is derived
+  -- from the ledger rather than kept here — see `captivate_credit_spent`.
   presentations_granted      integer     not null check (presentations_granted > 0),
-  presentations_remaining    integer     not null check (presentations_remaining >= 0),
   -- The Checkout Session that paid for it. Unique, and it is the idempotency
   -- key for the whole flow: a webhook retry, or two deliveries of one event
   -- racing, grants the credit exactly once because the second insert violates
@@ -46,16 +45,14 @@ create table if not exists public.generation_credits (
   revoked_at                 timestamptz,
   revoked_reason             text,
   created_at                 timestamptz not null default now(),
-  updated_at                 timestamptz not null default now(),
-  constraint generation_credits_remaining_within_granted
-    check (presentations_remaining <= presentations_granted)
+  updated_at                 timestamptz not null default now()
 );
 
 -- The lookup the reservation makes on every refused call: this user's live
--- balance, oldest first.
-create index if not exists generation_credits_spendable_idx
+-- balances, soonest to expire first.
+create index if not exists generation_credits_live_idx
   on public.generation_credits (user_id, expires_at)
-  where presentations_remaining > 0 and revoked_at is null;
+  where revoked_at is null;
 
 alter table public.generation_credits enable row level security;
 
@@ -67,20 +64,62 @@ create policy "generation_credits_select_own" on public.generation_credits
   for select to authenticated using (user_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
--- Which credit a generation is holding.
+-- Which credit a generation was made on.
 --
--- The allowance gives itself back: a call that never reached the model stops
--- counting, so the author is not charged for our downtime. A credit decremented
--- at reservation time does not, so the same failure would cost real money. The
--- link is what lets the settlement put it back — and take it again if a later,
--- truthful settlement says the call did reach the model after all.
+-- This link *is* the balance. A stored remainder, decremented on reservation
+-- and incremented back when a call turned out never to have reached the model,
+-- looked simpler and was wrong: settling is done by the caller under their own
+-- JWT, and 0020's supersession rule deliberately lets a row still pending — or
+-- failed with no tokens — be written again. So an author could settle their own
+-- pending row as a zero-token failure, take the refund, spend it on a second
+-- reservation, and let the truthful settlement land afterwards. One purchase,
+-- two presentations, and repeatable.
+--
+-- Counting instead of remembering removes the window rather than narrowing it.
+-- The refund is not an event that can be forged out of order: a row that does
+-- not count is not subtracted, and the moment the truth lands it counts again.
+-- It is the same property that makes the rolling allowance exact, applied to
+-- the thing somebody actually paid for.
 -- ---------------------------------------------------------------------------
 alter table public.ai_generations
-  add column if not exists credit_id uuid references public.generation_credits (id) on delete set null,
-  -- True while this row is actually holding the credit. Distinct from
-  -- `credit_id is not null`, because a refunded row keeps the link so the same
-  -- credit is re-charged rather than an arbitrary one.
-  add column if not exists credit_charged boolean not null default false;
+  add column if not exists credit_id uuid references public.generation_credits (id) on delete set null;
+
+-- What a credit has been spent on is now a question asked of this column on
+-- every reservation, so it is worth an index.
+create index if not exists ai_generations_credit_idx
+  on public.ai_generations (credit_id)
+  where credit_id is not null;
+
+-- ---------------------------------------------------------------------------
+-- How much of one purchase has been used.
+--
+-- Counted exactly the way `captivate_count_generations` counts an allowance,
+-- and for the same reason: a reservation that never reached the model must not
+-- cost the author anything, and an abandoned one must not hold a credit
+-- hostage. The difference is that this is not windowed — a presentation made
+-- on a credit forty days ago still used it.
+--
+-- Published to nobody. It takes a credit id, and a credit id is a thing
+-- somebody else can name; the callers below are definer functions that have
+-- already scoped their rows to `auth.uid()`.
+-- ---------------------------------------------------------------------------
+create or replace function public.captivate_credit_spent(p_credit uuid)
+returns integer
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select count(*)::integer
+    from public.ai_generations g
+   where g.credit_id = p_credit
+     and (g.status <> 'pending' or g.created_at >= now() - interval '15 minutes')
+     and not (g.status = 'failed' and coalesce(g.output_tokens, 0) = 0);
+$$;
+
+revoke all on function public.captivate_credit_spent(uuid) from public;
+revoke all on function public.captivate_credit_spent(uuid) from anon;
+revoke all on function public.captivate_credit_spent(uuid) from authenticated;
 
 -- ---------------------------------------------------------------------------
 -- What is left to spend, for the settings page.
@@ -88,6 +127,14 @@ alter table public.ai_generations
 -- Expired and revoked balances are not "left". Scoped to the caller with no
 -- argument, because a user id in an argument is a user id somebody else can
 -- name.
+--
+-- Floored at zero per purchase. A balance cannot go below what was bought, but
+-- the count it is derived from can briefly exceed it — a reservation is made
+-- against a live credit and the row it inserted is what marks the credit spent,
+-- so two simultaneous reservations serialised on the same lock cannot both take
+-- the last one, but a settlement arriving late can still make a row start
+-- counting after the fact. Showing a negative number to somebody looking at
+-- what they have left would be worse than showing none.
 -- ---------------------------------------------------------------------------
 create or replace function public.captivate_credit_balance()
 returns integer
@@ -96,7 +143,9 @@ stable
 security definer
 set search_path = public, pg_temp
 as $$
-  select coalesce(sum(c.presentations_remaining), 0)::integer
+  select coalesce(
+           sum(greatest(c.presentations_granted - public.captivate_credit_spent(c.id), 0)),
+           0)::integer
     from public.generation_credits c
    where c.user_id = auth.uid()
      and auth.uid() is not null
@@ -167,6 +216,7 @@ declare
   v_headroom integer;
   v_credit  uuid;
   v_used  integer;
+  v_base_used integer;
   v_id    uuid;
 begin
   if v_user is null then
@@ -211,13 +261,11 @@ begin
 
   -- What was *bought* and is still live, not what is left of it.
   --
-  -- Spending a credit both decrements the balance and adds a row to the count,
-  -- so a ceiling keyed on the remaining balance closes from both ends and
-  -- strands half the purchase: ten credits bought five presentations and then
-  -- refused, with five still showing. What an author is entitled to is their
-  -- allowance plus everything they paid for, and `presentations_remaining` is
-  -- the record of how much of that they have taken — the two agree exactly,
-  -- because one deck spends one credit and adds one to the count.
+  -- Spending a credit both uses up a unit of the purchase and adds a row to the
+  -- count, so a ceiling keyed on the remaining balance closes from both ends and
+  -- strands half of it: ten credits bought five presentations and then refused,
+  -- with five still showing. What an author is entitled to is their allowance
+  -- plus everything they paid for.
   select coalesce(sum(c.presentations_granted), 0)::integer
     into v_credits
     from public.generation_credits c
@@ -239,49 +287,68 @@ begin
     v_allowance_max + v_credits * coalesce(public.captivate_per_presentation(p_group), 0);
 
   v_used := public.captivate_count_generations(v_kinds, v_allowance_minutes);
-  if v_used >= v_headroom then
-    -- The refusal names the allowance, not the topped-up figure: what the
-    -- author needs to know is what their plan gives them, and the credits are
-    -- reported separately in settings.
+
+  if p_group = 'deck' then
+    -- A deck is the one call a credit is spent on, so it is the one place the
+    -- two kinds of usage have to be told apart. `v_used` counts every deck in
+    -- the window, credit-backed ones included, and asking whether *that* has
+    -- reached the plan's allowance conflates them: an author who bought ten
+    -- credits and spent them is at 35 of a 25 allowance, so when their oldest
+    -- base-allowance deck ages out of the rolling window the slot it freed is
+    -- invisible — the count is still 34, still over 25, so a credit is looked
+    -- for, and there are none left. A renewed allowance, refused.
+    --
+    -- What the plan grants is measured against what was drawn from the plan.
+    select count(*)::integer
+      into v_base_used
+      from public.ai_generations g
+     where g.owner_id = v_user
+       and g.kind = any(v_kinds)
+       and g.credit_id is null
+       and g.created_at >= now() - make_interval(mins => v_allowance_minutes)
+       and (g.status <> 'pending' or g.created_at >= now() - interval '15 minutes')
+       and not (g.status = 'failed' and coalesce(g.output_tokens, 0) = 0);
+
+    if v_base_used >= v_allowance_max then
+      -- Past the plan's own allowance, so this one is bought. Soonest to expire
+      -- first, so a balance is not stranded by spending a later purchase ahead
+      -- of an earlier one.
+      select c.id
+        into v_credit
+        from public.generation_credits c
+       where c.user_id = v_user
+         and c.revoked_at is null
+         and c.expires_at > now()
+         and c.presentations_granted > public.captivate_credit_spent(c.id)
+       order by c.expires_at, c.purchased_at
+       limit 1;
+
+      if v_credit is null then
+        -- The refusal names the allowance, not the topped-up figure: what the
+        -- author needs to know is what their plan gives them, and the credits
+        -- are reported separately in settings.
+        return query select null::uuid, 'allowance'::text, v_allowance_max, v_allowance_minutes;
+        return;
+      end if;
+    end if;
+
+  elsif v_used >= v_headroom then
+    -- The other pools are not spent from, they are *raised*: the drawings and
+    -- rewrites that dress a bought presentation are what make it finishable, and
+    -- they are already paid for by the credit the deck spent. So there is
+    -- nothing to debit here, only a taller ceiling for as long as the credit is
+    -- live.
     return query select null::uuid, 'allowance'::text, v_allowance_max, v_allowance_minutes;
     return;
   end if;
 
-  -- Past the plan's own allowance, and only for a whole presentation: a credit
-  -- is spent when a deck is generated, not on each of the calls that dress it.
-  -- The extra headroom in the other pools is what makes that deck finishable,
-  -- and it lasts exactly as long as the credit does.
-  if v_used >= v_allowance_max and p_group = 'deck' then
-    update public.generation_credits
-       set presentations_remaining = presentations_remaining - 1,
-           updated_at = now()
-     where public.generation_credits.id = (
-       select c.id
-         from public.generation_credits c
-        where c.user_id = v_user
-          and c.presentations_remaining > 0
-          and c.revoked_at is null
-          and c.expires_at > now()
-        -- Soonest to expire first, so a balance is not stranded by spending a
-        -- later purchase ahead of an earlier one.
-        order by c.expires_at, c.purchased_at
-        limit 1
-     )
-    returning public.generation_credits.id into v_credit;
-
-    -- The sum said there was one. If the update found nothing, something moved
-    -- underneath us; refuse rather than admit the call for free.
-    if v_credit is null then
-      return query select null::uuid, 'allowance'::text, v_allowance_max, v_allowance_minutes;
-      return;
-    end if;
-  end if;
-
+  -- The inserted row *is* the debit. Nothing decrements a stored balance,
+  -- which is what makes the spend and the record of it the same write and so
+  -- impossible to get out of step.
   insert into public.ai_generations
-    (owner_id, presentation_id, kind, prompt, status, credit_id, credit_charged)
+    (owner_id, presentation_id, kind, prompt, status, credit_id)
   values
-    (v_user, v_presentation, p_kind, left(coalesce(p_prompt, ''), 4000), 'pending',
-     v_credit, v_credit is not null)
+    (v_user, v_presentation, p_kind, left(coalesce(p_prompt, ''), 4000), 'pending', v_credit)
   returning public.ai_generations.id into v_id;
 
   return query select v_id, null::text, v_allowance_max, v_allowance_minutes;
@@ -293,107 +360,11 @@ revoke all on function public.captivate_reserve_generation(text, text, text, uui
 grant execute on function public.captivate_reserve_generation(text, text, text, uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Settling gives a credit back, and can take it again.
+-- Settling needs no credit bookkeeping, and that is the point.
 --
--- The allowance already behaves this way and nobody had to write it: a call
--- that never reached the model stops counting, so the author is not charged for
--- our downtime. A credit is a stored balance, so the same courtesy has to be
--- performed rather than derived.
---
--- Both directions, because 0020's supersession rule makes both reachable. A row
--- may be rewritten exactly while it is not counting — still pending, or failed
--- with no tokens — which is precisely the sequence: reserve, forge a refund,
--- and let the server write the truth a moment later. So the reconciliation is
--- stated as "does this row count now?" rather than as a one-way refund, and it
--- runs after every settlement.
+-- `captivate_complete_generation` is unchanged by this migration. It writes the
+-- outcome of a call, and the outcome is the whole of the accounting: a row that
+-- counts has used a credit and a row that does not has not. There is no refund
+-- to perform, nothing to reconcile, and no ordering between the settlement and
+-- a balance for a caller to get between.
 -- ---------------------------------------------------------------------------
-create or replace function public.captivate_complete_generation(
-  p_id            uuid,
-  p_status        text,
-  p_model         text,
-  p_input_tokens  integer,
-  p_output_tokens integer,
-  p_error         text
-) returns boolean
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  v_user uuid := auth.uid();
-  v_rows integer;
-  v_counts boolean;
-  v_credit uuid;
-  v_charged boolean;
-begin
-  if v_user is null then
-    return false;
-  end if;
-  if p_status is null or p_status not in ('succeeded', 'failed', 'invalid_output') then
-    return false;
-  end if;
-
-  update public.ai_generations g
-     set status         = p_status,
-         model          = p_model,
-         input_tokens   = p_input_tokens,
-         output_tokens  = p_output_tokens,
-         error_message  = left(p_error, 500),
-         completed_at   = now(),
-         cost_usd       = coalesce(
-                            public.captivate_model_cost(
-                              p_model, p_input_tokens, p_output_tokens, g.created_at),
-                            g.cost_usd)
-   where g.id       = p_id
-     and g.owner_id = v_user
-     and g.kind <> 'image'
-     and (g.status = 'pending'
-          or (g.status = 'failed' and coalesce(g.output_tokens, 0) = 0));
-
-  get diagnostics v_rows = row_count;
-  if v_rows <> 1 then
-    return false;
-  end if;
-
-  select g.credit_id, g.credit_charged into v_credit, v_charged
-    from public.ai_generations g
-   where g.id = p_id;
-
-  if v_credit is null then
-    return true;
-  end if;
-
-  -- The same rule `captivate_count_generations` applies: only a *failed* call
-  -- with no output tokens is one that never reached the model.
-  v_counts := not (p_status = 'failed' and coalesce(p_output_tokens, 0) = 0);
-
-  -- Serialise against a concurrent reservation spending the same balance.
-  perform pg_advisory_xact_lock(hashtext('captivate_ai:' || v_user::text));
-
-  if v_charged and not v_counts then
-    update public.generation_credits
-       set presentations_remaining = presentations_remaining + 1,
-           updated_at = now()
-     where public.generation_credits.id = v_credit
-       -- Never past what was bought. Without this a settlement loop could mint
-       -- balance out of a single purchase.
-       and presentations_remaining < presentations_granted;
-    update public.ai_generations set credit_charged = false where public.ai_generations.id = p_id;
-  elsif not v_charged and v_counts then
-    -- The truthful settlement arriving after a forged refund. The credit was
-    -- given back a moment ago, so taking it again cannot go below zero.
-    update public.generation_credits
-       set presentations_remaining = presentations_remaining - 1,
-           updated_at = now()
-     where public.generation_credits.id = v_credit
-       and presentations_remaining > 0;
-    update public.ai_generations set credit_charged = true where public.ai_generations.id = p_id;
-  end if;
-
-  return true;
-end;
-$$;
-
-revoke all on function public.captivate_complete_generation(uuid, text, text, integer, integer, text) from public;
-revoke all on function public.captivate_complete_generation(uuid, text, text, integer, integer, text) from anon;
-grant execute on function public.captivate_complete_generation(uuid, text, text, integer, integer, text) to authenticated;

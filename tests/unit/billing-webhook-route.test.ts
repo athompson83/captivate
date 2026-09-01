@@ -34,6 +34,8 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 /** Fails the way a Stripe API call fails: after the claim, before the write. */
 const retrieve = vi.fn();
+/** How many top-ups one session bought. */
+const listLineItems = vi.fn().mockResolvedValue({ data: [{ quantity: 1 }] });
 
 vi.mock("@/lib/billing/stripe", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/billing/stripe")>();
@@ -44,6 +46,7 @@ vi.mock("@/lib/billing/stripe", async (importOriginal) => {
     stripe: () => ({
       webhooks: actual.stripe().webhooks,
       subscriptions: { retrieve },
+      checkout: { sessions: { listLineItems } },
     }),
   };
 });
@@ -102,6 +105,7 @@ beforeEach(() => {
   insert.mockResolvedValue({ error: null });
   maybeSingle.mockResolvedValue({ data: null });
   deleteClaim.mockResolvedValue({ error: null });
+  listLineItems.mockResolvedValue({ data: [{ quantity: 1 }] });
 });
 
 afterEach(() => {
@@ -164,6 +168,62 @@ describe("the webhook endpoint", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ duplicate: true });
     expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("grants a top-up when a delayed payment finally succeeds", async () => {
+    // Checkout with an asynchronous payment method *completes* before the money
+    // arrives, so the grant is right to refuse an unpaid session — but the
+    // event that says it arrived is a different one, and it used to fall
+    // through to the ignored default. Somebody was charged and got nothing.
+    const paid = {
+      id: "evt_async",
+      type: "checkout.session.async_payment_succeeded",
+      created: 1_790_000_000,
+      data: {
+        object: {
+          id: "cs_async",
+          mode: "payment",
+          payment_status: "paid",
+          payment_intent: "pi_async",
+          client_reference_id: "user-1",
+        },
+      },
+    };
+    listLineItems.mockResolvedValue({ data: [{ quantity: 1 }] });
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    const response = await POST(signed(paid));
+
+    expect(response.status).toBe(200);
+    const granted = insert.mock.calls.map(([row]) => row as Record<string, unknown>);
+    const credit = granted.find((row) => "presentations_granted" in row);
+    expect(credit, "the paid session granted nothing").toBeTruthy();
+    expect(credit?.stripe_checkout_session_id).toBe("cs_async");
+    // Keyed on the session, so the `completed` delivery of the same purchase
+    // collides with this rather than granting a second balance.
+    expect(credit?.presentations_granted).toBe(10);
+  });
+
+  it("grants nothing for the same session while it is still unpaid", async () => {
+    const unpaid = {
+      id: "evt_async_pending",
+      type: "checkout.session.completed",
+      created: 1_790_000_000,
+      data: {
+        object: {
+          id: "cs_async",
+          mode: "payment",
+          payment_status: "unpaid",
+          client_reference_id: "user-1",
+        },
+      },
+    };
+    const { POST } = await import("@/app/api/stripe/webhook/route");
+    const response = await POST(signed(unpaid));
+
+    expect(response.status).toBe(200);
+    expect(insert.mock.calls.some(([row]) => "presentations_granted" in (row as object))).toBe(
+      false,
+    );
   });
 
   it("gives the claim back when the handler throws, so the retry is not a no-op", async () => {
