@@ -196,14 +196,93 @@ export interface LayoutContent {
   };
 }
 
+/** Every field of `LayoutContent` that carries words a reader would miss. */
+function hasWords(content: LayoutContent): boolean {
+  return Boolean(
+    content.heading?.trim() ||
+    content.quote?.trim() ||
+    content.subheading?.trim() ||
+    content.body?.trim() ||
+    content.eyebrow?.trim() ||
+    content.caption?.trim() ||
+    content.attribution?.trim() ||
+    content.bullets?.length ||
+    content.bulletsB?.length ||
+    content.cards?.length ||
+    content.code?.code.trim(),
+  );
+}
+
+/**
+ * Moves content into the fields this layout can actually show.
+ *
+ * A layout renders the fields it has slots for and drops the rest, and mostly
+ * that is the point: a statement scene is one idea with air around it and
+ * "nothing else belongs here". But the generator does not choose the layout —
+ * `layoutFor` does, from the moment's visual intent — so the model can write a
+ * perfectly good statement into `body` and have every word of it discarded.
+ *
+ * Five combinations composed to *nothing at all*: a `statement` or `section`
+ * or `quote` given body text but no heading, a `three-up` given bullets but no
+ * cards, and a `chart` given prose but no data. Ten of the twenty-one scenes
+ * in a deck exported from production were blank for this reason, and the
+ * editor showed the author "This scene is empty" over content the model had
+ * written and the composition had thrown away.
+ *
+ * So the fold: the layout's own hierarchy still decides what is prominent, and
+ * the words find the nearest slot that exists rather than the floor.
+ */
+function fold(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent): LayoutContent {
+  const folded: LayoutContent = { ...content };
+
+  // The heading slot is the one every layout has. A layout that shows a
+  // heading and nothing else must be given a heading, or it shows nothing.
+  if (slots.heading && !folded.heading?.trim() && !folded.quote?.trim()) {
+    const promoted =
+      folded.body?.trim() ||
+      folded.subheading?.trim() ||
+      folded.bullets?.[0]?.trim() ||
+      folded.cards?.[0]?.title?.trim() ||
+      folded.caption?.trim() ||
+      // Only where the layout cannot show them in their own right, so a title
+      // scene with an eyebrow does not print it as its heading as well.
+      (!slots.eyebrow ? folded.eyebrow?.trim() : undefined) ||
+      (!slots.attribution ? folded.attribution?.trim() : undefined);
+    if (promoted) {
+      folded.heading = promoted;
+      // Only clear the source where the layout would otherwise print the same
+      // words twice. A `bullets` scene keeps its list; its first item is now
+      // also the heading, which is worse than one repetition of a single line.
+      if (promoted === folded.body?.trim() && !slots.body) folded.body = undefined;
+      if (promoted === folded.subheading?.trim() && !slots.subheading)
+        folded.subheading = undefined;
+      if (promoted === folded.bullets?.[0]?.trim()) {
+        const rest = folded.bullets.slice(1);
+        folded.bullets = rest.length && slots.body ? rest : undefined;
+      }
+      if (promoted === folded.caption?.trim() && !slots.caption) folded.caption = undefined;
+    }
+  }
+
+  // Three cards, from three bullets. A sequence written as a list is the same
+  // sequence; the cards are how this layout draws one.
+  if (layout === "three-up" && !folded.cards?.length && folded.bullets?.length) {
+    folded.cards = folded.bullets.slice(0, 3).map((bullet) => ({ title: "", body: bullet }));
+    folded.bullets = undefined;
+  }
+
+  return folded;
+}
+
 /**
  * Compose a full scene from a layout plus content. Everything the generator and
  * the "change layout" control produce goes through here, so composition quality
  * is consistent regardless of origin.
  */
-export function composeScene(layout: SceneLayout, content: LayoutContent): SceneContent {
-  if (layout === "cover") return composeCover(content);
+export function composeScene(layout: SceneLayout, given: LayoutContent): SceneContent {
+  if (layout === "cover") return composeCover(given);
   const slots = layoutSlots(layout);
+  const content = fold(layout, slots, given);
   const centred = CENTRED.includes(layout);
   const align = centred ? "center" : "left";
   const elements: SceneElement[] = [];
@@ -523,6 +602,18 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
     layout === "media-full" && content.media
       ? { kind: "theme" } // the media element itself is the backdrop
       : { kind: "theme" };
+
+  // The last resort, and the one that makes "an empty scene" mean the author
+  // wrote nothing rather than that the composition lost it. Code and a chart
+  // are drawn by exactly one layout each; everything else with words in it
+  // survives on `bullets`, which holds a heading, prose and a list. The scene
+  // really does become that layout: reporting `statement` over bullets
+  // geometry would blank it again the next time a layout was applied.
+  if (!elements.length && hasWords(given)) {
+    if (given.code?.code.trim() && layout !== "code") return composeScene("code", given);
+    if (given.chart?.data.length && layout !== "chart") return composeScene("chart", given);
+    if (layout !== "bullets") return composeScene("bullets", given);
+  }
 
   return {
     version: 1,
