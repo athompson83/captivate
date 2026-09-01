@@ -230,6 +230,41 @@ test.describe("the editor on a narrow screen", () => {
     expect(await page.locator('[role="menu"]').count()).toBe(0);
   });
 
+  test("dismissing a popover puts the keyboard back where it was", async ({ page }) => {
+    await open(page, 390, 780);
+
+    const trigger = page.getByRole("button", { name: "More editor controls" });
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+
+    // Tab *into* the popover first. This is the step that makes the test mean
+    // anything: opening it leaves focus on the trigger, so an Escape pressed
+    // straight afterwards has nothing to restore and passes against the
+    // defect. The first version of this test did exactly that, and stayed
+    // green with the whole fix removed.
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Toggle notes" })).toBeFocused();
+
+    // Escape then dropped focus on `body`, so the next Tab restarted at the
+    // top of the document and a keyboard user lost their place. `Dialog` has
+    // restored focus since #41; `Popover` had the same hole, and every menu in
+    // the editor goes through it — this one most of all, since on a narrow
+    // screen it is the only way to reach half the header.
+    await page.keyboard.press("Escape");
+    await expect(trigger).toBeFocused();
+
+    // Dismissing by clicking something else leaves focus on what was clicked.
+    // Stated as behaviour worth holding rather than as proof of the `stranded`
+    // guard beside it: the click focuses its own target after the popover has
+    // already closed, so this passes with or without that guard. The guard is
+    // there for focus that has deliberately moved elsewhere, which this
+    // fixture has no way to produce.
+    await trigger.click();
+    const elsewhere = page.getByRole("button", { name: /scene navigator/ });
+    await elsewhere.click();
+    await expect(elsewhere).toBeFocused();
+  });
+
   test("the selection toolbar follows the stage across a resize", async ({ page }) => {
     // A short, wide window on purpose. `fitScale` takes the smaller of the two
     // fits, so here the stage is bound by height — and a width-only resize
