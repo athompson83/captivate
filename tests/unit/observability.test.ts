@@ -46,6 +46,10 @@ describe("what a failure line says", () => {
           throw new Error("boom");
         },
       },
+      // A fourth, and the least obvious: an `Error` whose `message` is not a
+      // string. The instanceof branch hands it straight to `.replace`, which
+      // only exists on strings — "raw.replace is not a function".
+      Object.assign(new Error("x"), { message: { not: "a string" } }),
     ];
 
     for (const error of hostile) {
