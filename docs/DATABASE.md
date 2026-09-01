@@ -85,8 +85,11 @@ error. It is what makes cost visible, and it is also the rate limiter's counter.
 
 ### `ai_image_limits`
 
-One row, holding what an image costs, the shared monthly budget and the per-user
-daily count. `captivate_reserve_image_generation` reads it; nothing else does.
+One row, holding what an image costs, the shared monthly budget and the _cap_ on
+how many images one author may generate in a day. Three ceilings and no
+counters — the count the cap is compared against is derived from
+`public.ai_generations` at reservation time.
+`captivate_reserve_image_generation` reads it; nothing else does.
 
 RLS is on with **no policies at all**, like `stripe_events` — the ceilings are
 the deployment's rather than any user's, and they are not readable by a

@@ -22,9 +22,9 @@ the price of one image, the shared monthly budget, and `daily_max`, the _cap_ on
 how many images one author may generate in a day — live in
 `public.ai_image_limits` and are read by the reservation itself, because a
 ceiling passed in by the caller is a ceiling the caller chooses; see
-[SECURITY.md](SECURITY.md). The table holds the cap and nothing else: the count
-it is compared against is derived from `public.ai_generations` at reservation
-time. Change them with SQL against that row, taking the reservation's own lock
+[SECURITY.md](SECURITY.md). The table holds those three numbers and no
+counters: the count `daily_max` is compared against is derived from
+`public.ai_generations` at reservation time. Change them with SQL against that row, taking the reservation's own lock
 so the change is a boundary rather than a suggestion:
 
 ```sql

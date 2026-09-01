@@ -150,7 +150,12 @@ the month — no model call, no real money, and a free account could do it,
 because the Pro gate is applied in the application rather than in the function.
 
 `0020` had closed the settlement end of exactly this threat; this closes the
-reservation end, which was the cheaper attack. The three numbers move into
+reservation end, which was the cheaper attack. It was never used: production
+holds **zero** `ai_generations` rows of kind `image` — not this month, not
+ever — so the shared budget is untouched, there is no poisoned `cost_usd` row
+to reverse, and the migration lands on an empty ledger. Checked rather than
+assumed, because "nobody exploited it" is the kind of claim that is worth a
+query. The three numbers move into
 `public.ai_image_limits`, RLS on with no policies, read inside the locked
 statement that checks them.
 
