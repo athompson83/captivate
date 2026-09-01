@@ -83,6 +83,13 @@ if echo "$out" | grep -E "plan_|reserve_rejects_" | grep -qvE "\|\s+1\s*$"; then
   echo "PLAN RESOLUTION TESTS FAILED"; exit 1
 fi
 
+# What a text generation cost. Every `cost_` probe states a property that must
+# hold; the ledger recorded tokens and priced none of them for the whole life
+# of the table.
+if echo "$out" | grep -E "cost_" | grep -qvE "\|\s+1\s*$"; then
+  echo "GENERATION COST TESTS FAILED"; exit 1
+fi
+
 # Every share-link assertion must hold (1 = the stated property was observed).
 if echo "$out" | grep -E "shared_link_" | grep -qvE "\|\s+1\s*$"; then
   echo "SHARE LINK TESTS FAILED"; exit 1

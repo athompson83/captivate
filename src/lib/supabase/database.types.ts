@@ -296,6 +296,21 @@ export type Database = {
         Args: Record<string, never>;
         Returns: string;
       };
+      /**
+       * Not granted to `anon` or `authenticated` — see
+       * `0023_text_generation_cost.sql`. Declared so the schema stays a
+       * complete description of the database rather than of what the browser
+       * happens to be allowed to call.
+       */
+      captivate_model_cost: {
+        Args: {
+          p_model: string;
+          p_input_tokens: number | null;
+          p_output_tokens: number | null;
+          p_at: string | null;
+        };
+        Returns: number | null;
+      };
       captivate_complete_generation: {
         Args: {
           p_id: string;

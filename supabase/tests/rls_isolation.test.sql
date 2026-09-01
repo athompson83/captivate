@@ -1094,3 +1094,70 @@ select 'reserve_rejects_unknown_group' as check,
   (refusal = 'misconfigured')::int as n
   from public.captivate_reserve_generation('scenes', 'nonsense', 'p', null);
 reset role;
+
+-- ---- What a text generation cost ----------------------------------------------
+-- `cost_usd` was written only by image generation; every text row settled at
+-- zero while the tokens sat beside it unpriced. Pricing a tier means knowing
+-- what a presentation costs, so an allowance set without this was a guess.
+set role authenticated;
+set "request.jwt.claim.sub" = '33333333-3333-3333-3333-333333333333';
+
+select id from public.captivate_reserve_generation('scenes', 'deck', 'cost', null) \gset cost_
+select 'cost_recorded_for_successful_call' as check,
+  (public.captivate_complete_generation(
+     :'cost_id', 'succeeded', 'claude-sonnet-5', 100000, 20000, null))::int as n;
+-- 100k in at $3/Mtok plus 20k out at $15/Mtok. Asserted as the arithmetic
+-- rather than as a literal, so a rate change moves the expectation with it.
+select 'cost_is_tokens_times_the_rate' as check,
+  (cost_usd = round((100000::numeric / 1000000) * 3.00 + (20000::numeric / 1000000) * 15.00, 6))::int
+    as n
+  from public.ai_generations where id = :'cost_id';
+
+-- A truncated or schema-invalid answer still cost money. Counting only
+-- successes understates the bill by exactly the share of attempts that go
+-- wrong, which is the share worth knowing about.
+select id from public.captivate_reserve_generation('map', 'draft', 'cut off', null) \gset trunc_
+-- Settled and read in separate statements: within one statement the read takes
+-- the snapshot from before the update and reports the row as it was.
+select public.captivate_complete_generation(
+  :'trunc_id', 'failed', 'claude-sonnet-5', 120000, 8000, 'cut off') \gset trunc_settled_
+select 'cost_recorded_for_failed_call_with_usage' as check,
+  (cost_usd > 0)::int as n
+  from public.ai_generations where id = :'trunc_id';
+
+-- A model this deployment has no price for is left alone rather than costed at
+-- a guess: made-up numbers in the evidence a pricing decision rests on are
+-- worse than a visible gap.
+select id from public.captivate_reserve_generation('rewrite', 'light', 'unknown', null) \gset unk_
+select public.captivate_complete_generation(
+  :'unk_id', 'succeeded', 'a-model-nobody-priced', 1000, 1000, null) \gset unk_settled_
+select 'cost_unknown_model_is_not_invented' as check,
+  (coalesce(cost_usd, 0) = 0)::int as n
+  from public.ai_generations where id = :'unk_id';
+
+-- The rates are the deployment's, not any user's. A user who could write here
+-- would price their own usage at zero.
+select 'cost_rates_opaque_to_users' as check,
+  (count(*) = 0)::int as n from public.ai_model_rates;
+do $$
+begin
+  begin
+    update public.ai_model_rates set input_per_mtok = 0;
+  exception when insufficient_privilege then
+    null;
+  end;
+end $$;
+reset role;
+
+select 'cost_rates_not_user_writable' as check,
+  (input_per_mtok = 3.00)::int as n from public.ai_model_rates
+  where model = 'claude-sonnet-5';
+
+-- Nothing in a browser has any business pricing a generation, so the helper is
+-- not published to either role.
+select 'cost_' || r.rolname || '_cannot_execute_captivate_model_cost' as check,
+  (not has_function_privilege(
+     r.rolname,
+     'public.captivate_model_cost(text, integer, integer, timestamptz)',
+     'EXECUTE'))::int as n
+  from (values ('anon'), ('authenticated')) as r(rolname);
