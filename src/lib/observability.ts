@@ -54,8 +54,25 @@ function detailOf(error: unknown): string {
  * already going badly.
  */
 export function logFailure(operation: string, error: unknown): void {
+  emit(operation, detailOf(error));
+}
+
+/**
+ * The one place a line is written, so a detail is bounded exactly once.
+ *
+ * Composing a message and passing it back through `logFailure` ran `detailOf`
+ * over it a second time, and a detail already at its limit lost whatever had
+ * been appended — which was the suppressed count, the very part that keeps a
+ * throttle from being a way to hide things. Bounding the error and adding the
+ * bookkeeping are different jobs; only the first one truncates.
+ *
+ * Never throws: this runs inside failure paths that are already going badly,
+ * and an observability call that can fail the request it is observing is worse
+ * than no observability at all.
+ */
+function emit(operation: string, detail: string): void {
   try {
-    console.error(`${PREFIX} ${operation}: ${detailOf(error)}`);
+    console.error(`${PREFIX} ${operation}: ${detail}`);
   } catch {
     // Nothing sensible remains to do if stderr itself is unavailable, and
     // throwing here would replace a handled failure with an unhandled one.
@@ -97,11 +114,11 @@ export function logFailureSampled(operation: string, error: unknown, windowMs = 
 
   const suppressed = previous?.suppressed ?? 0;
   seen.set(operation, { at: now, suppressed: 0 });
-  logFailure(
+  emit(
     operation,
     suppressed > 0
       ? `${detailOf(error)} (+${suppressed} more in the last ${Math.round(windowMs / 1000)}s)`
-      : error,
+      : detailOf(error),
   );
 }
 

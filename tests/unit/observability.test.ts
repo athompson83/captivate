@@ -99,6 +99,26 @@ describe("a failure anyone can trigger", () => {
     expect(spy.mock.calls[1][0]).toContain("+9 more");
   });
 
+  it("keeps the count on an error long enough to be truncated", () => {
+    // The regression: the detail was bounded, the suffix appended, and the
+    // whole thing bounded again — so a long provider message ate the very
+    // number that keeps a throttle from being a way to hide things.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const enormous = "x".repeat(5000);
+    vi.useFakeTimers();
+    try {
+      logFailureSampled("stripe.webhook.signature", enormous, 1000);
+      for (let i = 0; i < 4; i += 1) logFailureSampled("stripe.webhook.signature", enormous, 1000);
+      vi.advanceTimersByTime(1500);
+      logFailureSampled("stripe.webhook.signature", enormous, 1000);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(String(spy.mock.calls[1][0])).toContain("+4 more");
+  });
+
   it("counts each operation separately", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     logFailureSampled("one", "x");
