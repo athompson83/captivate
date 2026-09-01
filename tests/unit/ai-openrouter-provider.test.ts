@@ -192,6 +192,36 @@ describe("generating through OpenRouter", () => {
     expect(sent, "a truncation must not be retried under the same ceiling").toHaveLength(1);
   });
 
+  it("still reports what the first attempt cost when the second hits an outage", async () => {
+    // The ledger is the point. Attempt 0 reaches the model, fails its schema
+    // and is billed; attempt 1 gets a 429. Returning no usage books a real
+    // call as free — `StructuredResult` documents absent usage as "nothing was
+    // spent" — so the cost record is short by exactly the generations that had
+    // to be corrected and then hit an outage.
+    replies = [toolReply({ heading: "", bullets: [] }), { status: 429, body: {} }];
+    const result = await generate();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("overloaded");
+      expect(result.usage, "the billed first attempt must survive the outage").toEqual({
+        input: 100,
+        output: 40,
+      });
+    }
+  });
+
+  it("reports nothing spent when nothing reached the model", async () => {
+    // The other half of the same rule: an outage on the very first attempt
+    // really did cost nothing, and claiming otherwise would inflate the ledger
+    // rather than complete it.
+    replies = [{ status: 503, body: {} }];
+    const result = await generate();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.usage).toBeUndefined();
+  });
+
   it("gives an out-of-credit account its own sentence", async () => {
     // "The model couldn't be reached" sends whoever reads it to look at
     // networking. The answer is a billing page.

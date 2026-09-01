@@ -66,7 +66,7 @@ export const AI_PROVIDER = resolveProvider();
  * fallbacks were tuned against that model, so changing the *gateway* and the
  * *model* in one step would leave nothing to attribute a regression to.
  * `CAPTIVATE_AI_MODEL` moves it in one variable once the gateway is known good
- * — `openai/gpt-5.2`, `google/gemini-3-pro` and `deepseek/deepseek-v3.2` all
+ * — `openai/gpt-5.2`, `google/gemini-3.7-flash` and `deepseek/deepseek-v3.2` all
  * support the forced tool call this depends on, and the last is roughly a
  * tenth of the price.
  *
@@ -358,7 +358,11 @@ type ChatMessage =
   | {
       role: "assistant";
       content: string | null;
-      tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[];
+      tool_calls?: {
+        id: string;
+        type: "function";
+        function: { name: string; arguments: string };
+      }[];
     }
   | { role: "tool"; tool_call_id: string; content: string };
 
@@ -441,7 +445,10 @@ function openRouterConversation<T>(
         // rather than an exotic one, so it gets the sentence that says what to
         // do about it.
         if (error instanceof DOMException && error.name === "TimeoutError") {
-          return { kind: "error", message: "The model took too long to answer. Nothing was spent." };
+          return {
+            kind: "error",
+            message: "The model took too long to answer. Nothing was spent.",
+          };
         }
         return {
           kind: "error",
@@ -553,15 +560,25 @@ export async function generateStructured<T>(
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const answer = await conversation.attempt();
 
+    // Both of these can fire on the *second* attempt, after the first reached
+    // the model and was billed. `StructuredResult` documents absent usage as
+    // "nothing was spent", so returning nothing here books a real call as free
+    // — and the ledger this whole cost model rests on is then short by exactly
+    // the generations that had to be corrected and then hit an outage. Spent
+    // is spent, whether or not the author got anything.
+    const spent =
+      totalInput || totalOutput ? { usage: { input: totalInput, output: totalOutput } } : {};
+
     if (answer.kind === "overloaded") {
       return {
         ok: false,
         reason: "overloaded",
+        ...spent,
         error: "The model is busy right now. Try again in a moment — nothing was changed.",
       };
     }
     if (answer.kind === "error") {
-      return { ok: false, reason: "provider_error", error: answer.message };
+      return { ok: false, reason: "provider_error", ...spent, error: answer.message };
     }
 
     totalInput += answer.usage.input;

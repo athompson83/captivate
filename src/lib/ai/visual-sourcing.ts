@@ -262,16 +262,18 @@ export function sniffImage(bytes: Uint8Array): { mimeType: string; extension: st
 }
 
 /**
- * The type to put in the preview's data URL.
+ * The bytes behind a base64 payload, or null if it is not decodable.
  *
- * A claim, used only so the browser paints the preview correctly. Nothing is
- * stored on the strength of it — `sniffImage` reads the bytes when the author
- * accepts — so an unrecognised value falls back to PNG rather than failing a
- * generation that has already been paid for.
+ * Separate from `sniffImage` so a decode failure and an unsupported format are
+ * distinguishable: one is a broken response, the other is a picture in a shape
+ * this deployment cannot keep.
  */
-function mediaType(declared: string | null | undefined): string {
-  const named = declared?.trim().toLowerCase() ?? "";
-  return named in STORABLE ? named : "image/png";
+function decodeBase64(payload: string): Uint8Array | null {
+  try {
+    return Uint8Array.from(Buffer.from(payload, "base64"));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -372,13 +374,42 @@ export async function generateImage(
       return { ok: false, error: "The image provider returned something unreadable." };
     }
 
+    // Sniffed here, before this is called a success, and not left to the accept
+    // path.
+    //
+    // The first version put the provider's declared `media_type` in the data
+    // URL and mapped anything unrecognised to PNG, on the reasoning that the
+    // bytes get read properly when the author accepts. That is true and it is
+    // the wrong place: by then the generation is *paid for*. OpenRouter fronts
+    // vector models that answer with `image/svg+xml`, so an operator who set
+    // `CAPTIVATE_IMAGE_MODEL` to one would get a preview of SVG markup labelled
+    // as a PNG — a broken picture — and then "that file isn't an image" when
+    // they tried to keep it, with the money already gone and nothing saying
+    // why.
+    //
+    // So an unusable answer is settled as what it is. The spend stands, because
+    // the provider did the work and billed for it, but the author is told
+    // plainly rather than shown a broken image.
+    const bytes = decodeBase64(parsed.data.data[0].b64_json);
+    const kind = bytes && sniffImage(bytes);
+    if (!kind) {
+      await settle(supabase, ticket.id, "invalid_output", "unsupported image format", startedAt);
+      return {
+        ok: false,
+        error:
+          "The image provider returned a format Captivate can't store. Try a different image model, or search and upload instead.",
+      };
+    }
+
     const generationMs = Date.now() - startedAt;
     await settle(supabase, ticket.id, "succeeded", null, startedAt);
 
     return {
       ok: true,
       data: {
-        previewDataUrl: `data:${mediaType(parsed.data.data[0].media_type)};base64,${parsed.data.data[0].b64_json}`,
+        // The sniffed type, not the declared one. There is no claim left to be
+        // wrong about.
+        previewDataUrl: `data:${kind.mimeType};base64,${parsed.data.data[0].b64_json}`,
         model: IMAGE_MODEL,
         prompt: trimmed,
         quality: "medium",
