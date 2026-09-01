@@ -76,7 +76,7 @@ export default async function LandingPage() {
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <Link
                 href="/sign-up"
-                className="rounded-[var(--radius-lg)] bg-[var(--sky-amber)] px-6 py-3.5 text-[15px] font-medium text-[oklch(0.18_0.03_60)] shadow-[0_10px_30px_oklch(0.7_0.15_70_/_0.25)] transition-opacity hover:opacity-90"
+                className="rounded-[var(--radius-lg)] bg-[var(--sky-amber)] px-6 py-3.5 text-[15px] font-medium text-[var(--sky-amber-ink)] shadow-[0_10px_30px_oklch(0.7_0.17_38_/_0.28)] transition-opacity hover:opacity-90"
               >
                 Start your first canvas
               </Link>
@@ -208,7 +208,7 @@ export default async function LandingPage() {
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/sign-up"
-                className="rounded-[var(--radius-lg)] bg-[var(--sky-amber)] px-6 py-3.5 text-[15px] font-medium text-[oklch(0.18_0.03_60)] transition-opacity hover:opacity-90"
+                className="rounded-[var(--radius-lg)] bg-[var(--sky-amber)] px-6 py-3.5 text-[15px] font-medium text-[var(--sky-amber-ink)] transition-opacity hover:opacity-90"
               >
                 Create an account
               </Link>

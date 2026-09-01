@@ -177,6 +177,17 @@ export function elementId(prefix = "el"): string {
 export interface LayoutContent {
   eyebrow?: string;
   heading?: string;
+  /**
+   * The scene's name, used as a heading only when there is none.
+   *
+   * It is never drawn in its own right — it labels the scene in the navigator
+   * — so a generator that writes the line here and nowhere else has written a
+   * scene the audience cannot see. Nine of the ten blank scenes in a
+   * production deck were exactly that: `statement` layouts whose title was the
+   * statement ("Feedback two weeks late helps no one") and whose heading was
+   * empty.
+   */
+  title?: string;
   /** A closing clause of the heading, carried in the theme's accent colour. */
   headingAccent?: string;
   subheading?: string;
@@ -196,14 +207,80 @@ export interface LayoutContent {
   };
 }
 
+/** Every field of `LayoutContent` that carries words a reader would miss. */
+function hasWords(content: LayoutContent): boolean {
+  return Boolean(
+    content.heading?.trim() ||
+    content.quote?.trim() ||
+    content.subheading?.trim() ||
+    content.body?.trim() ||
+    content.eyebrow?.trim() ||
+    content.caption?.trim() ||
+    content.attribution?.trim() ||
+    content.title?.trim() ||
+    content.chart?.data.length ||
+    content.bullets?.length ||
+    content.bulletsB?.length ||
+    content.cards?.length ||
+    content.code?.code.trim(),
+  );
+}
+
 /**
- * Compose a full scene from a layout plus content. Everything the generator and
- * the "change layout" control produce goes through here, so composition quality
- * is consistent regardless of origin.
+ * Draws a three-up's cards from its bullets.
+ *
+ * A sequence written as a list is the same sequence; cards are how this layout
+ * draws one. Always, rather than only when the scene would otherwise be empty:
+ * a three-up with a heading and three bullets is not blank, it is a heading
+ * with its three points silently missing.
  */
-export function composeScene(layout: SceneLayout, content: LayoutContent): SceneContent {
-  if (layout === "cover") return composeCover(content);
-  const slots = layoutSlots(layout);
+function withCards(layout: SceneLayout, content: LayoutContent): LayoutContent {
+  if (layout !== "three-up" || content.cards?.length || !content.bullets?.length) return content;
+  return {
+    ...content,
+    cards: content.bullets.slice(0, 3).map((bullet) => ({ title: "", body: bullet })),
+    bullets: undefined,
+  };
+}
+
+/**
+ * Gives a layout a heading out of whatever else it was handed.
+ *
+ * A layout renders the fields it has slots for and drops the rest, and mostly
+ * that is the point: a statement scene is one idea with air around it and
+ * "nothing else belongs here". But the generator does not choose the layout —
+ * `layoutFor` does, from the moment's visual intent — so the model can write a
+ * perfectly good statement into `title` or `body` and have every word of it
+ * discarded. Ten of the twenty-one scenes in a deck exported from production
+ * were blank for exactly this, and the editor showed the author "This scene is
+ * empty" over content the model had written.
+ *
+ * Only ever reached when the layout has already rendered *nothing*, which is
+ * what makes it safe to leave the source field alone: if any of these fields
+ * had a slot, the composition would not have been empty and we would not be
+ * here. Promoting eagerly is how the same prose ends up printed twice, once as
+ * a heading and again in the slot it was already going to fill.
+ */
+function withHeading(slots: LayoutSlots, content: LayoutContent): LayoutContent {
+  if (!slots.heading || content.heading?.trim() || content.quote?.trim()) return content;
+
+  const promoted =
+    // The title first: it is the one field written to be a name for the scene,
+    // so it is the most heading-shaped thing available.
+    content.title?.trim() ||
+    content.body?.trim() ||
+    content.subheading?.trim() ||
+    content.bullets?.[0]?.trim() ||
+    content.cards?.[0]?.title?.trim() ||
+    content.caption?.trim() ||
+    content.eyebrow?.trim() ||
+    content.attribution?.trim();
+
+  return promoted ? { ...content, heading: promoted } : content;
+}
+
+/** The elements a layout draws from this content, and nothing else. */
+function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent): SceneElement[] {
   const centred = CENTRED.includes(layout);
   const align = centred ? "center" : "left";
   const elements: SceneElement[] = [];
@@ -519,15 +596,57 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
     });
   }
 
-  const background: SceneContent["background"] =
-    layout === "media-full" && content.media
-      ? { kind: "theme" } // the media element itself is the backdrop
-      : { kind: "theme" };
+  return elements;
+}
 
+/**
+ * Compose a full scene from a layout plus content. Everything the generator and
+ * the "change layout" control produce goes through here, so composition quality
+ * is consistent regardless of origin.
+ *
+ * Composed, then rescued — in that order, and the order is the point. The
+ * layout draws what it draws; only when that comes to *nothing* does the
+ * composition reach for a heading it was not given, and only then does it fall
+ * back to a different layout. Rescuing first would print the same prose twice
+ * on every layout that had a slot for it all along.
+ */
+export function composeScene(layout: SceneLayout, given: LayoutContent): SceneContent {
+  if (layout === "cover") return composeCover(given);
+  const slots = layoutSlots(layout);
+
+  // Cards, always: a three-up with a heading and three bullets is not blank,
+  // it is a heading with its three points silently missing.
+  const content = withCards(layout, given);
+  const drawn = build(layout, slots, content);
+  if (drawn.length) return scene(layout, drawn);
+
+  const promoted = withHeading(slots, content);
+  if (promoted !== content) {
+    const rescued = build(layout, slots, promoted);
+    if (rescued.length) return scene(layout, rescued);
+  }
+
+  // The last resort, and the one that makes "an empty scene" mean the author
+  // wrote nothing rather than that the composition lost it. Code and a chart
+  // are drawn by exactly one layout each; everything else with words in it
+  // survives on `bullets`, which holds a heading, prose and a list. The scene
+  // really does become that layout: reporting `statement` over bullets
+  // geometry would blank it again the next time a layout was applied.
+  if (hasWords(given)) {
+    if (given.code?.code.trim() && layout !== "code") return composeScene("code", given);
+    if (given.chart?.data.length && layout !== "chart") return composeScene("chart", given);
+    if (layout !== "bullets") return composeScene("bullets", given);
+  }
+
+  return scene(layout, drawn);
+}
+
+/** The composed scene around a set of elements. */
+function scene(layout: SceneLayout, elements: SceneElement[]): SceneContent {
   return {
     version: 1,
     layout,
-    background,
+    background: { kind: "theme" },
     elements,
     themeOverride: null,
   };
@@ -546,6 +665,12 @@ export function composeScene(layout: SceneLayout, content: LayoutContent): Scene
  */
 function composeCover(content: LayoutContent): SceneContent {
   const base = composeScene("title", { ...content, media: undefined });
+  // The same fallback the composition beneath used, rather than the raw
+  // `heading`. A cover whose line was written only as a title got the title
+  // underneath and nothing over the veil — and the veil is a full-bleed
+  // photograph, so the deck opened on a picture with no words on it at all.
+  // Derived through `withHeading` so the two can never disagree about order.
+  const veilHeading = withHeading(layoutSlots("title"), content).heading;
   const beneath = base.elements.map((el) => ({
     ...el,
     animation: { ...el.animation, entrance: "none" as const, delay: 0 },
@@ -580,15 +705,15 @@ function composeCover(content: LayoutContent): SceneContent {
     },
   ];
 
-  if (content.heading) {
+  if (veilHeading) {
     veil.push({
       id: elementId("veil"),
       type: "heading",
       level: 1,
       frame: frame(M, 50, W * 0.84, 32),
       content: content.headingAccent
-        ? richTextAccent(content.heading, content.headingAccent)
-        : richText(content.heading),
+        ? richTextAccent(veilHeading, content.headingAccent)
+        : richText(veilHeading),
       hidden: false,
       locked: false,
       opacity: 1,

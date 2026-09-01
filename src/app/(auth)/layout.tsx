@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+
+import { Wordmark } from "@/components/ui/wordmark";
 
 /**
  * Split auth layout: the form on the left, a live "stage" motif on the right
@@ -9,18 +10,15 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
       <div className="flex flex-col px-6 py-8 sm:px-10 lg:px-16">
-        <Link href="/" className="inline-flex w-fit items-center gap-2.5">
-          <span className="bg-accent flex size-8 items-center justify-center rounded-[var(--radius-md)]">
-            <Sparkles className="size-4 text-[var(--accent-contrast)]" aria-hidden />
-          </span>
-          <span className="text-ink text-[15px] font-semibold tracking-tight">Captivate</span>
+        <Link href="/" className="inline-flex w-fit">
+          <Wordmark size="md" />
         </Link>
 
         <div className="flex flex-1 items-center py-12">
           <div className="w-full max-w-sm">{children}</div>
         </div>
 
-        <p className="text-ink-3 text-xs">Captivate — presentations that hold a room.</p>
+        <p className="text-ink-3 text-xs">Captivate by Axtevi — presentations that hold a room.</p>
       </div>
 
       <div className="bg-sunken relative hidden overflow-hidden lg:block">

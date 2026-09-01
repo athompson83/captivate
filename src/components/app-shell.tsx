@@ -12,13 +12,13 @@ import {
   Menu,
   Notebook,
   Settings,
-  Sparkles,
   Video,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { UserMenu } from "@/components/user-menu";
 import { CommandPalette } from "@/components/command-palette";
+import { Wordmark } from "@/components/ui/wordmark";
 
 const NAV = [
   { href: "/home", label: "Home", icon: Home },
@@ -82,15 +82,8 @@ export function AppShell({
         )}
       >
         <div className="flex h-14 items-center justify-between px-4">
-          <Link
-            href="/home"
-            onClick={() => setMobileOpen(false)}
-            className="flex items-center gap-2.5"
-          >
-            <span className="bg-accent flex size-7 items-center justify-center rounded-[var(--radius-sm)]">
-              <Sparkles className="size-3.5 text-[var(--accent-contrast)]" aria-hidden />
-            </span>
-            <span className="text-ink text-[14px] font-semibold tracking-tight">Captivate</span>
+          <Link href="/home" onClick={() => setMobileOpen(false)} className="flex items-center">
+            <Wordmark />
           </Link>
           <button
             onClick={() => setMobileOpen(false)}
@@ -173,7 +166,7 @@ export function AppShell({
           >
             <Menu className="size-5" aria-hidden />
           </button>
-          <span className="text-ink text-[14px] font-semibold">Captivate</span>
+          <Wordmark />
         </header>
 
         <main id="main" tabIndex={-1} className="min-w-0 flex-1">

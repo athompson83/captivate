@@ -428,6 +428,20 @@ The writing has to be worth standing in front of. The bar:
 
 Use the whole instrument. An eyebrow situates ("Module 2 · Airway"), a headingAccent carries the clause the claim turns on, cards give a three-up its three ideas, a chart's data uses the evidence's real magnitudes. A scene that uses only heading and bullets when its layout offers more reads as a form letter.
 
+Each layout draws a fixed set of fields and shows nothing else, so write into the ones its layout has. A statement whose words are in \`body\` is a blank screen:
+
+- cover, title — eyebrow, heading, headingAccent, subheading (cover also imagePrompt)
+- section — eyebrow, heading
+- statement — heading only. The whole idea goes in the heading; it is set large and centred.
+- quote — quote, attribution. Not heading.
+- bullets, closing — heading, then bullets or body (closing also subheading)
+- split-left, split-right — heading, then bullets or body, and imagePrompt
+- media-full — heading, caption, imagePrompt
+- two-column — heading, bullets on the left and bulletsB on the right
+- three-up — heading and exactly three cards, each with its own title and body. Not bullets.
+- chart — heading, chart, caption
+- code — heading, code
+
 Pictures: every cover, split-left, split-right and media-full scene MUST carry an imagePrompt — the picture is half the scene, and an empty half is a broken scene. The imagePrompt describes the one image that would teach or land the moment — a mechanism, a scene, a before-and-after — concretely enough to photograph or sketch. Also give those scenes a photoQuery: two to five plain search words for a stock photo of the same subject.
 
 Asides: for two to four scenes in the deck — the ones hiding a definition, a worked example, or the data behind a claim — add an aside: a small detail scene the presenter opens by clicking, off the main path. Its label names what the click reveals ("See the mechanism"). Give it a real title and either bullets or a short body, and one or two sentences of speaker notes. Most scenes have no aside; use them only where depth-on-demand genuinely helps.
@@ -545,9 +559,10 @@ async function dressScenes(
       (element) => element.type === "image" && !element.url && !element.assetId,
     );
 
-  const drawings = drawableScenes(scenes, drawingCap(totalSeconds));
+  const photosAvailable = isPhotoFillConfigured();
+  const drawings = drawableScenes(scenes, drawingCap(totalSeconds, !photosAvailable));
   const drawn = new Set<unknown>(drawings);
-  const photos = isPhotoFillConfigured()
+  const photos = photosAvailable
     ? scenes.filter(
         (scene) =>
           !drawn.has(scene) && scene.imagePrompt.trim().length > 0 && hasEmptySlot(scene.content),
@@ -643,7 +658,20 @@ ${instruction}`,
 function materialise(scene: GeneratedScene): MaterialisedScene {
   const layoutContent: LayoutContent = {
     eyebrow: scene.eyebrow || undefined,
+    // The title, when there is no heading. `title` is the scene's name in the
+    // navigator and is never drawn on the stage, so a model that puts the line
+    // there and nowhere else has written a scene the audience cannot see —
+    // which is exactly what happened: nine of ten blank scenes in a production
+    // deck were `statement` layouts whose titles were the statement ("Feedback
+    // two weeks late helps no one") and whose heading was empty.
+    //
+    // Only as a fallback. A heading and a title are usually different lengths
+    // for good reason, and the heading is the one written to be read from the
+    // back of a room.
     heading: scene.heading || undefined,
+    // Only as a fallback, and only where the layout has nowhere else to put
+    // it — see `LayoutContent.title`.
+    title: scene.title || undefined,
     headingAccent: scene.headingAccent || undefined,
     subheading: scene.subheading || undefined,
     body: scene.body || undefined,
