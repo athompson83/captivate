@@ -88,15 +88,19 @@ Codex ran out of review credits partway through #48 and reviewed nothing after
 `639072d`. Four PRs of billing and provider code went out on a single reviewer.
 That is worth restoring before the next change to the spend path.
 
-### Still unset in Vercel
+### What Vercel still needs, and what cannot be read from here
 
-`STRIPE_PRICE_BASIC_MONTHLY`, `STRIPE_PRICE_PRO_MONTHLY` and
+Three Stripe price IDs created in this session were never written to the
+environment: `STRIPE_PRICE_BASIC_MONTHLY`, `STRIPE_PRICE_PRO_MONTHLY` and
 `STRIPE_PRICE_TOPUP`. The paid tiers are visible and not purchasable, which is
 the intended degradation rather than a fault — the top-up row is absent from
 `/pricing` and the plan controls in settings are hidden. No tool in this
 session writes a Vercel environment variable, and the connector's grant covers
-only `proficiencyai`. `OPENROUTER_API_KEY` is likewise unset, so nothing in the
-second gateway has touched a live API.
+only `proficiencyai`. The same blindness covers the model keys: neither
+`OPENAI_API_KEY` nor `OPENROUTER_API_KEY` can be read from here, and
+`/api/ai/status` reports both but needs a signed-in user. Production has issued
+zero image generations ever and no completion has ever run through OpenRouter —
+its catalogue endpoints were read while building the client, nothing more.
 
 ### The spend boundary, rebuilt and released — PR #48
 
