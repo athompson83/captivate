@@ -50,6 +50,23 @@ export function Dialog({
       if (focusables.length === 0) return;
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
+
+      // Focus on nothing is the case the wrap-around cannot see, and the one a
+      // person actually produces: clicking a dialog's title, its description or
+      // its body prose leaves `activeElement` on `body`. Both branches below
+      // then miss and the browser resumes its own sequential navigation from
+      // the clicked node — out of the panel and into the page the modal is
+      // covering, which `aria-modal` describes as unavailable and nothing was
+      // making so. Which way out depends on where the prose sits: above the
+      // panel's last control Shift+Tab leaves, and below it — a shortcut sheet,
+      // a share dialog — Tab does. Redirecting both makes the trap independent
+      // of that, rather than of whichever layout happens to be in front.
+      if (!panelRef.current.contains(document.activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
+
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
         last.focus();
@@ -61,9 +78,17 @@ export function Dialog({
 
     document.addEventListener("keydown", onKey, true);
     const t = setTimeout(() => {
-      panelRef.current
-        ?.querySelector<HTMLElement>("[data-autofocus],button,input,textarea")
-        ?.focus();
+      const panel = panelRef.current;
+      if (!panel) return;
+      // `data-autofocus` is a preference, not a position. Asking for it in one
+      // selector list returns whichever matches first in *document* order,
+      // which is the close button in the header — so the marker did nothing,
+      // and `ConfirmDialog` marking Cancel to keep focus off the destructive
+      // action was working only by luck.
+      const chosen =
+        panel.querySelector<HTMLElement>("[data-autofocus]") ??
+        panel.querySelector<HTMLElement>("button,input,textarea");
+      chosen?.focus();
     }, 40);
 
     const prevOverflow = document.body.style.overflow;
