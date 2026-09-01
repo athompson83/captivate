@@ -130,3 +130,19 @@ select 'MISSING policy-free access control on public.' || tablename ||
   from pg_policies
  where schemaname = 'public'
    and tablename in ('ai_image_limits','stripe_events');
+
+-- Some things must be *absent*, and presence is not the same question as
+-- absence when Postgres allows overloading. `0021` drops the reservation's old
+-- five-argument form deliberately: leaving it callable would leave the hole
+-- open, because it still takes the price and both ceilings from the caller.
+-- Asserting only that the two-argument form exists would certify a database
+-- carrying both — which is exactly what a `create or replace` with fewer
+-- arguments produces, and what a half-applied migration leaves behind.
+select 'FORBIDDEN function public.' || p.proname ||
+       '(' || pg_get_function_identity_arguments(p.oid) || ')' ||
+       '   → keeps: a caller-priced reservation against the shared budget'
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname = 'captivate_reserve_image_generation'
+   and pg_get_function_identity_arguments(p.oid) <> 'p_prompt text, p_presentation_id uuid';

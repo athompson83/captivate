@@ -56,6 +56,15 @@ try {
 
 const lines = stdout.split("\n").map((l) => l.trim()).filter(Boolean);
 const missing = lines.filter((l) => l.startsWith("MISSING"));
+/*
+ * Absence is a requirement too, and it is not the negation of the list above.
+ * A dropped function can come back — Postgres overloads by signature, so a
+ * `create or replace` with fewer arguments leaves the old one callable — and a
+ * database carrying both would otherwise pass, because everything the
+ * application needs really is there. What is also there is the signature that
+ * was removed for a reason.
+ */
+const forbidden = lines.filter((l) => l.startsWith("FORBIDDEN"));
 
 for (const line of lines) console.log(line);
 
@@ -64,6 +73,15 @@ if (missing.length) {
     `\n${missing.length} thing(s) the application needs are not in that database. ` +
       "Each one fails closed for every user, and nothing else in the pipeline will say so.\n" +
       "Apply the migrations in supabase/migrations/ in order, then run this again.",
+  );
+  process.exit(1);
+}
+
+if (forbidden.length) {
+  console.error(
+    `\n${forbidden.length} thing(s) that were removed on purpose are still in that database. ` +
+      "The application works either way, which is what makes this worth failing on.\n" +
+      "Drop each one, then run this again.",
   );
   process.exit(1);
 }
