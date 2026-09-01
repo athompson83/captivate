@@ -172,10 +172,11 @@ export function normaliseDrawing<
   let viewBox = drawing.viewBox;
   const bounds = inkBounds(drawing.paths);
   if (bounds) {
-    // Only ever grown, and only from the origin outwards: shifting the box
-    // would move the picture within its frame, and the model composed it
-    // where it meant to. Negative coordinates are the one case that needs the
-    // origin moved, and there the shift is exactly what keeps the ink visible.
+    // Only ever grown, and only outwards from the origin: shifting the box
+    // would move the picture within its frame, and the model composed it where
+    // it meant to. The stored viewBox carries no origin, so ink at *negative*
+    // coordinates is the one case this cannot cover — the renderer clips it,
+    // which `DrawnPicture` says in the same words.
     const width = Math.max(drawing.viewBox.width, bounds.maxX);
     const height = Math.max(drawing.viewBox.height, bounds.maxY);
     viewBox = {
@@ -184,21 +185,34 @@ export function normaliseDrawing<
     };
   }
 
-  // ---- The stages, compressed onto what a presenter will spend -------------
+  // ---- The stages, renumbered onto what a presenter will spend -------------
+  //
+  // Always renumbered, not only when there are too many. The cap counts
+  // *distinct* stages, and the stage number is what the renderer compares the
+  // press count against — so a picture with stages 0, 9 and 19 has three of
+  // them, passes any count-based check, and still costs nineteen presses. The
+  // schema allows values to 19, so that is a drawing a model can really return.
   const distinct = [...new Set(drawing.paths.map((path) => path.stage))].sort((a, b) => a - b);
-  if (distinct.length <= MAX_DRAWING_STAGES) {
-    return { ...drawing, viewBox };
-  }
 
-  // Which of the allowed stages each original stage folds into. Proportional,
-  // so an eight-stage picture becomes two original stages per press rather
-  // than seven crammed into the first and one into the last.
+  // Where each original stage lands. Below the cap this is just its position,
+  // which closes the sparse-numbering hole; above it, positions are folded
+  // proportionally, so an eight-stage picture becomes two stages per press
+  // rather than seven crammed into the first and one into the last.
   const foldedTo = new Map<number, number>();
   for (const [index, stage] of distinct.entries()) {
-    foldedTo.set(stage, Math.floor((index * MAX_DRAWING_STAGES) / distinct.length));
+    foldedTo.set(
+      stage,
+      distinct.length <= MAX_DRAWING_STAGES
+        ? index
+        : Math.floor((index * MAX_DRAWING_STAGES) / distinct.length),
+    );
   }
 
-  const labels: string[] = [];
+  // Dense, because a sparse array keeps its holes through `map` — a fold whose
+  // target collected no label left one, and the row serialised as `null` into
+  // a column typed as a string. Every position exists and is at worst empty.
+  const width = Math.min(MAX_DRAWING_STAGES, distinct.length);
+  const labels: string[] = Array.from({ length: width }, () => "");
   for (const [index, stage] of distinct.entries()) {
     const target = foldedTo.get(stage)!;
     const label = drawing.stageLabels[index]?.trim();
@@ -210,7 +224,7 @@ export function normaliseDrawing<
     ...drawing,
     viewBox,
     paths: drawing.paths.map((path) => ({ ...path, stage: foldedTo.get(path.stage) ?? 0 })),
-    stageLabels: labels.map((label) => (label ?? "").slice(0, 120)),
+    stageLabels: labels.map((label) => label.slice(0, 120)),
   };
 }
 

@@ -229,6 +229,11 @@ export function Suggest({
             setActive((i) => (matches.length === 0 ? -1 : (i + 1) % matches.length));
           } else if (e.key === "ArrowUp") {
             e.preventDefault();
+            // Reopens, exactly as ArrowDown does. After Escape the list is
+            // closed, and a widget where one arrow key brings it back and the
+            // other silently moves an invisible highlight is a widget a
+            // keyboard user cannot form a model of.
+            setOpen(true);
             setActive((i) => (matches.length === 0 ? -1 : (i <= 0 ? matches.length : i) - 1));
           } else if (e.key === "Enter" && visible && activeIndex >= 0) {
             // Only when a row is genuinely highlighted. Swallowing Enter

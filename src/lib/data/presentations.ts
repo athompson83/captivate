@@ -430,12 +430,15 @@ export async function getPresentationDocument(
 /** Lightweight header used by pages that do not need the whole deck. */
 export async function getPresentationMeta(id: string): Promise<PresentationRecord | null> {
   const supabase = await supabaseServer();
-  const { data, error } = await supabase
-    .from("presentations")
-    .select("*")
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+
+  // Retried, because null here means "this presentation does not exist" to
+  // every caller — the phone remote turns it straight into a 404. A single
+  // refused read in the seconds after sign-in would tell a presenter their deck
+  // was gone, which is the same race and the same wrong answer the dashboard
+  // had, in the one place somebody is standing in front of a room.
+  const { data, error } = await readWithRetry(() =>
+    supabase.from("presentations").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
+  );
   if (error || !data) return null;
   return toPresentationRecord(data as PresentationRow);
 }

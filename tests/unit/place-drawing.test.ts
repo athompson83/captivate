@@ -239,6 +239,34 @@ describe("a generated drawing is bounded before it is placed", () => {
     expect(new Set(folded).size).toBe(MAX_DRAWING_STAGES);
   });
 
+  it("renumbers sparse stages, which slip past a count of them", () => {
+    // The cap counts *distinct* stages; the renderer compares the press count
+    // against the stage *number*. A picture staged 0, 9, 19 has three of them,
+    // passes any count-based check, and still costs nineteen presses — and the
+    // schema allows values that high, so a model can really return it.
+    const sparse = made([
+      { d: "M 0 0 L 1 1", stage: 0 },
+      { d: "M 0 0 L 2 2", stage: 9 },
+      { d: "M 0 0 L 3 3", stage: 19 },
+    ]);
+    const safe = normaliseDrawing(sparse);
+
+    expect(safe.paths.map((p) => p.stage)).toEqual([0, 1, 2]);
+  });
+
+  it("returns a label for every press, never a hole", () => {
+    // A sparse array keeps its holes through `map`, so a folded target that
+    // collected no label serialised as `null` into a column typed as a string.
+    const six = made(
+      Array.from({ length: 6 }, (_, stage) => ({ d: `M 0 0 L 10 ${stage}`, stage })),
+      ["", "", "c", "d", "e", "f"],
+    );
+    const safe = normaliseDrawing(six);
+
+    expect(safe.stageLabels).toHaveLength(MAX_DRAWING_STAGES);
+    for (const label of safe.stageLabels) expect(typeof label).toBe("string");
+  });
+
   it("keeps every stage label rather than dropping the folded ones", () => {
     const six = made(
       Array.from({ length: 6 }, (_, stage) => ({ d: `M 0 0 L 10 ${stage}`, stage })),

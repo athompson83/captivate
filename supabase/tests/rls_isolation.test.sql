@@ -1352,10 +1352,14 @@ set role authenticated;
 set "request.jwt.claim.sub" = '44444444-4444-4444-4444-444444444444';
 select 'credit_returned_after_a_real_outage' as check,
   (public.captivate_credit_balance() = 1)::int as n;
-reset role;
 
 -- The balance is bought, not edited. No insert, no update, no reassignment:
 -- an author who can write here mints the product.
+--
+-- Still inside the authenticated role above, deliberately. A `reset role` here
+-- would run this as the harness superuser, RLS would be bypassed, and the probe
+-- would pass on any row in the table rather than proving an owner can read
+-- their own — which is exactly what it silently did for two commits.
 select 'credit_sees_own_balance' as check,
   (count(*) >= 1)::int as n from public.generation_credits;
 reset role;

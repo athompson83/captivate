@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { PER_PRESENTATION, ceilingsFor, limitFor } from "@/lib/billing/plans";
+import { ceilingsFor, limitFor } from "@/lib/billing/plans";
 
 /**
  * The gate and the reservation have to agree about credits.

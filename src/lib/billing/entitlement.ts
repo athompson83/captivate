@@ -74,7 +74,7 @@ export async function limitForCaller(group: BudgetGroup): Promise<RateLimit> {
  * keyed on the remainder closes from both ends.
  */
 export async function ceilingsForCaller(group: BudgetGroup): Promise<readonly RateLimit[]> {
-  const [plan, credits] = await Promise.all([currentPlan(), grantedCredits()]);
+  const plan = await currentPlan();
   const [allowance, ...burst] = ceilingsFor(plan, group);
 
   // The deck allowance is not decided here any more.
@@ -94,6 +94,12 @@ export async function ceilingsForCaller(group: BudgetGroup): Promise<readonly Ra
   // The cost is one round trip on a request that was going to be refused, and
   // the gain is a single authority for a rule that has now drifted twice.
   if (group === "deck") return burst;
+
+  // Read only where it is used. Deck is the most frequent group by some way and
+  // returns above, so fetching the balance before that branch spent an
+  // `auth.getUser` and a `generation_credits` query on every deck request to
+  // throw the answer away.
+  const credits = await grantedCredits();
 
   // Every other pool is *raised* by a purchase rather than spent from, and the
   // reservation computes the same figure from the same inputs, so this can
