@@ -35,9 +35,13 @@ update public.ai_image_limits
 row with the documented defaults — 0.05, 100.00 and 25 — which are what
 `CAPTIVATE_IMAGE_BUDGET_USD` and `CAPTIVATE_IMAGE_DAILY_MAX` fell back to. If
 this deployment had set either variable to something else, **run the update
-above with those values before or immediately after applying the migration**: a
-budget set lower than the default on purpose would otherwise be raised to 100,
-and the application no longer reads the variable that said so. It does log
+above with those values immediately after applying the migration and before
+releasing the application**. Not before the migration: `ai_image_limits` does
+not exist until `0021` creates it, so the statement would fail with `relation
+"public.ai_image_limits" does not exist` and leave the seeded ceiling standing
+— which is the outcome the step exists to prevent. A budget set lower than the
+default on purpose would otherwise be raised to 100, and the application no
+longer reads the variable that said so. It does log
 `captivate:failure ai.image.ceilings-moved` for as long as either variable
 remains set, so the mismatch is findable rather than silent, but the log is a
 safety net and not the fix. Unset both once the row matches.
