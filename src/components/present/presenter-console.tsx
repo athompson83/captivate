@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BuildPips } from "./build-pips";
 import Link from "next/link";
 import {
   ChevronLeft,
@@ -311,9 +312,22 @@ export function PresenterConsole({
               <p className="text-ink-3 mb-1 flex items-baseline gap-1.5 text-[10px] font-medium tracking-wider uppercase">
                 <span>Next</span>
                 {buildsLeft > 0 && (
-                  <span className="text-accent-text normal-case">
-                    {buildsLeft} more {buildsLeft === 1 ? "press" : "presses"} on this scene
-                  </span>
+                  <>
+                    {/*
+                      The count and the shape of it. The words answer "how
+                      many"; the pips answer it again without being read, which
+                      is what a presenter actually does with this — a glance
+                      between finishing a sentence and reaching for the key.
+                    */}
+                    <BuildPips
+                      total={session.stepsInScene}
+                      current={session.step}
+                      className="translate-y-[1px]"
+                    />
+                    <span className="text-accent-text normal-case">
+                      {buildsLeft} more {buildsLeft === 1 ? "press" : "presses"} on this scene
+                    </span>
+                  </>
                 )}
               </p>
               {session.nextScene ? (
