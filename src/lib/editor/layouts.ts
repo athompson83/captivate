@@ -254,8 +254,12 @@ function withCards(layout: SceneLayout, content: LayoutContent): LayoutContent {
  * sequence would lose its fourth point with three cards drawn and nothing
  * empty for the last resort to notice.
  *
- * So the converted path gives way and the authored one does not. `bullets`
- * holds the whole list.
+ * So the converted path gives way and the authored one does not — and "the
+ * authored one" is the caller's to declare, because `LayoutContent` cannot
+ * tell where its bullets came from. Only the generator passes
+ * `inferredLayout`; `relayoutScene` and the shipped templates do not, so an
+ * author who picks Three-up for a four-point scene gets a three-up. A picker
+ * that quietly does something else is worse than one that crops.
  */
 function overfilled(layout: SceneLayout, content: LayoutContent): boolean {
   return (
@@ -622,6 +626,19 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
   return elements;
 }
 
+export interface ComposeOptions {
+  /**
+   * The layout was chosen for this content rather than by a person.
+   *
+   * `layoutFor` picks a layout from a moment's visual intent before the model
+   * writes a word, so a scene can arrive with more points than its layout has
+   * frames and nobody to have meant it. Set here, the composition may give way
+   * to a layout that fits. The editor's "change layout" control and the
+   * shipped templates leave it unset.
+   */
+  inferredLayout?: boolean;
+}
+
 /**
  * Compose a full scene from a layout plus content. Everything the generator and
  * the "change layout" control produce goes through here, so composition quality
@@ -633,13 +650,20 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
  * back to a different layout. Rescuing first would print the same prose twice
  * on every layout that had a slot for it all along.
  */
-export function composeScene(layout: SceneLayout, given: LayoutContent): SceneContent {
+export function composeScene(
+  layout: SceneLayout,
+  given: LayoutContent,
+  options: ComposeOptions = {},
+): SceneContent {
   if (layout === "cover") return composeCover(given);
   const slots = layoutSlots(layout);
 
-  // More points than the layout has frames: the list is the content and the
-  // layout was a guess, so the list wins. See `overfilled`.
-  if (overfilled(layout, given)) return composeScene("bullets", given);
+  // More points than the layout has frames, and the layout was a guess: the
+  // list is the content, so the list wins. Never when a person chose the
+  // layout — see `overfilled`.
+  if (options.inferredLayout && overfilled(layout, given)) {
+    return composeScene("bullets", given, options);
+  }
 
   // Cards, always: a three-up with a heading and three bullets is not blank,
   // it is a heading with its three points silently missing.
@@ -660,9 +684,10 @@ export function composeScene(layout: SceneLayout, given: LayoutContent): SceneCo
   // really does become that layout: reporting `statement` over bullets
   // geometry would blank it again the next time a layout was applied.
   if (hasWords(given)) {
-    if (given.code?.code.trim() && layout !== "code") return composeScene("code", given);
-    if (given.chart?.data.length && layout !== "chart") return composeScene("chart", given);
-    if (layout !== "bullets") return composeScene("bullets", given);
+    if (given.code?.code.trim() && layout !== "code") return composeScene("code", given, options);
+    if (given.chart?.data.length && layout !== "chart")
+      return composeScene("chart", given, options);
+    if (layout !== "bullets") return composeScene("bullets", given, options);
   }
 
   return scene(layout, drawn);

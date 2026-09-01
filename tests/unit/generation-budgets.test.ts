@@ -127,3 +127,34 @@ describe("the narrative map has room to finish", () => {
     expect(numeric(match![1])).toBeGreaterThanOrEqual(8000);
   });
 });
+
+describe("a generated layout says it was a guess", () => {
+  it("composes with `inferredLayout`, so an over-long list can give way", () => {
+    // `layoutFor` picks a layout from a moment's visual intent before the
+    // model writes a word, so a scene can arrive with more points than its
+    // layout has frames. `composeScene` gives way to one that fits — but only
+    // for this caller: the editor's picker and the shipped templates must get
+    // the layout they asked for.
+    //
+    // Read from source because `materialise` is private to a `server-only`
+    // module, and because the claim is about one call site passing one flag —
+    // exercising `composeScene` directly proves the option works and says
+    // nothing about whether the generator sets it.
+    expect(service).toMatch(
+      /content: composeScene\(scene\.layout, layoutContent, \{ inferredLayout: true \}\)/,
+    );
+  });
+
+  it("is the only caller that says so", () => {
+    const registry = read("src/lib/templates/registry.ts");
+    const layouts = read("src/lib/editor/layouts.ts");
+
+    expect(registry).not.toContain("inferredLayout");
+    // `relayoutScene` is the editor's "change layout" control. If it ever
+    // passes the flag, picking Three-up for a four-point scene closes the
+    // picker and leaves the scene as Points.
+    expect(layouts).toMatch(/export function relayoutScene[\s\S]{0,400}/);
+    const relayout = layouts.slice(layouts.indexOf("export function relayoutScene"));
+    expect(relayout.slice(0, 400)).not.toContain("inferredLayout");
+  });
+});

@@ -216,13 +216,32 @@ describe("the fold puts words in the slots a layout has", () => {
     // from a "sequence" intent and the model was never told the cap. Three
     // cards drawn means nothing is empty, so the last resort never noticed the
     // fourth point going missing.
+    const composed = composeScene(
+      "three-up",
+      {
+        heading: "Four ways in",
+        bullets: ["Draft it", "Differentiate it", "Mark it", "Reteach from it"],
+      },
+      { inferredLayout: true },
+    );
+
+    expect(composed.layout).toBe("bullets");
+    expect(JSON.stringify(composed.elements)).toContain("Reteach from it");
+  });
+
+  it("gives an author the layout they picked, even when it crops", () => {
+    // The same four points, chosen by a person rather than inferred from a
+    // moment's visual intent. `relayoutScene` extracts a Points scene's items
+    // as bullets and composes the requested layout, so giving way here would
+    // make the "change layout" picker appear to do nothing at all: it would
+    // close, and the scene would still be Points.
     const composed = composeScene("three-up", {
       heading: "Four ways in",
       bullets: ["Draft it", "Differentiate it", "Mark it", "Reteach from it"],
     });
 
-    expect(composed.layout).toBe("bullets");
-    expect(JSON.stringify(composed.elements)).toContain("Reteach from it");
+    expect(composed.layout).toBe("three-up");
+    expect(composed.elements.filter((element) => element.type === "callout")).toHaveLength(3);
   });
 
   it("still crops a three-up an author filled by hand", () => {

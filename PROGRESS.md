@@ -270,8 +270,14 @@ boundary holds from the writer's side too.
 6. **Review the privacy and terms wording.** The facts in both are derived from
    the code and are accurate; the wording has had no legal review.
 
-`PEXELS_API_KEY` and `OPENAI_API_KEY` are configured, so cover photographs and
-the photo dress pass are live.
+`PEXELS_API_KEY` and `OPENAI_API_KEY` were recorded here as configured, and the
+evidence says otherwise. `ai_generations` holds **zero** rows of kind `image`
+for the life of the deployment, which is decisive for the generated path — a
+call would have written one. Stock photography leaves no row, so it is
+inferred rather than read: a twenty-one-scene deck generated on 2026-09-01 came
+back with two pictures, both staged drawings, while several split scenes
+carried an `imagePrompt` and an empty slot the dress pass would have filled.
+Both keys are listed as owner actions in `PROJECT_CHECKLIST.md`.
 
 ## Recommended Next Steps
 
