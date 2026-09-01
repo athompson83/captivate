@@ -1,9 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, FileText, Plus, Sparkles, Video } from "lucide-react";
-import { listPresentations } from "@/lib/data/presentations";
+import { fetchFirstScenes, listPresentations } from "@/lib/data/presentations";
 import { supabaseServer } from "@/lib/supabase/server";
-import { parseSceneContent, type SceneContent } from "@/lib/schema/presentation";
 import { PresentationCard } from "@/components/dashboard/presentation-card";
 import { EmptyState } from "@/components/ui/misc";
 import { relativeTime, formatDuration } from "@/lib/utils/format";
@@ -40,7 +39,10 @@ export default async function HomePage() {
   return (
     <div className="app-page">
       <header className="mb-8">
-        <h1 className="text-ink text-[27px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+        <h1
+          className="text-ink text-[27px] font-semibold tracking-tight"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
           {greeting()}, {firstName}
         </h1>
         <p className="text-ink-3 mt-1.5 text-[14px]">
@@ -229,24 +231,4 @@ function greeting() {
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
   return "Good evening";
-}
-
-/**
- * One query for every deck's first scene, used to render live card previews.
- * Fetching position-0 scenes in a single round trip keeps the dashboard at two
- * queries regardless of how many decks are shown.
- */
-async function fetchFirstScenes(): Promise<Map<string, SceneContent>> {
-  const supabase = await supabaseServer();
-  const { data } = await supabase
-    .from("scenes")
-    .select("presentation_id, content, position")
-    .eq("position", 0)
-    .limit(60);
-
-  const map = new Map<string, SceneContent>();
-  for (const row of data ?? []) {
-    map.set(row.presentation_id, parseSceneContent(row.content).content);
-  }
-  return map;
 }

@@ -24,7 +24,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@/app/globals.css";
 import { EditorRoot } from "@/components/editor/editor-root";
-import { updateSectionLocal, useEditor } from "@/lib/editor/store";
+import { updatePresentationMeta, updateSectionLocal, useEditor } from "@/lib/editor/store";
 import { composeScene } from "@/lib/editor/layouts";
 import { JOURNEY_DEFAULTS, type PresentationDocument } from "@/lib/schema/presentation";
 
@@ -98,8 +98,21 @@ declare global {
       renameSection: (label: string) => Record<string, unknown>;
       /** The server actions the stub recorded, most recent last. */
       calls: () => { name: string; args: unknown[] }[];
+      /**
+       * Rename the deck — a store write the top bar actually subscribes to,
+       * and so a reliable way to re-render it from a test.
+       */
+      renameDeck: (title: string) => void;
+      /** Drive the save indicator, so a test can see what a failure looks like. */
+      setSaveState: (
+        state: "idle" | "dirty" | "saving" | "saved" | "error",
+        error?: string,
+      ) => void;
     };
-    __serverActions?: { log: { name: string; args: unknown[] }[]; replies: Record<string, unknown> };
+    __serverActions?: {
+      log: { name: string; args: unknown[] }[];
+      replies: Record<string, unknown>;
+    };
   }
 }
 
@@ -124,6 +137,33 @@ function dirtyFlags(): Record<string, unknown> {
 
 window.editorFixture = {
   mount() {
+    /**
+     * The one route the editor fetches directly.
+     *
+     * `build.ts` stands in for every `"use server"` module, but the narrative view
+     * also reaches `/api/ai/evidence` over plain `fetch`, and this bundle runs from
+     * `file://` — where a relative URL resolves to `file:///api/ai/evidence` and is
+     * refused by CORS before it is even attempted. The editor already treats a
+     * failure here as "no evidence to offer" and carries on, so the failure is not
+     * a defect; it is just noise that would drown a real console error in any test
+     * that visits the narrative view.
+     *
+     * Answered with an empty list rather than removed, so the view renders the same
+     * "nothing pinned yet" path a fresh account sees.
+     */
+    const realFetch = window.fetch.bind(window);
+    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/api/ai/evidence")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ evidence: [] }), {
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      }
+      return realFetch(input, init);
+    }) as typeof window.fetch;
+
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;inset:0";
     document.body.appendChild(host);
@@ -144,6 +184,14 @@ window.editorFixture = {
   },
 
   calls: () => window.__serverActions?.log ?? [],
+
+  renameDeck(title: string) {
+    updatePresentationMeta({ title }, { label: "Rename" });
+  },
+
+  setSaveState(state, error) {
+    useEditor.setState({ saveState: state, saveError: error ?? null });
+  },
 };
 
 document.body.dataset.ready = "true";

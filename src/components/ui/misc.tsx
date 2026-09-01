@@ -99,9 +99,50 @@ export function Popover({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const restoreFocus = useRef<HTMLElement | null>(null);
+
+  /**
+   * Focus, kept in its own effect so it depends on `open` alone.
+   *
+   * The listeners below need `onClose`, and every caller passes that inline —
+   * so that effect re-runs on any render of the component holding the popover,
+   * and its cleanup runs with it. Restoring focus from a cleanup that fires
+   * while the popover is still open would yank the keyboard out of the menu
+   * mid-use, on a re-render that has nothing to do with it.
+   *
+   * That is the same trap `Dialog` documents: its effect is pinned to `[open]`
+   * because a cleanup that ran on an unrelated render threw focus back to the
+   * button behind it. Splitting the two here means this one cannot run while
+   * open at all, rather than relying on the compiler's memoisation to make
+   * sure it never gets the chance.
+   */
+  useEffect(() => {
+    if (!open) return;
+    // Whatever opened this — the trigger, in every case in this codebase.
+    restoreFocus.current = document.activeElement as HTMLElement | null;
+    // The panel as it is now, rather than whatever the ref points at by the
+    // time this unwinds: the question below is whether focus is inside *this*
+    // popover, and `AnimatePresence` keeps the node around while it exits.
+    const panel = ref.current;
+    return () => {
+      // Escape used to drop focus on `body`, so the next Tab restarted at the
+      // top of the document and a keyboard user lost their place. `Dialog` has
+      // restored focus since #41; this had the same hole and every menu in the
+      // editor goes through it.
+      //
+      // Only when focus is still ours to give back. Dismissing by clicking
+      // something else must leave focus where the click put it, and a menu
+      // item that navigates has already moved it on purpose — stealing it back
+      // to the trigger in either case is its own bug.
+      const active = document.activeElement;
+      const stranded = !active || active === document.body || panel?.contains(active);
+      if (stranded) restoreFocus.current?.focus?.();
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
+
     const onDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
@@ -276,19 +317,23 @@ export function Segmented<T extends string>({
   options,
   size = "md",
   label,
+  stretch,
 }: {
   value: T;
   onChange: (v: T) => void;
   options: { value: T; label: string; icon?: React.ComponentType<{ className?: string }> }[];
   size?: "sm" | "md";
   label?: string;
+  /** Fill the width available and share it equally between the options. */
+  stretch?: boolean;
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
       className={cn(
-        "border-line-subtle inline-flex items-center gap-0.5 rounded-[var(--radius-md)] border bg-[var(--surface-inset)] p-0.5",
+        "border-line-subtle items-center gap-0.5 rounded-[var(--radius-md)] border bg-[var(--surface-inset)] p-0.5",
+        stretch ? "flex w-full" : "inline-flex",
       )}
     >
       {options.map((opt) => {
@@ -301,8 +346,12 @@ export function Segmented<T extends string>({
             aria-checked={active}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "relative inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] font-medium transition-colors duration-[var(--duration-fast)]",
+              "relative inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-sm)] font-medium transition-colors duration-[var(--duration-fast)]",
               size === "sm" ? "px-2 py-1 text-[11px]" : "px-2.5 py-1.5 text-[12px]",
+              // A touch target rather than a pointer one. The stretched form is
+              // the narrow-screen layout, where this is the primary navigation
+              // and a 22px-tall control is not something a thumb can hit.
+              stretch && "flex-1 py-1.5 text-[12px]",
               active ? "text-ink" : "text-ink-3 hover:text-ink-2",
             )}
           >

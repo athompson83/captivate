@@ -8,6 +8,7 @@ import {
   Check,
   Cloud,
   Keyboard,
+  MoreHorizontal,
   Notebook,
   PanelLeft,
   Play,
@@ -25,6 +26,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { ShareDialog } from "./share-dialog";
 import { Popover, Tooltip, Segmented } from "@/components/ui/misc";
 import { cn } from "@/lib/utils/cn";
+import { useIsNarrow } from "@/lib/utils/use-viewport";
 import { relativeTime } from "@/lib/utils/format";
 
 /**
@@ -73,159 +75,56 @@ export function EditorTopBar({
   const [themeOpen, setThemeOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
 
-  return (
-    <header className="border-line-subtle bg-base flex h-14 shrink-0 items-center gap-2 border-b px-3">
-      <Tooltip label="Back to presentations" side="bottom">
-        <Link
-          href="/presentations"
-          aria-label="Back to presentations"
-          className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)]"
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-        </Link>
-      </Tooltip>
+  // Below `md` the panels stop taking width and start covering the canvas, and
+  // the header stops being one row. Rendered conditionally rather than hidden
+  // with a class: `Segmented` animates its selection with a shared `layoutId`,
+  // and two copies of the same group on the page fight over it.
+  const narrow = useIsNarrow();
 
-      <Tooltip label={navOpen ? "Hide scenes" : "Show scenes"} side="bottom">
+  const viewSwitcher = (stretch: boolean) => (
+    <Segmented<EditorView>
+      label="Editing view"
+      size="sm"
+      stretch={stretch}
+      value={view}
+      onChange={onViewChange}
+      options={[
+        { value: "narrative", label: "Narrative" },
+        { value: "scene", label: "Scene" },
+        { value: "journey", label: "Journey" },
+      ]}
+    />
+  );
+
+  const history = (
+    <div className="flex items-center gap-0.5">
+      <Tooltip label="Undo" shortcut="⌘Z" side="bottom">
         <button
-          onClick={onToggleNav}
-          aria-label={navOpen ? "Hide scene navigator" : "Show scene navigator"}
-          aria-pressed={navOpen}
-          className={cn(
-            "flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors",
-            navOpen ? "text-ink bg-[var(--surface-inset)]" : "text-ink-3 hover:text-ink",
-          )}
+          onClick={undo}
+          disabled={!canUndo}
+          aria-label="Undo"
+          className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-30"
         >
-          <PanelLeft className="size-4" aria-hidden />
+          <Undo2 className="size-4" aria-hidden />
         </button>
       </Tooltip>
-
-      <TitleField title={title} />
-
-      {/* Scene or world. Authoring one scene and authoring the route between
-          scenes are different jobs, and they get different surfaces. */}
-      <Segmented<EditorView>
-        label="Editing view"
-        size="sm"
-        value={view}
-        onChange={onViewChange}
-        options={[
-          { value: "narrative", label: "Narrative" },
-          { value: "scene", label: "Scene" },
-          { value: "journey", label: "Journey" },
-        ]}
-      />
-
-      <SaveIndicator />
-
-      <div className="flex-1" />
-
-      <div className="flex items-center gap-0.5">
-        <Tooltip label="Undo" shortcut="⌘Z" side="bottom">
-          <button
-            onClick={undo}
-            disabled={!canUndo}
-            aria-label="Undo"
-            className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-30"
-          >
-            <Undo2 className="size-4" aria-hidden />
-          </button>
-        </Tooltip>
-        <Tooltip label="Redo" shortcut="⇧⌘Z" side="bottom">
-          <button
-            onClick={redo}
-            disabled={!canRedo}
-            aria-label="Redo"
-            className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-30"
-          >
-            <Redo2 className="size-4" aria-hidden />
-          </button>
-        </Tooltip>
-      </div>
-
-      <span aria-hidden className="bg-line-subtle mx-1 h-5 w-px" />
-
-      {/* Theme picker */}
-      <div className="relative">
+      <Tooltip label="Redo" shortcut="⇧⌘Z" side="bottom">
         <button
-          onClick={() => setThemeOpen((v) => !v)}
-          aria-haspopup="menu"
-          aria-expanded={themeOpen}
-          className="border-line text-ink-2 hover:border-line-strong hover:text-ink flex items-center gap-2 rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[12.5px] transition-colors"
+          onClick={redo}
+          disabled={!canRedo}
+          aria-label="Redo"
+          className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-30"
         >
-          <span
-            aria-hidden
-            className="border-line-subtle size-3 rounded-full border"
-            style={{ background: THEMES.find((t) => t.id === themeId)?.tokens.accent }}
-          />
-          {THEMES.find((t) => t.id === themeId)?.name ?? "Theme"}
+          <Redo2 className="size-4" aria-hidden />
         </button>
+      </Tooltip>
+    </div>
+  );
 
-        <Popover
-          open={themeOpen}
-          onClose={() => setThemeOpen(false)}
-          anchor="bottom-end"
-          className="w-[288px]"
-        >
-          <div role="menu">
-            <p className="text-ink-3 px-2.5 pt-1 pb-1.5 text-[11px] leading-snug">
-              Themes only change tokens — your content is untouched.
-            </p>
-            {THEMES.map((theme) => (
-              <button
-                key={theme.id}
-                role="menuitemradio"
-                aria-checked={theme.id === themeId}
-                onClick={() => {
-                  updatePresentationMeta({ themeId: theme.id }, { label: "Change theme" });
-                  setThemeOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-start gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-inset)]",
-                  theme.id === themeId && "bg-[var(--surface-inset)]",
-                )}
-              >
-                <span
-                  aria-hidden
-                  className="border-line-subtle mt-0.5 flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] border"
-                  style={{ background: theme.tokens.canvas }}
-                >
-                  <span
-                    className="size-2.5 rounded-full"
-                    style={{ background: theme.tokens.accent }}
-                  />
-                </span>
-                <span className="min-w-0">
-                  <span className="text-ink block text-[12.5px] font-medium">{theme.name}</span>
-                  <span className="text-ink-3 block text-[11px] leading-snug">
-                    {theme.description}
-                  </span>
-                </span>
-              </button>
-            ))}
-
-            <div className="border-line-subtle my-1.5 border-t" />
-            <div className="px-2.5 pb-1.5">
-              <p className="text-ink-3 mb-1.5 text-[10px] font-medium tracking-wider uppercase">
-                Aspect ratio
-              </p>
-              <Segmented<AspectRatio>
-                label="Aspect ratio"
-                size="sm"
-                value={aspect}
-                onChange={(v) =>
-                  updatePresentationMeta({ aspectRatio: v }, { label: "Change aspect ratio" })
-                }
-                options={(Object.keys(ASPECT_VALUES) as AspectRatio[]).map((v) => ({
-                  value: v,
-                  label: v,
-                }))}
-              />
-            </div>
-          </div>
-        </Popover>
-      </div>
-
+  const panelToggles = (
+    <>
       <Tooltip label="Notes" shortcut="N" side="bottom">
         <button
           onClick={onToggleNotes}
@@ -273,21 +172,222 @@ export function EditorTopBar({
           <Share2 className="size-4" aria-hidden />
         </button>
       </Tooltip>
+    </>
+  );
 
-      <Link href={`/present/${presentationId}`} onClick={onSave}>
-        <Button variant="primary" size="sm">
-          <Play className="size-3.5" aria-hidden />
-          Present
-        </Button>
-      </Link>
+  return (
+    <div className="border-line-subtle bg-base shrink-0 border-b">
+      <header className="flex h-14 items-center gap-2 px-3">
+        <Tooltip label="Back to presentations" side="bottom">
+          <Link
+            href="/presentations"
+            aria-label="Back to presentations"
+            className="text-ink-3 hover:text-ink flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)]"
+          >
+            <ArrowLeft className="size-4" aria-hidden />
+          </Link>
+        </Tooltip>
 
-      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-      <ShareDialog
-        presentationId={presentationId}
-        open={shareOpen}
-        onClose={() => setShareOpen(false)}
-      />
-    </header>
+        <Tooltip label={navOpen ? "Hide scenes" : "Show scenes"} side="bottom">
+          <button
+            onClick={onToggleNav}
+            aria-label={navOpen ? "Hide scene navigator" : "Show scene navigator"}
+            aria-pressed={navOpen}
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] transition-colors",
+              navOpen ? "text-ink bg-[var(--surface-inset)]" : "text-ink-3 hover:text-ink",
+            )}
+          >
+            <PanelLeft className="size-4" aria-hidden />
+          </button>
+        </Tooltip>
+
+        <TitleField title={title} />
+
+        {/* Scene or world. Authoring one scene and authoring the route between
+            scenes are different jobs, and they get different surfaces. */}
+        {!narrow && viewSwitcher(false)}
+
+        <SaveIndicator />
+
+        <div className="flex-1" />
+
+        {narrow ? (
+          <div className="relative shrink-0">
+            <Tooltip label="More" side="bottom">
+              <button
+                onClick={() => setOverflowOpen((v) => !v)}
+                // Not `aria-haspopup="menu"`. What opens is a group of
+                // ordinary controls — toggles, a radiogroup — and a menu may
+                // only contain menu items, so promising one describes a
+                // structure a screen reader will not find. `aria-expanded`
+                // carries the disclosure on its own.
+                aria-expanded={overflowOpen}
+                aria-label="More editor controls"
+                className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)]"
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </button>
+            </Tooltip>
+            <Popover
+              open={overflowOpen}
+              onClose={() => setOverflowOpen(false)}
+              anchor="bottom-end"
+              className="max-h-[70vh] w-[264px] overflow-y-auto"
+            >
+              <div role="group" aria-label="More editor controls">
+                <div className="flex items-center gap-1 px-1 pb-1">{history}</div>
+                <div className="border-line-subtle my-1 border-t" />
+                <div className="flex items-center gap-1 px-1 pb-1">{panelToggles}</div>
+                <div className="border-line-subtle my-1 border-t" />
+                <ThemeMenu
+                  themeId={themeId}
+                  aspect={aspect}
+                  onPicked={() => setOverflowOpen(false)}
+                />
+              </div>
+            </Popover>
+          </div>
+        ) : (
+          <>
+            {history}
+
+            <span aria-hidden className="bg-line-subtle mx-1 h-5 w-px" />
+
+            {/* Theme picker */}
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setThemeOpen((v) => !v)}
+                aria-expanded={themeOpen}
+                className="border-line text-ink-2 hover:border-line-strong hover:text-ink flex items-center gap-2 rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[12.5px] transition-colors"
+              >
+                <span
+                  aria-hidden
+                  className="border-line-subtle size-3 rounded-full border"
+                  style={{ background: THEMES.find((t) => t.id === themeId)?.tokens.accent }}
+                />
+                {THEMES.find((t) => t.id === themeId)?.name ?? "Theme"}
+              </button>
+
+              <Popover
+                open={themeOpen}
+                onClose={() => setThemeOpen(false)}
+                anchor="bottom-end"
+                className="w-[288px]"
+              >
+                <div role="group" aria-label="Theme and aspect ratio">
+                  <ThemeMenu
+                    themeId={themeId}
+                    aspect={aspect}
+                    onPicked={() => setThemeOpen(false)}
+                  />
+                </div>
+              </Popover>
+            </div>
+
+            {panelToggles}
+          </>
+        )}
+
+        <Link href={`/present/${presentationId}`} onClick={onSave} className="shrink-0">
+          <Button variant="primary" size="sm">
+            <Play className="size-3.5" aria-hidden />
+            Present
+          </Button>
+        </Link>
+
+        <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+        <ShareDialog
+          presentationId={presentationId}
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+        />
+      </header>
+
+      {/* The view switcher is the editor's primary navigation, so on a phone it
+          gets its own row and the full width rather than being the first thing
+          squeezed off the end of the header. */}
+      {narrow && <div className="px-3 pb-2">{viewSwitcher(true)}</div>}
+    </div>
+  );
+}
+
+/**
+ * The theme list and the aspect ratio, shown in the header's own popover on a
+ * wide screen and inside the overflow menu on a narrow one.
+ *
+ * One component rather than two, because these were the controls most likely to
+ * be quietly dropped from the narrow layout — and a theme you cannot change is
+ * a theme you are stuck with.
+ */
+function ThemeMenu({
+  themeId,
+  aspect,
+  onPicked,
+}: {
+  themeId: string;
+  aspect: AspectRatio;
+  onPicked: () => void;
+}) {
+  return (
+    <>
+      <p className="text-ink-3 px-2.5 pt-1 pb-1.5 text-[11px] leading-snug">
+        Themes only change tokens — your content is untouched.
+      </p>
+      {/* A radiogroup rather than menu items: this is one choice out of
+          several, and the aspect ratio below it is a second, separate one.
+          `menuitemradio` only means anything inside a `menu`, and a `menu`
+          could not have held the aspect-ratio radiogroup that sits beside
+          it. */}
+      <div role="radiogroup" aria-label="Theme">
+        {THEMES.map((theme) => (
+          <button
+            key={theme.id}
+            role="radio"
+            aria-checked={theme.id === themeId}
+            onClick={() => {
+              updatePresentationMeta({ themeId: theme.id }, { label: "Change theme" });
+              onPicked();
+            }}
+            className={cn(
+              "flex w-full items-start gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-inset)]",
+              theme.id === themeId && "bg-[var(--surface-inset)]",
+            )}
+          >
+            <span
+              aria-hidden
+              className="border-line-subtle mt-0.5 flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] border"
+              style={{ background: theme.tokens.canvas }}
+            >
+              <span className="size-2.5 rounded-full" style={{ background: theme.tokens.accent }} />
+            </span>
+            <span className="min-w-0">
+              <span className="text-ink block text-[12.5px] font-medium">{theme.name}</span>
+              <span className="text-ink-3 block text-[11px] leading-snug">{theme.description}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="border-line-subtle my-1.5 border-t" />
+      <div className="px-2.5 pb-1.5">
+        <p className="text-ink-3 mb-1.5 text-[10px] font-medium tracking-wider uppercase">
+          Aspect ratio
+        </p>
+        <Segmented<AspectRatio>
+          label="Aspect ratio"
+          size="sm"
+          value={aspect}
+          onChange={(v) =>
+            updatePresentationMeta({ aspectRatio: v }, { label: "Change aspect ratio" })
+          }
+          options={(Object.keys(ASPECT_VALUES) as AspectRatio[]).map((v) => ({
+            value: v,
+            label: v,
+          }))}
+        />
+      </div>
+    </>
   );
 }
 
@@ -347,10 +447,22 @@ function SaveIndicator() {
       <span
         role="status"
         aria-live="polite"
-        className={cn("flex items-center gap-1.5 text-[11.5px] whitespace-nowrap", content.tone)}
+        className={cn(
+          "flex shrink-0 items-center gap-1.5 text-[11.5px] whitespace-nowrap",
+          content.tone,
+        )}
       >
         <Icon className={cn("size-3.5", state === "saving" && "animate-pulse")} aria-hidden />
-        <span className="hidden lg:inline">{content.text}</span>
+        {/* `sr-only` rather than `hidden`, and never hidden at all once saving
+            has failed. `UX.md` says save state is a sentence and not a spinner,
+            and this had been dropping the sentence out of the DOM below `lg` —
+            so the `aria-live` region announced nothing on a narrow window, and
+            "Couldn't save" appeared to a screen reader and to the eye as a
+            cloud icon that is itself `aria-hidden`. Silence is the one thing a
+            failed save must not be. */}
+        <span className={cn(state !== "error" && "sr-only lg:not-sr-only lg:inline")}>
+          {content.text}
+        </span>
       </span>
     </Tooltip>
   );

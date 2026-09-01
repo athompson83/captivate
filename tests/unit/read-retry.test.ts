@@ -133,6 +133,103 @@ describe("a read that loses the race just after sign-in", () => {
     expect(builders).toBe(2);
   });
 
+  /**
+   * The dashboard's thumbnails lost the same race, and said nothing.
+   *
+   * `/home` fires four concurrent reads. `listPresentations` was hardened
+   * because it throws — a 401 there killed the page. The preview query beside
+   * it was the opposite failure: `const { data } = await …` discarded the
+   * error, so one unlucky 401 blanked **every** thumbnail on the page at once
+   * (it is a single query for all of them) while the deck list rendered
+   * perfectly. A card with no preview paints the theme's canvas colour, which
+   * is indistinguishable from a deck whose first scene is a bare background —
+   * so the reported symptom was "none of the thumbnails show any content",
+   * with nothing anywhere to say why.
+   *
+   * Both dashboard routes had their own copy of that query. There is one now.
+   */
+  it("retries the dashboard previews instead of blanking every card", async () => {
+    outcomes = [
+      { data: null, error: { message: "JWT expired" } },
+      {
+        data: [
+          {
+            presentation_id: "00000000-0000-4000-8000-000000000001",
+            content: {
+              layout: "statement",
+              version: 1,
+              elements: [],
+              background: { kind: "theme" },
+              themeOverride: null,
+            },
+          },
+        ],
+        error: null,
+      },
+    ];
+
+    const { fetchFirstScenes } = await import("@/lib/data/presentations");
+    const previews = await fetchFirstScenes();
+
+    expect(builders, "the retry must construct a second query").toBe(2);
+    expect(previews.size).toBe(1);
+  });
+
+  it("degrades to no previews loudly rather than silently", async () => {
+    outcomes = [
+      { data: null, error: { message: "connection refused" } },
+      { data: null, error: { message: "connection refused" } },
+    ];
+    const stderr = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { fetchFirstScenes } = await import("@/lib/data/presentations");
+    const previews = await fetchFirstScenes();
+
+    // Empty, not thrown: a dashboard without thumbnails is worth more than a
+    // dashboard that will not load. But it has to leave a trace, which is the
+    // part that was missing — this failure was invisible in production.
+    expect(previews.size).toBe(0);
+    expect(stderr.mock.calls.flat().join(" ")).toMatch(/dashboard\.previews.*connection refused/);
+    stderr.mockRestore();
+  });
+
+  /**
+   * A salvaged scene is not an empty one, and the card cannot tell them apart.
+   *
+   * `parseSceneContent` never throws — it returns what it could rescue plus a
+   * `recovered` flag, and that flag was being discarded here. A first scene
+   * that fails to parse therefore renders as the bare theme colour, which is
+   * exactly what a deck with a plain background looks like, and exactly what a
+   * deck whose previews never arrived looks like. Three different states, one
+   * appearance.
+   *
+   * Caught in review: the retry and the query-failure log both had tests, and
+   * this third path had none, so it could have been deleted without anything
+   * going red.
+   */
+  it("says so when a scene had to be salvaged", async () => {
+    outcomes = [
+      {
+        // A string rather than an object. The parser rescues an empty scene
+        // from it rather than throwing, which is the behaviour that makes the
+        // flag the only signal there is.
+        data: [{ presentation_id: "00000000-0000-4000-8000-000000000001", content: "{}" }],
+        error: null,
+      },
+    ];
+    const stderr = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { fetchFirstScenes } = await import("@/lib/data/presentations");
+    const previews = await fetchFirstScenes();
+
+    // Still served: a salvaged scene is better than no card at all.
+    expect(previews.size).toBe(1);
+    expect(stderr.mock.calls.flat().join(" ")).toMatch(
+      /dashboard\.previews\.recovered.*00000000-0000-4000-8000-000000000001/,
+    );
+    stderr.mockRestore();
+  });
+
   it("names the mistake when a closure hands back the same query twice", async () => {
     // The guard that stops this shipping again. Re-awaiting a settled builder
     // is indistinguishable from a real retry at the call site, so `readTwice`

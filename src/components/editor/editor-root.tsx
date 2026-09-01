@@ -6,6 +6,7 @@ import { getTheme } from "@/lib/schema/theme";
 import { useEditor } from "@/lib/editor/store";
 import { useAutosave } from "@/lib/editor/autosave";
 import { useEditorShortcuts } from "@/lib/editor/shortcuts";
+import { useIsNarrow } from "@/lib/utils/use-viewport";
 import { EditorTopBar } from "./top-bar";
 import { SceneNavigator } from "./scene-navigator";
 import { Canvas } from "./canvas";
@@ -37,11 +38,17 @@ export function EditorRoot({
   const themeId = useEditor((s) => s.document.presentation.themeId);
   const presentationId = initial.presentation.id;
 
-  const [navOpen, setNavOpen] = useState(true);
+  // `null` means "nobody has said", and the viewport answers: open beside the
+  // canvas on a desktop, closed over it on a phone. A plain `true` opened a
+  // 212px panel across 54% of a 390px screen on every load.
+  const [navOpen, setNavOpen] = useState<boolean | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [view, setView] = useState<EditorView>("scene");
   const [evidenceOptions, setEvidenceOptions] = useState<EvidenceRef[]>([]);
+
+  const narrow = useIsNarrow();
+  const navVisible = navOpen ?? !narrow;
   const { generate, generating } = useSceneGeneration(presentationId, initial.presentation.title);
 
   // What a claim can be grounded in. Loaded once when the map is first opened,
@@ -84,8 +91,8 @@ export function EditorRoot({
     <div className="bg-sunken flex h-screen flex-col overflow-hidden">
       <EditorTopBar
         presentationId={presentationId}
-        navOpen={navOpen}
-        onToggleNav={() => setNavOpen((v) => !v)}
+        navOpen={navVisible}
+        onToggleNav={() => setNavOpen(!navVisible)}
         notesOpen={notesOpen}
         onToggleNotes={() => setNotesOpen((v) => !v)}
         aiOpen={aiOpen}
@@ -97,8 +104,16 @@ export function EditorRoot({
 
       <RecoveryNotice />
 
-      <div className="flex min-h-0 flex-1">
-        <SceneNavigator open={navOpen} presentationId={presentationId} theme={theme} />
+      {/* `relative`, because on a narrow screen the panels are positioned
+          against this row rather than taking width out of it. */}
+      <div className="relative flex min-h-0 flex-1">
+        <SceneNavigator
+          open={navVisible}
+          overlay={narrow}
+          onClose={() => setNavOpen(false)}
+          presentationId={presentationId}
+          theme={theme}
+        />
 
         <div className="flex min-w-0 flex-1 flex-col">
           {view === "scene" ? (
@@ -116,12 +131,16 @@ export function EditorRoot({
               <PacingStrip />
             </>
           )}
+          {/* Under the canvas, not beside it: on a narrow screen a 272px
+              column left the scene 96px wide, and a sheet floating over the
+              canvas hid the element being styled. */}
+          {narrow && view === "scene" && <Inspector theme={theme} sheet />}
           {notesOpen && (
             <NotesDock presentationId={presentationId} onClose={() => setNotesOpen(false)} />
           )}
         </div>
 
-        {view === "scene" ? (
+        {!narrow && view === "scene" ? (
           <Inspector theme={theme} />
         ) : view === "journey" ? (
           <JourneyPanel presentationId={presentationId} />

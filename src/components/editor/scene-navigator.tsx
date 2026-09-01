@@ -62,10 +62,21 @@ import { cn } from "@/lib/utils/cn";
  */
 export function SceneNavigator({
   open,
+  overlay = false,
+  onClose,
   presentationId,
   theme,
 }: {
   open: boolean;
+  /**
+   * Cover the canvas rather than take width from it.
+   *
+   * At 390px this panel is 212px — 54% of the viewport — and in flow it left
+   * the scene rendered 96px wide. `docs/DESIGN.md` has always said the
+   * navigator collapses on narrow screens; this is that.
+   */
+  overlay?: boolean;
+  onClose?: () => void;
   presentationId: string;
   theme: PresentationTheme;
 }) {
@@ -202,11 +213,12 @@ export function SceneNavigator({
     rows.push({ kind: "scene", scene, index });
   });
 
-  return (
+  const panel = (
     <aside
       aria-label="Scenes"
       className={cn(
-        "border-line-subtle bg-base flex w-[212px] shrink-0 flex-col border-r",
+        "border-line-subtle bg-base flex w-[212px] flex-col border-r",
+        overlay ? "absolute inset-y-0 left-0 z-40 shadow-[var(--shadow-xl)]" : "shrink-0",
         pending && "opacity-90",
       )}
     >
@@ -214,7 +226,9 @@ export function SceneNavigator({
         <span className="text-ink-3 text-[11px] font-medium tracking-wider uppercase">
           {running} {running === 1 ? "scene" : "scenes"}
           {scenes.length > running && (
-            <span className="normal-case"> · {scenes.length - running} aside
+            <span className="normal-case">
+              {" "}
+              · {scenes.length - running} aside
               {scenes.length - running === 1 ? "" : "s"}
             </span>
           )}
@@ -267,7 +281,11 @@ export function SceneNavigator({
                     selected={row.scene.id === selectedId}
                     theme={theme}
                     aspect={aspect}
-                    onSelect={() => select({ sceneId: row.scene.id, elementIds: [] })}
+                    onSelect={() => {
+                      select({ sceneId: row.scene.id, elementIds: [] });
+                      // The panel is covering the scene it just navigated to.
+                      if (overlay) onClose?.();
+                    }}
                     onAddAfter={() => onAddScene(row.scene.id)}
                     onDuplicate={() => onDuplicate(row.scene.id)}
                     onDelete={() => onDelete(row.scene.id)}
@@ -288,6 +306,23 @@ export function SceneNavigator({
         </button>
       </div>
     </aside>
+  );
+
+  if (!overlay) return panel;
+
+  return (
+    <>
+      {/* Tapping the canvas is how a phone dismisses a panel over it. Not
+          focusable and not in the tab order: the panel's own controls and
+          Escape are the keyboard's way out, and a bare div that takes focus
+          only adds a stop that does nothing. */}
+      <div
+        aria-hidden
+        onClick={onClose}
+        className="absolute inset-0 z-30 bg-black/30 backdrop-blur-[1px]"
+      />
+      {panel}
+    </>
   );
 }
 
@@ -399,6 +434,18 @@ function SceneRow({
         <button
           onClick={onSelect}
           aria-current={selected ? "true" : undefined}
+          // Named from the scene, not from whatever its thumbnail happens to
+          // draw. Without this the accessible name was the ordinal run into
+          // the stage's rendered text — "1The opening claim" — and a scene
+          // whose stage is a photograph or a chart announced as a bare digit,
+          // which tells a screen-reader user nothing about which scene it is.
+          // The title is the author's own name for it and is what the rest of
+          // the editor calls it.
+          aria-label={
+            ordinal === null
+              ? `Aside: ${scene.title || "Untitled scene"}`
+              : `Scene ${ordinal}: ${scene.title || "Untitled scene"}`
+          }
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
           {/*
@@ -426,7 +473,11 @@ function SceneRow({
               {ordinal}
             </span>
           )}
+          {/* The thumbnail is a picture of the scene, and its rendered words
+              were the only thing naming this row. Hidden now that the button
+              says what it is. */}
           <span
+            aria-hidden
             className={cn(
               "shrink-0 overflow-hidden rounded-[3px] border",
               selected ? "border-accent" : "border-line-subtle",
