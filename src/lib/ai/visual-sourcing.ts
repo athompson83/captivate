@@ -7,6 +7,7 @@ import { MAX_UPLOAD_BYTES } from "@/lib/data/upload-limits";
 import { currentPlan } from "@/lib/billing/entitlement";
 import { allowsImageGeneration } from "@/lib/billing/plans";
 import { logFailureSampled } from "@/lib/observability";
+import type { Database } from "@/lib/supabase/database.types";
 
 /**
  * Finding and making pictures.
@@ -188,9 +189,7 @@ export async function generateImage(
     },
   );
 
-  const ticket = (
-    reserved as { id: string | null; refusal: string | null; daily_max: number | null }[] | null
-  )?.[0];
+  const ticket = (reserved as ImageReservation[] | null)?.[0];
   // Fails closed: without a ticket nothing is counting the spend, and an
   // uncounted call is exactly what the ceiling exists to prevent.
   if (reserveError || !ticket) {
@@ -259,6 +258,15 @@ export async function generateImage(
  * Sampled, because it is true on every call for as long as the variable is set
  * rather than being an event, and one line a minute is enough to be found.
  */
+/**
+ * What the reservation answers with, taken from the generated schema rather
+ * than restated. The RPC gained `daily_max` in `0021`; a second copy of the
+ * shape here would have gone on compiling while quietly disagreeing with the
+ * database.
+ */
+type ImageReservation =
+  Database["public"]["Functions"]["captivate_reserve_image_generation"]["Returns"][number];
+
 function warnIfCeilingsStillInTheEnvironment(): void {
   // Empty counts as unset, which is the state this asks an operator to reach:
   // a variable cleared rather than removed is not a ceiling anybody could read

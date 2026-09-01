@@ -17,11 +17,14 @@
 | `STRIPE_PRICE_PRO_MONTHLY`      | With billing  | **No**              | Price id for $12/month Captivate Pro                            |
 | `STRIPE_PRICE_PRO_ANNUAL`       | With billing  | **No**              | Price id for $96/year Captivate Pro                             |
 
-The image-generation ceilings are deliberately not in this table. The price of
-one image, the shared monthly budget and the per-user daily count live in
+The image-generation ceilings are deliberately not in this table. All three —
+the price of one image, the shared monthly budget, and `daily_max`, the *cap* on
+how many images one author may generate in a day — live in
 `public.ai_image_limits` and are read by the reservation itself, because a
-ceiling passed in by the caller is a ceiling the caller chooses — see
-[SECURITY.md](SECURITY.md). Change them with SQL against that row:
+ceiling passed in by the caller is a ceiling the caller chooses; see
+[SECURITY.md](SECURITY.md). The table holds the cap and nothing else: the count
+it is compared against is derived from `public.ai_generations` at reservation
+time. Change them with SQL against that row:
 
 ```sql
 update public.ai_image_limits

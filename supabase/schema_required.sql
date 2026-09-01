@@ -108,3 +108,25 @@ select 'MISSING row level security on public.' || c.relname || '   → breaks: t
    and c.relname in ('presentations','scenes','sections','assets','lecture_notes',
                      'recordings','moments','ai_generations','presentation_sessions','profiles')
    and not c.relrowsecurity;
+
+-- Two tables belong to the deployment rather than to any user, and their
+-- protection is the *absence* of a policy: RLS on with nothing granting access,
+-- so only a definer function and the service role can reach them. Checking that
+-- they exist is not enough — `ai_image_limits` holds the price and the ceilings
+-- the reservation reads, so a policy added to it hands every signed-in caller
+-- the numbers `0021` exists to stop them choosing, and a deployment missing RLS
+-- on it would still certify as complete.
+select 'MISSING row level security on public.' || c.relname ||
+       '   → breaks: the deployment-owned ceilings are readable'
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public'
+   and c.relkind = 'r'
+   and c.relname in ('ai_image_limits','stripe_events')
+   and not c.relrowsecurity;
+
+select 'MISSING policy-free access control on public.' || tablename ||
+       '   → breaks: ' || policyname || ' exposes a deployment-owned table'
+  from pg_policies
+ where schemaname = 'public'
+   and tablename in ('ai_image_limits','stripe_events');

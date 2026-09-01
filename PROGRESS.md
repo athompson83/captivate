@@ -225,8 +225,11 @@ the photo dress pass are live.
    route that needs no credentials at all is a CI job that runs the Supabase
    stack locally in GitHub Actions — where Docker does exist — seeds a confirmed
    synthetic user, and runs the `authenticated` Playwright project against it.
-   That is engineering work, not an owner action, and it is the right way to
-   close BETA-001.
+   That is engineering work rather than an owner action, and it closes the
+   signed-in-*session* gap. It does not close BETA-001 as written, which asks
+   for authenticated journeys against the exact hosted Preview candidate — a
+   local stack is a different environment, and calling it the same thing is how
+   a gate gets marked done without the evidence it names.
 3. **`codex/economical-ci-20260831`** carries five unmerged commits that select
    CI checks by changed-file risk. Worth a decision: it trades hosted-CI cost
    against coverage, and that is a judgement about how much protection to keep,
