@@ -95,9 +95,25 @@ supabase db push
 | `0014_remote_sessions.sql`           | `presentation_sessions` and the phone remote's channel gate                                                                                                   |
 | `0015_sourced_visuals.sql`           | Asset provenance, and the image-generation budget                                                                                                             |
 | `0016_shared_asset_by_reference.sql` | Resolves a shared deck's images by what the deck references                                                                                                   |
+| `0017_billing.sql`                   | `subscriptions`, and the delivered-event table the webhook is idempotent through                                                                              |
+| `0018_allowance_accounting.sql`      | Stops charging an allowance for a call that never reached the model                                                                                           |
+| `0019_plan_grants.sql`               | A granted plan, checked before a bought one                                                                                                                   |
+| `0020_ledger_integrity.sql`          | The spend ledger is not the caller's to rewrite                                                                                                               |
+| `0021_reservation_ceilings.sql`      | The image ceilings move into `ai_image_limits`; **not additive — see below**                                                                                  |
 
-Every one is additive: new columns carry defaults and new tables carry their own
-policies, so applying them ahead of a deploy is safe and is the right order.
+Every one is additive except the last: new columns carry defaults and new tables
+carry their own policies, so applying them ahead of a deploy is safe and is the
+right order.
+
+**`0021` is the exception, and it is not safe to apply ahead of a deploy.** It
+drops `captivate_reserve_image_generation(text,uuid,numeric,numeric,integer)` and
+creates a two-argument form in its place, because leaving the old signature
+callable would close nothing. There is therefore no ordering that avoids a
+window: the running application calls the five-argument form until the new build
+is live, and the new build calls the two-argument form as soon as it is. Apply
+the migration and release the application as one coordinated step, migration
+first — that is the order that closes the hole soonest, and the failure either
+side of it is a clean refusal saying nothing was spent, not a corrupted row.
 
 **`0014` touches `realtime.messages`, which Supabase owns.** The migration
 enables RLS on it only if it is not already enabled, because Supabase enables it
