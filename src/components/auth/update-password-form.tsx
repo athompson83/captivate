@@ -3,6 +3,7 @@
 import { updatePassword } from "@/lib/auth/actions";
 import { Input } from "@/components/ui/input";
 import { FormMessage, SubmitButton, fieldError, useAuthAction } from "./forms";
+import { PASSWORD_MIN } from "@/lib/auth/password";
 
 export function UpdatePasswordForm() {
   const [state, formAction] = useAuthAction(updatePassword);
@@ -16,7 +17,7 @@ export function UpdatePasswordForm() {
         type="password"
         autoComplete="new-password"
         required
-        minLength={8}
+        minLength={PASSWORD_MIN}
         autoFocus
         error={fieldError(state, "password")}
       />

@@ -17,11 +17,18 @@ import { supabaseServer } from "@/lib/supabase/server";
 export type ActionResult =
   { ok: true; message?: string } | { ok: false; error: string; field?: string };
 
+import { PASSWORD_MAX, PASSWORD_MIN, passwordProblem } from "./password";
+
 const Email = z.string().trim().toLowerCase().email("Enter a valid email address").max(320);
+/**
+ * Shape only. Whether the password is a *good* one is decided by
+ * `passwordProblem`, which needs the email and name from the same form to say
+ * so — a schema on one field cannot see the other two.
+ */
 const Password = z
   .string()
-  .min(8, "Use at least 8 characters")
-  .max(128, "That password is too long");
+  .min(1, "Choose a password")
+  .max(PASSWORD_MAX, "That password is too long");
 
 /** Only ever redirect to a same-origin path, never to an attacker-supplied URL. */
 function safeNext(next: unknown): string {
@@ -106,6 +113,14 @@ export async function signUp(
     return { ok: false, error: issue.message, field: String(issue.path[0]) };
   }
 
+  // Checked here, on the server, rather than only in the form: the browser is
+  // where the guess is typed, not where it is decided.
+  const weak = passwordProblem(parsed.data.password, {
+    email: parsed.data.email,
+    displayName: parsed.data.displayName,
+  });
+  if (weak) return { ok: false, error: weak, field: "password" };
+
   const site = await origin();
   if (!site) return { ok: false, error: NO_ORIGIN };
 
@@ -174,6 +189,11 @@ export async function updatePassword(
     const issue = parsed.error.issues[0];
     return { ok: false, error: issue.message, field: String(issue.path[0]) };
   }
+
+  // A recovery flow is exactly where someone reaches for the password they
+  // already had trouble with, so it gets the same policy as sign-up.
+  const weak = passwordProblem(parsed.data.password);
+  if (weak) return { ok: false, error: weak, field: "password" };
 
   const supabase = await supabaseServer();
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
