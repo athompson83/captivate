@@ -208,6 +208,74 @@ describe("the fold puts words in the slots a layout has", () => {
     expect(JSON.stringify(composed.elements)).not.toContain("Differentiation");
   });
 
+  it("keeps every point of a sequence longer than a three-up can draw", () => {
+    // I argued this one was a capacity limit consistent with the cards path
+    // and was wrong. Cards and bullets are not the same kind of over-filling:
+    // an author handing five cards to a three-up has typed into a layout whose
+    // three frames are in front of them, while `layoutFor` picked `three-up`
+    // from a "sequence" intent and the model was never told the cap. Three
+    // cards drawn means nothing is empty, so the last resort never noticed the
+    // fourth point going missing.
+    const composed = composeScene(
+      "three-up",
+      {
+        heading: "Four ways in",
+        bullets: ["Draft it", "Differentiate it", "Mark it", "Reteach from it"],
+      },
+      { inferredLayout: true },
+    );
+
+    expect(composed.layout).toBe("bullets");
+
+    // Every point, in order. Asserting only the fourth would pass a regression
+    // that kept it and dropped the three before it.
+    const list = composed.elements.find((element) => element.type === "list");
+    expect(list?.type === "list" && list.items.map((item) => item[0].text)).toEqual([
+      "Draft it",
+      "Differentiate it",
+      "Mark it",
+      "Reteach from it",
+    ]);
+  });
+
+  it("gives an author the layout they picked, even when it crops", () => {
+    // The same four points, chosen by a person rather than inferred from a
+    // moment's visual intent. `relayoutScene` extracts a Points scene's items
+    // as bullets and composes the requested layout, so giving way here would
+    // make the "change layout" picker appear to do nothing at all: it would
+    // close, and the scene would still be Points.
+    const composed = composeScene("three-up", {
+      heading: "Four ways in",
+      bullets: ["Draft it", "Differentiate it", "Mark it", "Reteach from it"],
+    });
+
+    expect(composed.layout).toBe("three-up");
+
+    // Which three, and in the order they were written: cropping to the *last*
+    // three would satisfy a count and lose the sequence. A bullet-derived card
+    // carries its text in `content`; its title is empty by construction.
+    const drawn = composed.elements
+      .filter((element) => element.type === "callout")
+      .map((element) => (element.type === "callout" ? element.content[0].text : ""));
+    expect(drawn).toEqual(["Draft it", "Differentiate it", "Mark it"]);
+  });
+
+  it("still crops a three-up an author filled by hand", () => {
+    // The authored path is unchanged: five cards, three frames, first three.
+    const composed = composeScene("three-up", {
+      heading: "Five, in a layout that draws three",
+      cards: ["a", "b", "c", "d", "e"].map((title) => ({ title, body: title })),
+    });
+
+    expect(composed.layout).toBe("three-up");
+
+    // The first three the author typed, in their order.
+    const drawn = composed.elements
+      .filter((element) => element.type === "callout")
+      .map((element) => (element.type === "callout" ? element.title : ""));
+    expect(drawn).toEqual(["a", "b", "c"]);
+  });
+
   it("draws all three cards from a three-up given only bullets", () => {
     // The cards conversion used to run after the heading promotion, which had
     // already eaten the first bullet and cleared the rest — so a bullet-only

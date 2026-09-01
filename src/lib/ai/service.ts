@@ -708,7 +708,10 @@ function materialise(scene: GeneratedScene): MaterialisedScene {
 
   return {
     title: scene.title,
-    content: composeScene(scene.layout, layoutContent),
+    // `layoutFor` chose this layout from the moment's visual intent, before
+    // the model wrote a word — so the composition may give way where the
+    // content does not fit it. A person picking a layout gets what they picked.
+    content: composeScene(scene.layout, layoutContent, { inferredLayout: true }),
     speakerNotes: scene.speakerNotes,
     imagePrompt: scene.imagePrompt,
     photoQuery: scene.photoQuery,
