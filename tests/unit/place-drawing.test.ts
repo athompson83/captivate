@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_DRAWING_STAGES,
   drawableScenes,
   drawingCap,
+  normaliseDrawing,
   replaceMediaWithDrawing,
   replaceMediaWithPhoto,
 } from "@/lib/editor/place-drawing";
@@ -178,5 +180,117 @@ describe("replaceMediaWithPhoto", () => {
       media: { url: "/api/assets/abc/content", alt: "their photo", assetId: "abc" },
     });
     expect(replaceMediaWithPhoto(content, photo)).toBeNull();
+  });
+});
+
+describe("a generated drawing is bounded before it is placed", () => {
+  const made = (paths: { d: string; stage: number }[], stageLabels: string[] = []) => ({
+    viewBox: { width: 400, height: 300 },
+    paths,
+    stageLabels,
+    alt: "",
+  });
+
+  it("grows the box to hold ink the model drew outside it", () => {
+    // The reported failure. A model declared a 400x300 box and drew out to
+    // (900, 700); the renderer had `overflow: visible`, so the strokes that
+    // escaped were painted across the bar chart beside them. Two drawing
+    // fragments floating over a graph is what that looks like from the room.
+    const safe = normaliseDrawing(made([{ d: "M 10 10 L 900 700", stage: 0 }]));
+
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(700);
+    // Grown, never cropped: the stroke is still all there.
+    expect(safe.paths[0].d).toBe("M 10 10 L 900 700");
+  });
+
+  it("leaves a well-behaved drawing exactly as it is", () => {
+    const original = made([{ d: "M 10 10 L 390 290", stage: 0 }]);
+    const safe = normaliseDrawing(original);
+
+    expect(safe.viewBox).toEqual({ width: 400, height: 300 });
+    expect(safe.paths).toEqual(original.paths);
+  });
+
+  it("costs the presenter no more than three presses", () => {
+    // The model was asked for "2 to 8 stages" and took it. Eight stages is
+    // eight advances spent on one picture while an audience waits.
+    const eight = made(
+      Array.from({ length: 8 }, (_, stage) => ({ d: `M 0 0 L 10 ${stage}`, stage })),
+      ["one", "two", "three", "four", "five", "six", "seven", "eight"],
+    );
+    const safe = normaliseDrawing(eight);
+
+    const stages = new Set(safe.paths.map((p) => p.stage));
+    expect(Math.max(...stages)).toBeLessThanOrEqual(MAX_DRAWING_STAGES - 1);
+    expect(Math.max(...stages)).toBe(3); // stage 0 on arrival, then three presses
+  });
+
+  it("keeps the build in order when it compresses it", () => {
+    // Folding must not shuffle the picture: what was drawn first still is.
+    const six = made(
+      Array.from({ length: 6 }, (_, stage) => ({ d: `M 0 0 L 10 ${stage}`, stage })),
+    );
+    const safe = normaliseDrawing(six);
+
+    const folded = safe.paths.map((p) => p.stage);
+    expect(folded).toEqual([...folded].sort((a, b) => a - b));
+    // Spread across the presses rather than crammed into the first.
+    expect(new Set(folded).size).toBe(MAX_DRAWING_STAGES);
+  });
+
+  it("keeps every stage label rather than dropping the folded ones", () => {
+    const six = made(
+      Array.from({ length: 6 }, (_, stage) => ({ d: `M 0 0 L 10 ${stage}`, stage })),
+      ["axes", "bars", "labels", "trend", "callout", "conclusion"],
+    );
+    const safe = normaliseDrawing(six);
+
+    // An author wrote these; folding two stages together must not lose one.
+    const joined = safe.stageLabels.join(" ");
+    for (const label of ["axes", "bars", "labels", "trend", "callout", "conclusion"]) {
+      expect(joined).toContain(label);
+    }
+  });
+
+  it("bounds the drawing on its way into the document, not afterwards", () => {
+    // The swap is the last thing that touches a generated picture before it is
+    // somebody's saved work, so it is where the guarantee has to hold.
+    const content = withPlaceholder();
+    const replaced = replaceMediaWithDrawing(
+      content,
+      made([{ d: "M 0 0 L 1200 900", stage: 0 }]),
+      "a prompt",
+    );
+
+    const element = replaced?.elements.find((e) => e.type === "drawing");
+    expect(element).toBeTruthy();
+    if (element?.type === "drawing") {
+      expect(element.viewBox.width).toBeGreaterThanOrEqual(1200);
+      expect(element.viewBox.height).toBeGreaterThanOrEqual(900);
+    }
+  });
+});
+
+describe("how many drawings a deck of a given length gets", () => {
+  it("doubles the rate when drawings are the only picture a scene can get", () => {
+    // A twenty-minute talk. Photographs available: two drawings is right,
+    // because photographs fill the rest. No stock provider: two drawings and
+    // eighteen empty slots is the reported "one drawing for a 20 minute
+    // presentation", so the rate has to rise.
+    expect(drawingCap(20 * 60, false)).toBe(2);
+    expect(drawingCap(20 * 60, true)).toBe(4);
+  });
+
+  it("is the stock provider that decides, not any image capability at all", () => {
+    // The bug this exists for: `isPhotoFillConfigured()` is true when *only*
+    // image generation is configured, and generation backfills the cover
+    // alone. So a deployment with an image key and no stock key was told
+    // photographs were coming to scenes that could never receive one.
+    // `dressScenes` asks `isStockSearchConfigured` now; this pins the
+    // arithmetic that made the difference visible.
+    const fiftyMinutes = 50 * 60;
+    expect(drawingCap(fiftyMinutes, false)).toBe(5);
+    expect(drawingCap(fiftyMinutes, true)).toBe(10);
   });
 });

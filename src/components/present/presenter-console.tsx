@@ -24,6 +24,7 @@ import {
 import type { PresentationRecord, Scene, Section } from "@/lib/schema/presentation";
 import type { LectureNote } from "@/lib/data/notes";
 import { getTheme } from "@/lib/schema/theme";
+import { buildStepCount } from "@/lib/present/motion";
 import { usePresentSession, plannedDuration } from "@/lib/present/session";
 import { PRESENTER_COLORS, type PresenterTool, type RecordingStatus } from "@/lib/present/protocol";
 import { Stage, StageThumbnail } from "@/components/stage/stage";
@@ -61,6 +62,12 @@ export function PresenterConsole({
     scenes,
     role: "console",
   });
+
+  // How much of this scene is left to build, and what the one after costs.
+  // Pure arithmetic over the session and the scene list — derived in render
+  // rather than stored, so it cannot drift out of step with the step counter.
+  const buildsLeft = Math.max(0, session.stepsInScene - 1 - session.step);
+  const nextSceneSteps = session.nextScene ? buildStepCount(session.nextScene.content.elements) : 0;
 
   const [tool, setTool] = useState<PresenterTool>("none");
   const [color, setColor] = useState<string>(PRESENTER_COLORS[0].value);
@@ -290,8 +297,24 @@ export function PresenterConsole({
             </button>
 
             <div className="min-w-0 flex-1">
-              <p className="text-ink-3 mb-1 text-[10px] font-medium tracking-wider uppercase">
-                Next
+              {/*
+                What the next press actually does.
+
+                "Next" alone is a lie on any scene that builds: the presenter
+                presses it and the slide does not change, which is the moment
+                people start pressing twice and overshooting in front of a
+                room. So the label says whether the advance stays here, and the
+                card below says what the scene after this one will cost — a
+                four-press drawing is worth knowing about *before* you are
+                standing in it.
+              */}
+              <p className="text-ink-3 mb-1 flex items-baseline gap-1.5 text-[10px] font-medium tracking-wider uppercase">
+                <span>Next</span>
+                {buildsLeft > 0 && (
+                  <span className="text-accent-text normal-case">
+                    {buildsLeft} more {buildsLeft === 1 ? "press" : "presses"} on this scene
+                  </span>
+                )}
               </p>
               {session.nextScene ? (
                 <button
@@ -313,6 +336,7 @@ export function PresenterConsole({
                     <span className="text-ink-3 block truncate text-[11px]">
                       {sections.find((s) => s.id === session.nextScene?.sectionId)?.title ??
                         "Up next"}
+                      {nextSceneSteps > 1 && ` · ${nextSceneSteps} presses`}
                     </span>
                   </span>
                 </button>

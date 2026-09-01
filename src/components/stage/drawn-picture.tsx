@@ -61,9 +61,20 @@ export function DrawnPicture({
     <svg
       role="img"
       aria-label={element.alt || "Drawing"}
-      viewBox={`0 0 ${element.viewBox.width} ${element.viewBox.height}`}
+      // Padded by a stroke width so ink sitting exactly on the boundary is not
+      // shaved in half by the clip below, and clipped rather than left to
+      // overflow. `overflow: visible` was letting a model that drew outside the
+      // box it declared paint across whatever else the scene had — the report
+      // was two drawing fragments floating over a bar chart. `normaliseDrawing`
+      // grows the stored box to hold the ink, so for anything drawn from the
+      // origin outwards this clip never reaches real strokes; ink at negative
+      // coordinates is the one case it does, and a picture cropped inside its
+      // own frame is still better than one painted over its neighbours.
+      viewBox={`${-element.strokeWidth} ${-element.strokeWidth} ${
+        element.viewBox.width + element.strokeWidth * 2
+      } ${element.viewBox.height + element.strokeWidth * 2}`}
       preserveAspectRatio="xMidYMid meet"
-      style={{ width: "100%", height: "100%", overflow: "visible" }}
+      style={{ width: "100%", height: "100%", overflow: "hidden" }}
     >
       {element.paths.map((path, i) => {
         const siblings = perStage.get(path.stage) ?? 1;
