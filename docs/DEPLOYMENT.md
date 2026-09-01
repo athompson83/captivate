@@ -18,7 +18,7 @@
 | `STRIPE_PRICE_PRO_ANNUAL`       | With billing  | **No**              | Price id for $96/year Captivate Pro                             |
 
 The image-generation ceilings are deliberately not in this table. All three —
-the price of one image, the shared monthly budget, and `daily_max`, the *cap* on
+the price of one image, the shared monthly budget, and `daily_max`, the _cap_ on
 how many images one author may generate in a day — live in
 `public.ai_image_limits` and are read by the reservation itself, because a
 ceiling passed in by the caller is a ceiling the caller chooses; see
@@ -60,8 +60,10 @@ provider keys degrade the same way in miniature: a deployment without
 `PEXELS_API_KEY` or `OPENAI_API_KEY` simply does not show that tab in the image
 picker, rather than showing one that fails when used.
 
-The two image budget figures are read at call time, so changing them takes
-effect without a deploy. They bound a real bill — see the reservation section in
+The three image figures — the price of one image, the shared monthly budget and
+the per-author daily cap — are rows in `public.ai_image_limits` rather than
+variables, and are read at call time, so changing them takes effect without a
+deploy. They bound a real bill — see the reservation section in
 [SECURITY.md](SECURITY.md).
 
 ---
