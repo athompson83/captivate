@@ -295,29 +295,46 @@ a call to Stripe — which matters because an entitlement check sits in front of
 every AI generation, and a network hop there would put Stripe's uptime in front
 of Captivate's.
 
-The gate itself is deliberately tiny. `currentPlan()` resolves to a `Plan`,
-and that plan picks a `Budget` — an _allowance_ plus, on the paid tiers, an
-hourly _burst ceiling_. The allowance is fed to the _existing_
-`captivate_reserve_generation` function, so the revenue boundary inherits,
-unchanged, the atomic per-user locking that was built for the spend boundary:
-counting and incrementing remain one statement, and a burst of concurrent
-requests still cannot all read the same count and pass.
+**The gate is in the database.** `captivate_reserve_generation` takes what kind
+of work this is and which budget it draws on, and nothing else: not the ceiling,
+not the window, not the plan. It resolves the caller's plan
+(`captivate_current_plan`), reads that plan's budgets (`plan_budgets`), and
+checks the rolling allowance _and_ the hourly burst ceiling under the one
+advisory lock it already held — so counting, spending a credit and writing the
+ledger row are a single decision.
 
-The two ceilings answer different questions and are enforced differently. The
-allowance is what was bought — the number shown in settings, the one that
-drains — and it is reserved atomically inside the SQL function, which takes a
-single window. The burst ceiling is abuse protection rather than a product
-promise, so it is pre-checked against the ledger before the reservation; that
-check is not atomic, and it does not need to be, because it sits an order of
-magnitude above anything ordinary use reaches and the allowance underneath it
-is still exact.
+That location is the point. PostgREST exposes these functions to
+`authenticated`, so nothing on the wire distinguishes the server's call from the
+same RPC issued straight from a browser. While the ceiling was an argument, a
+caller could name their own and the plan gate in front of it was decoration —
+the same hole `0021_reservation_ceilings.sql` had already closed for images. The
+burst ceiling had a second version of the problem: it was a separate application
+read, which is a read anybody can decline to perform and one that two
+simultaneous callers both pass. `supabase/tests/reservation_race.sh` races each
+ceiling with one place left and asserts exactly one ticket comes back.
 
-Which tier a subscription grants comes from its price: the mirror row carries
-`price_id`, and `planForPriceId` maps it back through the `STRIPE_PRICE_*`
-variables. Each of those holds a comma-separated list so a rotated price still
-resolves — see [DEPLOYMENT.md](DEPLOYMENT.md). An unrecognised price resolves
-to the _lowest_ paid tier, because guessing upward would hand somebody Pro for
-Basic's money on a stale environment variable.
+The application still holds the same numbers, for the pricing page and the
+settings meter, and `tests/unit/plan-budget-parity.test.ts` asserts the two
+copies agree — silent drift here refuses generations the product promised, or
+sells an allowance nobody is paying for.
+
+Which tier a subscription grants is **stored** on the row, resolved from its
+price when the webhook wrote it. Re-deriving it would mean that the day a price
+is rotated the old id resolves to nothing and its holder quietly becomes the
+lowest paid tier. An unrecognised price still resolves downward rather than
+upward, because guessing upward hands somebody Pro for Basic's money on a stale
+environment variable.
+
+A **top-up** is a credit ledger rather than a counter. One credit is one
+presentation — it raises every coupled pool by what a presentation can take from
+it, and is spent once, when a deck is actually generated. A credit that
+replenished only the deck pool would sell ten presentations that could not be
+illustrated. Credits come back when a call never reaches the model, exactly as
+the allowance does, and are revoked on a refund or a dispute.
+
+Every settled text generation records what it cost, priced from `ai_model_rates`
+at the rate in force when the call was made — which is what makes an allowance a
+decision rather than a guess.
 
 `src/lib/billing/` holds it: `plans.ts` (pure, isomorphic, the single source of
 what each plan allows), `entitlement.ts` (the mirror read), `stripe.ts` (the

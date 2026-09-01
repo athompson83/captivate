@@ -413,8 +413,11 @@ a separate, per-scene, explicitly chosen action.
   surface them.
 - **No global ceiling on _text_ generation.** Images have one, in
   `public.ai_image_limits`; text is bounded per user only — a rolling 30-day
-  allowance on every plan, plus an hourly burst ceiling on the paid ones — so
-  total text spend still scales with the number of accounts.
+  allowance on every plan, plus an hourly burst ceiling — so total text spend
+  still scales with the number of accounts. What is no longer missing is the
+  _measurement_: `0023_text_generation_cost.sql` prices every settled text row
+  from `ai_model_rates`, so the sum a global ceiling would have to bound is now
+  a query rather than an estimate.
   `captivate_reserve_image_generation` is the worked example of the shape this
   needs — a global counter checked under a global lock in the same statement
   that increments it, **and reading its own ceilings**. That last clause is not

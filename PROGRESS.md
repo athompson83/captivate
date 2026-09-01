@@ -211,7 +211,7 @@ probe asserting `count(*) = 0` was passing only because Bob owned no rows.
 Ten review findings were raised on this PR and every one of them was real;
 three were about claims rather than code, which is the failure this session
 kept repeating. The last of them is worth recording because it changed
-the fix rather than the prose: the ceilings were read *before* the budget lock
+the fix rather than the prose: the ceilings were read _before_ the budget lock
 was taken, so a queue of callers each held the numbers from before an operator
 lowered them and was then admitted one at a time against a budget that no
 longer existed — the lock guarding the measurement while leaving the decision
@@ -296,7 +296,7 @@ Both keys are listed as owner actions in `PROJECT_CHECKLIST.md`.
    stack locally in GitHub Actions — where Docker does exist — seeds a confirmed
    synthetic user, and runs the `authenticated` Playwright project against it.
    That is engineering work rather than an owner action, and it closes the
-   signed-in-*session* gap. It does not close BETA-001 as written, which asks
+   signed-in-_session_ gap. It does not close BETA-001 as written, which asks
    for authenticated journeys against the exact hosted Preview candidate — a
    local stack is a different environment, and calling it the same thing is how
    a gate gets marked done without the evidence it names.
@@ -311,3 +311,67 @@ Both keys are listed as owner actions in `PROJECT_CHECKLIST.md`.
 5. `docs/ROADMAP.md` holds what has been asked for and not built: audience
    feedback (polls, trivia, Q&A), integrations with confidence monitors and
    Descript, keeping a reference file as stored evidence, and PDF reading.
+
+## Pricing, the reservation boundary, and what a presentation costs
+
+The pricing change grew into a rebuild of the spend boundary, because working
+out what a tier should allow surfaced two holes and one gap that made the
+question unanswerable.
+
+**The ceilings were the caller's to name.** `captivate_reserve_generation` took
+its window and its ceiling as arguments, and PostgREST exposes it to
+`authenticated` — so nothing on the wire distinguished the server's call from
+the same RPC issued from a browser with a ceiling of its own. The plan gate in
+front of it was decoration. This is the hole `0021_reservation_ceilings.sql` had
+already closed for image generation; the text reservation was left with the same
+shape. It now takes a kind and a budget group, resolves the plan itself, reads
+its own ceilings, and refuses a kind recorded against a group it does not draw
+on.
+
+**The hourly burst ceiling was never enforced.** It existed as a number in a
+table and as an application read before the reservation — a read a caller can
+decline to perform, and one two simultaneous callers both pass. Both ceilings
+are now decided inside the lock the function already took.
+`supabase/tests/reservation_race.sh` races each of them: sixteen simultaneous
+callers with one place left get exactly one ticket. Against a build with the
+burst check outside the lock, eight of sixteen get through — checked rather than
+assumed.
+
+**Nothing knew what a generation cost.** `ai_generations` has recorded tokens
+and a `cost_usd` since the ledger was built, and for every text call that column
+was zero: only image generation ever wrote it. So the allowances had to be
+argued from a sample of five presentations. `ai_model_rates` now prices every
+settled row at the rate in force when the call was made — including truncations,
+schema failures and corrective retries, because the provider reports usage on
+those and the money is spent whether or not the author got anything.
+
+**Allowances are 10, 25 and 60 presentations** in any rolling 30 days, and every
+other pool is that number times what one presentation can take from it. The
+coupled pools were a real defect: Basic was sixty decks and sixty drawings, so
+an author who used their allowance could illustrate one presentation in every
+one they generated.
+
+**A top-up buys presentations, not a deck counter.** Ten credits raise every
+coupled pool by a presentation's worth, and one is spent when a deck is actually
+made. The acceptance test exhausts every allowance, buys a top-up, and asserts
+ten complete presentations come out — ten decks, ten maps, a hundred drawings —
+with the eleventh refused.
+
+**Annual billing is withdrawn rather than hidden.** There is no code path that
+opens an annual checkout; the annual price ids are read only so a subscription
+bought earlier still resolves to the tier its holder paid for. Re-enabling it
+is gated on measured cost per presentation, which the ledger can now answer.
+
+### Still open
+
+1. **Whether generated imagery actually works in production has not been
+   proven.** Paid tiers advertise it on a public page and the only thing behind
+   that promise is `OPENAI_API_KEY`. The failure is honest everywhere an author
+   looks — the picker hides the tab, the service says so — which is exactly why
+   it could be absent for a long time unnoticed. `tests/e2e/journey.spec.ts` now
+   asks the deployment directly, but the `authenticated` project needs account
+   credentials this environment does not have, so it has not been run. This
+   remains genuinely unverified rather than verified-and-fine.
+2. **The four price ids need setting in Vercel.** There is no tool in this
+   session that writes Vercel environment variables, and the Vercel MCP account
+   available here does not have the Captivate project in scope.

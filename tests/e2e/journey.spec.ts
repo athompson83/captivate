@@ -609,4 +609,37 @@ test.describe("the narrative map", () => {
 
     await expect(map.getByRole("textbox", { name: "Moment title" }).first()).toBeVisible();
   });
+
+  /**
+   * Paid tiers advertise generated imagery on a public pricing page, and the
+   * only thing standing behind that promise is an environment variable.
+   *
+   * A missing `OPENAI_API_KEY` degrades honestly everywhere the author can
+   * see — the picker hides the Generate tab, and the service says so plainly —
+   * which is exactly why it can be missing for a long time without anyone
+   * noticing. The pricing page keeps saying "Included" either way. So this
+   * asks the deployment directly, against whatever environment the suite is
+   * pointed at.
+   *
+   * It is a check on configuration rather than on code, which is the whole
+   * point: nothing in the unit suite can fail when a key is absent.
+   */
+  test("the deployment can actually generate the imagery paid plans are sold", async ({ page }) => {
+    await signIn(page);
+
+    const status = await page.evaluate(async () => {
+      const response = await fetch("/api/ai/status");
+      return { ok: response.ok, body: await response.json() };
+    });
+
+    expect(status.ok, "/api/ai/status should answer a signed-in caller").toBe(true);
+    expect(
+      status.body.configured,
+      "no text model is configured, so nothing can be generated at all",
+    ).toBe(true);
+    expect(
+      status.body.imageGeneration,
+      "OPENAI_API_KEY is not set on this deployment, so the imagery paid plans are sold cannot be produced",
+    ).toBe(true);
+  });
 });

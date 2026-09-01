@@ -15,9 +15,33 @@
 | `STRIPE_SECRET_KEY`             | No            | **No**              | Enables billing; absent means nobody is throttled               |
 | `STRIPE_WEBHOOK_SECRET`         | With billing  | **No**              | Verifies the webhook; it is that endpoint's only authentication |
 | `STRIPE_PRICE_BASIC_MONTHLY`    | With billing  | **No**              | Price id(s) for $12/month Captivate Basic                       |
-| `STRIPE_PRICE_BASIC_ANNUAL`     | With billing  | **No**              | Price id(s) for $96/year Captivate Basic                        |
 | `STRIPE_PRICE_PRO_MONTHLY`      | With billing  | **No**              | Price id(s) for $25/month Captivate Pro                         |
-| `STRIPE_PRICE_PRO_ANNUAL`       | With billing  | **No**              | Price id(s) for $200/year Captivate Pro                         |
+| `STRIPE_PRICE_TOPUP`            | For top-ups   | **No**              | One-time price id for a $5 top-up; absent hides the buy control |
+| `STRIPE_PRICE_BASIC_ANNUAL`     | No            | **No**              | Recognised only — annual is not on sale                         |
+| `STRIPE_PRICE_PRO_ANNUAL`       | No            | **No**              | Recognised only — annual is not on sale                         |
+
+### What is on sale
+
+Two subscriptions and one top-up, all monthly or one-time:
+
+|                 | Price       | Allowance, per rolling 30 days     |
+| --------------- | ----------- | ---------------------------------- |
+| Free            | $0          | 10 presentations                   |
+| Captivate Basic | $12 / month | 25 presentations                   |
+| Captivate Pro   | $25 / month | 60 presentations                   |
+| Top-up          | $5 once     | 10 more presentations, for 30 days |
+
+Every other ceiling is that number of presentations times what one presentation
+can consume — one deck call, two drafts, ten staged drawings and ten light
+actions. The numbers live in `src/lib/billing/plans.ts` and are seeded into
+`public.plan_budgets`, which is what the reservation actually enforces;
+`tests/unit/plan-budget-parity.test.ts` fails if the two disagree.
+
+**Annual billing is deferred.** There is no code path that can open an annual
+checkout, and the annual variables exist only so that a subscription bought
+before that decision still resolves to the tier its holder paid for.
+Re-enabling it means measured cost per presentation first — see the ledger note
+below — not just adding a price.
 
 ### Rotating a price
 
@@ -26,14 +50,65 @@ A price in Stripe is immutable, so changing what a tier costs means creating a
 second price while every subscription already sold stays on the first one. The
 head of the list is what a new checkout is opened against; the rest are still
 recognised, which is what stops `planForPriceId` failing to resolve an existing
-subscriber's tier and quietly dropping them to the lowest paid plan. So a price
-change is:
+subscriber's tier. So a price change is:
 
 ```
 STRIPE_PRICE_PRO_MONTHLY=price_new,price_old
 ```
 
 Never replace the value outright while anybody is subscribed to the old price.
+
+The tier is also **stored** on `subscriptions.plan` when the webhook writes the
+row, and entitlement reads the stored answer rather than re-deriving it. So a
+subscriber's plan survives a rotation even if the old id is dropped from the
+list — the list is what keeps _new_ writes resolving correctly. Both belong.
+
+### A deployment with no billing
+
+There is no "Stripe is unconfigured, so nobody is throttled" fallback. The
+ceilings are enforced in SQL now, and the database cannot read an environment
+variable — a rule the enforcement layer does not know is not a rule. A
+deployment running without Stripe grants itself the plan it wants, visibly:
+
+```sql
+insert into public.plan_grants (user_id, plan, note)
+values ('<the user id>', 'unlimited', 'Self-hosted deployment.');
+```
+
+A grant outranks a subscription and is what `plan_grants` was built for.
+
+### What a generation costs
+
+`public.ai_model_rates` holds each model's input and output price per million
+tokens, effective-dated, and `captivate_complete_generation` costs every settled
+text row against the rate in force when the call was made — successes,
+truncations and schema failures alike, because the provider reports usage on
+all of them.
+
+A model with no row costs nothing rather than a guess.
+`tests/unit/generation-cost.test.ts` fails when the model this deployment is
+configured to call has no rate, which is otherwise a silent return to a ledger
+full of zeroes. Adding a model means adding its rate in the same change:
+
+```sql
+insert into public.ai_model_rates (model, effective_from, input_per_mtok, output_per_mtok, note)
+values ('<model id>', now(), 3.00, 15.00, 'Why this rate, and where it came from.');
+```
+
+Never update a row in place to reflect a price change — insert a new
+`effective_from`, or every generation already settled is silently repriced.
+
+### Top-up credits
+
+A top-up is a one-time Checkout in `payment` mode. The webhook grants the
+credits when the payment succeeds; a refund or dispute revokes them. Credits
+are granted, spent and revoked only by the database and the webhook, never by
+anything a browser can reach, and `generation_credits` offers no write verb to
+`authenticated` at all.
+
+One credit is one **presentation**, not one deck row: it raises every coupled
+pool by what a presentation can take from it, so ten credits buy ten
+presentations that can actually be finished, drawings and all.
 
 The image-generation ceilings are deliberately not in this table. All three —
 the price of one image, the shared monthly budget, and `daily_max`, the _cap_ on
@@ -133,12 +208,30 @@ supabase db push
 | `0019_plan_grants.sql`               | A granted plan, checked before a bought one                                                                                                                   |
 | `0020_ledger_integrity.sql`          | The spend ledger is not the caller's to rewrite                                                                                                               |
 | `0021_reservation_ceilings.sql`      | The image ceilings move into `ai_image_limits`; **not additive — see below**                                                                                  |
+| `0022_plan_budgets.sql`              | The generation ceilings move into `plan_budgets`, and the tier is stored; **not additive — see below**                                                        |
+| `0023_text_generation_cost.sql`      | Every settled text generation records what it cost                                                                                                            |
+| `0024_generation_credits.sql`        | Top-up credits, and a reservation that can spend one; **not additive — see below**                                                                            |
 
-Every one is additive except the last: new columns carry defaults and new tables
-carry their own policies, so applying them ahead of a deploy is safe and is the
-right order.
+Every one is additive except `0021`, `0022` and `0024`: new columns carry
+defaults and new tables carry their own policies, so applying them ahead of a
+deploy is safe and is the right order.
 
-**`0021` is the exception, and it is not safe to apply ahead of a deploy.** It
+**`0022` and `0024` need the same coordinated release as `0021`, for the same
+reason.** Each drops the previous `captivate_reserve_generation` signature and
+creates a new one, because leaving the old form callable would close nothing —
+and the old form is exactly the one that let a caller name its own ceiling.
+Apply the migration and release the application together, migration first. The
+failure either side of the window is a clean refusal saying nothing was spent.
+`0024` also replaces `captivate_complete_generation` in place, which is
+signature-compatible and needs no coordination of its own.
+
+**`0022` changes what an unbilled deployment gets.** The "no Stripe key means
+everybody is Pro" fallback is gone, because the database enforces the ceilings
+now and cannot read an environment variable. A deployment running without
+billing must grant itself a plan — see _A deployment with no billing_ above —
+or every account is on Free.
+
+**`0021` is not safe to apply ahead of a deploy either.** It
 drops `captivate_reserve_image_generation(text,uuid,numeric,numeric,integer)` and
 creates a two-argument form in its place, because leaving the old signature
 callable would close nothing. There is therefore no ordering that avoids a
