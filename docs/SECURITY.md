@@ -150,6 +150,29 @@ captivate_owns_presentation`. A policy expression is evaluated with the
 querying role's privileges, so the grant is load-bearing. Acting on that
 warning would not harden anything; it would take the application down.
 
+The same reasoning covers every other `SECURITY DEFINER` function the linter
+names, and the list is worth reconciling in full rather than left as a count:
+
+| Function | Callable by | Why the grant is load-bearing |
+|---|---|---|
+| `captivate_owns_presentation` | `authenticated` | Invoked by the policies on `sections`, `scenes`, `lecture_notes` |
+| `captivate_shared_presentation` | `anon`, `authenticated` | The share link's only door; an anonymous audience has no other path |
+| `captivate_shared_asset` | `anon`, `authenticated` | The same, for media a shared scene references |
+| `captivate_asset_object_is_shared` | `anon`, `authenticated` | Invoked by the storage policy behind a shared deck's images |
+| `captivate_count_generations`, `captivate_reserve_generation`, `captivate_complete_generation`, `captivate_reserve_image_generation`, `captivate_settle_image_generation` | `authenticated` | Called by the server with the author's own JWT, which is the client a route handler already has — see `0020_ledger_integrity.sql` |
+
+The ledger five are the interesting row, because "the caller could call them
+directly" is true and is the threat 0020 and 0021 were written against, not a
+reason to revoke: they are already written to be safe against exactly that.
+Each is scoped to `auth.uid()`, none can restate a price or a ceiling, and the
+one state a later call may overwrite is the one that claims nothing was owed.
+
+`anon` is revoked on all five, and on the trigger functions — and a function
+recreated by a later migration needs that revoke restated by name, because
+Supabase's default privileges re-grant `anon` EXECUTE on anything newly created
+in `public`. `supabase/tests/rls_isolation.test.sql` asserts it for each of
+them, which is how that was caught rather than shipped.
+
 **`'unsafe-inline'` in `style-src`.** The stage positions every element with
 inline styles, which is what makes normalised geometry work. A nonce-based CSP
 would require rewriting the renderer to emit a stylesheet per scene. The
@@ -330,7 +353,19 @@ cost is money and the budget is shared, so `captivate_reserve_image_generation`
 checks a global monthly ceiling _and_ a per-user daily count in one locked
 statement, and inserts the ledger row that both are measured from. The lock is
 global rather than per-user — two different people spending the last of a shared
-budget simultaneously is exactly the race a per-user lock would miss. A refusal
+budget simultaneously is exactly the race a per-user lock would miss.
+
+All three numbers — the price of one image, the monthly ceiling, the daily
+count — are read from `public.ai_image_limits` inside that statement, and none
+of them is a parameter. The table has RLS on and no policies at all, on the
+same grounds as `stripe_events`: the ceilings belong to the deployment, so
+even reading them is not a signed-in user's business. This is the whole point
+of the design rather than a detail of it. While the estimate was an argument,
+the reservation ran under the caller's own JWT like every other RPC, so one
+request could name a `cost_usd` of 500, land it in a sum that is deliberately
+shared by everybody, and refuse every other user with "out of budget" for the
+rest of the calendar month — without calling a model or spending anything
+real. A refusal
 says which ceiling was reached, because "the deployment is out of budget" and
 "you have used your day's allowance" are different situations and only one of
 them is the reader's own doing; both say that search and upload still work, so
@@ -360,13 +395,17 @@ a separate, per-scene, explicitly chosen action.
   level; no UI exposes them.
 - **No audit log of sign-ins.** Supabase records them; Captivate does not
   surface them.
-- **No global ceiling on _text_ generation.** Images have one
-  (`CAPTIVATE_IMAGE_BUDGET_USD`); text is bounded per user only — 30 heavy and
-  200 light per hour on Pro, and a rolling 30-day allowance on Free — so total
-  text spend still scales with the number of accounts.
-  `captivate_reserve_image_generation` is now the worked example of the shape
-  this needs — a global counter checked under a global lock in the same
-  statement that increments it.
+- **No global ceiling on _text_ generation.** Images have one, in
+  `public.ai_image_limits`; text is bounded per user only — 30 heavy and 200
+  light per hour on Pro, and a rolling 30-day allowance on Free — so total text
+  spend still scales with the number of accounts.
+  `captivate_reserve_image_generation` is the worked example of the shape this
+  needs — a global counter checked under a global lock in the same statement
+  that increments it, **and reading its own ceilings**. That last clause is not
+  decoration: while the ceilings were arguments, one request naming an estimate
+  of 500 wrote 500 into a sum shared by everybody and refused every other user
+  for the rest of the month. A global counter is worth nothing if the caller
+  supplies the number that increments it.
 - **The provider review at 250 generations is a process step, not enforced.**
   `ai_generations` records cost, latency and status per attempt, and an attempt
   with no matching `assets` row is one the author discarded, so the acceptance

@@ -10,14 +10,18 @@
 | `CAPTIVATE_AI_MODEL`            | No            | No                  | Overrides the model id                                          |
 | `PEXELS_API_KEY`                | No            | **No**              | Enables the picker's Find tab                                   |
 | `OPENAI_API_KEY`                | No            | **No**              | Enables the picker's Generate tab                               |
-| `CAPTIVATE_IMAGE_BUDGET_USD`    | No            | No                  | Shared monthly image spend ceiling (default 100)                |
-| `CAPTIVATE_IMAGE_DAILY_MAX`     | No            | No                  | Per-user daily generations (default 25)                         |
 | `NEXT_PUBLIC_SITE_URL`          | In production | Yes                 | Absolute origin for email links                                 |
 | `SUPABASE_SERVICE_ROLE_KEY`     | With billing  | **No**              | The Stripe webhook is the only writer of subscription state     |
 | `STRIPE_SECRET_KEY`             | No            | **No**              | Enables billing; absent means nobody is throttled               |
 | `STRIPE_WEBHOOK_SECRET`         | With billing  | **No**              | Verifies the webhook; it is that endpoint's only authentication |
 | `STRIPE_PRICE_PRO_MONTHLY`      | With billing  | **No**              | Price id for $12/month Captivate Pro                            |
 | `STRIPE_PRICE_PRO_ANNUAL`       | With billing  | **No**              | Price id for $96/year Captivate Pro                             |
+
+The image-generation ceilings are deliberately not in this table. The price of
+one image, the shared monthly budget and the per-user daily count live in
+`public.ai_image_limits` and are read by the reservation itself, because a
+ceiling passed in by the caller is a ceiling the caller chooses — see
+[SECURITY.md](SECURITY.md). Change them with SQL against that row.
 
 `NEXT_PUBLIC_SITE_URL` is required in production rather than merely advisable.
 Confirmation and recovery links carry a one-time credential, and the only other

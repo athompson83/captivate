@@ -46,6 +46,7 @@ insert into required (kind, ident, feature) values
   ('table',    'public.recordings',                    'recording'),
   ('table',    'public.moments',                       'the narrative map'),
   ('table',    'public.ai_generations',                'AI spend accounting'),
+  ('table',    'public.ai_image_limits',               'the ceilings the reservation reads'),
   ('table',    'public.presentation_sessions',         'the phone remote'),
 
   -- Columns a feature reads or writes by name
@@ -75,7 +76,7 @@ insert into required (kind, ident, feature) values
   ('function', 'public.captivate_set_scene_placements(uuid,jsonb)',               'the world canvas'),
   ('function', 'public.captivate_reserve_generation(text,text[],text,uuid,integer,integer)', 'every AI call'),
   ('function', 'public.captivate_complete_generation(uuid,text,text,integer,integer,text)',  'AI spend accounting'),
-  ('function', 'public.captivate_reserve_image_generation(text,uuid,numeric,numeric,integer)', 'image generation'),
+  ('function', 'public.captivate_reserve_image_generation(text,uuid)', 'image generation'),
   ('function', 'public.captivate_settle_image_generation(uuid,text,text,integer,text)', 'the image budget'),
   ('function', 'public.captivate_remote_topic_open(text)',                         'the phone remote');
 

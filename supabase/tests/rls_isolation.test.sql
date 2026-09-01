@@ -543,22 +543,45 @@ set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 -- probes below compare against.
 -- Under both ceilings: issued.
 select coalesce(id::text, '') as id, coalesce(refusal, '') as refusal
-  from public.captivate_reserve_image_generation('a picture', null, 0.04, 1.00, 5) \gset first_
+  from public.captivate_reserve_image_generation('a picture', null) \gset first_
 select 'image_reserve_within_budget' as check,
   (:'first_id' <> '' and :'first_refusal' = '')::int as n;
 
+-- The ceilings are the deployment's, so they are moved rather than passed: a
+-- test that wants to sit against one edits the table the function reads.
+reset role;
+update public.ai_image_limits set monthly_budget = 0.05;
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+
 -- Over the monthly budget: refused, and the refusal says which ceiling.
 select coalesce(id::text, '') as id, coalesce(refusal, '') as refusal
-  from public.captivate_reserve_image_generation('another', null, 0.04, 0.04, 5) \gset budget_
+  from public.captivate_reserve_image_generation('another', null) \gset budget_
 select 'image_reserve_over_budget_refused' as check,
   (:'budget_id' = '' and :'budget_refusal' = 'budget')::int as n;
+
+reset role;
+update public.ai_image_limits set monthly_budget = 100.00, daily_max = 1;
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 
 -- Over the per-user daily cap: refused, and distinguishably so — one of these
 -- is the presenter's own doing and the other is not.
 select coalesce(id::text, '') as id, coalesce(refusal, '') as refusal
-  from public.captivate_reserve_image_generation('third', null, 0.04, 100.00, 1) \gset daily_
+  from public.captivate_reserve_image_generation('third', null) \gset daily_
 select 'image_reserve_over_daily_cap_refused' as check,
   (:'daily_id' = '' and :'daily_refusal' = 'daily')::int as n;
+
+-- The refusal carries the ceiling that refused, so the message a person reads
+-- cannot disagree with it.
+select 'image_daily_refusal_names_the_ceiling' as check,
+  (select (daily_max = 1)::int
+     from public.captivate_reserve_image_generation('fourth', null)) as n;
+
+reset role;
+update public.ai_image_limits set daily_max = 25;
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 
 -- Settling records how the call went, once — and does not restate the price.
 select 'image_settle_own_pending' as check,
@@ -571,7 +594,7 @@ select 'image_settle_is_not_replayable' as check,
 -- stands. Letting a settlement rewrite it let a caller zero their own cost and
 -- free the shared monthly budget, or inflate it and exhaust it for everybody.
 select 'image_settled_cost_is_the_reserved_estimate' as check,
-  (select (cost_usd = 0.04 and duration_ms = 4200)::int
+  (select (cost_usd = 0.05 and duration_ms = 4200)::int
      from public.ai_generations where id = :'first_id'::uuid) as n;
 reset role;
 
@@ -585,7 +608,46 @@ select 'bob_settles_alice_image' as check,
 reset role;
 
 select 'image_cost_survived_bob' as check,
-  (select (cost_usd = 0.04)::int from public.ai_generations where id = :'first_id'::uuid) as n;
+  (select (cost_usd = 0.05)::int from public.ai_generations where id = :'first_id'::uuid) as n;
+
+-- ---- The shared budget is not one caller's to exhaust ----------------------
+-- The monthly sum is deliberately global: the ceiling belongs to the
+-- deployment, not to the author. That made the estimate the most valuable
+-- argument in the schema while the caller still supplied it — one request
+-- naming a `p_estimate_usd` of 500 wrote 500 into the sum and refused every
+-- other user with 'budget' for the rest of the month, without calling a model
+-- or spending anything real.
+--
+-- There is no argument to name any more, so the probe is that Bob reserving as
+-- hard as he can cannot refuse Alice.
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+-- Two statements on purpose. Reading the row back inside the same statement
+-- that reserves it selects against a snapshot taken before the insert, so the
+-- cost comes back null and the probe proves nothing.
+select coalesce(id::text, '') as id, coalesce(refusal, '') as refusal
+  from public.captivate_reserve_image_generation('bob', null) \gset bob_
+select 'image_bob_reserves_at_the_deployment_price' as check,
+  (select (cost_usd = 0.05)::int from public.ai_generations
+     where id = nullif(:'bob_id', '')::uuid) as n;
+reset role;
+
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select coalesce(id::text, '') as id, coalesce(refusal, '') as refusal
+  from public.captivate_reserve_image_generation('alice after bob', null) \gset after_bob_
+select 'image_bob_cannot_exhaust_the_month' as check,
+  (:'after_bob_id' <> '' and :'after_bob_refusal' = '')::int as n;
+reset role;
+
+-- The ceilings themselves are not readable by a signed-in caller either.
+-- Leaving them selectable would hand every user the numbers this table exists
+-- to stop them choosing.
+set role authenticated;
+set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select 'image_limits_not_readable' as check,
+  (select (count(*) = 0)::int from public.ai_image_limits) as n;
+reset role;
 
 -- ---- Shared-link assets ------------------------------------------------------
 -- A shared deck's scene content can reference uploaded media. The RPC that
@@ -623,7 +685,13 @@ set "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
 select 'bob_sees_alice_folders'     as check, count(*) as n from public.folders;
 select 'bob_sees_alice_assets'      as check, count(*) as n from public.assets;
 select 'bob_sees_alice_recordings'  as check, count(*) as n from public.recordings;
-select 'bob_sees_alice_generations' as check, count(*) as n from public.ai_generations;
+-- Scoped to rows that are not Bob's, unlike its siblings above, because Bob
+-- legitimately owns a reservation of his own by the time this runs. A bare
+-- `count(*)` here would have read his own row as a leak — and, worse, would
+-- have gone on passing for the wrong reason on any day he owned nothing.
+select 'bob_sees_alice_generations' as check, count(*) as n
+  from public.ai_generations
+ where owner_id <> '22222222-2222-2222-2222-222222222222'::uuid;
 select 'bob_sees_alice_profiles'    as check, count(*) as n from public.profiles
   where id = '11111111-1111-1111-1111-111111111111';
 

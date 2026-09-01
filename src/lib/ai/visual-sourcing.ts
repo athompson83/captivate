@@ -25,25 +25,6 @@ import { allowsImageGeneration } from "@/lib/billing/plans";
 /* Budget                                                                      */
 /* -------------------------------------------------------------------------- */
 
-/**
- * What one generation is assumed to cost before the provider says otherwise.
- *
- * Reserved at this figure and reconciled afterwards. Deliberately not the
- * cheapest plausible number: under-reserving and hoping is the wrong direction
- * to be wrong in when the budget is shared.
- */
-export const IMAGE_COST_ESTIMATE_USD = 0.05;
-
-/** Owner-set ceilings. Both are read at call time so a change needs no deploy. */
-function budget() {
-  const monthly = Number(process.env.CAPTIVATE_IMAGE_BUDGET_USD ?? "100");
-  const daily = Number(process.env.CAPTIVATE_IMAGE_DAILY_MAX ?? "25");
-  return {
-    monthly: Number.isFinite(monthly) && monthly >= 0 ? monthly : 0,
-    daily: Number.isFinite(daily) && daily >= 0 ? Math.floor(daily) : 0,
-  };
-}
-
 /* -------------------------------------------------------------------------- */
 /* Providers                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -191,7 +172,6 @@ export async function generateImage(
   if (!trimmed) return { ok: false, error: "Describe the image you want first." };
 
   const supabase = await supabaseServer();
-  const limits = budget();
 
   const { data: reserved, error: reserveError } = await supabase.rpc(
     "captivate_reserve_image_generation",
@@ -202,20 +182,19 @@ export async function generateImage(
       // and nulls a deck the caller does not own, so naming someone else's here
       // buys nothing.
       p_presentation_id: presentationId,
-      p_estimate_usd: IMAGE_COST_ESTIMATE_USD,
-      p_monthly_budget: limits.monthly,
-      p_daily_max: limits.daily,
     },
   );
 
-  const ticket = (reserved as { id: string | null; refusal: string | null }[] | null)?.[0];
+  const ticket = (
+    reserved as { id: string | null; refusal: string | null; daily_max: number | null }[] | null
+  )?.[0];
   // Fails closed: without a ticket nothing is counting the spend, and an
   // uncounted call is exactly what the ceiling exists to prevent.
   if (reserveError || !ticket) {
     return { ok: false, error: "Couldn't reserve an image generation. Nothing was spent." };
   }
   if (!ticket.id) {
-    return { ok: false, error: refusalMessage(ticket.refusal, limits.daily) };
+    return { ok: false, error: refusalMessage(ticket.refusal, ticket.daily_max) };
   }
 
   const startedAt = Date.now();
@@ -264,12 +243,16 @@ export async function generateImage(
   }
 }
 
-function refusalMessage(refusal: string | null, daily: number): string {
+function refusalMessage(refusal: string | null, daily: number | null): string {
   switch (refusal) {
     case "budget":
       return "This deployment has reached its image-generation budget for the month. Search and upload still work.";
     case "daily":
-      return `You've generated ${daily} images today, which is the daily limit. Search and upload still work.`;
+      // The number comes back with the refusal rather than from configuration
+      // here, so the message cannot disagree with the ceiling that refused.
+      return typeof daily === "number"
+        ? `You've generated ${daily} images today, which is the daily limit. Search and upload still work.`
+        : "You've reached your daily limit for image generation. Search and upload still work.";
     case "signed-out":
       return "You're signed out.";
     default:
