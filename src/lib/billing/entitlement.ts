@@ -76,6 +76,28 @@ export async function limitForCaller(group: BudgetGroup): Promise<RateLimit> {
 export async function ceilingsForCaller(group: BudgetGroup): Promise<readonly RateLimit[]> {
   const [plan, credits] = await Promise.all([currentPlan(), grantedCredits()]);
   const [allowance, ...burst] = ceilingsFor(plan, group);
+
+  // The deck allowance is not decided here any more.
+  //
+  // `captivate_reserve_generation` measures what the *plan* granted against
+  // what was drawn from the plan, ignoring rows a credit paid for. This cannot:
+  // it has one number, the total count, and no way to tell the two apart. So
+  // the two disagree exactly when it matters — an author spends credits, keeps
+  // using base slots as they renew, and their purchase expires while its
+  // credited rows are still inside the rolling window. The headroom here drops
+  // to the plan's allowance while those rows are still being counted against
+  // it, and a 429 is returned from in front of the statement that would have
+  // said yes. A renewed allowance, refused, with nothing to buy that fixes it.
+  //
+  // Deferring is safe because the reservation refuses in the same words: the
+  // row it returns names the ceiling and the window, and `reserve` renders it.
+  // The cost is one round trip on a request that was going to be refused, and
+  // the gain is a single authority for a rule that has now drifted twice.
+  if (group === "deck") return burst;
+
+  // Every other pool is *raised* by a purchase rather than spent from, and the
+  // reservation computes the same figure from the same inputs, so this can
+  // still answer early without risk of being stricter than the authority.
   if (credits <= 0) return [allowance, ...burst];
   return [
     { ...allowance, max: allowance.max + credits * PER_PRESENTATION[group] },

@@ -103,13 +103,7 @@ describe("limitForCaller", () => {
       from.mockReturnValue(credits([10]));
 
       const { ceilingsForCaller } = await import("@/lib/billing/entitlement");
-
-      const [deck] = await ceilingsForCaller("deck");
-      expect(deck.max).toBe(limitFor("basic", "deck").max + 10 * PER_PRESENTATION.deck);
-
-      vi.resetModules();
-      const { ceilingsForCaller: again } = await import("@/lib/billing/entitlement");
-      const [drawing] = await again("drawing");
+      const [drawing] = await ceilingsForCaller("drawing");
       // Ten credits are a hundred drawings, because that is what ten
       // presentations can ask for. A credit that only raised the deck pool would
       // sell presentations that could not be illustrated.
@@ -121,8 +115,8 @@ describe("limitForCaller", () => {
       from.mockReturnValue(credits([10]));
 
       const { ceilingsForCaller } = await import("@/lib/billing/entitlement");
-      const [, burst] = await ceilingsForCaller("deck");
-      expect(burst).toEqual(ceilingsFor("basic", "deck")[1]);
+      const [, burst] = await ceilingsForCaller("drawing");
+      expect(burst).toEqual(ceilingsFor("basic", "drawing")[1]);
     });
 
     it("is the plan's own ceilings when nothing was bought", async () => {
@@ -130,7 +124,31 @@ describe("limitForCaller", () => {
       from.mockReturnValue(credits([]));
 
       const { ceilingsForCaller } = await import("@/lib/billing/entitlement");
-      expect(await ceilingsForCaller("deck")).toEqual(ceilingsFor("pro", "deck"));
+      expect(await ceilingsForCaller("drawing")).toEqual(ceilingsFor("pro", "drawing"));
+    });
+
+    /**
+     * The deck allowance is the reservation's to decide, and only its.
+     *
+     * This function has one number — the total count — and no way to separate
+     * what a plan granted from what a credit paid for. The reservation can, and
+     * does. Keeping a second opinion here is how the two came to disagree
+     * exactly where it hurts: a purchase expires while the rows it paid for are
+     * still inside the rolling window, the headroom here falls back to the
+     * plan's allowance while those rows are still counted against it, and a 429
+     * is returned in front of the statement that would have said yes.
+     */
+    it("defers the deck allowance to the reservation rather than guessing", async () => {
+      rpc.mockResolvedValue({ data: "basic", error: null });
+      from.mockReturnValue(credits([10]));
+
+      const { ceilingsForCaller } = await import("@/lib/billing/entitlement");
+      const ceilings = await ceilingsForCaller("deck");
+
+      // The burst window still answers early — the reservation enforces it
+      // identically, so there is no second opinion to drift.
+      expect(ceilings).toEqual([ceilingsFor("basic", "deck")[1]]);
+      expect(ceilings.every((c) => c.windowMinutes === 60)).toBe(true);
     });
   });
 });

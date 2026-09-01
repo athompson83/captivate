@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { PER_PRESENTATION, limitFor } from "@/lib/billing/plans";
+import { PER_PRESENTATION, ceilingsFor, limitFor } from "@/lib/billing/plans";
 
 /**
  * The gate and the reservation have to agree about credits.
@@ -21,9 +21,16 @@ import { PER_PRESENTATION, limitFor } from "@/lib/billing/plans";
  */
 
 const BASIC_DECKS = limitFor("basic", "deck").max;
+const BASIC_DECK_BURST = ceilingsFor("basic", "deck")[1]!.max;
 
 /** A Supabase whose answers describe one account, at a chosen point in its month. */
-function db(options: { plan: string; used: number; creditsGranted: number[] }) {
+function db(options: {
+  plan: string;
+  used: number;
+  creditsGranted: number[];
+  /** The hour's count, when a case is about the burst ceiling rather than the month. */
+  usedThisHour?: number;
+}) {
   return {
     auth: { getUser: async () => ({ data: { user: { id: "user-1" } } }) },
     rpc: async (name: string, args?: { p_window_minutes?: number }) => {
@@ -33,7 +40,7 @@ function db(options: { plan: string; used: number; creditsGranted: number[] }) {
         // the hour's question would make the burst ceiling refuse every case
         // below and hide what is actually being tested.
         return {
-          data: args?.p_window_minutes === 60 ? 0 : options.used,
+          data: args?.p_window_minutes === 60 ? (options.usedThisHour ?? 0) : options.used,
           error: null,
         };
       }
@@ -60,7 +67,12 @@ function db(options: { plan: string; used: number; creditsGranted: number[] }) {
   };
 }
 
-async function guardWith(options: { plan: string; used: number; creditsGranted: number[] }) {
+async function guardWith(options: {
+  plan: string;
+  used: number;
+  creditsGranted: number[];
+  usedThisHour?: number;
+}) {
   vi.resetModules();
   vi.doMock("@/lib/supabase/server", () => ({
     getCurrentUser: async () => ({ id: "user-1" }),
@@ -75,10 +87,23 @@ async function guardWith(options: { plan: string; used: number; creditsGranted: 
 }
 
 describe("a bought top-up survives the gate", () => {
-  it("refuses at the plan's allowance when nothing was bought", async () => {
-    const result = await guardWith({ plan: "basic", used: BASIC_DECKS, creditsGranted: [] });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.response.status).toBe(429);
+  /**
+   * The deck allowance is no longer decided in front of the reservation.
+   *
+   * It used to be, and it was wrong twice for the same underlying reason: this
+   * layer sees one number, the total count, and cannot tell a generation the
+   * plan granted from one a credit paid for. First it refused an author who
+   * had just bought ten presentations; then, once the reservation learned the
+   * difference, it refused an author whose plan allowance had renewed while
+   * their expired purchase's rows were still inside the window.
+   *
+   * So it defers. The reservation refuses in the same words, and there is one
+   * authority for the rule instead of two that agree until they don't.
+   */
+  it("lets the deck allowance be answered by the reservation, not here", async () => {
+    // Well past the plan's allowance, nothing bought. Once, a 429 from here.
+    const result = await guardWith({ plan: "basic", used: BASIC_DECKS * 10, creditsGranted: [] });
+    expect(result.ok, "the allowance is the reservation's to enforce").toBe(true);
   });
 
   it("lets the request through at the same count when credits were bought", async () => {
@@ -88,11 +113,16 @@ describe("a bought top-up survives the gate", () => {
     expect(result.ok, "a purchased top-up must reach the reservation").toBe(true);
   });
 
-  it("refuses again once the credits are used up too", async () => {
-    // Ten credits raise the deck ceiling by ten and no further: the top-up is
-    // an amount, not an exemption.
-    const spent = BASIC_DECKS + 10 * PER_PRESENTATION.deck;
-    const result = await guardWith({ plan: "basic", used: spent, creditsGranted: [10] });
+  it("still refuses a deck burst here, because that ceiling cannot drift", async () => {
+    // The hourly window is deferred to nothing: the reservation enforces it
+    // from the same inputs and reaches the same answer, so answering early
+    // costs a round trip and risks no disagreement.
+    const result = await guardWith({
+      plan: "basic",
+      used: 0,
+      usedThisHour: BASIC_DECK_BURST,
+      creditsGranted: [],
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.response.status).toBe(429);
   });

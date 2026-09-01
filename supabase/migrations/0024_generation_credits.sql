@@ -113,8 +113,27 @@ as $$
   select count(*)::integer
     from public.ai_generations g
    where g.credit_id = p_credit
-     and (g.status <> 'pending' or g.created_at >= now() - interval '15 minutes')
-     and not (g.status = 'failed' and coalesce(g.output_tokens, 0) = 0);
+     -- A fresh row counts whatever the caller says about it.
+     --
+     -- This is the whole defence, and it took two attempts to find. Settling
+     -- runs under the author's own JWT, so "this call failed and produced
+     -- nothing" is a sentence the author can write about their own in-flight
+     -- reservation. Freeing the credit the moment they say it does not just
+     -- allow one race: it makes the credit reusable for the entire length of a
+     -- provider call. Reserve, forge the failure, reserve again — each one a
+     -- real generation, none of them yet settled, all on a single purchase,
+     -- bounded only by the burst ceiling.
+     --
+     -- So the refund waits out the same window an abandoned reservation waits
+     -- out. Inside it, nothing the caller writes can free the credit. Outside
+     -- it, the truth has long since arrived — no route may run longer than the
+     -- platform's five-minute ceiling — so a row still claiming to be a
+     -- zero-token failure at fifteen minutes really is one, and giving the
+     -- credit back is right. An author whose generation genuinely failed waits
+     -- a quarter of an hour for their credit. That is the price of the author
+     -- not being able to mint them.
+     and (g.created_at >= now() - interval '15 minutes'
+          or not (g.status = 'failed' and coalesce(g.output_tokens, 0) = 0));
 $$;
 
 revoke all on function public.captivate_credit_spent(uuid) from public;

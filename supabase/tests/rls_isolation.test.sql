@@ -1307,19 +1307,52 @@ select id from public.captivate_reserve_generation('scenes', 'deck', 'downtime',
 select 'credit_is_held_while_in_flight' as check,
   (public.captivate_credit_balance() = 2)::int as n;
 
--- The provider was unreachable: no tokens, nothing made, nothing owed.
+-- The provider was unreachable: no tokens, nothing made, nothing owed. But the
+-- credit is *not* handed back yet — the row is seconds old, and a fresh row
+-- counts whatever its owner says about it, because its owner is who settles it.
 select public.captivate_complete_generation(
   :'dead_id', 'failed', null, null, null, 'the model could not be reached') \gset dead_settled_
-select 'credit_returned_when_nothing_reached_the_model' as check,
-  (public.captivate_credit_balance() = 3)::int as n;
+select 'credit_held_through_the_window_a_forgery_lives_in' as check,
+  (public.captivate_credit_balance() = 2)::int as n;
 
--- …and the truthful settlement arriving afterwards takes it again. Without
--- this, forging a refund and letting the server correct it would be a free
--- presentation — the same hole 0020 closed for the allowance.
+-- …and the truthful settlement arriving afterwards leaves it spent, which is
+-- the hole 0020 closed for the allowance and this closes for the balance.
 select public.captivate_complete_generation(
   :'dead_id', 'succeeded', 'claude-sonnet-5', 1000, 2000, null) \gset dead_truth_
-select 'credit_retaken_when_the_truth_arrives' as check,
+select 'credit_stays_spent_when_the_truth_arrives' as check,
   (public.captivate_credit_balance() = 2)::int as n;
+reset role;
+
+-- A genuine failure does get its credit back, once the window an author could
+-- have forged inside has passed. Aged as postgres, because an author may not
+-- edit their own ledger — which is the entire reason the window exists.
+-- Only one live purchase at a time from here on: `captivate_credit_balance` is
+-- an account total, so a probe that asserts a number has to be the only thing
+-- contributing to it. Retired as the webhook role, which is who revokes.
+update public.generation_credits set revoked_at = now(), revoked_reason = 'test setup'
+ where user_id = '44444444-4444-4444-4444-444444444444' and revoked_at is null;
+
+insert into public.generation_credits
+  (user_id, presentations_granted,
+   stripe_checkout_session_id, stripe_event_id, expires_at)
+values ('44444444-4444-4444-4444-444444444444', 1,
+        'cs_test_outage', 'evt_test_outage', now() + interval '30 days');
+
+set role authenticated;
+set "request.jwt.claim.sub" = '44444444-4444-4444-4444-444444444444';
+select id from public.captivate_reserve_generation('scenes', 'deck', 'outage', null) \gset outage_
+select public.captivate_complete_generation(
+  :'outage_id', 'failed', null, null, null, 'the model could not be reached') \gset outage_settled_
+reset role;
+
+update public.ai_generations set created_at = now() - interval '20 minutes'
+ where id = :'outage_id'::uuid;
+
+set role authenticated;
+set "request.jwt.claim.sub" = '44444444-4444-4444-4444-444444444444';
+select 'credit_returned_after_a_real_outage' as check,
+  (public.captivate_credit_balance() = 1)::int as n;
+reset role;
 
 -- The balance is bought, not edited. No insert, no update, no reassignment:
 -- an author who can write here mints the product.
@@ -1359,53 +1392,68 @@ select 'credit_not_self_writable' as check,
   (count(*) = 0)::int as n from public.generation_credits
   where presentations_granted = 1000;
 
--- ---- A refund cannot be laundered into a second presentation ------------------
--- One round of forge-refund-then-respend is not the bug; it is the honest
--- behaviour of a refund plus a race, and it costs one presentation. The bug was
--- that it *repeated*: with the balance kept as a number that a settlement
--- incremented, the truthful re-debit found the balance already spent, could not
--- take anything back, and marked the row charged anyway. So every in-flight row
--- could be laundered into another free presentation, indefinitely, from a single
--- purchase.
+-- ---- A forged failure frees nothing, sequentially or in flight ---------------
+-- Two shapes of the same attack, and the second is the one my first fix missed.
 --
--- Counting the ledger instead removes the window rather than narrowing it: a
--- refunded row is one that does not count, and it counts again the instant the
--- truth lands, with no order to get between.
+-- Sequential: spend the credit, forge a zero-token failure on the finished row,
+-- and spend the returned credit again. Bounded to one extra presentation.
+--
+-- In flight: do not wait for anything. Reserve, immediately tell the database
+-- the call failed with no tokens, reserve again — all inside the seconds a real
+-- provider call takes. Every reservation is a real generation that costs real
+-- money, so if a forged failure hands the credit straight back, one purchase
+-- funds as many as the burst ceiling allows. Nothing has to be sequenced and
+-- nothing has to settle.
+--
+-- Both are answered by the same rule: a fresh row counts whatever its owner
+-- says about it, because its owner is who settles it.
+-- Only one live purchase at a time from here on: `captivate_credit_balance` is
+-- an account total, so a probe that asserts a number has to be the only thing
+-- contributing to it. Retired as the webhook role, which is who revokes.
+update public.generation_credits set revoked_at = now(), revoked_reason = 'test setup'
+ where user_id = '44444444-4444-4444-4444-444444444444' and revoked_at is null;
+
+insert into public.generation_credits
+  (user_id, presentations_granted,
+   stripe_checkout_session_id, stripe_event_id, expires_at)
+values ('44444444-4444-4444-4444-444444444444', 1,
+        'cs_test_launder', 'evt_test_launder', now() + interval '30 days');
+
 do $$
 declare
-  e1 uuid;
-  e2 uuid;
-  e3 uuid;
-  r  record;
+  a uuid;
+  b uuid;
+  c uuid;
 begin
   set local role authenticated;
   perform set_config('request.jwt.claim.sub',
                      '44444444-4444-4444-4444-444444444444', true);
 
-  -- Two of the three bought above are left; take them both.
-  select id into e1 from public.captivate_reserve_generation('scenes', 'deck', 'launder', null);
-  select id into e2 from public.captivate_reserve_generation('scenes', 'deck', 'launder', null);
+  -- The one purchase, spent.
+  select id into a from public.captivate_reserve_generation('scenes', 'deck', 'bought', null);
 
-  -- Forge a refund on the second, spend what it gave back, then let the server
-  -- write the truth about the second — the sequence 0020 exists for.
-  perform public.captivate_complete_generation(e2, 'failed', null, null, null, 'forged');
-  select id into e3 from public.captivate_reserve_generation('scenes', 'deck', 'laundered', null);
-  perform public.captivate_complete_generation(e2, 'succeeded', 'claude-sonnet-5', 10, 20, null);
+  -- Forge a refund on it while it is still in flight, then try to spend again.
+  perform public.captivate_complete_generation(a, 'failed', null, null, null, 'forged');
+  select id into b from public.captivate_reserve_generation('scenes', 'deck', 'in flight', null);
 
-  -- Now round two. This is the assertion: the same trick on the third row must
-  -- not free anything, because the purchase is already fully spent.
-  perform public.captivate_complete_generation(e3, 'failed', null, null, null, 'forged again');
-  select * into r from public.captivate_reserve_generation('scenes', 'deck', 'round two', null);
+  -- And again after the truth lands, which is the sequential shape.
+  perform public.captivate_complete_generation(a, 'succeeded', 'claude-sonnet-5', 10, 20, null);
+  select id into c from public.captivate_reserve_generation('scenes', 'deck', 'sequential', null);
 
   create temporary table launder_result as
-    select (e1 is not null and e2 is not null and e3 is not null) as three_were_bought,
-           (r.id is null and r.refusal = 'allowance') as fourth_refused,
+    select a is not null as the_purchase_was_spendable,
+           b is null     as in_flight_forgery_freed_nothing,
+           c is null     as sequential_forgery_freed_nothing,
            public.captivate_credit_balance() as balance;
 end $$;
 reset role;
 
-select 'credit_laundering_stops_at_what_was_bought' as check,
-  (three_were_bought and fourth_refused and balance = 0)::int as n from launder_result;
+select 'credit_forgery_frees_nothing' as check,
+  (the_purchase_was_spendable
+   and in_flight_forgery_freed_nothing
+   and sequential_forgery_freed_nothing
+   and balance = 0)::int as n
+  from launder_result;
 
 -- ---- The plan's own allowance still renews while credits are spent ------------
 -- A credit-backed presentation is not drawn from the plan, so it must not be
@@ -1448,8 +1496,20 @@ select 'allowance_renews_independently_of_credits' as check,
 
 -- Expired and revoked balances are not "left". A refund or a chargeback takes
 -- the credits back; an expiry is the stated life the copy promised.
+-- Only one live purchase at a time from here on: `captivate_credit_balance` is
+-- an account total, so a probe that asserts a number has to be the only thing
+-- contributing to it. Retired as the webhook role, which is who revokes.
+update public.generation_credits set revoked_at = now(), revoked_reason = 'test setup'
+ where user_id = '44444444-4444-4444-4444-444444444444' and revoked_at is null;
+
+insert into public.generation_credits
+  (user_id, presentations_granted,
+   stripe_checkout_session_id, stripe_event_id, expires_at)
+values ('44444444-4444-4444-4444-444444444444', 5,
+        'cs_test_lifetime', 'evt_test_lifetime', now() + interval '30 days');
+
 update public.generation_credits set expires_at = now() - interval '1 day'
- where stripe_checkout_session_id = 'cs_test_refund';
+ where stripe_checkout_session_id = 'cs_test_lifetime';
 set role authenticated;
 set "request.jwt.claim.sub" = '44444444-4444-4444-4444-444444444444';
 select 'credit_expired_is_not_spendable' as check,
@@ -1462,7 +1522,7 @@ reset role;
 update public.generation_credits
    set expires_at = now() + interval '30 days',
        revoked_at = now(), revoked_reason = 'refund'
- where stripe_checkout_session_id = 'cs_test_refund';
+ where stripe_checkout_session_id = 'cs_test_lifetime';
 set role authenticated;
 set "request.jwt.claim.sub" = '44444444-4444-4444-4444-444444444444';
 select 'credit_revoked_is_not_spendable' as check,
