@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Stripe from "stripe";
 
@@ -330,6 +332,37 @@ describe("the webhook endpoint", () => {
 
     expect(await response.json()).toMatchObject({ duplicate: true });
     expect(upsert).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The migration must not undo the fix on the way in.
+   *
+   * The first draft of `0025` backfilled every existing row's `completed_at`
+   * to `received_at`, reasoning that under the old rule reaching the insert
+   * meant the handler finished. That is exactly backwards for the rows that
+   * matter: the old rule *deleted* the claim on failure, so a surviving legacy
+   * row is either a success or the correlated failure this column was added to
+   * rescue — and a blanket backfill marks the second kind complete, sending its
+   * retry down the duplicate path above. The two tests either side of this one
+   * would still pass while no real customer was ever recovered.
+   *
+   * Asserted against the migration text because there is nothing else to assert
+   * it against: the statement's effect is on rows that only exist in a
+   * deployment's history.
+   */
+  it("leaves a legacy claim unfinished so its retry can redo the work", async () => {
+    const migration = readFileSync(
+      resolve(process.cwd(), "supabase/migrations/0025_webhook_claim_completion.sql"),
+      "utf8",
+    );
+    const statements = migration
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("--"))
+      .join("\n");
+
+    expect(statements, "a legacy claim must not be marked complete").not.toMatch(
+      /update\s+public\.stripe_events/i,
+    );
   });
 
   it("marks the claim finished when the work succeeded", async () => {

@@ -39,6 +39,99 @@ const ARITY: Record<string, number> = {
 const TOKEN = /([MmLlHhVvCcSsQqTtAaZz])|(-?\d*\.?\d+(?:[eE][-+]?\d+)?)/g;
 
 /**
+ * Every extreme of the ellipse an arc actually turns through.
+ *
+ * An arc is the one command whose ink is not contained by the points written
+ * down: `A 500 500 0 1 1 10 0` starts and ends ten units apart and sweeps most
+ * of the way round a circle of radius five hundred. Measured by its endpoints
+ * the picture is ten units wide and a thousand units of it are clipped.
+ *
+ * Padding the endpoints by the radii is the obvious answer and is wrong in both
+ * directions at once — it is not a superset (an arc whose endpoints both sit on
+ * the far side of the ellipse still reaches a full radius past them), and it is
+ * ruinously generous for the common case, growing the box by a diameter for a
+ * shallow curve and shrinking the drawing inside its frame to fit. So the arc
+ * is converted from its endpoint form to a centre, a start angle and a sweep —
+ * the conversion in SVG's own appendix F.6.5 — and the four points where the
+ * ellipse is furthest along an axis are counted only if the arc turns through
+ * them.
+ */
+function seeArc(
+  x1: number,
+  y1: number,
+  rxIn: number,
+  ryIn: number,
+  rotationDeg: number,
+  largeArc: boolean,
+  sweep: boolean,
+  x2: number,
+  y2: number,
+  see: (x: number, y: number) => void,
+): void {
+  let rx = Math.abs(rxIn);
+  let ry = Math.abs(ryIn);
+  // The grammar's own degenerate cases: a zero radius makes the arc a straight
+  // line, and coincident endpoints omit it entirely. The endpoints bound both,
+  // and the caller has already seen them.
+  if (!(rx > 0) || !(ry > 0) || (x1 === x2 && y1 === y2)) return;
+
+  const phi = (rotationDeg * Math.PI) / 180;
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+
+  // F.6.5.1 — the endpoints in the ellipse's own frame.
+  const halfDx = (x1 - x2) / 2;
+  const halfDy = (y1 - y2) / 2;
+  const px = cosPhi * halfDx + sinPhi * halfDy;
+  const py = -sinPhi * halfDx + cosPhi * halfDy;
+
+  // F.6.6 — radii too small to reach across are scaled up until they do.
+  const lambda = (px * px) / (rx * rx) + (py * py) / (ry * ry);
+  if (lambda > 1) {
+    const scale = Math.sqrt(lambda);
+    rx *= scale;
+    ry *= scale;
+  }
+
+  // F.6.5.2 and .3 — the centre.
+  const numerator = rx * rx * ry * ry - rx * rx * py * py - ry * ry * px * px;
+  const denominator = rx * rx * py * py + ry * ry * px * px;
+  const coefficient =
+    (largeArc === sweep ? -1 : 1) * Math.sqrt(Math.max(0, numerator / denominator));
+  const cxPrime = (coefficient * (rx * py)) / ry;
+  const cyPrime = (-coefficient * (ry * px)) / rx;
+  const cx = cosPhi * cxPrime - sinPhi * cyPrime + (x1 + x2) / 2;
+  const cy = sinPhi * cxPrime + cosPhi * cyPrime + (y1 + y2) / 2;
+
+  // F.6.5.5 and .6 — where on the ellipse the arc begins, and how far it turns.
+  const start = Math.atan2((py - cyPrime) / ry, (px - cxPrime) / rx);
+  const finish = Math.atan2((-py - cyPrime) / ry, (-px - cxPrime) / rx);
+  let delta = finish - start;
+  if (!sweep && delta > 0) delta -= 2 * Math.PI;
+  if (sweep && delta < 0) delta += 2 * Math.PI;
+
+  // Where the ellipse stops moving in x, and in y. Under a rotation these are
+  // not the axis ends, which is the whole reason for solving them rather than
+  // assuming them.
+  const stationary = [Math.atan2(-ry * sinPhi, rx * cosPhi), Math.atan2(ry * cosPhi, rx * sinPhi)];
+  const from = Math.min(start, start + delta);
+  const to = Math.max(start, start + delta);
+
+  for (const angle of stationary) {
+    for (const candidate of [angle, angle + Math.PI]) {
+      // Turned forward into the swept range: `start` and `delta` describe a
+      // stretch of the number line, not a canonical revolution.
+      const t = candidate + Math.ceil((from - candidate) / (2 * Math.PI)) * 2 * Math.PI;
+      if (t > to) continue;
+      see(
+        cx + rx * Math.cos(t) * cosPhi - ry * Math.sin(t) * sinPhi,
+        cy + rx * Math.cos(t) * sinPhi + ry * Math.sin(t) * cosPhi,
+      );
+    }
+  }
+}
+
+/**
  * The box that actually contains the ink.
  *
  * Path data is not a flat stream of x,y pairs, which is what the first version
@@ -54,7 +147,9 @@ const TOKEN = /([MmLlHhVvCcSsQqTtAaZz])|(-?\d*\.?\d+(?:[eE][-+]?\d+)?)/g;
  * point, which is the only way `h`/`v`/`m` mean anything at all. Curve control
  * points are included: a Bézier is contained by the hull of its controls, so
  * counting them is generous in the safe direction, and generous is the side to
- * be wrong on when the alternative is clipping somebody's picture.
+ * be wrong on when the alternative is clipping somebody's picture. An arc has
+ * no such hull — it leaves the box its endpoints make — and is measured
+ * properly by `seeArc`.
  */
 function inkBounds(paths: readonly { d: string }[]): {
   minX: number;
@@ -105,10 +200,30 @@ function inkBounds(paths: readonly { d: string }[]): {
           cursorX = relative ? cursorX + group[0] : group[0];
         } else if (lower === "v") {
           cursorY = relative ? cursorY + group[0] : group[0];
+        } else if (lower === "a") {
+          // An arc's ink is not bounded by the numbers it is written with: five
+          // of its seven describe an ellipse, and the curve leaves the box its
+          // endpoints make. See `seeArc`.
+          const endX = relative ? cursorX + group[5] : group[5];
+          const endY = relative ? cursorY + group[6] : group[6];
+          seeArc(
+            cursorX,
+            cursorY,
+            group[0],
+            group[1],
+            group[2],
+            group[3] !== 0,
+            group[4] !== 0,
+            endX,
+            endY,
+            see,
+          );
+          cursorX = endX;
+          cursorY = endY;
         } else {
           // Everything else ends at its last pair; the pairs before it are
           // control points, which bound the curve and so are worth seeing.
-          for (let j = lower === "a" ? 5 : 0; j + 1 < group.length; j += 2) {
+          for (let j = 0; j + 1 < group.length; j += 2) {
             const px = relative ? cursorX + group[j] : group[j];
             const py = relative ? cursorY + group[j + 1] : group[j + 1];
             see(px, py);

@@ -365,6 +365,53 @@ describe("the box a drawing is measured into", () => {
     expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
   });
 
+  /**
+   * An arc bulges past both of its endpoints, and the endpoints were all this
+   * measured.
+   *
+   * The fix for the flags-are-not-coordinates bug read the arc's last two
+   * numbers and threw the first five away, which is right about where the pen
+   * *lands* and silent about where it *goes*. `A 500 500 0 1 1 10 0` starts and
+   * ends ten units apart and sweeps almost all the way round a circle of radius
+   * five hundred: measured by its endpoints the picture is ten units wide, and
+   * the renderer clips a thousand units of ink.
+   */
+  it("measures the bulge of an arc, not just where it lands", () => {
+    const safe = normaliseDrawing(made("M 0 0 A 500 500 0 1 1 10 0"));
+    // The circle is centred at (5, -49.7), so the ink reaches x = 505.
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(505);
+  });
+
+  it("measures the bulge downwards too, where the sweep flag puts it", () => {
+    // The same arc turned the other way: same endpoints, centre at (5, 500),
+    // and the ink reaches y = 1000.
+    const safe = normaliseDrawing(made("M 0 0 A 500 500 0 1 0 10 0"));
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(999);
+  });
+
+  it("does not widen the box by a diameter for an arc that barely turns", () => {
+    // The cheap superset — pad the endpoints by the radii — is honest about
+    // the case above and ruinous here: a shallow arc of a large circle would
+    // grow the box by a thousand units and shrink the drawing inside its frame
+    // to nothing. The arc is bounded by the part of the ellipse it actually
+    // sweeps, so this one stays where the author drew it.
+    const safe = normaliseDrawing(made("M 0 0 A 500 500 0 0 1 20 20"));
+    expect(safe.viewBox).toEqual({ width: 400, height: 300 });
+  });
+
+  it("bounds a rotated arc in the frame it is drawn in, not the ellipse's", () => {
+    // A quarter-turn of an ellipse rotated 45 degrees. Nothing here works if
+    // the radii are read as if they were axis-aligned.
+    const safe = normaliseDrawing(made("M 0 0 A 600 200 45 1 1 10 10"));
+    expect(safe.viewBox.width).toBeGreaterThan(400);
+  });
+
+  it("treats a zero radius as the straight line the grammar says it is", () => {
+    const safe = normaliseDrawing(made("M 10 10 A 0 0 0 0 1 900 700"));
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(700);
+  });
+
   it("still leaves a drawing that fits exactly as it is", () => {
     const original = made("M 10 10 L 390 290 H 380 V 280 Z");
     expect(normaliseDrawing(original).viewBox).toEqual({ width: 400, height: 300 });

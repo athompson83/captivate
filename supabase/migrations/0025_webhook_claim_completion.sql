@@ -29,9 +29,19 @@ alter table public.stripe_events
 comment on column public.stripe_events.completed_at is
   'When the handler finished this event. Null means a claim whose work did not complete, which a retry is allowed to redo — the duplicate short-circuit applies only to completed claims.';
 
--- Everything already in the table was processed under the old rule, where
--- reaching the insert at all meant the handler went on to finish. Marking them
--- complete keeps their retries short-circuiting exactly as they do today.
-update public.stripe_events
-   set completed_at = received_at
- where completed_at is null;
+-- Rows already in the table keep a null `completed_at`, and that is the point.
+--
+-- The first draft of this migration backfilled them to `received_at`, on the
+-- reasoning that under the old rule reaching the insert at all meant the
+-- handler went on to finish. It did not: the old rule deleted the claim on the
+-- way out of a failure, so a legacy row can also be an attempt whose mutation
+-- *and* whose cleanup delete both failed — the exact correlated failure this
+-- column exists to fix. Marking those complete would make the fix skip the
+-- only rows that need it, and a Stripe retry would go on returning a duplicate
+-- 200 over a customer who paid and was never credited.
+--
+-- Leaving them unfinished costs a re-process on a retried legacy event, which
+-- is safe: every mutation behind the claim is idempotent in its own right, and
+-- Stripe stops retrying after a few days, so the window in which this can
+-- happen at all closes on its own. Redoing idempotent work is the cheaper
+-- mistake than never doing it.
