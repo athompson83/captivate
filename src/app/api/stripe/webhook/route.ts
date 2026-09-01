@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { isBillingConfigured, stripe } from "@/lib/billing/stripe";
 import { shouldApply, subscriptionPatchFrom } from "@/lib/billing/webhook-events";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { logFailure } from "@/lib/observability";
 
 /** Signature verification needs the raw body, which the Edge runtime cannot give us. */
 export const runtime = "nodejs";
@@ -36,7 +37,11 @@ export async function POST(request: Request) {
   let event: Stripe.Event;
   try {
     event = stripe().webhooks.constructEvent(raw, signature, secret);
-  } catch {
+  } catch (error) {
+    // Either somebody is posting forgeries at the endpoint or the deployment's
+    // signing secret no longer matches Stripe's. Both are worth knowing about,
+    // and neither is distinguishable from the 400 alone.
+    logFailure("stripe.webhook.signature", error);
     return NextResponse.json({ error: "Bad signature." }, { status: 400 });
   }
 
@@ -56,12 +61,23 @@ export async function POST(request: Request) {
       const subscriptionId =
         typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
       const userId = session.client_reference_id ?? session.metadata?.user_id ?? null;
-      if (!subscriptionId || !userId) break;
+      if (!subscriptionId || !userId) {
+        // Somebody completed a checkout that cannot be attached to an account.
+        // Answering 200 is right — retrying will not supply the missing id —
+        // but dropping it in silence means a paid subscription simply never
+        // arrives and nothing anywhere says so.
+        logFailure(
+          "stripe.webhook.unattributable",
+          `${event.type} missing ${!subscriptionId ? "subscription" : "user"} id`,
+        );
+        break;
+      }
 
       // Re-fetch rather than trusting the session's summary: the subscription
       // object is where status, price and period actually live.
       const subscription = await stripe().subscriptions.retrieve(subscriptionId);
       if (!(await applyPatch(admin, userId, subscription, event.created))) {
+        logFailure("stripe.webhook.write", `${event.type} could not be applied`);
         return NextResponse.json({ error: "Write failed." }, { status: 500 });
       }
       break;
@@ -86,6 +102,7 @@ export async function POST(request: Request) {
       if (!owner) break;
 
       if (!(await applyPatch(admin, owner.user_id, subscription, event.created))) {
+        logFailure("stripe.webhook.write", `${event.type} could not be applied`);
         return NextResponse.json({ error: "Write failed." }, { status: 500 });
       }
       break;

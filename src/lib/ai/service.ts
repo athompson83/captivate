@@ -2,6 +2,7 @@ import "server-only";
 
 import { complete, reserve } from "./rate-limit";
 import { limitForCaller } from "@/lib/billing/entitlement";
+import { logFailure } from "@/lib/observability";
 import { BUDGET_KINDS, type BudgetGroup } from "@/lib/billing/plans";
 import { referenceBlock, type Reference } from "@/lib/ingest/reference";
 import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
@@ -86,9 +87,16 @@ async function spend<T>(
     presentationId,
     await limitForCaller(group),
   );
-  if (!ticket.ok) return { ok: false, reason: "provider_error", error: ticket.error };
+  if (!ticket.ok) {
+    // A refusal is usually the limit doing its job, and occasionally the
+    // ledger being unreachable. The two read identically to the author and
+    // very differently to whoever is on call.
+    logFailure(`ai.reserve.${kind}`, ticket.error);
+    return { ok: false, reason: "provider_error", error: ticket.error };
+  }
 
   const result = await run();
+  if (!result.ok) logFailure(`ai.generate.${kind}`, `${result.reason}: ${result.error ?? ""}`);
   // Best-effort: the reservation already counts, so losing this loses cost
   // detail rather than spend protection.
   await complete(ticket.reservation, toRecord(result));
