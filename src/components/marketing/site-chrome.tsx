@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+
+import { Wordmark } from "@/components/ui/wordmark";
 
 /**
  * The public site's header and footer.
@@ -13,13 +14,8 @@ export function SiteHeader() {
   return (
     <header className="border-b border-[var(--sky-line)]/60 backdrop-blur-sm">
       <div className="shell flex items-center justify-between py-5">
-        <Link href="/" className="flex items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-[var(--radius-md)] bg-[var(--sky-amber)]">
-            <Sparkles className="size-4 text-[oklch(0.18_0.03_60)]" aria-hidden />
-          </span>
-          <span className="text-[15px] font-semibold tracking-tight text-[var(--sky-ink)]">
-            Captivate
-          </span>
+        <Link href="/" className="flex items-center">
+          <Wordmark tone="sky" size="md" />
         </Link>
         <nav className="flex items-center gap-1.5 sm:gap-2">
           <Link
@@ -50,7 +46,7 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-[var(--sky-line)]/70">
       <div className="shell flex flex-wrap items-center justify-between gap-4 py-7 text-[12.5px] text-[var(--sky-ink-3)]">
-        <span>Captivate — presentations for educators, clinicians and speakers.</span>
+        <span>Captivate by Axtevi — presentations for educators, clinicians and speakers.</span>
         <span className="flex items-center gap-5">
           <Link href="/pricing" className="transition-colors hover:text-[var(--sky-ink)]">
             Pricing

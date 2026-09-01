@@ -67,10 +67,13 @@ export const metadata: Metadata = {
     template: "%s · Captivate",
   },
   description: DESCRIPTION,
-  applicationName: "Captivate",
+  // The company's name belongs on the identity fields — the installed app, the
+  // share card — and not in the tab title's template, where it would be
+  // repeated after every page name a user has open.
+  applicationName: "Captivate by Axtevi",
   openGraph: {
     type: "website",
-    siteName: "Captivate",
+    siteName: "Captivate by Axtevi",
     title: "Captivate — presentations that move",
     description: DESCRIPTION,
   },
