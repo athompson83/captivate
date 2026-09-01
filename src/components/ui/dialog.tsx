@@ -6,6 +6,32 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "./button";
 
+const FOCUSABLE = 'a[href],button,textarea,input,select,[tabindex]:not([tabindex="-1"])';
+
+/**
+ * Whether calling `focus()` on this would actually move focus.
+ *
+ * Matching the selector is not the same thing, and the difference matters more
+ * now that a Tab from outside the panel is *redirected* to one of these rather
+ * than left alone. Sending focus to a disabled input or a control in a
+ * collapsed section does nothing at all — and because the keydown has already
+ * been prevented, the keyboard is then stuck on `body` with every subsequent
+ * Tab doing the same. Stranded is a worse outcome than the escape this trap
+ * exists to stop.
+ *
+ * `getClientRects()` rather than `offsetParent`, which is null for anything
+ * `position: fixed` — including the dialog's own panel.
+ */
+function canTakeFocus(el: HTMLElement): boolean {
+  if (el.hasAttribute("disabled") || el.getAttribute("aria-hidden") === "true") return false;
+  return el.getClientRects().length > 0;
+}
+
+/** The controls inside `root` a Tab can actually reach, in document order. */
+function tabbable(root: HTMLElement): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(canTakeFocus);
+}
+
 /**
  * A focused modal used sparingly — for destructive confirmation and for the
  * few flows that genuinely need to interrupt. Everything else in Captivate is
@@ -44,9 +70,7 @@ export function Dialog({
       if (e.key !== "Tab" || !panelRef.current) return;
 
       // Focus trap: keep Tab inside the dialog while it is open.
-      const focusables = panelRef.current.querySelectorAll<HTMLElement>(
-        'a[href],button:not([disabled]),textarea,input,select,[tabindex]:not([tabindex="-1"])',
-      );
+      const focusables = tabbable(panelRef.current);
       if (focusables.length === 0) return;
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
@@ -84,10 +108,11 @@ export function Dialog({
       // selector list returns whichever matches first in *document* order,
       // which is the close button in the header — so the marker did nothing,
       // and `ConfirmDialog` marking Cancel to keep focus off the destructive
-      // action was working only by luck.
-      const chosen =
-        panel.querySelector<HTMLElement>("[data-autofocus]") ??
-        panel.querySelector<HTMLElement>("button,input,textarea");
+      // action was working only by luck. A preference is also only honoured if
+      // it can be taken: marking a control that is disabled at the moment the
+      // dialog opens would otherwise open it with focus on nothing at all.
+      const marked = panel.querySelector<HTMLElement>("[data-autofocus]");
+      const chosen = marked && canTakeFocus(marked) ? marked : tabbable(panel)[0];
       chosen?.focus();
     }, 40);
 

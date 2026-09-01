@@ -19,6 +19,10 @@
  * - `nofooter` — header and prose only, no trailing controls. Prose is below
  *   the last control, so **Tab** is the way out. This is the share dialog, the
  *   editor's shortcut dialog and the recording detail dialog.
+ * - `disabled` — the marked control and the panel's last control are both
+ *   disabled. Matching the focusable selector is not the same as being able to
+ *   take focus, and redirecting a Tab to something that cannot take it strands
+ *   the keyboard on `body` rather than letting it escape.
  *
  * Bundled by `tests/e2e/dialog-focus.spec.ts` at test time and imported by
  * nothing under `src/`, so none of it reaches a production build.
@@ -38,8 +42,9 @@ declare global {
   }
 }
 
-function Harness({ footer }: { footer: boolean }) {
+function Harness({ variant }: { variant: "footer" | "nofooter" | "disabled" }) {
   const [open, setOpen] = useState(true);
+  const footer = variant !== "nofooter";
 
   return (
     <div>
@@ -54,7 +59,18 @@ function Harness({ footer }: { footer: boolean }) {
         title="A dialog with prose in it"
         description="Clicking this sentence is what moves focus to nothing."
         footer={
-          footer ? (
+          variant === "disabled" ? (
+            // Confirm first, so the control that cannot take focus is the one
+            // the trap redirects a Shift+Tab to.
+            <>
+              <Button size="sm" onClick={() => setOpen(false)}>
+                Confirm
+              </Button>
+              <Button size="sm" disabled data-autofocus>
+                Cancel
+              </Button>
+            </>
+          ) : footer ? (
             <>
               <Button size="sm" onClick={() => setOpen(false)} data-autofocus>
                 Cancel
@@ -66,7 +82,9 @@ function Harness({ footer }: { footer: boolean }) {
           ) : undefined
         }
       >
-        {footer ? undefined : (
+        {variant === "footer" ? undefined : variant === "disabled" ? (
+          <input disabled aria-label="A field that is not available yet" />
+        ) : (
           // Tall on purpose: a test needs somewhere to click that is inside
           // the panel, below every control, and unambiguously not on one.
           // Inline rather than a utility class, because Tailwind scans `src/`
@@ -96,8 +114,11 @@ window.focusInsideDialog = () => {
   return Boolean(panel && el && panel.contains(el));
 };
 
+const params = new URLSearchParams(location.search);
 createRoot(host).render(
   <StrictMode>
-    <Harness footer={!new URLSearchParams(location.search).has("nofooter")} />
+    <Harness
+      variant={params.has("nofooter") ? "nofooter" : params.has("disabled") ? "disabled" : "footer"}
+    />
   </StrictMode>,
 );

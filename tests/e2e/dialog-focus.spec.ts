@@ -50,6 +50,11 @@ async function noFooterUrl(): Promise<string> {
   return `${await fixtureUrl()}?nofooter`;
 }
 
+/** The variant whose marked control, and whose last control, are disabled. */
+async function disabledUrl(): Promise<string> {
+  return `${await fixtureUrl()}?disabled`;
+}
+
 test.describe("the dialog's focus trap", () => {
   test("opens with focus on the marked control, not the first one", async ({ page }) => {
     const errors: string[] = [];
@@ -114,5 +119,36 @@ test.describe("the dialog's focus trap", () => {
       await page.evaluate(() => window.focusInsideDialog()),
       `Tab from nothing escaped the modal and landed on "${label}"`,
     ).toBe(true);
+  });
+  test("opens with focus on a control that can take it", async ({ page }) => {
+    // `data-autofocus` marks a disabled Cancel here. Honouring the marker
+    // without checking it can be focused opens the dialog with focus on
+    // nothing — which is both the state the trap is worst at and the one this
+    // whole spec is about.
+    await page.goto(await disabledUrl());
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    expect(await page.evaluate(() => window.focusLabel())).not.toBe("(body)");
+    expect(await page.evaluate(() => window.focusInsideDialog())).toBe(true);
+  });
+
+  test("does not strand the keyboard on a control that cannot take focus", async ({ page }) => {
+    // The panel's last focusable-by-selector control is disabled, so a
+    // Shift+Tab redirected to it moves nothing — and because the keydown was
+    // already prevented, every subsequent Shift+Tab does the same. Stuck is a
+    // worse outcome than the escape, because nothing on screen changes to say
+    // the keyboard has stopped working.
+    await page.goto(await disabledUrl());
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    await page.locator('[role="dialog"] p').first().click();
+    expect(await page.evaluate(() => window.focusLabel())).toBe("(body)");
+
+    await page.keyboard.press("Shift+Tab");
+
+    const label = await page.evaluate(() => window.focusLabel());
+    expect(await page.evaluate(() => window.focusInsideDialog()), `landed on "${label}"`).toBe(
+      true,
+    );
   });
 });
