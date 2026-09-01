@@ -138,6 +138,11 @@ select 'MISSING policy-free access control on public.' || tablename ||
 -- Asserting only that the two-argument form exists would certify a database
 -- carrying both — which is exactly what a `create or replace` with fewer
 -- arguments produces, and what a half-applied migration leaves behind.
+-- Identified by type signature, like every other function in this file, and
+-- not by the text of its arguments: parameter *names* are part of that text, so
+-- comparing it would flag a correct two-argument function whose parameters were
+-- renamed — reporting the one function that must exist as the one that must
+-- not, while the required-objects check above passes it in the same run.
 select 'FORBIDDEN function public.' || p.proname ||
        '(' || pg_get_function_identity_arguments(p.oid) || ')' ||
        '   → keeps: a caller-priced reservation against the shared budget'
@@ -145,4 +150,5 @@ select 'FORBIDDEN function public.' || p.proname ||
   join pg_namespace n on n.oid = p.pronamespace
  where n.nspname = 'public'
    and p.proname = 'captivate_reserve_image_generation'
-   and pg_get_function_identity_arguments(p.oid) <> 'p_prompt text, p_presentation_id uuid';
+   and p.oid is distinct from
+       to_regprocedure('public.captivate_reserve_image_generation(text,uuid)');
