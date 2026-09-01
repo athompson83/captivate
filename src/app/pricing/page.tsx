@@ -85,8 +85,10 @@ export default function PricingPage() {
               </Link>
             </div>
 
-            <div className="lit-card border-[var(--sky-amber)]/45 p-7 sm:p-9">
-              <h2 className="text-[15px] font-semibold text-[var(--sky-amber)]">Captivate Pro</h2>
+            <div className="lit-card border-[var(--sky-action)]/55 p-7 sm:p-9">
+              <h2 className="text-[15px] font-semibold text-[var(--sky-action-text)]">
+                Captivate Pro
+              </h2>
               <p className="mt-2 text-[40px] leading-none font-semibold tracking-tight text-[var(--sky-ink)]">
                 {PRO_PRICING.monthly}
                 <span className="text-[16px] font-normal text-[var(--sky-ink-3)]"> / month</span>
@@ -96,7 +98,7 @@ export default function PricingPage() {
               </p>
               <Link
                 href="/settings"
-                className="mt-7 inline-flex items-center rounded-[var(--radius-lg)] bg-[var(--sky-amber)] px-5 py-3 text-[14px] font-medium text-[var(--sky-amber-ink)] transition-opacity hover:opacity-90"
+                className="mt-7 inline-flex items-center rounded-[var(--radius-lg)] bg-[var(--sky-action)] px-5 py-3 text-[14px] font-medium text-[var(--sky-action-ink)] transition-colors hover:bg-[var(--sky-action-hover)]"
               >
                 Upgrade in settings
               </Link>

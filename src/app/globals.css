@@ -206,7 +206,14 @@
    * darkens there, and `accent-text` has to clear AA on a dark ground.
    */
   --accent: oklch(0.535 0.258 286);
-  --accent-hover: oklch(0.6 0.25 288);
+  /*
+   * 0.58, not 0.64 or 0.6. Hover lightens on a dark ground, which is the
+   * natural direction and the one that costs contrast: white on the value
+   * this had was 4.39:1, so the most-clicked control in the product dropped
+   * below AA for as long as a pointer was over it. This is 4.81:1, and still
+   * a visible lift from the resting violet.
+   */
+  --accent-hover: oklch(0.58 0.26 288);
   --accent-soft: oklch(0.3 0.085 287);
   --accent-text: oklch(0.8 0.15 288);
   --accent-contrast: oklch(0.99 0 0);
@@ -498,20 +505,42 @@ body {
 /* itself, past the sign-in, is theme-aware exactly as before — none of these */
 /* tokens are used there.                                                     */
 /*                                                                            */
-/* Three lights: amber is the key (it is the product's accent), violet the    */
-/* rim, and a cold cyan for the one accent that must not read as warm. The    */
-/* ground is blue-black rather than grey-black, so an amber edge on it looks  */
-/* lit rather than printed.                                                   */
+/* Three lights: violet is the key, coral and amber the rim, and a cold cyan  */
+/* for the one accent that must not read as warm. The ground is midnight, so  */
+/* a lit edge on it looks lit rather than printed.                            */
+/*                                                                            */
+/* These are named for what they *do*, which is the correction. `--sky-amber` */
+/* was named for a hue and used as the action, so the front door ran the      */
+/* kit's 5% emphasis colour on every call to action, eyebrow, numeral and     */
+/* icon on the page — roughly the exact inverse of the balance the kit sets   */
+/* (60% ground, 25% structure, 10% violet action, 5% warm emphasis). A token  */
+/* named for its colour cannot be wrong about its job; one named for its job  */
+/* can, and this one visibly was.                                             */
 /* ------------------------------------------------------------------------- */
 
 @layer base {
   .marketing {
-    --sky-ground: oklch(0.14 0.028 285);
-    --sky-deep: oklch(0.1 0.026 288);
-    --sky-amber: oklch(0.76 0.17 38);
-    /* Ink for text sitting on the key light, named once rather than pasted
-       into three call-to-action buttons with the old hue baked in. */
-    --sky-amber-ink: oklch(0.17 0.04 35);
+    /* Midnight, on the brand's hue rather than a violet-leaning purple-black. */
+    --sky-ground: oklch(0.145 0.055 265);
+    --sky-deep: oklch(0.105 0.045 266);
+
+    /* The action. The kit's violet, the same value the application uses. */
+    --sky-action: oklch(0.535 0.258 286);
+    --sky-action-hover: oklch(0.58 0.26 288);
+    /* Ink for a label sitting on the action, named once rather than pasted
+       into four call-to-action buttons with a hue baked in. White clears AA
+       on the violet at 5.87:1. */
+    --sky-action-ink: oklch(0.99 0 0);
+    /* The same violet as *text* on the ground, which needs the lightness the
+       fill does not: the brand value reads 3.4:1 on midnight — under AA for
+       anything but large text — and this reads 9.9:1. */
+    --sky-action-text: oklch(0.8 0.15 288);
+
+    /* Emphasis, and only emphasis: a rim light, a gradient's warm end, one
+       phrase on a page. Never a control. */
+    --sky-coral: oklch(0.696 0.196 17);
+    --sky-amber: oklch(0.775 0.148 52);
+
     --sky-violet: oklch(0.64 0.22 288);
     --sky-cyan: oklch(0.83 0.11 186);
     --sky-ink: oklch(0.97 0.008 90);
@@ -602,7 +631,13 @@ body {
   /* Used on exactly one phrase per page. A gradient across a whole heading
      makes none of it emphatic. */
   .lit-text {
-    background: linear-gradient(96deg, var(--sky-amber) 8%, var(--sky-violet) 92%);
+    background: linear-gradient(
+      96deg,
+      var(--brand-indigo) 0%,
+      var(--brand-violet) 30%,
+      var(--brand-magenta) 64%,
+      var(--brand-amber) 100%
+    );
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -832,7 +867,7 @@ body {
     font-weight: 600;
   }
   .prose-legal a {
-    color: var(--sky-amber, var(--accent-text));
+    color: var(--sky-action-text, var(--accent-text));
     text-decoration: underline;
     text-underline-offset: 2px;
   }

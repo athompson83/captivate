@@ -60,7 +60,7 @@ export default async function LandingPage() {
             share above it because it is the argument. */}
         <section className="shell grid items-center gap-12 pt-12 pb-20 sm:pt-20 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16 xl:gap-24">
           <div>
-            <p className="text-[12px] font-medium tracking-[0.2em] text-[var(--sky-amber)] uppercase">
+            <p className="text-[12px] font-medium tracking-[0.2em] text-[var(--sky-action-text)] uppercase">
               Presentations for people with an argument
             </p>
             <h1
@@ -76,7 +76,7 @@ export default async function LandingPage() {
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <Link
                 href="/sign-up"
-                className="rounded-[var(--radius-lg)] bg-[var(--sky-amber)] px-6 py-3.5 text-[15px] font-medium text-[var(--sky-amber-ink)] shadow-[0_10px_30px_oklch(0.7_0.17_38_/_0.28)] transition-opacity hover:opacity-90"
+                className="rounded-[var(--radius-lg)] bg-[var(--sky-action)] px-6 py-3.5 text-[15px] font-medium text-[var(--sky-action-ink)] shadow-[0_10px_30px_oklch(0.535_0.258_286_/_0.35)] transition-colors hover:bg-[var(--sky-action-hover)]"
               >
                 Start your first canvas
               </Link>
@@ -119,7 +119,7 @@ export default async function LandingPage() {
             ).map(([step, title, body]) => (
               <div key={step}>
                 <span
-                  className="text-[44px] leading-none font-semibold text-[var(--sky-amber)]/70"
+                  className="text-[44px] leading-none font-semibold text-[var(--sky-action-text)]/70"
                   style={{ fontFamily: "var(--font-display)" }}
                   aria-hidden
                 >
@@ -182,7 +182,7 @@ export default async function LandingPage() {
               ] as const
             ).map(([Icon, title, body]) => (
               <div key={title} className="lit-card p-6">
-                <Icon className="size-4 text-[var(--sky-amber)]" aria-hidden />
+                <Icon className="size-4 text-[var(--sky-action-text)]" aria-hidden />
                 <h3 className="mt-4 text-[14.5px] font-semibold text-[var(--sky-ink)]">{title}</h3>
                 <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--sky-ink-3)]">{body}</p>
               </div>
@@ -208,7 +208,7 @@ export default async function LandingPage() {
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/sign-up"
-                className="rounded-[var(--radius-lg)] bg-[var(--sky-amber)] px-6 py-3.5 text-[15px] font-medium text-[var(--sky-amber-ink)] transition-opacity hover:opacity-90"
+                className="rounded-[var(--radius-lg)] bg-[var(--sky-action)] px-6 py-3.5 text-[15px] font-medium text-[var(--sky-action-ink)] transition-colors hover:bg-[var(--sky-action-hover)]"
               >
                 Create an account
               </Link>

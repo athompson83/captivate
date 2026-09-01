@@ -25,6 +25,23 @@ function lightTokens(): Record<string, string> {
   return tokens;
 }
 
+/**
+ * The public site's palette, which lives on `.marketing` rather than `:root`
+ * because the front door deliberately ignores the visitor's colour scheme.
+ * It had no contrast coverage at all until the action moved to violet, which
+ * is a change that can only be made safely with the numbers in front of you.
+ */
+function skyTokens(): Record<string, string> {
+  const css = readFileSync(GLOBALS, "utf8");
+  const block = /\.marketing\s*\{([\s\S]*?)\n  \}/.exec(css);
+  if (!block) throw new Error("could not find the .marketing token block in globals.css");
+  const tokens: Record<string, string> = {};
+  for (const [, name, value] of block[1].matchAll(/^\s*--([\w-]+):\s*(oklch\([^)]*\));/gm)) {
+    tokens[name] = value;
+  }
+  return tokens;
+}
+
 function darkTokens(): Record<string, string> {
   const css = readFileSync(GLOBALS, "utf8");
   const block = /\[data-theme="dark"\][^{]*\{([\s\S]*?)\n\}/.exec(css);
@@ -38,6 +55,7 @@ function darkTokens(): Record<string, string> {
 
 const TOKENS = lightTokens();
 const DARK = darkTokens();
+const SKY = skyTokens();
 
 function token(name: string): string {
   const value = TOKENS[name];
@@ -188,14 +206,75 @@ describe("the primary action carries its label", () => {
     ["light", TOKENS],
     ["dark", DARK],
   ] as const) {
-    it(`meets AA in the ${theme} theme`, () => {
-      const accent = tokens["accent"];
+    it(`meets AA in the ${theme} theme, at rest and under a pointer`, () => {
       const contrast = tokens["accent-contrast"];
-      if (!accent || !contrast) throw new Error(`--accent/--accent-contrast missing from ${theme}`);
+      if (!contrast) throw new Error(`--accent-contrast missing from ${theme}`);
 
-      expect(contrastRatio(hex(contrast), hex(accent))).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      // Hover included. On a dark ground the natural direction for a hover is
+      // to lighten, which is also the direction that costs contrast — and a
+      // label that is legible until you reach for it is not legible.
+      for (const state of ["accent", "accent-hover"]) {
+        const fill = tokens[state];
+        if (!fill) throw new Error(`--${state} missing from ${theme}`);
+
+        expect(
+          contrastRatio(hex(contrast), hex(fill)),
+          `accent-contrast on ${state} (${theme})`,
+        ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      }
     });
   }
+});
+
+/**
+ * The front door.
+ *
+ * Its call to action used to be the kit's 5% emphasis colour, and moving it to
+ * violet is the kind of change that reads as an improvement and quietly costs
+ * a contrast ratio: the brand's violet is a *fill*, and as text on midnight it
+ * is 3.4:1. The fill and the ink that sits on it are one decision, so they are
+ * asserted as one.
+ */
+describe("the public site's palette", () => {
+  const sky = (name: string) => {
+    const value = SKY[name];
+    if (!value) throw new Error(`--${name} is not an oklch() token on .marketing`);
+    return value;
+  };
+
+  it("reads the real .marketing tokens out of globals.css", () => {
+    expect(Object.keys(SKY).length).toBeGreaterThan(8);
+    expect(sky("sky-ground")).toMatch(/^oklch\(/);
+  });
+
+  it("carries a label on the action it fills", () => {
+    expect(
+      contrastRatio(hex(sky("sky-action-ink")), hex(sky("sky-action"))),
+    ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+    expect(
+      contrastRatio(hex(sky("sky-action-ink")), hex(sky("sky-action-hover"))),
+    ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+  });
+
+  it("keeps every ink and accent readable on both grounds", () => {
+    for (const fg of ["sky-ink", "sky-ink-2", "sky-ink-3", "sky-action-text", "sky-amber"]) {
+      for (const ground of ["sky-ground", "sky-deep"]) {
+        expect(
+          contrastRatio(hex(sky(fg)), hex(sky(ground))),
+          `${fg} on ${ground}`,
+        ).toBeGreaterThanOrEqual(MIN_BODY_CONTRAST);
+      }
+    }
+  });
+
+  it("does not use the action's fill value as text", () => {
+    // The distinction the two tokens exist for. If they ever converge, one of
+    // them is being used for the wrong half of the job.
+    expect(sky("sky-action")).not.toBe(sky("sky-action-text"));
+    expect(contrastRatio(hex(sky("sky-action")), hex(sky("sky-ground")))).toBeLessThan(
+      MIN_BODY_CONTRAST,
+    );
+  });
 });
 
 /**

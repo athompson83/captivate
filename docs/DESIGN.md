@@ -68,6 +68,24 @@ signature. The stops interpolate in OKLab rather than sRGB, which is the whole
 reason the ramp is stored in OKLCH: sRGB runs indigo to violet through a grey
 middle, and this gradient is three hue turns in a row.
 
+### The front door
+
+The public site paints on a fixed palette that ignores the visitor's colour
+scheme — it is a night sky, and it is the same night sky either way. Its tokens
+live on `.marketing` and are named for what they **do**, which is the
+correction: `--sky-amber` was named for a hue and used as the action, so every
+call to action, eyebrow, step numeral and feature icon on the page was the
+kit's 5% emphasis colour. That is roughly the inverse of the balance the kit
+sets — 60% ground, 25% structure, 10% violet action, 5% warm emphasis.
+
+A token named for its colour cannot be wrong about its job. `--sky-action` can
+be, and `tests/unit/marketing-palette.test.ts` holds the line, because the
+failure mode is one reasonable-looking button at a time.
+
+`--sky-action` and `--sky-action-text` are the same violet at two lightnesses,
+and the split is not cosmetic: the brand's violet is a fill, and as text on
+midnight it is 3.4:1.
+
 Both themes are one hue family. Dark surfaces are midnight — the same
 lightness ladder they always had, but blue rather than a grey with an opinion,
 with `surface-raised` at #061436 exactly. Light mode is the kit's cool paper
