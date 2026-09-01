@@ -78,7 +78,8 @@ settings that need attention.
 | `npm test`          | Unit tests (Vitest)                                        |
 | `npm run test:e2e`  | End-to-end tests (Playwright)                              |
 | `npm run test:rls`  | Row-level-security isolation test against a local Postgres |
-| `npm run verify`    | Typecheck, lint, unit tests and build                      |
+| `npm run format`    | Rewrite every file the way Prettier wants it               |
+| `npm run verify`    | Format check, typecheck, lint, unit tests and build        |
 
 ---
 
