@@ -276,19 +276,23 @@ export function Segmented<T extends string>({
   options,
   size = "md",
   label,
+  stretch,
 }: {
   value: T;
   onChange: (v: T) => void;
   options: { value: T; label: string; icon?: React.ComponentType<{ className?: string }> }[];
   size?: "sm" | "md";
   label?: string;
+  /** Fill the width available and share it equally between the options. */
+  stretch?: boolean;
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
       className={cn(
-        "border-line-subtle inline-flex items-center gap-0.5 rounded-[var(--radius-md)] border bg-[var(--surface-inset)] p-0.5",
+        "border-line-subtle items-center gap-0.5 rounded-[var(--radius-md)] border bg-[var(--surface-inset)] p-0.5",
+        stretch ? "flex w-full" : "inline-flex",
       )}
     >
       {options.map((opt) => {
@@ -301,8 +305,12 @@ export function Segmented<T extends string>({
             aria-checked={active}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "relative inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] font-medium transition-colors duration-[var(--duration-fast)]",
+              "relative inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-sm)] font-medium transition-colors duration-[var(--duration-fast)]",
               size === "sm" ? "px-2 py-1 text-[11px]" : "px-2.5 py-1.5 text-[12px]",
+              // A touch target rather than a pointer one. The stretched form is
+              // the narrow-screen layout, where this is the primary navigation
+              // and a 22px-tall control is not something a thumb can hit.
+              stretch && "flex-1 py-1.5 text-[12px]",
               active ? "text-ink" : "text-ink-3 hover:text-ink-2",
             )}
           >

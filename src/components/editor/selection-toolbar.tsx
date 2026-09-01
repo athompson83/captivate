@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useState, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import {
   AlignCenterHorizontal,
   AlignCenterVertical,
@@ -18,6 +18,7 @@ import {
   Unlock,
 } from "lucide-react";
 import type { SceneElement } from "@/lib/schema/presentation";
+import { cn } from "@/lib/utils/cn";
 import { alignFrames, type AlignMode } from "@/lib/editor/geometry";
 import {
   duplicateElements,
@@ -46,10 +47,17 @@ export function SelectionToolbar({
   stageRef: RefObject<HTMLDivElement | null>;
 }) {
   const mutate = useEditor((s) => s.mutate);
+  const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   // Position above the selection's bounding box, flipping below when it would
-  // otherwise sit off the top of the viewport.
+  // otherwise sit off the top of the viewport, and clamped horizontally so it
+  // cannot hang off the side.
+  //
+  // The vertical flip was here from the start; the horizontal clamp was not,
+  // and at 320px a selection near the right edge put a third of this toolbar —
+  // delete, duplicate, lock — outside the window, where the editor's
+  // `overflow-hidden` shell meant nothing could scroll to reach it.
   useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage || !selected.length) return;
@@ -62,13 +70,30 @@ export function SelectionToolbar({
     const centerX = rect.left + ((minX + maxX) / 2 / 100) * rect.width;
     const topY = rect.top + (minY / 100) * rect.height;
 
-    setPos({
-      left: centerX,
-      top: topY - 46 < 72 ? topY + 12 : topY - 46,
-    });
-  }, [selected, scale, stageRef]);
+    const place = () => {
+      // `-translate-x-1/2` means `left` is the centre, so the clamp is in half
+      // widths. Measured rather than assumed: the toolbar's width depends on
+      // how many groups the current selection earns, and on how many rows it
+      // wrapped into — at 320px it is three rows of a control that is 389px
+      // wide in one.
+      const half = (ref.current?.offsetWidth ?? 0) / 2;
+      const height = ref.current?.offsetHeight ?? 46;
+      const margin = 8;
+      const lo = half + margin;
+      const hi = window.innerWidth - half - margin;
+      setPos({
+        left: Math.min(Math.max(centerX, lo), Math.max(lo, hi)),
+        // Height measured rather than the 46 this assumed, so a wrapped
+        // toolbar flips below the selection instead of climbing behind the
+        // header it can no longer clear.
+        top: topY - height - 8 < 72 ? topY + 12 : topY - height - 8,
+      });
+    };
 
-  if (!pos) return null;
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [selected, scale, stageRef]);
 
   const allLocked = selected.every((e) => e.locked);
   const allHidden = selected.every((e) => e.hidden);
@@ -107,10 +132,22 @@ export function SelectionToolbar({
 
   return (
     <div
+      ref={ref}
       role="toolbar"
       aria-label="Selection actions"
-      className="border-line bg-overlay fixed z-40 flex -translate-x-1/2 items-center gap-0.5 rounded-[var(--radius-lg)] border p-1 shadow-[var(--shadow-lg)]"
-      style={{ left: pos.left, top: pos.top }}
+      // Rendered before it is placed, rather than after, so the layout effect
+      // above has a real element to measure. It is parked off-screen and inert
+      // for that one commit; `useLayoutEffect` positions it before the browser
+      // paints, so nothing is ever seen there.
+      aria-hidden={pos ? undefined : true}
+      className={cn(
+        // Wraps rather than overflows. This is 389px in one row, which does not
+        // fit a 320px phone at any horizontal position — clamping alone could
+        // only choose which third of the controls to put out of reach.
+        "border-line bg-overlay fixed z-40 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-0.5 rounded-[var(--radius-lg)] border p-1 shadow-[var(--shadow-lg)]",
+        !pos && "pointer-events-none opacity-0",
+      )}
+      style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999 }}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <Group>

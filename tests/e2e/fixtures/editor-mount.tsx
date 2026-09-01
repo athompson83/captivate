@@ -98,8 +98,16 @@ declare global {
       renameSection: (label: string) => Record<string, unknown>;
       /** The server actions the stub recorded, most recent last. */
       calls: () => { name: string; args: unknown[] }[];
+      /** Drive the save indicator, so a test can see what a failure looks like. */
+      setSaveState: (
+        state: "idle" | "dirty" | "saving" | "saved" | "error",
+        error?: string,
+      ) => void;
     };
-    __serverActions?: { log: { name: string; args: unknown[] }[]; replies: Record<string, unknown> };
+    __serverActions?: {
+      log: { name: string; args: unknown[] }[];
+      replies: Record<string, unknown>;
+    };
   }
 }
 
@@ -144,6 +152,10 @@ window.editorFixture = {
   },
 
   calls: () => window.__serverActions?.log ?? [],
+
+  setSaveState(state, error) {
+    useEditor.setState({ saveState: state, saveError: error ?? null });
+  },
 };
 
 document.body.dataset.ready = "true";

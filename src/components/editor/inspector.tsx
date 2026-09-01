@@ -2,7 +2,16 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, Wand2 } from "lucide-react";
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  Italic,
+  Underline,
+  Wand2,
+  X,
+} from "lucide-react";
 import type { EntranceAnimation, SceneElement, TextStyle } from "@/lib/schema/presentation";
 import type { PresentationTheme } from "@/lib/schema/theme";
 import {
@@ -25,8 +34,25 @@ import { cn } from "@/lib/utils/cn";
  * Present only when something is selected, and shows only the controls that
  * apply to *that* selection — this is the alternative to a permanent ribbon.
  */
-export function Inspector({ theme }: { theme: PresentationTheme }) {
+export function Inspector({
+  theme,
+  sheet = false,
+}: {
+  theme: PresentationTheme;
+  /**
+   * A panel under the canvas rather than a column beside it.
+   *
+   * Beside the canvas this is 272px, and with the navigator open at 390px the
+   * two of them asked for 484px of a 390px viewport — the scene came out 96px
+   * wide. Covering the canvas instead only moved the problem: selecting an
+   * element is exactly when you need to see it. So on a narrow screen the
+   * inspector takes height at the bottom and the canvas refits into what is
+   * left, which its `ResizeObserver` already does for free.
+   */
+  sheet?: boolean;
+}) {
   const selected = useSelectedElements();
+  const select = useEditor((s) => s.select);
   const scene = useCurrentScene();
   const sceneId = scene?.id ?? null;
 
@@ -40,27 +66,47 @@ export function Inspector({ theme }: { theme: PresentationTheme }) {
         <motion.aside
           key="inspector"
           aria-label="Element inspector"
-          initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 272, opacity: 1 }}
-          exit={{ width: 0, opacity: 0 }}
+          initial={sheet ? { height: 0 } : { width: 0, opacity: 0 }}
+          animate={sheet ? { height: "50vh" } : { width: 272, opacity: 1 }}
+          exit={sheet ? { height: 0 } : { width: 0, opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="border-line-subtle bg-base shrink-0 overflow-hidden border-l"
+          className={cn(
+            "border-line-subtle bg-base overflow-hidden",
+            sheet
+              ? "shrink-0 rounded-t-[var(--radius-xl)] border-t shadow-[var(--shadow-lg)]"
+              : "shrink-0 border-l",
+          )}
         >
-          <div className="flex h-full w-[272px] flex-col">
-            <div className="border-line-subtle flex items-center justify-between border-b px-3 py-2.5">
+          <div className={cn("flex flex-col", sheet ? "h-[50vh]" : "h-full w-[272px]")}>
+            <div className="border-line-subtle flex items-center justify-between gap-2 border-b px-3 py-2.5">
               <span className="text-ink truncate text-[12.5px] font-medium">
                 {selected.length > 1 ? `${selected.length} elements` : labelFor(selected[0])}
               </span>
-              <Segmented
-                label="Inspector tab"
-                size="sm"
-                value={tab}
-                onChange={setTab}
-                options={[
-                  { value: "style", label: "Style" },
-                  { value: "motion", label: "Motion" },
-                ]}
-              />
+              <div className="flex shrink-0 items-center gap-2">
+                <Segmented
+                  label="Inspector tab"
+                  size="sm"
+                  value={tab}
+                  onChange={setTab}
+                  options={[
+                    { value: "style", label: "Style" },
+                    { value: "motion", label: "Motion" },
+                  ]}
+                />
+                {/* A sheet needs a way out that is not "guess that tapping the
+                    sliver of canvas behind it deselects". On a wide screen the
+                    panel takes width beside the canvas and closing it is what
+                    clicking anywhere else already does. */}
+                {sheet && (
+                  <button
+                    onClick={() => select({ sceneId, elementIds: [] })}
+                    aria-label="Close inspector"
+                    className="text-ink-3 hover:text-ink flex size-7 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)]"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-3.5">

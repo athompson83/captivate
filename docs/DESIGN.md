@@ -135,8 +135,14 @@ Desktop is the authoring environment and is not compromised to claim mobile
 editing.
 
 - **Dashboard, notes, assets, recordings, settings** adapt down to phone width.
-- **The editor** is desktop-first; the navigator collapses and the inspector
-  overlays on narrow screens, but it is not a phone experience and does not
-  pretend to be.
+- **The editor** is desktop-first, but every control it renders can be reached.
+  Below `md` the navigator collapses and reopens over the canvas rather than
+  beside it, closing again once a scene is chosen; the inspector becomes a
+  half-height sheet under the canvas, so the scene refits into what is left
+  instead of being squeezed to a thumbnail; the header splits into two rows,
+  giving the view switcher its own full-width one and folding the secondary
+  controls into a single menu; and the floating selection toolbar wraps rather
+  than hanging off the side. It is not a phone experience and does not pretend
+  to be — but nothing on the page is out of reach.
 - **The stage** works at any size, which matters — the audience display is often
   an unusual aspect ratio.
