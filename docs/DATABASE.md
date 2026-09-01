@@ -83,6 +83,20 @@ WebVTT is derived from it on demand rather than stored.
 An audit row per model call: kind, prompt, status, model, token counts and any
 error. It is what makes cost visible, and it is also the rate limiter's counter.
 
+### `ai_image_limits`
+
+One row, holding what an image costs, the shared monthly budget and the _cap_ on
+how many images one author may generate in a day. Three ceilings and no
+counters — the count the cap is compared against is derived from
+`public.ai_generations` at reservation time.
+`captivate_reserve_image_generation` reads it; nothing else does.
+
+RLS is on with **no policies at all**, like `stripe_events` — the ceilings are
+the deployment's rather than any user's, and they are not readable by a
+signed-in caller. That is the point of the table: while the same three numbers
+were arguments to the reservation, a single request could name its own price
+and exhaust a budget shared by everybody.
+
 ### `presentation_sessions`
 
 One row per phone-remote pairing: the deck, the owner, whether it is still

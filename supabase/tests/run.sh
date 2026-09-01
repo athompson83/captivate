@@ -86,5 +86,9 @@ fi
 # The one property no single-connection probe can show: that the reservation
 # limit holds when the callers arrive together, which is the case it exists for.
 "$(dirname "$0")/reservation_race.sh"
+# And the same for the image ceilings: lowering one has to bind the requests
+# already queued, which is only visible with a caller stopped inside the
+# function while the operator's update commits.
+"$(dirname "$0")/ceiling_race.sh"
 
 echo "RLS TESTS PASSED"

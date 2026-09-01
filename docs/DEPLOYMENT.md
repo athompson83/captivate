@@ -10,14 +10,52 @@
 | `CAPTIVATE_AI_MODEL`            | No            | No                  | Overrides the model id                                          |
 | `PEXELS_API_KEY`                | No            | **No**              | Enables the picker's Find tab                                   |
 | `OPENAI_API_KEY`                | No            | **No**              | Enables the picker's Generate tab                               |
-| `CAPTIVATE_IMAGE_BUDGET_USD`    | No            | No                  | Shared monthly image spend ceiling (default 100)                |
-| `CAPTIVATE_IMAGE_DAILY_MAX`     | No            | No                  | Per-user daily generations (default 25)                         |
 | `NEXT_PUBLIC_SITE_URL`          | In production | Yes                 | Absolute origin for email links                                 |
 | `SUPABASE_SERVICE_ROLE_KEY`     | With billing  | **No**              | The Stripe webhook is the only writer of subscription state     |
 | `STRIPE_SECRET_KEY`             | No            | **No**              | Enables billing; absent means nobody is throttled               |
 | `STRIPE_WEBHOOK_SECRET`         | With billing  | **No**              | Verifies the webhook; it is that endpoint's only authentication |
 | `STRIPE_PRICE_PRO_MONTHLY`      | With billing  | **No**              | Price id for $12/month Captivate Pro                            |
 | `STRIPE_PRICE_PRO_ANNUAL`       | With billing  | **No**              | Price id for $96/year Captivate Pro                             |
+
+The image-generation ceilings are deliberately not in this table. All three —
+the price of one image, the shared monthly budget, and `daily_max`, the _cap_ on
+how many images one author may generate in a day — live in
+`public.ai_image_limits` and are read by the reservation itself, because a
+ceiling passed in by the caller is a ceiling the caller chooses; see
+[SECURITY.md](SECURITY.md). The table holds those three numbers and no
+counters: the count `daily_max` is compared against is derived from
+`public.ai_generations` at reservation time. Change them with SQL against that row, taking the reservation's own lock
+so the change is a boundary rather than a suggestion:
+
+```sql
+begin;
+select pg_advisory_xact_lock(hashtext('captivate_image_budget'));
+update public.ai_image_limits
+   set cost_usd = 0.05, monthly_budget = 100.00, daily_max = 25;
+commit;
+```
+
+The lock is not ceremony. `captivate_reserve_image_generation` holds it while it
+reads the ceilings and decides, so an update that takes it too cannot commit
+half-way through somebody's reservation, and every reservation that starts after
+it sees the new numbers. Run the `update` on its own and a burst already waiting
+to reserve is admitted against the budget you have just lowered — which is the
+one moment a lowered budget most needs to hold.
+
+**One-time step when applying `0021_reservation_ceilings.sql`.** It seeds that
+row with the documented defaults — 0.05, 100.00 and 25 — which are what
+`CAPTIVATE_IMAGE_BUDGET_USD` and `CAPTIVATE_IMAGE_DAILY_MAX` fell back to. If
+this deployment had set either variable to something else, **run the update
+above with those values immediately after applying the migration and before
+releasing the application**. Not before the migration: `ai_image_limits` does
+not exist until `0021` creates it, so the statement would fail with `relation
+"public.ai_image_limits" does not exist` and leave the seeded ceiling standing
+— which is the outcome the step exists to prevent. A budget set lower than the
+default on purpose would otherwise be raised to 100, and the application no
+longer reads the variable that said so. It does log
+`captivate:failure ai.image.ceilings-moved` for as long as either variable
+remains set, so the mismatch is findable rather than silent, but the log is a
+safety net and not the fix. Unset both once the row matches.
 
 `NEXT_PUBLIC_SITE_URL` is required in production rather than merely advisable.
 Confirmation and recovery links carry a one-time credential, and the only other
@@ -37,8 +75,10 @@ provider keys degrade the same way in miniature: a deployment without
 `PEXELS_API_KEY` or `OPENAI_API_KEY` simply does not show that tab in the image
 picker, rather than showing one that fails when used.
 
-The two image budget figures are read at call time, so changing them takes
-effect without a deploy. They bound a real bill — see the reservation section in
+The three image figures — the price of one image, the shared monthly budget and
+the per-author daily cap — are rows in `public.ai_image_limits` rather than
+variables, and are read at call time, so changing them takes effect without a
+deploy. They bound a real bill — see the reservation section in
 [SECURITY.md](SECURITY.md).
 
 ---
@@ -70,9 +110,25 @@ supabase db push
 | `0014_remote_sessions.sql`           | `presentation_sessions` and the phone remote's channel gate                                                                                                   |
 | `0015_sourced_visuals.sql`           | Asset provenance, and the image-generation budget                                                                                                             |
 | `0016_shared_asset_by_reference.sql` | Resolves a shared deck's images by what the deck references                                                                                                   |
+| `0017_billing.sql`                   | `subscriptions`, and the delivered-event table the webhook is idempotent through                                                                              |
+| `0018_allowance_accounting.sql`      | Stops charging an allowance for a call that never reached the model                                                                                           |
+| `0019_plan_grants.sql`               | A granted plan, checked before a bought one                                                                                                                   |
+| `0020_ledger_integrity.sql`          | The spend ledger is not the caller's to rewrite                                                                                                               |
+| `0021_reservation_ceilings.sql`      | The image ceilings move into `ai_image_limits`; **not additive — see below**                                                                                  |
 
-Every one is additive: new columns carry defaults and new tables carry their own
-policies, so applying them ahead of a deploy is safe and is the right order.
+Every one is additive except the last: new columns carry defaults and new tables
+carry their own policies, so applying them ahead of a deploy is safe and is the
+right order.
+
+**`0021` is the exception, and it is not safe to apply ahead of a deploy.** It
+drops `captivate_reserve_image_generation(text,uuid,numeric,numeric,integer)` and
+creates a two-argument form in its place, because leaving the old signature
+callable would close nothing. There is therefore no ordering that avoids a
+window: the running application calls the five-argument form until the new build
+is live, and the new build calls the two-argument form as soon as it is. Apply
+the migration and release the application as one coordinated step, migration
+first — that is the order that closes the hole soonest, and the failure either
+side of it is a clean refusal saying nothing was spent, not a corrupted row.
 
 **`0014` touches `realtime.messages`, which Supabase owns.** The migration
 enables RLS on it only if it is not already enabled, because Supabase enables it

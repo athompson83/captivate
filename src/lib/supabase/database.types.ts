@@ -295,11 +295,8 @@ export type Database = {
         Args: {
           p_prompt: string;
           p_presentation_id: string | null;
-          p_estimate_usd: number;
-          p_monthly_budget: number;
-          p_daily_max: number;
         };
-        Returns: { id: string | null; refusal: string | null }[];
+        Returns: { id: string | null; refusal: string | null; daily_max: number | null }[];
       };
       captivate_settle_image_generation: {
         Args: {

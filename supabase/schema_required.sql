@@ -46,6 +46,7 @@ insert into required (kind, ident, feature) values
   ('table',    'public.recordings',                    'recording'),
   ('table',    'public.moments',                       'the narrative map'),
   ('table',    'public.ai_generations',                'AI spend accounting'),
+  ('table',    'public.ai_image_limits',               'the ceilings the reservation reads'),
   ('table',    'public.presentation_sessions',         'the phone remote'),
 
   -- Columns a feature reads or writes by name
@@ -75,7 +76,7 @@ insert into required (kind, ident, feature) values
   ('function', 'public.captivate_set_scene_placements(uuid,jsonb)',               'the world canvas'),
   ('function', 'public.captivate_reserve_generation(text,text[],text,uuid,integer,integer)', 'every AI call'),
   ('function', 'public.captivate_complete_generation(uuid,text,text,integer,integer,text)',  'AI spend accounting'),
-  ('function', 'public.captivate_reserve_image_generation(text,uuid,numeric,numeric,integer)', 'image generation'),
+  ('function', 'public.captivate_reserve_image_generation(text,uuid)', 'image generation'),
   ('function', 'public.captivate_settle_image_generation(uuid,text,text,integer,text)', 'the image budget'),
   ('function', 'public.captivate_remote_topic_open(text)',                         'the phone remote');
 
@@ -107,3 +108,47 @@ select 'MISSING row level security on public.' || c.relname || '   → breaks: t
    and c.relname in ('presentations','scenes','sections','assets','lecture_notes',
                      'recordings','moments','ai_generations','presentation_sessions','profiles')
    and not c.relrowsecurity;
+
+-- Two tables belong to the deployment rather than to any user, and their
+-- protection is the *absence* of a policy: RLS on with nothing granting access,
+-- so only a definer function and the service role can reach them. Checking that
+-- they exist is not enough — `ai_image_limits` holds the price and the ceilings
+-- the reservation reads, so a policy added to it hands every signed-in caller
+-- the numbers `0021` exists to stop them choosing, and a deployment missing RLS
+-- on it would still certify as complete.
+select 'MISSING row level security on public.' || c.relname ||
+       '   → breaks: the deployment-owned ceilings are readable'
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public'
+   and c.relkind = 'r'
+   and c.relname in ('ai_image_limits','stripe_events')
+   and not c.relrowsecurity;
+
+select 'MISSING policy-free access control on public.' || tablename ||
+       '   → breaks: ' || policyname || ' exposes a deployment-owned table'
+  from pg_policies
+ where schemaname = 'public'
+   and tablename in ('ai_image_limits','stripe_events');
+
+-- Some things must be *absent*, and presence is not the same question as
+-- absence when Postgres allows overloading. `0021` drops the reservation's old
+-- five-argument form deliberately: leaving it callable would leave the hole
+-- open, because it still takes the price and both ceilings from the caller.
+-- Asserting only that the two-argument form exists would certify a database
+-- carrying both — which is exactly what a `create or replace` with fewer
+-- arguments produces, and what a half-applied migration leaves behind.
+-- Identified by type signature, like every other function in this file, and
+-- not by the text of its arguments: parameter *names* are part of that text, so
+-- comparing it would flag a correct two-argument function whose parameters were
+-- renamed — reporting the one function that must exist as the one that must
+-- not, while the required-objects check above passes it in the same run.
+select 'FORBIDDEN function public.' || p.proname ||
+       '(' || pg_get_function_identity_arguments(p.oid) || ')' ||
+       '   → keeps: a caller-priced reservation against the shared budget'
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname = 'captivate_reserve_image_generation'
+   and p.oid is distinct from
+       to_regprocedure('public.captivate_reserve_image_generation(text,uuid)');

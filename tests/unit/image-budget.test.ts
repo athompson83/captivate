@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const OK_IMAGE = { data: [{ b64_json: "aGVsbG8=" }] };
 
-function mockDb(reserve: { id: string | null; refusal: string | null }) {
+function mockDb(reserve: { id: string | null; refusal: string | null; daily_max?: number | null }) {
   const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
     void name;
     void args;
@@ -62,13 +62,73 @@ describe("generateImage", () => {
   });
 
   it("distinguishes a personal daily cap from the shared budget", async () => {
+    mockDb({ id: null, refusal: "daily", daily_max: 25 });
+    vi.stubGlobal("fetch", vi.fn());
+    const { generateImage } = await import("@/lib/ai/visual-sourcing");
+
+    const result = await generateImage("a lighthouse");
+    expect(result.ok).toBe(false);
+    // The ceiling now travels back with the refusal instead of being read from
+    // configuration here, so the message has to name the number that actually
+    // refused — asserting only on "today" passed just as happily on
+    // "You've generated undefined images today".
+    if (!result.ok) expect(result.error).toContain("generated 25 images today");
+  });
+
+  it("says something a person can read when the refusal carries no number", async () => {
+    // An older database, or a refusal raised before the ceilings were read.
     mockDb({ id: null, refusal: "daily" });
     vi.stubGlobal("fetch", vi.fn());
     const { generateImage } = await import("@/lib/ai/visual-sourcing");
 
     const result = await generateImage("a lighthouse");
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("today");
+    if (!result.ok) {
+      expect(result.error).toContain("daily limit");
+      expect(result.error).not.toContain("undefined");
+      expect(result.error).not.toContain("null");
+    }
+  });
+
+  it("says so when the old ceiling variables are still set", async () => {
+    // The ceilings moved into the database and the migration seeds the
+    // documented defaults. A deployment that had set a *lower* budget on
+    // purpose would otherwise be raised to that default with nothing said, so
+    // the one thing this must not be is silent.
+    vi.stubEnv("CAPTIVATE_IMAGE_BUDGET_USD", "20");
+    const errors: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((line: unknown) => {
+      errors.push(String(line));
+    });
+    mockDb({ id: null, refusal: "budget", daily_max: 25 });
+    vi.stubGlobal("fetch", vi.fn());
+    const { __resetSamplingForTests } = await import("@/lib/observability");
+    __resetSamplingForTests();
+    const { generateImage } = await import("@/lib/ai/visual-sourcing");
+
+    await generateImage("a lighthouse");
+
+    const moved = errors.find((line) => line.includes("ai.image.ceilings-moved"));
+    expect(moved, `logged lines: ${JSON.stringify(errors)}`).toBeDefined();
+    expect(moved).toContain("ai_image_limits");
+  });
+
+  it("stays quiet when they are not", async () => {
+    vi.stubEnv("CAPTIVATE_IMAGE_BUDGET_USD", "");
+    vi.stubEnv("CAPTIVATE_IMAGE_DAILY_MAX", "");
+    const errors: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((line: unknown) => {
+      errors.push(String(line));
+    });
+    mockDb({ id: null, refusal: "budget", daily_max: 25 });
+    vi.stubGlobal("fetch", vi.fn());
+    const { __resetSamplingForTests } = await import("@/lib/observability");
+    __resetSamplingForTests();
+    const { generateImage } = await import("@/lib/ai/visual-sourcing");
+
+    await generateImage("a lighthouse");
+
+    expect(errors.filter((line) => line.includes("ai.image.ceilings-moved"))).toEqual([]);
   });
 
   it("fails closed when the reservation itself errors", async () => {
@@ -114,14 +174,17 @@ describe("generateImage", () => {
         async () => ({ ok: false, status: 500, json: async () => ({}) }) as unknown as Response,
       ),
     );
-    const { generateImage, IMAGE_COST_ESTIMATE_USD } = await import("@/lib/ai/visual-sourcing");
+    const { generateImage } = await import("@/lib/ai/visual-sourcing");
 
     expect((await generateImage("a lighthouse")).ok).toBe(false);
 
-    // The price is set once, by the reservation that checked it against the
-    // budget under a lock. Settling records how the call went and nothing else.
+    // The price is set once, by the reservation — and it is not sent. Naming it
+    // on the wire is what let one request write a `cost_usd` of its choosing
+    // into a sum that is shared by every user of the deployment, so the
+    // reservation now reads its own ceilings and takes only what the caller is
+    // entitled to decide.
     const reserved = rpc.mock.calls.find(([name]) => name === "captivate_reserve_image_generation");
-    expect(reserved?.[1].p_estimate_usd).toBe(IMAGE_COST_ESTIMATE_USD);
+    expect(Object.keys(reserved?.[1] ?? {}).sort()).toEqual(["p_presentation_id", "p_prompt"]);
 
     const settled = rpc.mock.calls.find(([name]) => name === "captivate_settle_image_generation");
     expect(settled?.[1].p_status).toBe("failed");

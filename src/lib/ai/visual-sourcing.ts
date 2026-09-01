@@ -6,6 +6,8 @@ import { STORAGE_BUCKETS } from "@/lib/supabase/config";
 import { MAX_UPLOAD_BYTES } from "@/lib/data/upload-limits";
 import { currentPlan } from "@/lib/billing/entitlement";
 import { allowsImageGeneration } from "@/lib/billing/plans";
+import { logFailureSampled } from "@/lib/observability";
+import type { Database } from "@/lib/supabase/database.types";
 
 /**
  * Finding and making pictures.
@@ -24,25 +26,6 @@ import { allowsImageGeneration } from "@/lib/billing/plans";
 /* -------------------------------------------------------------------------- */
 /* Budget                                                                      */
 /* -------------------------------------------------------------------------- */
-
-/**
- * What one generation is assumed to cost before the provider says otherwise.
- *
- * Reserved at this figure and reconciled afterwards. Deliberately not the
- * cheapest plausible number: under-reserving and hoping is the wrong direction
- * to be wrong in when the budget is shared.
- */
-export const IMAGE_COST_ESTIMATE_USD = 0.05;
-
-/** Owner-set ceilings. Both are read at call time so a change needs no deploy. */
-function budget() {
-  const monthly = Number(process.env.CAPTIVATE_IMAGE_BUDGET_USD ?? "100");
-  const daily = Number(process.env.CAPTIVATE_IMAGE_DAILY_MAX ?? "25");
-  return {
-    monthly: Number.isFinite(monthly) && monthly >= 0 ? monthly : 0,
-    daily: Number.isFinite(daily) && daily >= 0 ? Math.floor(daily) : 0,
-  };
-}
 
 /* -------------------------------------------------------------------------- */
 /* Providers                                                                   */
@@ -190,8 +173,9 @@ export async function generateImage(
   const trimmed = prompt.trim().slice(0, 1000);
   if (!trimmed) return { ok: false, error: "Describe the image you want first." };
 
+  warnIfCeilingsStillInTheEnvironment();
+
   const supabase = await supabaseServer();
-  const limits = budget();
 
   const { data: reserved, error: reserveError } = await supabase.rpc(
     "captivate_reserve_image_generation",
@@ -202,20 +186,17 @@ export async function generateImage(
       // and nulls a deck the caller does not own, so naming someone else's here
       // buys nothing.
       p_presentation_id: presentationId,
-      p_estimate_usd: IMAGE_COST_ESTIMATE_USD,
-      p_monthly_budget: limits.monthly,
-      p_daily_max: limits.daily,
     },
   );
 
-  const ticket = (reserved as { id: string | null; refusal: string | null }[] | null)?.[0];
+  const ticket = (reserved as ImageReservation[] | null)?.[0];
   // Fails closed: without a ticket nothing is counting the spend, and an
   // uncounted call is exactly what the ceiling exists to prevent.
   if (reserveError || !ticket) {
     return { ok: false, error: "Couldn't reserve an image generation. Nothing was spent." };
   }
   if (!ticket.id) {
-    return { ok: false, error: refusalMessage(ticket.refusal, limits.daily) };
+    return { ok: false, error: refusalMessage(ticket.refusal, ticket.daily_max) };
   }
 
   const startedAt = Date.now();
@@ -264,12 +245,58 @@ export async function generateImage(
   }
 }
 
-function refusalMessage(refusal: string | null, daily: number): string {
+/**
+ * Says so when a deployment's old ceiling variables are still set.
+ *
+ * The budget and the daily cap used to come from the environment and now come
+ * from `public.ai_image_limits`, which the migration seeds with the documented
+ * defaults. A deployment that had overridden either — a lower budget kept
+ * deliberately as a spending safeguard is the case that matters — would
+ * otherwise be moved onto those defaults without a word, and a spend ceiling
+ * that changes without a word is the thing this whole area exists to prevent.
+ *
+ * Sampled, because it is true on every call for as long as the variable is set
+ * rather than being an event, and one line a minute is enough to be found.
+ */
+/**
+ * What the reservation answers with, taken from the generated schema rather
+ * than restated. The RPC gained `daily_max` in `0021`; a second copy of the
+ * shape here would have gone on compiling while quietly disagreeing with the
+ * database.
+ */
+type ImageReservation =
+  Database["public"]["Functions"]["captivate_reserve_image_generation"]["Returns"][number];
+
+function warnIfCeilingsStillInTheEnvironment(): void {
+  // Empty counts as unset, which is the state this asks an operator to reach:
+  // a variable cleared rather than removed is not a ceiling anybody could read
+  // as being in force, and warning about it would train the reader to ignore
+  // the line that matters.
+  const set = (value: string | undefined) => (value ?? "").trim() !== "";
+  if (!set(process.env.CAPTIVATE_IMAGE_BUDGET_USD) && !set(process.env.CAPTIVATE_IMAGE_DAILY_MAX)) {
+    return;
+  }
+
+  logFailureSampled(
+    "ai.image.ceilings-moved",
+    new Error(
+      "CAPTIVATE_IMAGE_BUDGET_USD/CAPTIVATE_IMAGE_DAILY_MAX are set but are no longer read. " +
+        "The ceilings are rows in public.ai_image_limits now — set that row to match, or " +
+        "unset these so nobody reads them as the limit in force.",
+    ),
+  );
+}
+
+function refusalMessage(refusal: string | null, daily: number | null): string {
   switch (refusal) {
     case "budget":
       return "This deployment has reached its image-generation budget for the month. Search and upload still work.";
     case "daily":
-      return `You've generated ${daily} images today, which is the daily limit. Search and upload still work.`;
+      // The number comes back with the refusal rather than from configuration
+      // here, so the message cannot disagree with the ceiling that refused.
+      return typeof daily === "number"
+        ? `You've generated ${daily} images today, which is the daily limit. Search and upload still work.`
+        : "You've reached your daily limit for image generation. Search and upload still work.";
     case "signed-out":
       return "You're signed out.";
     default:

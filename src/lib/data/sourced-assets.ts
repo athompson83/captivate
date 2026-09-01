@@ -7,7 +7,6 @@ import { STORAGE_BUCKETS } from "@/lib/supabase/config";
 import {
   fetchImageBytes,
   storeSourcedImage,
-  IMAGE_COST_ESTIMATE_USD,
 } from "@/lib/ai/visual-sourcing";
 import type { AssetResult } from "./assets";
 
@@ -149,9 +148,4 @@ async function insertSourced(
 
   revalidatePath("/assets");
   return { ok: true, data: { id: data.id, url: `/api/assets/${data.id}/content` } };
-}
-
-/** What one generation is assumed to cost. Exposed for the picker's warning copy. */
-export async function imageCostEstimate(): Promise<number> {
-  return IMAGE_COST_ESTIMATE_USD;
 }
