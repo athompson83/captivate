@@ -132,8 +132,17 @@ describe("the cover in the generation pipeline", () => {
   it("opens the deck for hook-ish roles at index 0 when the choice is Captivate's", () => {
     expect(layoutFor("auto", "hook", 0)).toBe("cover");
     expect(layoutFor("imagery", "provocation", 0)).toBe("cover");
-    // An explicit intent still wins, as it does everywhere else.
-    expect(layoutFor("statement", "question", 0)).toBe("statement");
+    // An intent that names specific content still wins, as it does everywhere
+    // else — a chart or a pull quote is a thing the author asked for.
+    expect(layoutFor("data", "question", 0)).toBe("chart");
+    expect(layoutFor("quotation", "question", 0)).toBe("quote");
+    // `statement` used to win here too, and that was the defect: the classic
+    // opening line is a hook written as one sentence, which carries exactly
+    // this intent, so the commonest first moment there is fell through to a
+    // bare centred line and generated decks opened on grey text. "Say one
+    // line" is not a request for a particular picture, and a line over a
+    // photograph is the same line.
+    expect(layoutFor("statement", "question", 0)).toBe("cover");
     // Only the opening: the same roles later are not covers.
     expect(layoutFor("auto", "hook", 3)).not.toBe("cover");
   });

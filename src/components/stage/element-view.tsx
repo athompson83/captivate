@@ -7,7 +7,15 @@ import { DrawnPicture } from "./drawn-picture";
 import { embedSandbox } from "@/lib/utils/embed";
 import { categoricalHues, resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
-import { fitTextSize, textMetrics } from "@/lib/present/fit-text";
+import {
+  fitListSize,
+  fitTextSize,
+  textMetrics,
+  LIST_ITEM_GAP_EMS,
+  LIST_MARKER_GAP_EMS,
+  LIST_MARKER_WIDTH_EMS,
+  LIST_ORDERED_MARKER_WIDTH_EMS,
+} from "@/lib/present/fit-text";
 
 /**
  * Renders one scene element.
@@ -302,17 +310,28 @@ export const ElementView = memo(function ElementView({
       );
 
     case "list": {
-      const text = element.items.map((i) => plainOf(i)).join(" ");
-      // A list's height is driven by its item count, and each item may wrap, so
-      // budget one extra line for every two items.
-      const estimatedLines = element.items.length + Math.floor(element.items.length / 2);
-      const base = fit(
-        text,
-        scale.h2 * rem * element.style.size,
-        element.style,
-        "sans",
-        estimatedLines,
-      );
+      /*
+       * Measured per item rather than estimated for the list.
+       *
+       * The estimate this replaces budgeted `items + items / 2` lines, so
+       * three bullets of a sentence each were allowed four lines when they
+       * wrap to eight — and it spent nothing on the bullet, the space after
+       * it, or the gaps between items. A two-column scene of three real
+       * bullets asked for 656px of a 558px box and the last line was simply
+       * cut off on the projector.
+       */
+      const desired = scale.h2 * rem * element.style.size;
+      const base = stageHeight
+        ? fitListSize({
+            items: element.items.map((item) => textMetrics(plainOf(item))),
+            boxWidth,
+            boxHeight,
+            desiredSize: desired,
+            lineHeight: element.style.lineHeight,
+            family: element.style.family ?? "sans",
+            ordered: element.ordered,
+          })
+        : desired;
       const Tag = element.ordered ? "ol" : "ul";
       return (
         <Tag
@@ -321,7 +340,7 @@ export const ElementView = memo(function ElementView({
             listStyle: "none",
             margin: 0,
             padding: 0,
-            gap: `${base * 0.55}px`,
+            gap: `${base * LIST_ITEM_GAP_EMS}px`,
           }}
         >
           {element.items.map((item, i) => (
@@ -330,7 +349,7 @@ export const ElementView = memo(function ElementView({
               style={{
                 display: "flex",
                 alignItems: "flex-start",
-                gap: `${base * 0.6}px`,
+                gap: `${base * LIST_MARKER_GAP_EMS}px`,
                 textAlign: element.style.align,
               }}
             >
@@ -339,15 +358,17 @@ export const ElementView = memo(function ElementView({
                 style={{
                   flexShrink: 0,
                   marginTop: element.ordered ? 0 : `${base * 0.42}px`,
-                  width: element.ordered ? "auto" : `${base * 0.24}px`,
-                  height: element.ordered ? "auto" : `${base * 0.24}px`,
+                  width: element.ordered ? "auto" : `${base * LIST_MARKER_WIDTH_EMS}px`,
+                  height: element.ordered ? "auto" : `${base * LIST_MARKER_WIDTH_EMS}px`,
                   borderRadius: "50%",
                   background: element.ordered ? "transparent" : theme.tokens.accent,
                   color: theme.tokens.accent,
                   fontSize: element.ordered ? `${base * 0.8}px` : undefined,
                   fontWeight: 600,
                   fontFamily: theme.fonts.sans,
-                  minWidth: element.ordered ? `${base * 0.9}px` : undefined,
+                  minWidth: element.ordered
+                    ? `${base * LIST_ORDERED_MARKER_WIDTH_EMS}px`
+                    : undefined,
                 }}
               >
                 {element.ordered ? `${i + 1}.` : ""}

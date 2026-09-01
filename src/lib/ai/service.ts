@@ -9,6 +9,7 @@ import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
 import {
   drawableScenes,
   drawingCap,
+  imagePromptFor,
   replaceMediaWithDrawing,
   replaceMediaWithPhoto,
   settleCover,
@@ -656,6 +657,7 @@ ${instruction}`,
 
 /** Turn validated model content into a real, composed scene. */
 function materialise(scene: GeneratedScene): MaterialisedScene {
+  const imagePrompt = imagePromptFor(scene);
   const layoutContent: LayoutContent = {
     eyebrow: scene.eyebrow || undefined,
     // The title, when there is no heading. `title` is the scene's name in the
@@ -683,9 +685,10 @@ function materialise(scene: GeneratedScene): MaterialisedScene {
     cards: scene.cards.length ? scene.cards : undefined,
     chart: scene.chart ?? undefined,
     code: scene.code ?? undefined,
-    // A placeholder image element is created when the model asked for one, so
-    // the composition is right and the user only has to drop a picture in.
-    media: scene.imagePrompt ? { url: "", alt: scene.imagePrompt } : undefined,
+    // A placeholder image element, so the composition is right and the user
+    // only has to drop a picture in — see `imagePrompt` below for why this is
+    // not conditional on the model having asked.
+    media: imagePrompt ? { url: "", alt: imagePrompt } : undefined,
   };
 
   // An aside is a small scene of its own: heading plus either its bullets or
@@ -713,7 +716,7 @@ function materialise(scene: GeneratedScene): MaterialisedScene {
     // content does not fit it. A person picking a layout gets what they picked.
     content: composeScene(scene.layout, layoutContent, { inferredLayout: true }),
     speakerNotes: scene.speakerNotes,
-    imagePrompt: scene.imagePrompt,
+    imagePrompt,
     photoQuery: scene.photoQuery,
     detail,
   };

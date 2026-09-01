@@ -285,14 +285,21 @@ export function layoutFor(
   | "closing"
   | "section" {
   // The deck opens on a cover — a full-bleed image with the title over it,
-  // lifted by the first advance. Only where the author left the choice to
-  // Captivate (or asked for imagery, which a cover *is* for an opening):
-  // an explicit intent — a chart, a quotation — still wins, as it does
-  // everywhere else. With no image to fill it, the composition degrades to
-  // the title slide it covers.
+  // lifted by the first advance. With no image to fill it, the composition
+  // degrades to the title slide it covers.
+  //
+  // Stated as what a cover *loses to* rather than what it needs. The rule used
+  // to require an `auto` or `imagery` intent, which sounds permissive and is
+  // not: the classic opening line — a hook, written as one sentence — carries
+  // the `statement` intent, so the most common first moment there is fell
+  // through to a bare `statement` and decks opened on grey text. An intent
+  // that names specific content still wins, because a chart or a pull quote is
+  // a thing the author asked for; "say one line" is not, and a line over a
+  // photograph is the same line.
+  const NOT_A_COVER: VisualIntent[] = ["data", "quotation", "comparison", "sequence"];
   if (
     index === 0 &&
-    (intent === "auto" || intent === "imagery") &&
+    !NOT_A_COVER.includes(intent) &&
     (role === "hook" || role === "provocation" || role === "question")
   ) {
     return "cover";
@@ -334,7 +341,25 @@ export function layoutFor(
     case "claim":
     case "reframe":
     case "synthesis":
-      return "statement";
+      /*
+       * Every other one of these carries a picture.
+       *
+       * These roles are the spine of an argument and there are usually several
+       * — so routing all of them to a bare `statement` is what produced a
+       * twenty-minute deck with exactly one drawing in it. Nothing in the
+       * generation pipeline can put a picture on a scene that has no slot for
+       * one, and only `split-*` gives a statement-shaped scene one.
+       *
+       * Alternating rather than converting: a deck of nothing but side-by-side
+       * scenes is as monotonous as a deck of nothing but centred lines, and a
+       * claim that lands hardest with the room is one with air around it.
+       *
+       * Safe for these roles specifically because they are a single line. The
+       * split body slot is 38x34 against `bullets`' 72x62, so moving an
+       * enumeration here would crush it; `layoutFor` keeps those where they
+       * are.
+       */
+      return index % 2 === 1 ? (index % 4 === 1 ? "split-right" : "split-left") : "statement";
     case "evidence":
       return "chart";
     case "contrast":
