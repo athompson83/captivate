@@ -159,6 +159,8 @@ export function Popover({
     };
   }, [open, onClose]);
 
+  useFitInViewport(open, ref, anchor);
+
   const pos = {
     "bottom-start": "top-full left-0 mt-2 origin-top-left",
     "bottom-end": "top-full right-0 mt-2 origin-top-right",
@@ -177,6 +179,12 @@ export function Popover({
           transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
           className={cn(
             "border-line bg-overlay absolute z-[70] rounded-[var(--radius-lg)] border p-1.5 shadow-[var(--shadow-lg)]",
+            // The panel is anchored to its trigger, and a trigger near an edge
+            // takes the panel over it. A wider-than-viewport panel is clamped
+            // here; one hanging off a side, or taller than the window, is
+            // corrected by `useFitInViewport` — which needs somewhere for the
+            // overflow to go, hence the scroll.
+            "max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain",
             pos,
             className,
           )}
@@ -186,6 +194,68 @@ export function Popover({
       )}
     </AnimatePresence>
   );
+}
+
+/** Space kept between a popover and the edge it would otherwise cross. */
+const GUTTER = 8;
+
+/**
+ * Keeps an anchored popover inside the window.
+ *
+ * The panel is positioned in CSS relative to its trigger, which is right up
+ * until the trigger is near an edge: at 320px the editor's overflow menu is
+ * end-anchored to a button 250px in, so a 249px panel started at **-44px** and
+ * `Undo` sat entirely off-screen, unreachable — the shell is `overflow-hidden`,
+ * so there is nothing to scroll. It was 975px tall in a 780px window as well,
+ * which put the aspect-ratio control below the fold with no way down.
+ *
+ * The correction is written straight to the element rather than into state:
+ * derived layout in `useState` is the cascading render the compiler rules
+ * reject, and `Stage` already measures its fit this way. It is also why the
+ * offset is `left`/`right` and not Motion's `x` — Motion owns this element's
+ * `transform`, and `x` is animated, so the panel would spend its opening
+ * frames travelling through the position it was moved out of.
+ *
+ * Measured once per opening: the anchor cannot move while the panel is open,
+ * so only a resize can invalidate the answer.
+ */
+function useFitInViewport(
+  open: boolean,
+  ref: React.RefObject<HTMLDivElement | null>,
+  anchor: "bottom-start" | "bottom-end" | "top-start" | "top-end",
+): void {
+  useEffect(() => {
+    if (!open) return;
+    const edge = anchor.endsWith("end") ? "right" : "left";
+
+    const measure = () => {
+      const panel = ref.current;
+      if (!panel) return;
+
+      // Measured as the stylesheet would place it, so the answer is absolute
+      // rather than accumulating a little more offset on every resize.
+      panel.style.removeProperty(edge);
+      panel.style.removeProperty("max-height");
+      panel.style.setProperty("transform", "none", "important");
+      const box = panel.getBoundingClientRect();
+      panel.style.removeProperty("transform");
+
+      let shift = 0;
+      if (box.left < GUTTER) shift = GUTTER - box.left;
+      else if (box.right > window.innerWidth - GUTTER) {
+        shift = window.innerWidth - GUTTER - box.right;
+      }
+      if (shift)
+        panel.style.setProperty(edge, `${Math.round(edge === "right" ? -shift : shift)}px`);
+
+      const room = window.innerHeight - box.top - GUTTER;
+      if (box.height > room) panel.style.setProperty("max-height", `${Math.max(120, room)}px`);
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [open, ref, anchor]);
 }
 
 export function MenuItem({

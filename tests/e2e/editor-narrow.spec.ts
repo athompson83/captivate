@@ -240,6 +240,60 @@ test.describe("the editor on a narrow screen", () => {
     ).toBe(0);
   });
 
+  test("the folded-away controls stay inside the window at 320px", async ({ page }) => {
+    // Codex found this one four seconds after CI went green on the PR that
+    // introduced the popover, so it merged before anyone read it. At 320px the
+    // overflow menu is end-anchored to a button 250px in, and a 249px panel
+    // started at **-44px**: `Undo` and `Toggle notes` sat entirely off-screen
+    // in a shell that is `overflow-hidden`, so nothing could scroll to them.
+    // It was also 975px tall in a 780px window, which put the aspect-ratio
+    // control below the fold with no way down.
+    //
+    // The spec that shipped with it opened the popover only at 390px and its
+    // geometry check looked at right edges alone — a control lost off the
+    // *left* was invisible to every assertion in the file.
+    await open(page, 320, 780);
+    await page.getByRole("button", { name: "More editor controls" }).click();
+
+    const overflow = page.getByRole("group", { name: "More editor controls" });
+    await expect(overflow).toBeVisible();
+
+    const lost = await page.evaluate(() => {
+      const panel = document.querySelector('[role="group"][aria-label="More editor controls"]');
+      if (!panel) return ["the overflow popover was not found"];
+      return [...panel.querySelectorAll<HTMLElement>('button, [role="radio"]')]
+        .map((el) => ({ el, box: el.getBoundingClientRect() }))
+        .filter(({ box }) => box.width > 0 && (box.left < -1 || box.right > window.innerWidth + 1))
+        .map(
+          ({ el, box }) =>
+            `${el.getAttribute("aria-label") || el.textContent?.trim().slice(0, 24)} ` +
+            `[${Math.round(box.left)}, ${Math.round(box.right)}]`,
+        );
+    });
+    expect(lost, `controls outside a ${320}px window`).toEqual([]);
+
+    // And the panel that holds them fits the window, scrolling if it must,
+    // rather than running off the bottom of a shell that cannot scroll. The
+    // panel is the popover itself rather than this group: the group keeps its
+    // natural height and the popover is what clips and scrolls it.
+    const panel = await overflow.evaluate((el) => {
+      const box = el.parentElement!.getBoundingClientRect();
+      return {
+        overhang: Math.round(box.bottom - window.innerHeight),
+        scrollable: el.parentElement!.scrollHeight > el.parentElement!.clientHeight + 1,
+        left: Math.round(box.left),
+        right: Math.round(box.right),
+      };
+    });
+    expect(panel.overhang).toBeLessThanOrEqual(0);
+    expect(panel.scrollable, "clipped without a way to scroll to the rest").toBe(true);
+
+    // The correction must not create the overflow it was fixing: a panel
+    // pushed right off the left edge and out the right one is no better.
+    expect(panel.left).toBeGreaterThanOrEqual(0);
+    expect(panel.right).toBeLessThanOrEqual(320);
+  });
+
   test("dismissing a popover puts the keyboard back where it was", async ({ page }) => {
     await open(page, 390, 780);
 
