@@ -51,6 +51,20 @@ violation still fails the build. The editor runs with its real store, autosave,
 shortcuts and canvas; removing `dirtySections` from `updateSectionLocal` — the
 regression that shipped for a release — fails the tests.
 
+**Signing in produced "This page didn't load."** Reported from production while
+this pass was open, and root-caused from the edge log rather than guessed at:
+`/home` runs four reads concurrently, exactly one came back 401, and there was
+no second request for it anywhere. `readTwice` had been retrying the whole time
+without making a request — the builder was constructed outside the closure, and
+a PostgREST builder is a one-shot thenable, so re-awaiting the settled one
+replayed the cached 401. The function's own comment said it took a closure
+"because re-awaiting the same object is not a fresh request", and its call site
+did exactly that. The query now builds inside the closure, and `readTwice`
+compares references and refuses rather than pretending it tried. The test that
+was supposed to cover this passed against the defect, because its fake asserted
+the opposite semantics in a comment and then behaved that way; it now counts
+builders rather than awaits.
+
 **Password policy** was eight characters and nothing else. Now refuses the
 common list, its substitution-folded form, repeated characters, key runs, and a
 password that is really the email or display name on the same form. Enforced
@@ -60,17 +74,38 @@ server-side in both sign-up and recovery.
 processor named is one the application really contacts. Where the product has no
 answer, they say so: account deletion is not self-service.
 
+**What review then found**, all of it real against the code and all fixed: the
+privacy page claimed Captivate "never sees" a password (the server actions
+receive it to check the policy; they do not store it) and described a handout as
+a revocable share link (it requires the owner's account and has no token); the
+root layout's canonical was inherited by every indexable page, telling a crawler
+`/pricing` duplicates the landing page; `robots.txt` disallowed `/settings/` but
+not `/settings`; a missing `NEXT_PUBLIC_SITE_URL` would have published
+`localhost` URLs into build-time robots and sitemap files; recovery called the
+password policy without identity context, so both identity checks silently did
+nothing; and `qwertyuiop` cleared the ten-character minimum because a code-point
+comparison cannot see a keyboard row. CI then caught the last of it — the smoke
+test still demanded the form promise the old eight-character minimum.
+
 ### Verification
 
-- `npm run verify` green: 990 unit/component tests across 72 files.
-- Playwright: 36 smoke, 35 lifecycle, 5 shader.
+- `npm run verify` green with no warnings: 1009 unit/component tests across 73
+  files.
+- Playwright: 37 smoke, 35 lifecycle, 5 shader.
 - `npm run test:rls` green including the reservation race.
 - Production re-verified independently: the supersession rule is present in the
   deployed function, `captivate_settle_image_generation` is the five-argument
   form, no spend function is anon-reachable, no owner-scoped table is missing
   RLS, and nothing in `schema_required.sql` is absent. No migration drift.
-- `robots.txt`, `sitemap.xml`, per-route `noindex` and the legal pages confirmed
-  in rendered output from a built server rather than from source.
+- `robots.txt`, `sitemap.xml`, per-route `noindex`, all six canonicals and the
+  legal pages confirmed in rendered output from a built server rather than from
+  source — including a build made with `NEXT_PUBLIC_SITE_URL` cleared and only
+  Vercel's production URL set, to prove that fallback survives static
+  prerendering.
+- Every new assertion was run against its own defect before being trusted: the
+  retry test fails three of five cases, the recovery test two of three,
+  `qwertyuiop` is accepted, and the robots, canonical and origin tests each
+  fail.
 
 ## Blockers
 
