@@ -7,8 +7,9 @@
 - Control-graph node: HOSTED_RUNTIME_VERIFICATION (live app in owner-driven test loop)
 - Current milestone: Production readiness — discoverability, the signed-in
   coverage gap, password policy, and a trust surface
-- Branch: `claude/premium-ui-presentation-akzjzs` → PR #42, open
-- `main`: PRs #22–#41 merged and deployed via Vercel auto-deploy
+- Branch: `claude/premium-ui-presentation-akzjzs` → PR #44, merged; branch is
+  at `main`
+- `main`: PRs #22–#44 merged and deployed via Vercel auto-deploy
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -16,13 +17,57 @@
   deployed builds and reports defects
 - Database: canonical Supabase project `qnbwyymwhvqprjtyfdmb`. Migrations
   `0017_billing.sql`, `0018_allowance_accounting.sql`,
-  `0019_plan_grants.sql` and `0020_ledger_integrity.sql` are **applied to
-  production**, the last verified by querying the function signatures and
-  grants back out of it. `0021_reservation_ceilings.sql` is **not yet
-  applied** — it ships with PR #42 and must be applied around that merge, see
-  below.
+  `0019_plan_grants.sql`, `0020_ledger_integrity.sql` and
+  `0021_reservation_ceilings.sql` are **applied to production**, the last two
+  verified by querying the function signatures and grants back out of it.
 
 ## Latest Session
+
+### Owner-reported defects — PRs #43 and #44
+
+Two rounds from the owner's own use of the deployed build, both root-caused
+against production data rather than reasoned about from the code.
+
+**Ten of twenty-one scenes in a generated deck were blank** (#44). The model
+had written them; `composeScene` discarded them. `layoutFor` chooses each
+scene's layout from its moment's visual intent and the model never sees that
+choice, so a layout renders the fields it has slots for and drops the rest in
+silence. Nine of the ten were `statement` layouts whose **title** was the
+statement — a field no layout draws — which is why the navigator read
+perfectly while the canvas was empty. Composition is compose-then-rescue now:
+the layout draws what it draws, and only when that comes to nothing does it
+reach for a heading it was not given, then fall back to a layout that can hold
+what is left. A scene given nothing still composes to nothing, so an empty
+scene means the author wrote nothing. The scene prompt also states which
+fields each layout draws, which it never had.
+
+**Every dashboard thumbnail could blank at once** (#43). The preview query
+discarded its error, so a single post-sign-in 401 — the race `listPresentations`
+already documents — served an empty map for the whole page. It retries and
+logs now, and a salvaged scene says so.
+
+**The editor was unusable below `md`** (#43, #44). Panels took 484px of width
+from a 390px viewport; an anchored popover started at −44px at 320px with
+`Undo` entirely off-screen. Both fixed and measured, with a fixture that mounts
+the real `Popover` against each window edge.
+
+**PowerPoint export dropped a list's style** (#44) — size, alignment, caps,
+weight — while honouring all of it for the paragraph beside it, and flattened
+each bullet's runs so a bold word arrived plain.
+
+**The interface wears the mark's colours** (#44): accent is the logo's indigo,
+`ai` its magenta, the front door's key light its coral, and `--brand-gradient`
+carries the whole sweep. The header names the company — Captivate by Axtevi.
+Fixed by accident on the way: the dark theme's `warning` and its accent were
+three degrees apart at identical lightness.
+
+Seven review findings came back on #44 from Codex and CodeRabbit; all seven
+were real and three were defects introduced by the fix itself. 126 tests added
+across the two PRs, each checked by reverting the fix it is about.
+
+Not closed, and not mine to close: most generated scenes want a photograph and
+this deployment has no `PEXELS_API_KEY` (free) and no `OPENAI_API_KEY` (paid).
+Production has issued **zero** image generations, ever.
 
 ### Production-readiness pass — PRs #38–#42
 
