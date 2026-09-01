@@ -357,6 +357,16 @@ made. The acceptance test exhausts every allowance, buys a top-up, and asserts
 ten complete presentations come out — ten decks, ten maps, a hundred drawings —
 with the eleventh refused.
 
+What is *left* of a purchase is counted from the ledger rather than kept as a
+number, which is the second thing review found here. A stored remainder was
+reachable: settling is done by the caller under their own JWT and a pending row
+may be written again, so an author could settle their own in-flight generation
+as a zero-token failure, take the refund, spend it, and let the truthful
+settlement land afterwards — repeatably, from one purchase. Counting removes
+the window rather than narrowing it, and the plan's own allowance is counted
+separately from what credits paid for, so an allowance still renews while a
+balance is spent.
+
 **Annual billing is withdrawn rather than hidden.** There is no code path that
 opens an annual checkout; the annual price ids are read only so a subscription
 bought earlier still resolves to the tier its holder paid for. Re-enabling it
