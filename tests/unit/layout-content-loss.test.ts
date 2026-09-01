@@ -208,6 +208,34 @@ describe("the fold puts words in the slots a layout has", () => {
     expect(JSON.stringify(composed.elements)).not.toContain("Differentiation");
   });
 
+  it("keeps every point of a sequence longer than a three-up can draw", () => {
+    // I argued this one was a capacity limit consistent with the cards path
+    // and was wrong. Cards and bullets are not the same kind of over-filling:
+    // an author handing five cards to a three-up has typed into a layout whose
+    // three frames are in front of them, while `layoutFor` picked `three-up`
+    // from a "sequence" intent and the model was never told the cap. Three
+    // cards drawn means nothing is empty, so the last resort never noticed the
+    // fourth point going missing.
+    const composed = composeScene("three-up", {
+      heading: "Four ways in",
+      bullets: ["Draft it", "Differentiate it", "Mark it", "Reteach from it"],
+    });
+
+    expect(composed.layout).toBe("bullets");
+    expect(JSON.stringify(composed.elements)).toContain("Reteach from it");
+  });
+
+  it("still crops a three-up an author filled by hand", () => {
+    // The authored path is unchanged: five cards, three frames, first three.
+    const composed = composeScene("three-up", {
+      heading: "Five, in a layout that draws three",
+      cards: ["a", "b", "c", "d", "e"].map((title) => ({ title, body: title })),
+    });
+
+    expect(composed.layout).toBe("three-up");
+    expect(composed.elements.filter((element) => element.type === "callout")).toHaveLength(3);
+  });
+
   it("draws all three cards from a three-up given only bullets", () => {
     // The cards conversion used to run after the heading promotion, which had
     // already eaten the first bullet and cleared the rest — so a bullet-only

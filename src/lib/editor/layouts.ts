@@ -238,10 +238,33 @@ function withCards(layout: SceneLayout, content: LayoutContent): LayoutContent {
   if (layout !== "three-up" || content.cards?.length || !content.bullets?.length) return content;
   return {
     ...content,
-    cards: content.bullets.slice(0, 3).map((bullet) => ({ title: "", body: bullet })),
+    cards: content.bullets.map((bullet) => ({ title: "", body: bullet })),
     bullets: undefined,
   };
 }
+
+/**
+ * Whether a three-up has been handed more points than it can draw.
+ *
+ * Cards and bullets are not the same kind of over-filling. An author who hands
+ * five cards to a three-up has typed into a layout whose three frames are in
+ * front of them, and the composer has always drawn the first three. A model
+ * writing bullets has not: `layoutFor` chose `three-up` from the moment's
+ * "sequence" intent, the model was never told the cap, and a four-point
+ * sequence would lose its fourth point with three cards drawn and nothing
+ * empty for the last resort to notice.
+ *
+ * So the converted path gives way and the authored one does not. `bullets`
+ * holds the whole list.
+ */
+function overfilled(layout: SceneLayout, content: LayoutContent): boolean {
+  return (
+    layout === "three-up" && !content.cards?.length && (content.bullets?.length ?? 0) > CARD_SLOTS
+  );
+}
+
+/** The three frames a three-up draws. */
+const CARD_SLOTS = 3;
 
 /**
  * Gives a layout a heading out of whatever else it was handed.
@@ -613,6 +636,10 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
 export function composeScene(layout: SceneLayout, given: LayoutContent): SceneContent {
   if (layout === "cover") return composeCover(given);
   const slots = layoutSlots(layout);
+
+  // More points than the layout has frames: the list is the content and the
+  // layout was a guess, so the list wins. See `overfilled`.
+  if (overfilled(layout, given)) return composeScene("bullets", given);
 
   // Cards, always: a three-up with a heading and three bullets is not blank,
   // it is a heading with its three points silently missing.

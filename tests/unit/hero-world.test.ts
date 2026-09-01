@@ -165,15 +165,27 @@ describe("the loop's shape", () => {
  * them. Nothing in that file writes a colour of its own any more.
  */
 describe("the hero canvas palette", () => {
+  const PALETTE_END = "} as const;";
   const source = readFileSync(
     join(__dirname, "..", "..", "src/components/marketing/hero-canvas.tsx"),
     "utf8",
   );
 
+  /**
+   * Everything after the palette literal: the painters.
+   *
+   * Asserted rather than assumed. `indexOf` returns -1 for a marker that has
+   * moved, `slice(-1)` is then the file's last character, and both assertions
+   * below pass having scanned nothing at all.
+   */
+  function painterSource(): string {
+    const boundary = source.indexOf(PALETTE_END);
+    expect(boundary, `the palette literal no longer ends with ${PALETTE_END}`).toBeGreaterThan(0);
+    return source.slice(boundary);
+  }
+
   it("keeps every colour in the palette or a tint of one", () => {
-    // Everything after the palette literal: the painters. A colour written
-    // there is one the palette does not know about.
-    const painters = source.slice(source.indexOf("} as const;"));
+    const painters = painterSource();
     const written = [
       ...painters.matchAll(/rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*[\d.]+\s*\)/g),
     ].map((match) => match[0]);
@@ -187,7 +199,7 @@ describe("the hero canvas palette", () => {
   });
 
   it("has no raw hex outside the palette", () => {
-    const painters = source.slice(source.indexOf("} as const;"));
+    const painters = painterSource();
     expect([...painters.matchAll(/#[0-9a-fA-F]{6}\b/g)].map((match) => match[0])).toEqual([]);
   });
 });
