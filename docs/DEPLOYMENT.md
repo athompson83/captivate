@@ -222,8 +222,9 @@ creates a new one, because leaving the old form callable would close nothing —
 and the old form is exactly the one that let a caller name its own ceiling.
 Apply the migration and release the application together, migration first. The
 failure either side of the window is a clean refusal saying nothing was spent.
-`0024` also replaces `captivate_complete_generation` in place, which is
-signature-compatible and needs no coordination of its own.
+`0024` leaves `captivate_complete_generation` alone: settling a generation
+needs no credit bookkeeping, because what a credit has been spent on is counted
+from the ledger rather than kept as a balance to reconcile.
 
 **`0022` changes what an unbilled deployment gets.** The "no Stripe key means
 everybody is Pro" fallback is gone, because the database enforces the ceilings

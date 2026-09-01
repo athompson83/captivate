@@ -175,17 +175,13 @@ export interface ListOptions {
 export async function fetchFirstScenes(limit = 120): Promise<Map<string, SceneContent>> {
   const supabase = await supabaseServer();
 
-  // Built inside the closure, for the reason `readTwice` explains: a PostgREST
+  // Built inside the closure, for the reason `readWithRetry` explains: a PostgREST
   // builder is a one-shot thenable, and a retry that re-awaits the same object
   // replays the first failure without making a request.
   const build = () =>
-    supabase
-      .from("scenes")
-      .select("presentation_id, content")
-      .eq("position", 0)
-      .limit(limit);
+    supabase.from("scenes").select("presentation_id, content").eq("position", 0).limit(limit);
 
-  const { data, error } = await readTwice(build);
+  const { data, error } = await readWithRetry(build);
 
   // Logged rather than thrown. A dashboard with no thumbnails is worth far
   // less than a dashboard that will not load, so this degrades — but it
@@ -201,7 +197,8 @@ export async function fetchFirstScenes(limit = 120): Promise<Map<string, SceneCo
     // A scene that had to be salvaged is a different thing from one that is
     // genuinely empty, and the card cannot tell them apart — both paint the
     // bare theme colour.
-    if (recovered) logFailureSampled("dashboard.previews.recovered", new Error(row.presentation_id));
+    if (recovered)
+      logFailureSampled("dashboard.previews.recovered", new Error(row.presentation_id));
     map.set(row.presentation_id, content);
   }
   return map;
@@ -213,7 +210,7 @@ export async function listPresentations(opts: ListOptions = {}): Promise<Present
   /*
    * Built inside a factory, not once outside it.
    *
-   * `readTwice` retries by calling this again, and that only issues a second
+   * `readWithRetry` retries by calling this again, and that only issues a second
    * request if a second *builder* is made. A PostgREST builder is a one-shot
    * thenable: re-awaiting one that has already resolved hands back the same
    * cached result without touching the network. Constructing the query outside
@@ -274,8 +271,14 @@ export async function listPresentations(opts: ListOptions = {}): Promise<Present
     return query.limit(opts.limit ?? 60);
   };
 
-  const { data, error } = await readTwice(build);
+  const { data, error } = await readWithRetry(build);
   if (error) throw new Error(`Could not load presentations: ${error.message}`);
+  // A read that reports neither rows nor an error should not be possible, and
+  // `.map` on null is a TypeError with a stack that points at this file rather
+  // than at the read — which is the least useful thing a page can put in front
+  // of somebody whose work did not appear.
+  if (!data)
+    throw new Error("Could not load presentations: the read returned no rows and no error.");
 
   type Joined = PresentationRow & {
     folders: { name: string } | null;
@@ -290,52 +293,83 @@ export async function listPresentations(opts: ListOptions = {}): Promise<Present
 }
 
 /**
- * Runs a read, and runs it once more before giving up.
+ * The pauses before each retry, and so how many there are.
+ *
+ * One retry at 300ms was the first version of this, and production showed it
+ * was not enough. The edge log for a dead home page: a password grant at
+ * 19:55:43.7, and at 19:55:45.3 four concurrent reads on the new session of
+ * which exactly one came back 401 — 1.6 seconds after the token was minted,
+ * with the three beside it carrying the same token and succeeding. The author's
+ * own retry, forty seconds later, worked first time.
+ *
+ * So the window this is absorbing is longer than one short pause: a token is
+ * briefly newer than the thing being asked to trust it. A second retry a second
+ * later covers it, and costs nothing on the overwhelming majority of reads that
+ * never fail at all.
+ */
+const RETRY_PAUSES_MS = [300, 900];
+
+/**
+ * Runs a read, and runs it again before giving up.
  *
  * The moment this exists for is the redirect straight after sign-in: the
  * session cookie is milliseconds old, the serverless function may be cold,
  * and a single refused or dropped PostgREST request at that instant was
  * reaching the page as a thrown error — a full-page "This page didn't load"
- * over a database that was perfectly healthy one retry later. One retry with
- * a short pause absorbs exactly that class of blip; a database that is
+ * over a database that was perfectly healthy a moment later. A database that is
  * genuinely down still fails, into the same error boundary, with a Try again
  * that now means something.
  *
  * Takes a closure rather than a builder because a PostgREST builder is a
  * one-shot thenable — re-awaiting the same object is not a fresh request.
  */
-export async function readTwice<T extends { error: { message: string } | null }>(
+export async function readWithRetry<T extends { error: { message: string } | null }>(
   run: () => PromiseLike<T>,
 ): Promise<T> {
-  const firstAttempt = run();
-  const first = await firstAttempt;
-  if (!first.error) return first;
+  let attempt = run();
+  let result = await attempt;
+  if (!result.error) return result;
 
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const secondAttempt = run();
+  for (const pause of RETRY_PAUSES_MS) {
+    await new Promise((resolve) => setTimeout(resolve, pause));
+    const nextAttempt = run();
 
-  /*
-   * The closure has to build a new query, not reach for one built outside it.
-   *
-   * A PostgREST builder is a one-shot thenable: awaiting a settled one returns
-   * its cached result without a request. A caller who closes over a builder
-   * instead of constructing one therefore gets a retry that replays the first
-   * failure, silently — which is exactly what shipped, and what turned a single
-   * 401 in the seconds after sign-in into a dead home page.
-   *
-   * The comment above was already there and did not prevent it, so this checks
-   * instead. Identical references mean no second request was made, and saying
-   * so is strictly more useful than surfacing the first error twice: the read
-   * had already failed, and this at least names why the retry could not help.
-   */
-  if (secondAttempt === firstAttempt) {
-    throw new Error(
-      "readTwice was given a closure that returns the same query object twice, so the retry " +
-        "made no request. Build the query inside the closure.",
-    );
+    /*
+     * The closure has to build a new query, not reach for one built outside it.
+     *
+     * A PostgREST builder is a one-shot thenable: awaiting a settled one returns
+     * its cached result without a request. A caller who closes over a builder
+     * instead of constructing one therefore gets a retry that replays the first
+     * failure, silently — which is exactly what shipped, and what turned a single
+     * 401 in the seconds after sign-in into a dead home page.
+     *
+     * The comment above was already there and did not prevent it, so this checks
+     * instead. Identical references mean no second request was made, and saying
+     * so is strictly more useful than surfacing the first error twice: the read
+     * had already failed, and this at least names why the retry could not help.
+     */
+    if (nextAttempt === attempt) {
+      throw new Error(
+        "readWithRetry was given a closure that returns the same query object twice, so the " +
+          "retry made no request. Build the query inside the closure.",
+      );
+    }
+
+    attempt = nextAttempt;
+    result = await attempt;
+    if (!result.error) return result;
   }
 
-  return secondAttempt;
+  // Every attempt failed. The callers do different things with that — one
+  // throws into the error boundary, another degrades to no thumbnails — but
+  // none of them can say how many times it was tried, and "we tried three
+  // times over a second and a half" is the difference between a blip and an
+  // outage when somebody is reading the log afterwards.
+  logFailureSampled(
+    "read.exhausted",
+    new Error(`${RETRY_PAUSES_MS.length + 1} attempts: ${result.error?.message}`),
+  );
+  return result;
 }
 
 /**
@@ -343,7 +377,7 @@ export async function readTwice<T extends { error: { message: string } | null }>
  * that a closure returning the same object twice is rejected rather than
  * silently treated as a retry.
  */
-export const __readTwiceForTests = readTwice;
+export const __readWithRetryForTests = readWithRetry;
 
 /** Loads a full deck. Returns null when the id does not exist *or* is not ours. */
 export async function getPresentationDocument(
@@ -352,16 +386,16 @@ export async function getPresentationDocument(
   const supabase = await supabaseServer();
 
   const [presentationRes, sectionsRes, scenesRes, momentsRes] = await Promise.all([
-    readTwice(() =>
+    readWithRetry(() =>
       supabase.from("presentations").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
     ),
-    readTwice(() =>
+    readWithRetry(() =>
       supabase.from("sections").select("*").eq("presentation_id", id).order("position"),
     ),
-    readTwice(() =>
+    readWithRetry(() =>
       supabase.from("scenes").select("*").eq("presentation_id", id).order("position"),
     ),
-    readTwice(() =>
+    readWithRetry(() =>
       supabase.from("moments").select("*").eq("presentation_id", id).order("position"),
     ),
   ]);
@@ -408,7 +442,7 @@ export async function getPresentationMeta(id: string): Promise<PresentationRecor
 
 export async function listFolders() {
   const supabase = await supabaseServer();
-  const { data, error } = await readTwice(() =>
+  const { data, error } = await readWithRetry(() =>
     supabase
       .from("folders")
       .select("*, presentations(count)")
@@ -456,7 +490,7 @@ export async function listAllTags(): Promise<{ tag: string; count: number }[]> {
 
 export async function listTrashed(): Promise<PresentationSummary[]> {
   const supabase = await supabaseServer();
-  const { data, error } = await readTwice(() =>
+  const { data, error } = await readWithRetry(() =>
     supabase
       .from("presentations")
       .select("*, folders(name), scenes(count)")
