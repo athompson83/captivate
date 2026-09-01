@@ -147,6 +147,45 @@ describe("the fold puts words in the slots a layout has", () => {
     expect(JSON.stringify(composed.elements)).toContain("A teacher, year 9");
   });
 
+  it("draws the scene's title when the model wrote the line only there", () => {
+    // The shape nine of ten blank scenes in production actually had: a
+    // `statement` layout, a title that *is* the statement, and no heading.
+    // `title` labels the scene in the navigator and is drawn by no slot, so
+    // the canvas was empty while the navigator read perfectly — which is why
+    // the deck looked half-written rather than broken.
+    const composed = composeScene("statement", {
+      title: "Feedback two weeks late helps no one",
+    });
+
+    expect(composed.elements).toHaveLength(1);
+    expect(JSON.stringify(composed.elements[0])).toContain("Feedback two weeks late");
+  });
+
+  it("prefers the heading the model wrote for the room", () => {
+    // A title and a heading are usually different lengths for good reason.
+    // The title is only ever the fallback.
+    const composed = composeScene("statement", {
+      title: "Feedback latency",
+      heading: "Feedback two weeks late helps no one",
+    });
+
+    const text = JSON.stringify(composed.elements);
+    expect(text).toContain("Feedback two weeks late");
+    expect(text).not.toContain("Feedback latency");
+  });
+
+  it("keeps a title that has a heading and a body to sit behind", () => {
+    // On a layout with room for both, the title stays out of the way entirely
+    // rather than turning up as a third line nobody wrote.
+    const composed = composeScene("bullets", {
+      title: "Differentiation",
+      heading: "One lesson, every reading level",
+      bullets: ["Below grade level", "At grade level"],
+    });
+
+    expect(JSON.stringify(composed.elements)).not.toContain("Differentiation");
+  });
+
   it("still composes nothing when there was nothing to compose", () => {
     // An author who has genuinely written nothing must still see the empty
     // state, not a scene invented on their behalf.

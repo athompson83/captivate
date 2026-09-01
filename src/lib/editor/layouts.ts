@@ -177,6 +177,17 @@ export function elementId(prefix = "el"): string {
 export interface LayoutContent {
   eyebrow?: string;
   heading?: string;
+  /**
+   * The scene's name, used as a heading only when there is none.
+   *
+   * It is never drawn in its own right — it labels the scene in the navigator
+   * — so a generator that writes the line here and nowhere else has written a
+   * scene the audience cannot see. Nine of the ten blank scenes in a
+   * production deck were exactly that: `statement` layouts whose title was the
+   * statement ("Feedback two weeks late helps no one") and whose heading was
+   * empty.
+   */
+  title?: string;
   /** A closing clause of the heading, carried in the theme's accent colour. */
   headingAccent?: string;
   subheading?: string;
@@ -206,6 +217,7 @@ function hasWords(content: LayoutContent): boolean {
     content.eyebrow?.trim() ||
     content.caption?.trim() ||
     content.attribution?.trim() ||
+    content.title?.trim() ||
     content.bullets?.length ||
     content.bulletsB?.length ||
     content.cards?.length ||
@@ -239,6 +251,10 @@ function fold(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent): 
   // heading and nothing else must be given a heading, or it shows nothing.
   if (slots.heading && !folded.heading?.trim() && !folded.quote?.trim()) {
     const promoted =
+      // The title first: it is the one field written to be a name for the
+      // scene, so it is the most heading-shaped thing available. Nothing
+      // clears it afterwards, because no slot draws it.
+      folded.title?.trim() ||
       folded.body?.trim() ||
       folded.subheading?.trim() ||
       folded.bullets?.[0]?.trim() ||

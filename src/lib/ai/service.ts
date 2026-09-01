@@ -658,7 +658,20 @@ ${instruction}`,
 function materialise(scene: GeneratedScene): MaterialisedScene {
   const layoutContent: LayoutContent = {
     eyebrow: scene.eyebrow || undefined,
+    // The title, when there is no heading. `title` is the scene's name in the
+    // navigator and is never drawn on the stage, so a model that puts the line
+    // there and nowhere else has written a scene the audience cannot see —
+    // which is exactly what happened: nine of ten blank scenes in a production
+    // deck were `statement` layouts whose titles were the statement ("Feedback
+    // two weeks late helps no one") and whose heading was empty.
+    //
+    // Only as a fallback. A heading and a title are usually different lengths
+    // for good reason, and the heading is the one written to be read from the
+    // back of a room.
     heading: scene.heading || undefined,
+    // Only as a fallback, and only where the layout has nowhere else to put
+    // it — see `LayoutContent.title`.
+    title: scene.title || undefined,
     headingAccent: scene.headingAccent || undefined,
     subheading: scene.subheading || undefined,
     body: scene.body || undefined,
