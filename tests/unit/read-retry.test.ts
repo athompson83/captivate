@@ -133,6 +133,66 @@ describe("a read that loses the race just after sign-in", () => {
     expect(builders).toBe(2);
   });
 
+  /**
+   * The dashboard's thumbnails lost the same race, and said nothing.
+   *
+   * `/home` fires four concurrent reads. `listPresentations` was hardened
+   * because it throws — a 401 there killed the page. The preview query beside
+   * it was the opposite failure: `const { data } = await …` discarded the
+   * error, so one unlucky 401 blanked **every** thumbnail on the page at once
+   * (it is a single query for all of them) while the deck list rendered
+   * perfectly. A card with no preview paints the theme's canvas colour, which
+   * is indistinguishable from a deck whose first scene is a bare background —
+   * so the reported symptom was "none of the thumbnails show any content",
+   * with nothing anywhere to say why.
+   *
+   * Both dashboard routes had their own copy of that query. There is one now.
+   */
+  it("retries the dashboard previews instead of blanking every card", async () => {
+    outcomes = [
+      { data: null, error: { message: "JWT expired" } },
+      {
+        data: [
+          {
+            presentation_id: "00000000-0000-4000-8000-000000000001",
+            content: {
+              layout: "statement",
+              version: 1,
+              elements: [],
+              background: { kind: "theme" },
+              themeOverride: null,
+            },
+          },
+        ],
+        error: null,
+      },
+    ];
+
+    const { fetchFirstScenes } = await import("@/lib/data/presentations");
+    const previews = await fetchFirstScenes();
+
+    expect(builders, "the retry must construct a second query").toBe(2);
+    expect(previews.size).toBe(1);
+  });
+
+  it("degrades to no previews loudly rather than silently", async () => {
+    outcomes = [
+      { data: null, error: { message: "connection refused" } },
+      { data: null, error: { message: "connection refused" } },
+    ];
+    const stderr = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { fetchFirstScenes } = await import("@/lib/data/presentations");
+    const previews = await fetchFirstScenes();
+
+    // Empty, not thrown: a dashboard without thumbnails is worth more than a
+    // dashboard that will not load. But it has to leave a trace, which is the
+    // part that was missing — this failure was invisible in production.
+    expect(previews.size).toBe(0);
+    expect(stderr.mock.calls.flat().join(" ")).toMatch(/dashboard\.previews.*connection refused/);
+    stderr.mockRestore();
+  });
+
   it("names the mistake when a closure hands back the same query twice", async () => {
     // The guard that stops this shipping again. Re-awaiting a settled builder
     // is indistinguishable from a real retry at the call site, so `readTwice`

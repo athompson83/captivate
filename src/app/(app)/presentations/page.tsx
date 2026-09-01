@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
-import { listAllTags, listFolders, listPresentations, listTrashed } from "@/lib/data/presentations";
-import { supabaseServer } from "@/lib/supabase/server";
-import { parseSceneContent, type SceneContent } from "@/lib/schema/presentation";
+import {
+  fetchFirstScenes,
+  listAllTags,
+  listFolders,
+  listPresentations,
+  listTrashed,
+} from "@/lib/data/presentations";
 import { PresentationsLibrary } from "@/components/dashboard/presentations-library";
 
 export const metadata: Metadata = { title: "Presentations" };
@@ -50,19 +54,4 @@ export default async function PresentationsPage({
       }}
     />
   );
-}
-
-async function fetchFirstScenes(): Promise<Map<string, SceneContent>> {
-  const supabase = await supabaseServer();
-  const { data } = await supabase
-    .from("scenes")
-    .select("presentation_id, content")
-    .eq("position", 0)
-    .limit(120);
-
-  const map = new Map<string, SceneContent>();
-  for (const row of data ?? []) {
-    map.set(row.presentation_id, parseSceneContent(row.content).content);
-  }
-  return map;
 }

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { supabaseServer } from "@/lib/supabase/server";
+import { logFailureSampled } from "@/lib/observability";
 import {
   JourneyConfig,
   PRESENTATION_SCHEMA_VERSION,
@@ -10,6 +11,7 @@ import {
   type PresentationDocument,
   type PresentationRecord,
   type Scene,
+  type SceneContent,
   type Section,
 } from "@/lib/schema/presentation";
 import { z } from "zod";
@@ -154,6 +156,54 @@ export interface ListOptions {
   limit?: number;
 }
 
+/**
+ * Every deck's first scene, for the dashboard's card previews.
+ *
+ * One query for all of them, which is what makes the failure so visible: the
+ * home page fires four concurrent reads, and in the seconds after sign-in
+ * exactly one of them can come back 401 while the others succeed — the same
+ * race `listPresentations` documents below. When the unlucky one was this
+ * query, every thumbnail on the page went blank at once, and nothing said so.
+ * `preview === null` renders the theme's canvas colour, which is
+ * indistinguishable from a deck whose first scene really is a bare background.
+ *
+ * Two copies of this used to live in the two dashboard routes, both discarding
+ * the error with `const { data } = await …`. So the retry that already existed
+ * for the deck list did not cover the thumbnails, and a transient blip looked
+ * exactly like "Captivate lost my slides".
+ */
+export async function fetchFirstScenes(limit = 120): Promise<Map<string, SceneContent>> {
+  const supabase = await supabaseServer();
+
+  // Built inside the closure, for the reason `readTwice` explains: a PostgREST
+  // builder is a one-shot thenable, and a retry that re-awaits the same object
+  // replays the first failure without making a request.
+  const build = () =>
+    supabase.from("scenes").select("presentation_id, content").eq("position", 0).limit(limit);
+
+  const { data, error } = await readTwice(build);
+
+  // Logged rather than thrown. A dashboard with no thumbnails is worth far
+  // less than a dashboard that will not load, so this degrades — but it
+  // degrades *loudly*, which is the part that was missing.
+  if (error) {
+    logFailureSampled("dashboard.previews", new Error(error.message));
+    return new Map();
+  }
+
+  const map = new Map<string, SceneContent>();
+  for (const row of data ?? []) {
+    const { content, recovered } = parseSceneContent(row.content);
+    // A scene that had to be salvaged is a different thing from one that is
+    // genuinely empty, and the card cannot tell them apart — both paint the
+    // bare theme colour.
+    if (recovered)
+      logFailureSampled("dashboard.previews.recovered", new Error(row.presentation_id));
+    map.set(row.presentation_id, content);
+  }
+  return map;
+}
+
 export async function listPresentations(opts: ListOptions = {}): Promise<PresentationSummary[]> {
   const supabase = await supabaseServer();
 
@@ -251,7 +301,7 @@ export async function listPresentations(opts: ListOptions = {}): Promise<Present
  * Takes a closure rather than a builder because a PostgREST builder is a
  * one-shot thenable — re-awaiting the same object is not a fresh request.
  */
-async function readTwice<T extends { error: { message: string } | null }>(
+export async function readTwice<T extends { error: { message: string } | null }>(
   run: () => PromiseLike<T>,
 ): Promise<T> {
   const firstAttempt = run();
