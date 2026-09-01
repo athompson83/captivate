@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ICON_NAMES } from "@/lib/schema/icons";
 import { SceneContent, SceneLayout, DrawnPath } from "@/lib/schema/presentation";
 import { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 
@@ -42,7 +43,28 @@ export const GeneratedScene = z.object({
   attribution: z.string().max(120).default(""),
   caption: z.string().max(160).default(""),
   cards: z
-    .array(z.object({ title: z.string().min(1).max(60), body: z.string().min(1).max(180) }))
+    .array(
+      z.object({
+        title: z.string().min(1).max(60),
+        body: z.string().min(1).max(180),
+        /**
+         * The icon that carries this card's meaning.
+         *
+         * This field is why every generated card was a plain circle. The
+         * composer has read `card.icon` since cards existed — `layouts.ts`
+         * falls back to `"circle"` when it is absent — and the schema never
+         * offered it, so the model had no way to answer and the fallback was
+         * the only thing that ever ran. The pipe was built and the tap was
+         * never opened.
+         *
+         * An enum over the shared registry rather than a string: a name the
+         * model invents fails validation and earns the corrective retry, where
+         * a free string would resolve to the same silent circle and look
+         * exactly like success.
+         */
+        icon: z.enum(ICON_NAMES).nullable().default(null),
+      }),
+    )
     .max(3)
     .default([]),
   chart: z

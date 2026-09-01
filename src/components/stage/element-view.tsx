@@ -7,6 +7,7 @@ import { DrawnPicture } from "./drawn-picture";
 import { embedSandbox } from "@/lib/utils/embed";
 import { categoricalHues, resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
+import { DEFAULT_ICON, ICON_NAMES } from "@/lib/schema/icons";
 import {
   fitListSize,
   fitTextSize,
@@ -33,41 +34,110 @@ interface Props {
   stageHeight?: number;
 }
 
-/** Curated icon set — an arbitrary name can never resolve to a random import. */
+/**
+ * Curated icon set — an arbitrary name can never resolve to a random import.
+ *
+ * Keyed by `ICON_NAMES`, which lives in a plain module because the generation
+ * schema needs the same list and cannot import a client component tree to get
+ * it. That sharing is the point: a model can only ask for an icon that exists,
+ * so a name it invents fails validation rather than landing here and resolving
+ * to a plain circle, which is what every generated card used to be.
+ *
+ * `icon-registry.test.ts` asserts this map covers the list exactly. A name
+ * added to one and not the other is otherwise silent.
+ */
 const ICONS: Record<
   string,
   React.ComponentType<{ className?: string; style?: React.CSSProperties; strokeWidth?: number }>
 > = {
+  // Structure and sequence
   circle: Icons.Circle,
   check: Icons.Check,
   "check-circle": Icons.CheckCircle2,
+  x: Icons.X,
+  arrow_right: Icons.ArrowRight,
+  "arrow-up-right": Icons.ArrowUpRight,
+  "corner-down-right": Icons.CornerDownRight,
+  "git-branch": Icons.GitBranch,
+  "list-ordered": Icons.ListOrdered,
+  layers: Icons.Layers,
+  workflow: Icons.Workflow,
+  milestone: Icons.Milestone,
+
+  // Emphasis and judgement
   "alert-triangle": Icons.AlertTriangle,
+  "alert-octagon": Icons.AlertOctagon,
   info: Icons.Info,
   lightbulb: Icons.Lightbulb,
   star: Icons.Star,
+  sparkles: Icons.Sparkles,
   heart: Icons.Heart,
   zap: Icons.Zap,
+  flame: Icons.Flame,
+  shield: Icons.Shield,
+  "shield-alert": Icons.ShieldAlert,
+  scale: Icons.Scale,
+  gavel: Icons.Gavel,
+
+  // Measurement and evidence
   target: Icons.Target,
-  flag: Icons.Flag,
-  clock: Icons.Clock,
-  users: Icons.Users,
   "trending-up": Icons.TrendingUp,
   "trending-down": Icons.TrendingDown,
-  shield: Icons.Shield,
   activity: Icons.Activity,
+  gauge: Icons.Gauge,
+  "chart-pie": Icons.PieChart,
+  sigma: Icons.Sigma,
+  percent: Icons.Percent,
+  "clipboard-check": Icons.ClipboardCheck,
+  microscope: Icons.Microscope,
+  flask: Icons.FlaskConical,
+  "test-tube": Icons.TestTube,
+
+  // People, place and time
+  users: Icons.Users,
+  "user-check": Icons.UserCheck,
+  handshake: Icons.Handshake,
+  "message-circle": Icons.MessageCircle,
+  megaphone: Icons.Megaphone,
+  clock: Icons.Clock,
+  calendar: Icons.Calendar,
+  hourglass: Icons.Hourglass,
+  "map-pin": Icons.MapPin,
+  compass: Icons.Compass,
+  globe: Icons.Globe,
+  route: Icons.Route,
+
+  // Clinical and life sciences
   stethoscope: Icons.Stethoscope,
+  "heart-pulse": Icons.HeartPulse,
   brain: Icons.Brain,
+  dna: Icons.Dna,
+  pill: Icons.Pill,
+  syringe: Icons.Syringe,
+  ambulance: Icons.Ambulance,
+  bandage: Icons.Bandage,
+  thermometer: Icons.Thermometer,
+
+  // Teaching, reference and craft
   "book-open": Icons.BookOpen,
+  "graduation-cap": Icons.GraduationCap,
   quote: Icons.Quote,
-  arrow_right: Icons.ArrowRight,
-  x: Icons.X,
+  "pen-line": Icons.PenLine,
+  search: Icons.Search,
+  key: Icons.KeyRound,
+  puzzle: Icons.Puzzle,
+  wrench: Icons.Wrench,
+  cpu: Icons.Cpu,
+  database: Icons.Database,
+  lock: Icons.Lock,
+  eye: Icons.Eye,
 };
 
 const VideoIcon = Icons.Video;
 const PlaceholderImageIcon = Icons.ImageIcon;
 
 export function iconFor(name: string) {
-  return ICONS[name] ?? Icons.Circle;
+  return ICONS[name] ?? ICONS[DEFAULT_ICON];
 }
 
 /**
@@ -92,7 +162,9 @@ function StageIcon({
   return createElement(iconFor(name), { className, style, strokeWidth });
 }
 
-export const ICON_NAMES = Object.keys(ICONS);
+// Re-exported so existing importers keep working; the list itself is
+// `@/lib/schema/icons`, which the generation schema also reads.
+export { ICON_NAMES };
 
 function fontFamily(
   style: TextStyle | undefined,

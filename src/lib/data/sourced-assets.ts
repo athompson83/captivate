@@ -7,6 +7,8 @@ import { STORAGE_BUCKETS } from "@/lib/supabase/config";
 import {
   fetchImageBytes,
   storeSourcedImage,
+  sniffImage,
+  IMAGE_PROVIDER,
 } from "@/lib/ai/visual-sourcing";
 import type { AssetResult } from "./assets";
 
@@ -107,19 +109,26 @@ export async function saveGeneratedImage(
     return { ok: false, error: "That image couldn't be read." };
   }
   // The same check the fetched path applies: what the browser sent back is a
-  // claim until the bytes agree with it.
-  const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
-  if (!isPng) return { ok: false, error: "That file isn't an image, whatever it claims to be." };
+  // claim until the bytes agree with it. It reads the type *out of* the bytes
+  // rather than testing for one, because the header above is the claim and a
+  // generated image is no longer always a PNG — which model made it is now a
+  // deployment setting.
+  const sniffed = sniffImage(bytes);
+  if (!sniffed) return { ok: false, error: "That file isn't an image, whatever it claims to be." };
 
-  const stored = await storeSourcedImage({ bytes, mimeType: "image/png", extension: "png" });
+  const stored = await storeSourcedImage({ bytes, ...sniffed });
   if (!stored.ok) return { ok: false, error: say(stored.error) };
 
-  return insertSourced(stored.data.storagePath, "image/png", bytes.length, {
+  return insertSourced(stored.data.storagePath, sniffed.mimeType, bytes.length, {
     presentation_id: parsed.data.presentationId ?? null,
     alt_text: parsed.data.altText,
     original_filename: parsed.data.prompt.slice(0, 200),
     source: "generated",
-    provider: "openai",
+    // The gateway that actually made it, not a constant. A deployment can
+    // generate through OpenRouter, and a provenance column that says otherwise
+    // is worse than an empty one — it is the row somebody would reconcile a
+    // bill against.
+    provider: IMAGE_PROVIDER,
     model: parsed.data.model,
     prompt: parsed.data.prompt,
     quality: parsed.data.quality,
@@ -136,7 +145,13 @@ async function insertSourced(
   const supabase = await supabaseServer();
   const { data, error } = await supabase
     .from("assets")
-    .insert({ storage_path: storagePath, mime_type: mimeType, byte_size: byteSize, kind: "image", ...provenance } as never)
+    .insert({
+      storage_path: storagePath,
+      mime_type: mimeType,
+      byte_size: byteSize,
+      kind: "image",
+      ...provenance,
+    } as never)
     .select("id")
     .single();
 

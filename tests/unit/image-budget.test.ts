@@ -12,7 +12,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * only one is their own doing.
  */
 
-const OK_IMAGE = { data: [{ b64_json: "aGVsbG8=" }] };
+/**
+ * A real 1x1 PNG, and it has to be real.
+ *
+ * This was `aGVsbG8=` — base64 for "hello" — which the old success path
+ * happily wrapped in a `data:image/png` URL and called a generated image. The
+ * generation now sniffs the bytes before it claims success, so a fixture that
+ * is not a picture fails here the same way a provider returning SVG would.
+ */
+const PNG_1X1 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+const OK_IMAGE = { data: [{ b64_json: PNG_1X1 }] };
 
 function mockDb(
   reserve: { id: string | null; refusal: string | null; daily_max?: number | null },
@@ -159,6 +169,38 @@ describe("generateImage", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("Nothing was spent");
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("refuses a format it cannot store, and says so rather than showing a broken preview", async () => {
+    // OpenRouter fronts vector models that answer with `image/svg+xml`. The
+    // first version of this path trusted the provider's declared type and
+    // mapped anything unrecognised to PNG, on the reasoning that the accept
+    // path sniffs the bytes properly. It does — but by then the generation is
+    // paid for, so the author saw a broken picture, then "that file isn't an
+    // image" when they tried to keep it, with the money already gone.
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString("base64");
+    const rpc = mockDb({ id: "aaaaaaaa-0000-4000-8000-000000000001", refusal: null });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          ({
+            ok: true,
+            json: async () => ({ data: [{ b64_json: svg, media_type: "image/svg+xml" }] }),
+          }) as unknown as Response,
+      ),
+    );
+    const { generateImage } = await import("@/lib/ai/visual-sourcing");
+
+    const result = await generateImage("a lighthouse at dusk");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/format Captivate can't store/i);
+
+    // Still settled, and settled as what it was. The provider did the work and
+    // billed for it, so an unreconciled ticket would read as free capacity.
+    const settled = rpc.mock.calls.find(([name]) => name === "captivate_settle_image_generation");
+    expect(settled, "a spent ticket must be reconciled even when unusable").toBeTruthy();
+    expect((settled?.[1] as { p_status: string }).p_status).toBe("invalid_output");
   });
 
   it("generates and settles when a ticket is issued", async () => {

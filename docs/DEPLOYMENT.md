@@ -2,23 +2,27 @@
 
 ## Environment variables
 
-| Variable                        | Required      | Reaches the browser | Purpose                                                         |
-| ------------------------------- | ------------- | ------------------- | --------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Yes           | Yes                 | Project URL                                                     |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes           | Yes                 | Publishable key                                                 |
-| `ANTHROPIC_API_KEY`             | No            | **No**              | Enables AI authoring                                            |
-| `CAPTIVATE_AI_MODEL`            | No            | No                  | Overrides the model id                                          |
-| `PEXELS_API_KEY`                | No            | **No**              | Enables the picker's Find tab                                   |
-| `OPENAI_API_KEY`                | No            | **No**              | Enables the picker's Generate tab                               |
-| `NEXT_PUBLIC_SITE_URL`          | In production | Yes                 | Absolute origin for email links                                 |
-| `SUPABASE_SERVICE_ROLE_KEY`     | With billing  | **No**              | The Stripe webhook is the only writer of subscription state     |
+| Variable                        | Required      | Reaches the browser | Purpose                                                          |
+| ------------------------------- | ------------- | ------------------- | ---------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Yes           | Yes                 | Project URL                                                      |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes           | Yes                 | Publishable key                                                  |
+| `ANTHROPIC_API_KEY`             | No            | **No**              | Enables AI authoring                                             |
+| `OPENROUTER_API_KEY`            | No            | **No**              | Enables AI authoring _and_ image generation, through one gateway |
+| `CAPTIVATE_AI_PROVIDER`         | No            | No                  | `anthropic` or `openrouter`; settles it when both keys are set   |
+| `CAPTIVATE_AI_MODEL`            | No            | No                  | Overrides the model id                                           |
+| `PEXELS_API_KEY`                | No            | **No**              | Enables the picker's Find tab                                    |
+| `OPENAI_API_KEY`                | No            | **No**              | Enables the picker's Generate tab                                |
+| `CAPTIVATE_IMAGE_PROVIDER`      | No            | No                  | `openai` or `openrouter`, resolved separately from the text one  |
+| `CAPTIVATE_IMAGE_MODEL`         | No            | No                  | Overrides the image model id                                     |
+| `NEXT_PUBLIC_SITE_URL`          | In production | Yes                 | Absolute origin for email links                                  |
+| `SUPABASE_SERVICE_ROLE_KEY`     | With billing  | **No**              | The Stripe webhook is the only writer of subscription state      |
 | `STRIPE_SECRET_KEY`             | No            | **No**              | Enables billing; absent leaves every account on Free — see below |
-| `STRIPE_WEBHOOK_SECRET`         | With billing  | **No**              | Verifies the webhook; it is that endpoint's only authentication |
-| `STRIPE_PRICE_BASIC_MONTHLY`    | With billing  | **No**              | Price id(s) for $12/month Captivate Basic                       |
-| `STRIPE_PRICE_PRO_MONTHLY`      | With billing  | **No**              | Price id(s) for $25/month Captivate Pro                         |
-| `STRIPE_PRICE_TOPUP`            | For top-ups   | **No**              | One-time price id for a $5 top-up; absent hides the buy control |
-| `STRIPE_PRICE_BASIC_ANNUAL`     | No            | **No**              | Recognised only — annual is not on sale                         |
-| `STRIPE_PRICE_PRO_ANNUAL`       | No            | **No**              | Recognised only — annual is not on sale                         |
+| `STRIPE_WEBHOOK_SECRET`         | With billing  | **No**              | Verifies the webhook; it is that endpoint's only authentication  |
+| `STRIPE_PRICE_BASIC_MONTHLY`    | With billing  | **No**              | Price id(s) for $12/month Captivate Basic                        |
+| `STRIPE_PRICE_PRO_MONTHLY`      | With billing  | **No**              | Price id(s) for $25/month Captivate Pro                          |
+| `STRIPE_PRICE_TOPUP`            | For top-ups   | **No**              | One-time price id for a $5 top-up; absent hides the buy control  |
+| `STRIPE_PRICE_BASIC_ANNUAL`     | No            | **No**              | Recognised only — annual is not on sale                          |
+| `STRIPE_PRICE_PRO_ANNUAL`       | No            | **No**              | Recognised only — annual is not on sale                          |
 
 ### What is on sale
 
@@ -76,6 +80,40 @@ values ('<the user id>', 'unlimited', 'Self-hosted deployment.');
 ```
 
 A grant outranks a subscription and is what `plan_grants` was built for.
+
+### Which model provider
+
+Two gateways reach the same kind of model, and a deployment needs exactly one
+of them.
+
+- **`ANTHROPIC_API_KEY`** talks to Anthropic directly. This is what production
+  has always used.
+- **`OPENROUTER_API_KEY`** talks to OpenRouter, which fronts Anthropic, OpenAI,
+  Google, DeepSeek and others behind one key and one bill. It covers image
+  generation too, so a deployment with only this key has the whole product.
+
+The gateway is **resolved from the keys** rather than configured beside them.
+The failure mode of a separate setting is a deployment that names one provider,
+holds the other's key, and reports itself unconfigured while both halves look
+present. Anthropic wins when both keys are set, so adding an OpenRouter key
+next to a working Anthropic one changes nothing until somebody says so with
+`CAPTIVATE_AI_PROVIDER`. Images resolve the same way, independently, from
+`OPENAI_API_KEY` / `OPENROUTER_API_KEY` and `CAPTIVATE_IMAGE_PROVIDER` — running
+text through one and pictures through the other is supported.
+
+The default model is Claude Sonnet 5 either way (`claude-sonnet-5` direct,
+`anthropic/claude-sonnet-5` through OpenRouter, which at $2/$10 per million
+tokens is about a third cheaper than list). That is deliberate: every prompt,
+every schema cap and the token ceiling were tuned against that model, so
+changing gateway and model in one step would leave nothing to attribute a
+regression to. Move the model afterwards, with `CAPTIVATE_AI_MODEL`.
+
+Any model must support **forced tool calling**. Nothing in Captivate parses
+free text — the answer arrives as arguments to a named tool and is validated
+against the same Zod schema that generated the tool's parameters — so a model
+without it fails every generation rather than degrading. `openai/gpt-5.2`,
+`google/gemini-3.7-flash` and `deepseek/deepseek-v3.2` all support it and all
+have rates seeded.
 
 ### What a generation costs
 

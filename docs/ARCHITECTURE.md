@@ -261,8 +261,20 @@ structurally prevent the dense scenes generated decks are notorious for — the
 model cannot produce a wall of text because the schema will not hold one.
 
 `generateStructured` is the only door to a model. It forces a tool call,
-validates, retries once with the validation error, and reports usage. Swapping
-providers means reimplementing one function.
+validates, retries once with the validation error, and reports usage.
+
+There are two providers behind it — Anthropic directly, or OpenRouter — chosen
+by which key a deployment holds rather than by a setting kept in step with one.
+The retry policy, the error text and the schema validation are shared, because
+they are the product's behaviour and must not vary by which key an operator
+happened to set. A provider supplies only a `Conversation`: how to ask for one
+answer, and how to put a rejected answer back in front of the model. That
+second half is the part that genuinely differs, and it is the part that has
+already been got wrong once — a correction has to answer the failed tool call
+in the protocol's own terms (a `tool_result` block, or a `role: "tool"` message
+quoting the `tool_call_id`), and the obvious version, a plain user turn saying
+what went wrong, is rejected outright by both. See `docs/DEPLOYMENT.md` for
+which gateway a deployment ends up on and why.
 
 ---
 
@@ -339,7 +351,7 @@ it, and is spent once, when a deck is actually generated. A credit that
 replenished only the deck pool would sell ten presentations that could not be
 illustrated. Credits are revoked on a refund or a dispute.
 
-What is *left* of a purchase is counted from the ledger rather than kept as a
+What is _left_ of a purchase is counted from the ledger rather than kept as a
 number: a credit is spent by the row the reservation writes, so the spend and
 the record of it are the same write. A stored remainder cannot be, and the gap
 was reachable — settling is done by the caller under their own JWT, and a row
