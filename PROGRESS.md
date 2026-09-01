@@ -7,8 +7,8 @@
 - Control-graph node: HOSTED_RUNTIME_VERIFICATION (live app in owner-driven test loop)
 - Current milestone: Production readiness — discoverability, the signed-in
   coverage gap, password policy, and a trust surface
-- Branch: `claude/premium-ui-presentation-akzjzs` → PR #38, open
-- `main`: PRs #22–#37 merged and deployed via Vercel auto-deploy
+- Branch: `claude/premium-ui-presentation-akzjzs` → PR #42, open
+- `main`: PRs #22–#41 merged and deployed via Vercel auto-deploy
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -18,11 +18,15 @@
   `0017_billing.sql`, `0018_allowance_accounting.sql`,
   `0019_plan_grants.sql` and `0020_ledger_integrity.sql` are **applied to
   production**, the last verified by querying the function signatures and
-  grants back out of it.
+  grants back out of it. `0021_reservation_ceilings.sql` is **not yet
+  applied** — it ships with PR #42 and must be applied around that merge, see
+  below.
 
 ## Latest Session
 
-### Production-readiness pass — PR #38
+### Production-readiness pass — PRs #38–#42
+
+#### PR #38 — discoverability, the signed-in gap, the sign-in outage
 
 Four launch blockers. Three turned out to be the same shape: something built,
 deployed and correct that the only client who mattered could not reach.
@@ -87,12 +91,83 @@ nothing; and `qwertyuiop` cleared the ten-character minimum because a code-point
 comparison cannot see a keyboard row. CI then caught the last of it — the smoke
 test still demanded the form promise the old eight-character minimum.
 
+#### PR #39 — the account-deletion decision, recorded rather than implied
+
+#### PR #40 — say something when a failure is handled rather than thrown
+
+Captivate returns failures as values, which is right for the caller and
+invisible to everyone else. The whole of `src/` held **one** `console.error`
+against 77 handled failure sites. That is not theoretical: the sign-in outage
+above had to be root-caused from Supabase's edge log, because the application
+recorded nothing about the read that failed.
+
+`src/lib/observability.ts` — one function, a greppable prefix, stderr — wired at
+three choke points: `fail()` in `data/actions.ts`, `spend()` in `ai/service.ts`,
+and the Stripe webhook, including the case that costs real money in silence, a
+completed checkout that cannot be attached to an account.
+
+Four review findings, all four real, **three of them mine** — including one I
+introduced while fixing another. The public bad-signature path was logging
+unbounded (it is now sampled); a double `detailOf` truncated the suppressed
+count away, and my test passed only because it used a short string;
+`slice(0, 300) + '…'` is 301 characters and my test asserted `≤ 301`, encoding
+the off-by-one; and my own round-2 refactor moved `detailOf` outside the guard,
+so a malformed error would have thrown from the logger.
+
+#### PR #41 — keep a keyboard inside a modal
+
+`Dialog` trapped Tab by wrapping at either end, which misses the case a person
+actually produces: clicking a dialog's own prose leaves focus on `body`, both
+branches fall through, and the browser resumes from the clicked node — out of
+the panel and into the page the modal covers. Which direction leaks depends on
+the layout, and both ship: prose above the last control leaks via Shift+Tab
+(`ConfirmDialog`, rename, template), below it via Tab (`ShortcutsDialog`, the
+share dialog, the recording detail dialog).
+
+`data-autofocus` had also never worked. Asked for alongside its fallbacks in one
+selector list, `querySelector` returns document order, which is always the
+header close button — so `ConfirmDialog`'s documented guarantee never to focus
+the destructive action held only because the close button is not it.
+
+**The first version of these tests passed against the unfixed code.** They drove
+"focus on nothing" with `blur()`, and Chromium resumes from the sequential focus
+navigation starting point — which a click moves to the clicked node and a
+`blur()` leaves on the element that had focus. The sabotage run caught it; the
+tests now click. Review then found that redirecting a Tab to a _chosen_ target
+can strand the keyboard on `body` if that target is disabled or unrendered,
+which is worse than the escape; both lookups now filter for controls that can
+actually take focus.
+
+#### PR #42 — the reserved price is not the caller's to name
+
+A signed-in user could disable AI image generation for every other user of the
+deployment with one request. `captivate_reserve_image_generation` took the
+per-image estimate, the monthly budget and the daily cap as arguments on a
+function `authenticated` can execute, and the monthly sum has no owner filter
+because the ceiling belongs to the deployment. So `p_estimate_usd: 500` wrote
+500 into a budget shared by everybody and refused everyone else for the rest of
+the month — no model call, no real money, and a free account could do it,
+because the Pro gate is applied in the application rather than in the function.
+
+`0020` had closed the settlement end of exactly this threat; this closes the
+reservation end, which was the cheaper attack. The three numbers move into
+`public.ai_image_limits`, RLS on with no policies, read inside the locked
+statement that checks them.
+
+The RLS harness caught two things review would not have: Supabase's default
+privileges re-granted `anon` EXECUTE on the recreated function, and an existing
+probe asserting `count(*) = 0` was passing only because Bob owned no rows.
+
 ### Verification
 
-- `npm run verify` green with no warnings: 1009 unit/component tests across 73
-  files.
-- Playwright: 37 smoke, 35 lifecycle, 5 shader.
-- `npm run test:rls` green including the reservation race.
+- `npm run verify` green with no warnings: **1021 unit/component tests across 74
+  files**.
+- Playwright: 37 smoke, 41 lifecycle, 5 shader.
+- `migrations:check` against a database with every migration applied: all 36
+  required objects present, including `public.ai_image_limits` and the new
+  two-argument signature.
+- `npm run test:rls` green including the reservation race and all 13 `image_*`
+  probes.
 - Production re-verified independently: the supersession rule is present in the
   deployed function, `captivate_settle_image_generation` is the five-argument
   form, no spend function is anon-reachable, no owner-scoped table is missing
@@ -141,11 +216,17 @@ the photo dress pass are live.
    recordings, storage objects and the Stripe subscription; doing it badly
    leaves orphaned files and a live subscription, which is why it was recorded
    rather than rushed into a release pass.
-2. **A hosted authenticated journey.** Signed-in _components_ are covered now;
-   a signed-in _session_ against Preview is not. Sign-up requires email
-   confirmation, so a synthetic user cannot be created with the anon key alone —
-   it needs a dedicated test identity or a service-role key scoped to a test
-   project.
+2. **A hosted authenticated journey — and it does not need the owner.**
+   Signed-in _components_ are covered; a signed-in _session_ is not. Both routes
+   out of this environment are closed, and that was established rather than
+   assumed: production `mailer_autoconfirm` is `false`, so a synthetic sign-up
+   needs a mailbox nothing here can read, and there is no Docker daemon in the
+   agent container for a local Supabase stack. Neither is an owner decision. The
+   route that needs no credentials at all is a CI job that runs the Supabase
+   stack locally in GitHub Actions — where Docker does exist — seeds a confirmed
+   synthetic user, and runs the `authenticated` Playwright project against it.
+   That is engineering work, not an owner action, and it is the right way to
+   close BETA-001.
 3. **`codex/economical-ci-20260831`** carries five unmerged commits that select
    CI checks by changed-file risk. Worth a decision: it trades hosted-CI cost
    against coverage, and that is a judgement about how much protection to keep,
