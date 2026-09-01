@@ -211,6 +211,7 @@ supabase db push
 | `0022_plan_budgets.sql`              | The generation ceilings move into `plan_budgets`, and the tier is stored; **not additive — see below**                                                        |
 | `0023_text_generation_cost.sql`      | Every settled text generation records what it cost                                                                                                            |
 | `0024_generation_credits.sql`        | Top-up credits, and a reservation that can spend one; **not additive — see below**                                                                            |
+| `0025_webhook_claim_completion.sql`  | A webhook claim records whether its work finished, so a failed delivery is retried rather than answered as a duplicate                                        |
 
 Every one is additive except `0021`, `0022` and `0024`: new columns carry
 defaults and new tables carry their own policies, so applying them ahead of a

@@ -72,7 +72,15 @@ const ROWS: { label: string; free: string; basic: string; pro: string }[] = [
  * the same defect one surface further out.
  */
 const TOPUP_ROW = {
-  label: `Top up when you run out (${money(TOPUP.cents)} for ${TOPUP.presentations} more presentations)`,
+  // The validity term is part of the price, not a detail.
+  //
+  // A credit expires `TOPUP.validDays` days after it is granted, and saying so
+  // only in the database is selling something on terms the buyer was never
+  // shown. Somebody who reads "ten more presentations" and comes back in six
+  // weeks has been charged for something they no longer have.
+  label:
+    `Top up when you run out (${money(TOPUP.cents)} for ${TOPUP.presentations} more ` +
+    `presentations, usable within ${TOPUP.validDays} days)`,
   free: "—",
   basic: "Yes",
   pro: "Yes",

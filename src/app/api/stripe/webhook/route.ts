@@ -57,19 +57,46 @@ export async function POST(request: Request) {
   // Claiming the event before doing the work is what makes a retry safe, and it
   // is also what makes a *failed* attempt unsafe: Stripe retries, the retry
   // sees the claim, and the mutation that failed never happens again — a
-  // customer charged with no credits. So a handler that fails releases the
-  // claim on its way out. Releasing is best-effort: if it fails too, the retry
-  // is a no-op rather than a double-grant, because every mutation below is
-  // idempotent in its own right.
+  // customer charged with no credits.
+  //
+  // Releasing the claim by deleting it was the first answer and it was not good
+  // enough, because the delete and the mutation talk to the same database: the
+  // outage that failed a credit insert is likely to fail the delete beside it,
+  // and then the retry finds a claim nobody could release and answers duplicate
+  // forever. So the claim records whether it *finished* instead. A collision
+  // with a completed claim is a real duplicate; a collision with an unfinished
+  // one is a previous attempt that died, and is redone. Every mutation below is
+  // idempotent — the grant collides on the Checkout Session id, the
+  // subscription is an upsert keyed by user, the revocation skips rows already
+  // revoked — so doing it twice is safe where doing it never is not.
   const { error: seen } = await admin
     .from("stripe_events")
     .insert({ id: event.id, type: event.type } as never);
+
   if (seen?.code === "23505") {
-    return NextResponse.json({ received: true, duplicate: true });
+    const { data: claim } = await admin
+      .from("stripe_events")
+      .select("completed_at")
+      .eq("id", event.id)
+      .maybeSingle();
+    // Only a finished claim short-circuits. A null here is an attempt that
+    // failed before it could finish, and Stripe is right to be retrying it.
+    if (claim?.completed_at) {
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+  } else if (seen) {
+    // The claim could not be written at all. Nothing has been done and nothing
+    // is recorded, so a retry is the honest outcome.
+    logFailure("stripe.webhook.claim", seen.message);
+    return NextResponse.json({ error: "Could not claim event." }, { status: 500 });
   }
 
-  const release = async () => {
-    await admin.from("stripe_events").delete().eq("id", event.id);
+  // Marks the work done, which is what makes the *next* delivery a duplicate.
+  const complete = async () => {
+    await admin
+      .from("stripe_events")
+      .update({ completed_at: new Date().toISOString() } as never)
+      .eq("id", event.id);
   };
 
   // Every path that returns early releases the claim itself. This catches the
@@ -108,7 +135,6 @@ export async function POST(request: Request) {
           if (session.payment_status !== "paid") break;
           if (!(await grantTopUp(admin, userId, session, event.id))) {
             logFailure("stripe.webhook.write", `${event.type} top-up could not be granted`);
-            await release();
             return NextResponse.json({ error: "Write failed." }, { status: 500 });
           }
           break;
@@ -139,7 +165,6 @@ export async function POST(request: Request) {
         const subscription = await stripe().subscriptions.retrieve(subscriptionId);
         if (!(await applyPatch(admin, userId, subscription, event.created))) {
           logFailure("stripe.webhook.write", `${event.type} could not be applied`);
-          await release();
           return NextResponse.json({ error: "Write failed." }, { status: 500 });
         }
         break;
@@ -165,7 +190,6 @@ export async function POST(request: Request) {
 
         if (!(await applyPatch(admin, owner.user_id, subscription, event.created))) {
           logFailure("stripe.webhook.write", `${event.type} could not be applied`);
-          await release();
           return NextResponse.json({ error: "Write failed." }, { status: 500 });
         }
         break;
@@ -216,7 +240,6 @@ export async function POST(request: Request) {
 
         if (error) {
           logFailure("stripe.webhook.write", `${event.type} could not revoke credits`);
-          await release();
           return NextResponse.json({ error: "Write failed." }, { status: 500 });
         }
         break;
@@ -229,11 +252,13 @@ export async function POST(request: Request) {
         break;
     }
   } catch (error) {
+    // The claim stays unfinished, so Stripe's retry re-processes rather than
+    // being answered as a duplicate of an event that never happened.
     logFailure("stripe.webhook.threw", error);
-    await release();
     return NextResponse.json({ error: "Handler failed." }, { status: 500 });
   }
 
+  await complete();
   return NextResponse.json({ received: true });
 }
 

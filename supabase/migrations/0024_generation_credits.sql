@@ -285,12 +285,26 @@ begin
   -- strands half of it: ten credits bought five presentations and then refused,
   -- with five still showing. What an author is entitled to is their allowance
   -- plus everything they paid for.
-  select coalesce(sum(c.presentations_granted), 0)::integer
+  -- Counted from the credit-backed presentations that were *admitted*, not from
+  -- the purchases that are still live.
+  --
+  -- These pools are not spent from; they are raised so that a presentation the
+  -- author already paid for can be finished. Keying that on the purchase's
+  -- liveness breaks it at the boundary: a deck admitted on a credit an hour
+  -- before expiry outlives the credit by minutes, and its drawings are then
+  -- refused with the deck already made and the money already gone. Keying it on
+  -- the decks themselves means the headroom arrives exactly when there is a
+  -- presentation that needs it and lasts exactly as long as that presentation
+  -- is inside the rolling window it is counted in.
+  select count(*)::integer
     into v_credits
-    from public.generation_credits c
-   where c.user_id = v_user
-     and c.revoked_at is null
-     and c.expires_at > now();
+    from public.ai_generations g
+   where g.owner_id = v_user
+     and g.credit_id is not null
+     and g.kind = any(public.captivate_budget_kinds('deck'))
+     and g.created_at >= now() - make_interval(mins => v_allowance_minutes)
+     and (g.status <> 'pending' or g.created_at >= now() - interval '15 minutes')
+     and not (g.status = 'failed' and coalesce(g.output_tokens, 0) = 0);
 
   -- One credit is worth one presentation, which is worth this much of *this*
   -- pool. So ten credits raise the deck ceiling by ten and the drawing ceiling

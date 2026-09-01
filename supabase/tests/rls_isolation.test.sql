@@ -1455,6 +1455,54 @@ select 'credit_forgery_frees_nothing' as check,
    and balance = 0)::int as n
   from launder_result;
 
+-- ---- A bought presentation can still be finished after its credit expires ----
+-- The guarantee is that one credit covers a whole presentation: the map, the
+-- scenes, the drawings. Keying the auxiliary headroom on the *purchase* being
+-- live broke that at the boundary — a deck admitted an hour before expiry
+-- outlives its credit by minutes, and the drawings it needs were then refused
+-- with the deck already made and the money already gone. The headroom follows
+-- the admitted presentation instead.
+do $$
+declare
+  v_deck uuid;
+  v_drawing uuid;
+begin
+  set local role postgres;
+  update public.generation_credits set revoked_at = now(), revoked_reason = 'test setup'
+   where user_id = '44444444-4444-4444-4444-444444444444' and revoked_at is null;
+
+  insert into public.generation_credits
+    (user_id, presentations_granted,
+     stripe_checkout_session_id, stripe_event_id, expires_at)
+  values ('44444444-4444-4444-4444-444444444444', 1,
+          'cs_test_boundary', 'evt_test_boundary', now() + interval '30 days');
+
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub',
+                     '44444444-4444-4444-4444-444444444444', true);
+  select id into v_deck from public.captivate_reserve_generation('scenes', 'deck', 'bought', null);
+  perform public.captivate_complete_generation(v_deck, 'succeeded', 'claude-sonnet-5', 10, 20, null);
+
+  -- The purchase runs out a moment after the deck was made.
+  set local role postgres;
+  update public.generation_credits set expires_at = now() - interval '1 minute'
+   where stripe_checkout_session_id = 'cs_test_boundary';
+
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub',
+                     '44444444-4444-4444-4444-444444444444', true);
+  select id into v_drawing
+    from public.captivate_reserve_generation('drawing', 'drawing', 'illustrating it', null);
+
+  create temporary table boundary_result as
+    select v_deck is not null as deck_was_bought,
+           v_drawing is not null as it_can_still_be_illustrated;
+end $$;
+reset role;
+
+select 'credit_backed_deck_keeps_its_headroom_past_expiry' as check,
+  (deck_was_bought and it_can_still_be_illustrated)::int as n from boundary_result;
+
 -- ---- The plan's own allowance still renews while credits are spent ------------
 -- A credit-backed presentation is not drawn from the plan, so it must not be
 -- counted against the plan. Counting every deck together meant an author who

@@ -294,3 +294,51 @@ describe("how many drawings a deck of a given length gets", () => {
     expect(drawingCap(fiftyMinutes, true)).toBe(10);
   });
 });
+
+describe("the box a drawing is measured into", () => {
+  const made = (d: string) => ({
+    viewBox: { width: 400, height: 300 },
+    paths: [{ d, stage: 0 }],
+    stageLabels: [],
+    alt: "",
+  });
+
+  it("finds the endpoint of an arc, whose flags are not coordinates", () => {
+    // The case the first version got wrong, and the reason it was wrong: an
+    // arc takes seven numbers and only the last two are a point. Read
+    // pairwise, `A 20 20 0 0 1 900 700` pairs a flag with the endpoint and
+    // concludes the picture is twenty units wide — so the box stayed at 400
+    // and the renderer clipped ink that really was at 900.
+    const safe = normaliseDrawing(made("M 10 10 A 20 20 0 0 1 900 700"));
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(700);
+  });
+
+  it("follows a horizontal line, which takes one ordinate and not two", () => {
+    const safe = normaliseDrawing(made("M 10 10 H 950"));
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(950);
+  });
+
+  it("follows a vertical line the same way", () => {
+    const safe = normaliseDrawing(made("M 10 10 V 800"));
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(800);
+  });
+
+  it("resolves relative commands against the point they start from", () => {
+    // `m 500 400 l 400 300` ends at (900, 700). Treated as absolute it ends at
+    // (400, 300) and fits the declared box, so the ink escapes unnoticed.
+    const safe = normaliseDrawing(made("m 500 400 l 400 300"));
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
+    expect(safe.viewBox.height).toBeGreaterThanOrEqual(700);
+  });
+
+  it("counts a curve's control points, which bound it", () => {
+    const safe = normaliseDrawing(made("M 0 0 C 880 660 890 670 900 700"));
+    expect(safe.viewBox.width).toBeGreaterThanOrEqual(900);
+  });
+
+  it("still leaves a drawing that fits exactly as it is", () => {
+    const original = made("M 10 10 L 390 290 H 380 V 280 Z");
+    expect(normaliseDrawing(original).viewBox).toEqual({ width: 400, height: 300 });
+  });
+});

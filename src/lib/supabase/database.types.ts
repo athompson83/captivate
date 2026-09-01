@@ -245,6 +245,8 @@ export type StripeEventRow = {
   id: string;
   type: string;
   received_at: string;
+  /** When the handler finished. Null is a claim whose work a retry may redo. */
+  completed_at: string | null;
 };
 
 export type Database = {

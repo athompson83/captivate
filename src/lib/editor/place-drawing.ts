@@ -21,20 +21,40 @@ export { settleCover } from "./layouts";
  */
 export const MAX_DRAWING_STAGES = 4;
 
-/** Every number in a path's data. A coordinate is always one of these. */
-const NUMBER = /-?\d*\.?\d+(?:[eE][-+]?\d+)?/g;
+/** How many numbers each path command takes, per repetition. */
+const ARITY: Record<string, number> = {
+  m: 2,
+  l: 2,
+  t: 2, // x y
+  h: 1,
+  v: 1, // a single ordinate
+  c: 6, // x1 y1 x2 y2 x y
+  s: 4,
+  q: 4, // x1 y1 x y
+  a: 7, // rx ry rotation large-arc sweep x y
+  z: 0,
+};
+
+/** A command letter, or a number. Path data is nothing else. */
+const TOKEN = /([MmLlHhVvCcSsQqTtAaZz])|(-?\d*\.?\d+(?:[eE][-+]?\d+)?)/g;
 
 /**
  * The box that actually contains the ink.
  *
- * Approximate, and deliberately so in the safe direction: it takes *every*
- * number in the path data, which for a curve includes its control points. A
- * Bézier is contained by the hull of its control points, so the result is a
- * superset of the true bounds — it can be slightly too generous, never too
- * tight, and too tight is the one that would shave a stroke off.
+ * Path data is not a flat stream of x,y pairs, which is what the first version
+ * of this assumed. `H` and `V` take a single ordinate; an arc takes seven
+ * numbers of which only the last two are a point, the rest being radii, a
+ * rotation and two flags. Reading them pairwise does not merely lose precision
+ * — for `M 10 10 A 20 20 0 0 1 900 700` it pairs the flags with the endpoint,
+ * decides the drawing is twenty units wide, and the box is left too small for
+ * ink that is genuinely at 900. The comment claiming this was "a superset,
+ * never too tight" was wrong in exactly the case that matters.
  *
- * Arc flags are counted as coordinates too, which is the same harmless kind of
- * wrong: they are 0 or 1, well inside any real drawing's extent.
+ * So the commands are parsed. Relative forms are resolved against the current
+ * point, which is the only way `h`/`v`/`m` mean anything at all. Curve control
+ * points are included: a Bézier is contained by the hull of its controls, so
+ * counting them is generous in the safe direction, and generous is the side to
+ * be wrong on when the alternative is clipping somebody's picture.
  */
 function inkBounds(paths: readonly { d: string }[]): {
   minX: number;
@@ -46,26 +66,79 @@ function inkBounds(paths: readonly { d: string }[]): {
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  let sawPair = false;
+  let saw = false;
+
+  const see = (x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    saw = true;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  };
 
   for (const path of paths) {
-    const numbers = path.d.match(NUMBER);
-    if (!numbers) continue;
-    // Pairwise, because path data is a stream of x,y coordinates. An odd
-    // trailing number (H and V take one) is skipped rather than guessed at.
-    for (let i = 0; i + 1 < numbers.length; i += 2) {
-      const x = Number(numbers[i]);
-      const y = Number(numbers[i + 1]);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-      sawPair = true;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
+    let cursorX = 0;
+    let cursorY = 0;
+    // Where the subpath began, which is where `Z` returns to.
+    let startX = 0;
+    let startY = 0;
+    let command = "";
+    let args: number[] = [];
+
+    const flush = () => {
+      if (!command) return;
+      const lower = command.toLowerCase();
+      const arity = ARITY[lower] ?? 2;
+      const relative = command !== command.toUpperCase();
+
+      if (lower === "z") {
+        cursorX = startX;
+        cursorY = startY;
+        args = [];
+        return;
+      }
+      // An incomplete trailing group is skipped rather than guessed at.
+      for (let i = 0; i + arity <= args.length; i += arity) {
+        const group = args.slice(i, i + arity);
+        if (lower === "h") {
+          cursorX = relative ? cursorX + group[0] : group[0];
+        } else if (lower === "v") {
+          cursorY = relative ? cursorY + group[0] : group[0];
+        } else {
+          // Everything else ends at its last pair; the pairs before it are
+          // control points, which bound the curve and so are worth seeing.
+          for (let j = lower === "a" ? 5 : 0; j + 1 < group.length; j += 2) {
+            const px = relative ? cursorX + group[j] : group[j];
+            const py = relative ? cursorY + group[j + 1] : group[j + 1];
+            see(px, py);
+          }
+          const endX = relative ? cursorX + group[arity - 2] : group[arity - 2];
+          const endY = relative ? cursorY + group[arity - 1] : group[arity - 1];
+          cursorX = endX;
+          cursorY = endY;
+          if (lower === "m" && i === 0) {
+            startX = endX;
+            startY = endY;
+          }
+        }
+        see(cursorX, cursorY);
+      }
+      args = [];
+    };
+
+    for (const match of path.d.matchAll(TOKEN)) {
+      if (match[1]) {
+        flush();
+        command = match[1];
+      } else {
+        args.push(Number(match[2]));
+      }
     }
+    flush();
   }
 
-  return sawPair ? { minX, minY, maxX, maxY } : null;
+  return saw ? { minX, minY, maxX, maxY } : null;
 }
 
 /**

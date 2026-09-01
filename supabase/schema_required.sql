@@ -91,7 +91,10 @@ insert into required (kind, ident, feature) values
   ('table',    'public.plan_budgets',                                             'every AI call'),
   ('table',    'public.generation_credits',                                       'top-up credits'),
   ('table',    'public.ai_model_rates',                                           'what a generation cost'),
-  ('column',   'public.subscriptions.plan',                                       'which tier a subscription grants');
+  ('column',   'public.subscriptions.plan',                                       'which tier a subscription grants'),
+  -- Without it every webhook collision reads as a finished duplicate, so a
+  -- delivery whose work failed is answered 200 and never retried.
+  ('column',   'public.stripe_events.completed_at',                               'retrying a webhook whose work failed');
 
 with checked as (
   select r.*,

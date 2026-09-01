@@ -46,6 +46,23 @@ alter table public.subscriptions
 comment on column public.subscriptions.plan is
   'The tier this subscription grants, resolved from price_id when the webhook wrote the row. Stored so a rotated or retired price cannot change what somebody already bought.';
 
+-- Every row that predates the column is Pro, because Pro is what it was.
+--
+-- Without this the column is null for every existing subscriber, and
+-- `captivate_current_plan` reads null as Basic — the lowest paid tier, which is
+-- the right guess for an *unrecognised* price and exactly the wrong one here.
+-- Until this migration there was only one thing to buy, and it was Pro. So the
+-- moment it applied, every active subscriber would have been moved to a smaller
+-- allowance than the one they were paying for, silently, until some later
+-- Stripe event happened to rewrite their row.
+--
+-- Deliberately not conditional on `price_id` matching a configured variable:
+-- the environment may already name the new prices, and a subscriber bought
+-- their tier from the product, not from configuration.
+update public.subscriptions
+   set plan = 'pro'
+ where plan is null;
+
 -- ---------------------------------------------------------------------------
 -- What each plan allows, in the database that enforces it.
 --

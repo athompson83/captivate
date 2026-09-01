@@ -238,14 +238,22 @@ export function BillingSection({
             </p>
           </div>
           {topUpAvailable && paid && (
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={pending}
-              onClick={() => go(startTopUp, "Couldn't start checkout")}
-            >
-              Buy {TOPUP.presentations} more for {money(TOPUP.cents)}
-            </Button>
+            <div className="shrink-0 text-right">
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={pending}
+                onClick={() => go(startTopUp, "Couldn't start checkout")}
+              >
+                Buy {TOPUP.presentations} more for {money(TOPUP.cents)}
+              </Button>
+              {/*
+                Beside the button, not after the purchase. A credit expires, and
+                a term somebody only discovers once their balance has gone is a
+                term they were never offered.
+              */}
+              <p className="text-ink-3 mt-1 text-[11.5px]">Usable within {TOPUP.validDays} days</p>
+            </div>
           )}
         </div>
       )}
