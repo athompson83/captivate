@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   BUDGET_GROUPS,
@@ -23,14 +24,37 @@ import {
  * and is the slower, fuller check.
  */
 
-const MIGRATION = "supabase/migrations/0022_plan_budgets.sql";
-const CREDITS = "supabase/migrations/0024_generation_credits.sql";
+const DIR = "supabase/migrations";
+
+/**
+ * The last migration that says something, because that is the one in force.
+ *
+ * These assertions used to name a file — `0022` for the group kinds, `0024`
+ * for the per-presentation prices — and that was correct only until something
+ * redefined them. `0026` did, to pin a search_path, and a test pinned to the
+ * older file would have gone on checking a definition the database no longer
+ * has: green while the live function drifted, which is precisely the failure
+ * this file exists to prevent.
+ *
+ * Migrations are applied in filename order and the last definition wins, so
+ * that is the rule here too.
+ */
+function lastDefining(marker: string): string {
+  const files = readdirSync(DIR)
+    .filter((name) => name.endsWith(".sql"))
+    .sort();
+  const found = files.filter((name) => readFileSync(join(DIR, name), "utf8").includes(marker));
+  expect(
+    found.length,
+    `no migration contains '${marker}' — it moved or was renamed`,
+  ).toBeGreaterThan(0);
+  return readFileSync(join(DIR, found[found.length - 1]), "utf8");
+}
 
 /** The `insert ... values` rows that seed `plan_budgets`. */
 function seededBudgets(): Map<string, { allowance: number[]; burst: number[] }> {
-  const sql = readFileSync(MIGRATION, "utf8");
+  const sql = lastDefining("insert into public.plan_budgets");
   const start = sql.indexOf("insert into public.plan_budgets");
-  expect(start, "the seed insert moved or was renamed").toBeGreaterThan(-1);
   const block = sql.slice(start, sql.indexOf("on conflict", start));
 
   const rows = new Map<string, { allowance: number[]; burst: number[] }>();
@@ -76,7 +100,7 @@ describe("the database and the product agree on every ceiling", () => {
     // `captivate_budget_kinds` maps a group to the ledger kinds it counts. A
     // group the product has and the function does not is a reservation that
     // always answers 'misconfigured' — an outage for that whole feature.
-    const sql = readFileSync(MIGRATION, "utf8");
+    const sql = lastDefining("function public.captivate_budget_kinds");
     const start = sql.indexOf("function public.captivate_budget_kinds");
     const block = sql.slice(start, sql.indexOf("$$;", start));
     for (const group of BUDGET_GROUPS) {
@@ -92,9 +116,8 @@ describe("the database and the product agree on every ceiling", () => {
     // The reservation coalesces that to zero now, so the worst case is a credit
     // buying no headroom in that pool rather than an unbounded ceiling — but
     // the honest fix is for the two lists to agree, which is what this asserts.
-    const sql = readFileSync(CREDITS, "utf8");
+    const sql = lastDefining("function public.captivate_per_presentation");
     const start = sql.indexOf("function public.captivate_per_presentation");
-    expect(start, "captivate_per_presentation moved or was renamed").toBeGreaterThan(-1);
     const block = sql.slice(start, sql.indexOf("$$;", start));
 
     for (const group of BUDGET_GROUPS) {
