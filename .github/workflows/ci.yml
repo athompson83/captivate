@@ -22,10 +22,15 @@ on:
 # after it, so the token has no reason to remain in .git/config where a later
 # step — or a dependency's install script — could read it.
 #
-# The two actions are pinned by commit rather than by `@v4`, which is a moving
-# branch: whoever controls it controls what runs here, with `npm ci` and a
-# database on the same machine. The trailing comment is the human-readable
-# version, and is the thing to bump when updating.
+# The two actions are pinned by commit rather than by a major-version tag,
+# which is a branch that moves: whoever controls it controls what runs here,
+# beside `npm ci` and a database. The trailing comment is the readable version
+# and the thing to bump.
+#
+# They are on v7, not the v4 this workflow used to float on. v4 runs on node20,
+# which the runner is retiring; a pin freezes whatever it names, so pinning the
+# old major would have turned a tag that at least drifted forward into a fixed
+# point on a runtime with an end date.
 permissions:
   contents: read
 
@@ -39,10 +44,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -74,10 +79,10 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: postgres
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -103,10 +108,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -128,10 +133,10 @@ jobs:
     # helper; the route then answers 500 for every visitor. Nothing else in
     # this workflow can see that, because nothing else runs the server.
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
