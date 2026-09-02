@@ -175,6 +175,12 @@ export type AiGenerationRow = {
   cost_usd: number;
   /** How long the provider took. Not tokens — an image response has none. */
   duration_ms: number | null;
+  /**
+   * Which gateway served the call, written at settlement. The model id alone
+   * cannot say: `CAPTIVATE_IMAGE_MODEL` overrides the default independently
+   * of the provider, so the same string can mean either balance.
+   */
+  provider: "anthropic" | "openai" | "openrouter" | null;
 };
 
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
@@ -347,6 +353,7 @@ export type Database = {
           p_input_tokens: number | null;
           p_output_tokens: number | null;
           p_error: string | null;
+          p_provider: string | null;
         };
         Returns: boolean;
       };
@@ -364,6 +371,7 @@ export type Database = {
           p_model: string | null;
           p_generation_ms: number | null;
           p_error: string | null;
+          p_provider: string | null;
         };
         Returns: boolean;
       };

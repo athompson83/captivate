@@ -134,10 +134,33 @@ describe("AI call reservation", () => {
       p_id: TICKET,
       p_status: "succeeded",
       p_model: "test",
+      p_provider: null,
       p_input_tokens: 12,
       p_output_tokens: 34,
       p_error: null,
     });
+  });
+
+  it("records which gateway was paid alongside the model", async () => {
+    // The model id alone cannot say: `CAPTIVATE_AI_MODEL` overrides the
+    // default independently of the provider, so `claude-sonnet-5` is
+    // consistent with Anthropic direct and with OpenRouter under an override.
+    const rpc = mockRpc(() => true);
+    const { complete } = await import("@/lib/ai/rate-limit");
+
+    await complete(
+      { id: TICKET },
+      {
+        status: "succeeded",
+        model: "test",
+        provider: "openrouter",
+        usage: { input: 1, output: 2 },
+      },
+    );
+    expect(rpc).toHaveBeenCalledWith(
+      "captivate_complete_generation",
+      expect.objectContaining({ p_provider: "openrouter" }),
+    );
   });
 
   it("swallows a failure to record, because the ticket already counts", async () => {

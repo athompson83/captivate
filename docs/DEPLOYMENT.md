@@ -250,6 +250,9 @@ supabase db push
 | `0023_text_generation_cost.sql`      | Every settled text generation records what it cost                                                                                                            |
 | `0024_generation_credits.sql`        | Top-up credits, and a reservation that can spend one; **not additive — see below**                                                                            |
 | `0025_webhook_claim_completion.sql`  | A webhook claim records whether its work finished, so a failed delivery is retried rather than answered as a duplicate                                        |
+| `0026_pin_helper_search_path.sql`    | `search_path` pinned on the helpers that had shipped without it                                                                                               |
+| `0027_openrouter_model_rates.sql`    | Prices for the models reachable through OpenRouter                                                                                                            |
+| `0028_generation_provider.sql`       | `ai_generations.provider`: every settlement names the gateway that was paid, because the model id alone cannot                                                |
 
 Every one is additive except `0021`, `0022` and `0024`: new columns carry
 defaults and new tables carry their own policies, so applying them ahead of a

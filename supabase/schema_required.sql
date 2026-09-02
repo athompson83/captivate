@@ -65,6 +65,7 @@ insert into required (kind, ident, feature) values
   ('column',   'public.assets.model',                  'generated-image provenance'),
   ('column',   'public.ai_generations.cost_usd',       'the image budget ceiling'),
   ('column',   'public.ai_generations.duration_ms',    'provider latency review'),
+  ('column',   'public.ai_generations.provider',       'which gateway a ledger row was paid to'),
 
   -- Functions, with their argument lists: a signature change is as breaking
   -- as an absence, and PostgREST resolves `rpc/<name>` by signature.
@@ -84,9 +85,9 @@ insert into required (kind, ident, feature) values
   ('function', 'public.captivate_per_presentation(text)',                         'top-up credits'),
   ('function', 'public.captivate_credit_spent(uuid)',                             'top-up credits'),
   ('function', 'public.captivate_credit_balance()',                               'the credit balance in settings'),
-  ('function', 'public.captivate_complete_generation(uuid,text,text,integer,integer,text)',  'AI spend accounting'),
+  ('function', 'public.captivate_complete_generation(uuid,text,text,integer,integer,text,text)', 'AI spend accounting'),
   ('function', 'public.captivate_reserve_image_generation(text,uuid)', 'image generation'),
-  ('function', 'public.captivate_settle_image_generation(uuid,text,text,integer,text)', 'the image budget'),
+  ('function', 'public.captivate_settle_image_generation(uuid,text,text,integer,text,text)', 'the image budget'),
   ('function', 'public.captivate_remote_topic_open(text)',                         'the phone remote'),
   ('table',    'public.plan_budgets',                                             'every AI call'),
   ('table',    'public.generation_credits',                                       'top-up credits'),

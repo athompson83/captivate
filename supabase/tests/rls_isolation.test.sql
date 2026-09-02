@@ -379,12 +379,26 @@ select 'reserve_own_deck_attributed' as check,
   (presentation_id = 'aaaaaaaa-0000-0000-0000-000000000001')::int as n
   from public.ai_generations where id = :'own_id';
 
--- Completing moves pending to terminal, once.
+-- A gateway this schema does not know is refused outright, and the row is
+-- left pending for the retry rather than written half-true (0028).
+select 'complete_refuses_unknown_gateway' as check,
+  (not public.captivate_complete_generation(
+     (select id from public.ai_generations
+       where kind = 'scenes' and prompt = 'first'),
+     'succeeded', 'test-model', 10, 20, null, 'not-a-gateway'))::int as n;
+select 'complete_unknown_gateway_left_pending' as check,
+  (status = 'pending' and provider is null)::int as n
+  from public.ai_generations where kind = 'scenes' and prompt = 'first';
+
+-- Completing moves pending to terminal, once — and names who was paid.
 select 'complete_own_pending' as check,
   (public.captivate_complete_generation(
      (select id from public.ai_generations
        where kind = 'scenes' and prompt = 'first'),
-     'succeeded', 'test-model', 10, 20, null))::int as n;
+     'succeeded', 'test-model', 10, 20, null, 'anthropic'))::int as n;
+select 'complete_records_gateway' as check,
+  (provider = 'anthropic')::int as n
+  from public.ai_generations where kind = 'scenes' and prompt = 'first';
 select 'complete_is_not_replayable' as check,
   (not public.captivate_complete_generation(
      (select id from public.ai_generations
@@ -590,10 +604,23 @@ update public.ai_image_limits set daily_max = 25;
 set role authenticated;
 set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 
--- Settling records how the call went, once — and does not restate the price.
+-- A gateway this schema does not know is refused, and the ticket stays
+-- pending for the retry (0028).
+select 'image_settle_refuses_unknown_gateway' as check,
+  (not public.captivate_settle_image_generation(
+     :'first_id'::uuid, 'succeeded', 'test-image-model', 4200, null, 'not-a-gateway'))::int as n;
+select 'image_settle_unknown_gateway_left_pending' as check,
+  (select (status = 'pending' and provider is null)::int
+     from public.ai_generations where id = :'first_id'::uuid) as n;
+
+-- Settling records how the call went, once — names who was paid — and does
+-- not restate the price.
 select 'image_settle_own_pending' as check,
   (public.captivate_settle_image_generation(
-     :'first_id'::uuid, 'succeeded', 'test-image-model', 4200, null))::int as n;
+     :'first_id'::uuid, 'succeeded', 'test-image-model', 4200, null, 'openai'))::int as n;
+select 'image_settle_records_gateway' as check,
+  (select (provider = 'openai')::int
+     from public.ai_generations where id = :'first_id'::uuid) as n;
 select 'image_settle_is_not_replayable' as check,
   (not public.captivate_settle_image_generation(
      :'first_id'::uuid, 'succeeded', 'test-image-model', 1, null))::int as n;

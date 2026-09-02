@@ -219,6 +219,10 @@ describe("generateImage", () => {
     const settled = rpc.mock.calls.find(([name]) => name === "captivate_settle_image_generation");
     expect(settled, "a spent ticket must be reconciled").toBeTruthy();
     expect(settled?.[1].p_status).toBe("succeeded");
+    // The row names who was paid, not only what was asked for: the first
+    // production generation settled as `gpt-image-2` and could not say
+    // whether that was OpenAI or OpenRouter under a model override.
+    expect(settled?.[1].p_provider).toBe("openai");
   });
 
   it("still charges for a failed provider call", async () => {

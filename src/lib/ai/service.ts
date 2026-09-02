@@ -16,7 +16,13 @@ import {
 import { fillWithGeneratedImage, fillWithStockPhoto, isPhotoFillConfigured } from "./photo-fill";
 import { isStockSearchConfigured } from "./visual-sourcing";
 import type { SceneContent } from "@/lib/schema/presentation";
-import { BASE_SYSTEM, generateStructured, isAiConfigured, type StructuredResult } from "./provider";
+import {
+  AI_PROVIDER,
+  BASE_SYSTEM,
+  generateStructured,
+  isAiConfigured,
+  type StructuredResult,
+} from "./provider";
 import {
   GeneratedScene,
   GeneratedScenes,
@@ -876,11 +882,20 @@ ${scene.text}`,
 }
 
 function toRecord<T>(result: StructuredResult<T>) {
+  // The gateway is recorded with the model because the model id alone cannot
+  // name it: `CAPTIVATE_AI_MODEL` overrides the default independently of the
+  // provider, so an unprefixed id is consistent with either balance.
   return result.ok
-    ? { status: "succeeded" as const, model: result.model, usage: result.usage }
+    ? {
+        status: "succeeded" as const,
+        model: result.model,
+        provider: AI_PROVIDER,
+        usage: result.usage,
+      }
     : {
         status:
           result.reason === "invalid_output" ? ("invalid_output" as const) : ("failed" as const),
+        provider: AI_PROVIDER,
         error: result.error,
         // A near-miss and a truncated answer bill two full model calls. The
         // ledger recorded nothing for them, which made real spend invisible in

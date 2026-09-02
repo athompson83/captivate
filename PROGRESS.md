@@ -542,9 +542,27 @@ and the job now fails if the image and `supabase/config.toml` disagree.
   pricing page was backed by no completed generation at all, and the failure
   was honest everywhere an author looked — the picker hid the tab, the service
   said so — which is exactly why it could have stayed absent unnoticed.
+- **A ledger row now names the gateway that was paid.** The row above could
+  say `gpt-image-2` and nothing about who served it, because settlement kept
+  the model string alone and a `CAPTIVATE_IMAGE_MODEL` override records the
+  same string through either gateway. `0028` adds `ai_generations.provider`,
+  constrained to the three gateways the application can be built against,
+  and both settlement functions take it as a defaulted final argument — so
+  the build running when the migration was applied kept settling, with the
+  gateway unrecorded, until it was rebuilt. Text settlement passes the
+  resolved `AI_PROVIDER`, image settlement `IMAGE_PROVIDER`; an unknown value
+  is refused and leaves the row pending for the retry rather than written
+  half-true. Nothing is backfilled: a row settled before the column existed
+  has no honest answer, and stamping the current environment onto it would be
+  the cross-reference the column exists to end. Applied to production on
+  2026-09-02 ahead of the deploy and read back — new signatures present, old
+  ones gone, `authenticated` may execute and `anon` may not.
 
 ### Still open
 
-1. **The four price ids need setting in Vercel.** There is no tool in this
-   session that writes Vercel environment variables, and the Vercel MCP account
+1. **Two price ids are set and not yet read back.** `STRIPE_PRICE_TOPUP` is
+   confirmed live by the top-up row on the production `/pricing` page.
+   `STRIPE_PRICE_BASIC_MONTHLY` and `STRIPE_PRICE_PRO_MONTHLY` were set in
+   Vercel by the owner and only show on a signed-in `/settings` or at
+   checkout, neither of which this session can reach — and the Vercel account
    available here does not have the Captivate project in scope.

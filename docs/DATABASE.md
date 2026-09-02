@@ -80,8 +80,14 @@ WebVTT is derived from it on demand rather than stored.
 
 ### `ai_generations`
 
-An audit row per model call: kind, prompt, status, model, token counts and any
-error. It is what makes cost visible, and it is also the rate limiter's counter.
+An audit row per model call: kind, prompt, status, model, the gateway that
+served it, token counts and any error. It is what makes cost visible, and it is
+also the rate limiter's counter. `provider` is written at settlement rather
+than inferred from the model id, because an overridden model records the same
+id through either gateway — the first production image row said `gpt-image-2`
+and nothing about who was paid. Rows settled before `0028` keep a null there;
+nothing is backfilled from the current environment, which is exactly the
+cross-reference the column exists to end.
 
 ### `ai_image_limits`
 

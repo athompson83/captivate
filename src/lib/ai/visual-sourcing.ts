@@ -507,6 +507,11 @@ async function settle(
       // JWT, so a figure it accepted was a figure a caller could choose.
       p_status: status,
       p_model: IMAGE_MODEL,
+      // Named alongside the model because the model cannot name it: an
+      // overridden `CAPTIVATE_IMAGE_MODEL` records the same string through
+      // either gateway, which is how the first production row came to say
+      // `gpt-image-2` and nothing about who was paid.
+      p_provider: IMAGE_PROVIDER,
       p_generation_ms: Date.now() - startedAt,
       p_error: error,
     });
