@@ -67,10 +67,12 @@ test.describe("authoring and presenting", () => {
     await expect(
       page.getByRole("heading", { name: /Good (morning|afternoon|evening)|Still up/ }),
     ).toBeVisible();
-    // The dashboard offers this twice, as a card and as a button, so a loose
-    // name matches both and Playwright refuses the ambiguity. Assert the
-    // button: it is the one present on every width.
-    await expect(page.getByRole("link", { name: "Create with AI", exact: true })).toBeVisible();
+    // Two things on this page say "Create with AI": a card that is always
+    // there, and a button inside the empty state that is not. A loose name
+    // matches both while the account is empty and Playwright refuses the
+    // ambiguity; the button alone vanishes the moment any earlier test creates
+    // a deck. The card's heading is the one thing true in both states.
+    await expect(page.getByRole("heading", { name: "Create with AI", exact: true })).toBeVisible();
   });
 
   test("creates a presentation from a template", async ({ page }) => {
