@@ -20,9 +20,10 @@ max_rows = 1000
 
 [db]
 port = 54322
-# Match production. A migration that works on 17 and not on the version
-# production runs is a test that lies.
-major_version = 16
+# Production runs 17.6, read off the database rather than assumed — an earlier
+# revision of this file guessed 16 and said it matched. A migration that works
+# on one major and not on the one production runs is a test that lies.
+major_version = 17
 
 [storage]
 enabled = true
