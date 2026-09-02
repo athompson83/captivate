@@ -61,7 +61,11 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:16
+        # The major production runs (17.6, read from `server_version`), and the
+        # one `supabase/config.toml` sets for a local stack. A policy exercised
+        # against a different major from the one it will be enforced on is a
+        # policy nobody has tested; the step below fails if these drift apart.
+        image: postgres:17
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -88,6 +92,19 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: The running major is the one this repository declares
+        run: |
+          declared=$(sed -n 's/^major_version *= *\([0-9]\+\).*/\1/p' supabase/config.toml)
+          running=$(psql -h localhost -U postgres -tAc 'SHOW server_version_num')
+          if [ -z "$declared" ]; then
+            echo "supabase/config.toml declares no major_version" >&2
+            exit 1
+          fi
+          if [ "$((running / 10000))" != "$declared" ]; then
+            echo "config.toml declares Postgres $declared; this job is running $((running / 10000))" >&2
+            exit 1
+          fi
+          echo "Postgres major $declared, as declared."
       - run: npm run test:rls
       # The assertions in supabase/schema_required.sql are what a deploy runs
       # against the real database. Running them here, against a scratch
@@ -145,3 +162,93 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run build
       - run: npx playwright test --project=smoke
+
+  authenticated:
+    name: "Playwright (local Supabase: the signed-in journeys)"
+    runs-on: ubuntu-latest
+    # Longer than the others on purpose: this one pulls and starts the whole
+    # Supabase stack before it can build anything.
+    timeout-minutes: 30
+    # The twenty-eight journeys in journey.spec.ts — authoring, presenting, the
+    # camera, the narrative map — skip themselves without an account, so until
+    # now they ran nowhere. Production has email confirmation on and a
+    # synthetic hosted sign-up would need a mailbox nobody owns, which is what
+    # made this look like it needed a credential from the owner. It does not:
+    # the runner has Docker, so the stack can be stood up here, seeded, and
+    # thrown away with the job. Nothing touches production.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          # Pinned, not `latest`. The CLI decides how config.toml is read and
+          # what `supabase start` brings up, so a release could change this job
+          # with no commit here — which is exactly how the major_version
+          # rejection arrived. Bump it deliberately.
+          version: 2.116.0
+      # `supabase start` applies supabase/migrations in name order, so this is
+      # also the only place the app is exercised against a database built the
+      # way a real one is.
+      - run: supabase start
+
+      # The local stack mints its own keys. Reading them back beats hardcoding
+      # the well-known demo values, which change between CLI versions and would
+      # fail as a confusing auth error rather than as a missing variable.
+      - name: Export the local stack's credentials
+        # The stack mints its own keys. Reading them back beats hardcoding the
+        # well-known demo values, which differ between CLI versions and would
+        # surface as a confusing auth failure rather than a missing variable.
+        # Masked because they reach the log otherwise; they belong to a
+        # container that dies with the job, but an unmasked key in a public log
+        # teaches the wrong habit.
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          : "${ANON_KEY:?supabase status did not report ANON_KEY}"
+          : "${SERVICE_ROLE_KEY:?supabase status did not report SERVICE_ROLE_KEY}"
+          echo "::add-mask::$ANON_KEY"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          echo "SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+
+      - name: Seed the synthetic account
+        env:
+          SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+          CAPTIVATE_E2E_EMAIL: e2e@captivate.test
+          CAPTIVATE_E2E_PASSWORD: ${{ github.run_id }}-e2e-local
+        run: node scripts/seed-e2e-user.mjs
+
+      - name: Build against the local stack
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3100
+        run: npm run build
+
+      - name: Run the signed-in journeys
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3100
+          CAPTIVATE_E2E_EMAIL: e2e@captivate.test
+          CAPTIVATE_E2E_PASSWORD: ${{ github.run_id }}-e2e-local
+        run: npx playwright test --project=authenticated
+
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: authenticated-playwright-report
+          path: playwright-report/
+          retention-days: 7

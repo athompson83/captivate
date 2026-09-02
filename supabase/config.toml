@@ -1,0 +1,44 @@
+# Local Supabase stack, used by `supabase start`.
+#
+# This exists so the authenticated Playwright project can run somewhere. Those
+# journeys need an account, production has email confirmation on, and a
+# synthetic hosted sign-up would need a mailbox nobody owns — so the suite was
+# skipped everywhere and the twenty-eight real user journeys were never
+# exercised by CI at all.
+#
+# Ports are the CLI defaults. Only what this project actually needs is set
+# here; the CLI fills in the rest, which keeps this file from drifting against
+# the CLI version CI installs.
+project_id = "captivate"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+# Production runs 17.6, read off the database rather than assumed — an earlier
+# revision of this file guessed 16 and said it matched. A migration that works
+# on one major and not on the one production runs is a test that lies.
+major_version = 17
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3100"
+additional_redirect_urls = ["http://127.0.0.1:3100"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+# Local only. There is no mailbox in front of this stack, so a confirmation
+# requirement would make every locally created account unusable. Production
+# confirms email and is unaffected by this file — see docs/DEPLOYMENT.md.
+enable_confirmations = false

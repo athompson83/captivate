@@ -120,12 +120,12 @@ captivate/
 │  └─ models/                      Its weights
 │
 ├─ supabase/
-│  ├─ migrations/                  0001 core … 0021, applied in name order
+│  ├─ migrations/                  0001 core … 0027, applied in name order
 │  └─ tests/                       RLS isolation suite + runner
 │
 ├─ tests/
-│  ├─ unit/                        76 files
-│  ├─ e2e/                         15 specs across four Playwright projects:
+│  ├─ unit/                        88 files
+│  ├─ e2e/                         16 specs across four Playwright projects:
 │  │                               smoke and authenticated need a server,
 │  │                               shader and lifecycle need neither
 │  └─ setup.ts                     jsdom shims
