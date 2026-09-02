@@ -34,11 +34,25 @@ async function signIn(page: Page) {
  *
  * The camera tests need somewhere to fly to, and the blank deck is one scene.
  */
-async function createLectureDeck(page: Page): Promise<string> {
+/** The template the gallery happens to list first; the deck most tests use. */
+const WORKED_EXAMPLE = "Hold the room";
+
+/**
+ * Creates a deck from a *named* template and returns its editor URL.
+ *
+ * By name rather than by position. The gallery renders the registry in
+ * declaration order, so taking the first card meant every test that said
+ * "lecture" was in fact driving the worked example — and the one test that
+ * depended on which template it was, the movement rail, asserted against
+ * movements that deck does not have.
+ */
+async function createTemplateDeck(page: Page, template: string): Promise<string> {
   await page.goto("/templates");
+  // The whole card is the button, so its accessible name is everything on it;
+  // the template's own name is the one exact string that identifies it.
   await page
-    .getByRole("button", { name: /Use this/i })
-    .first()
+    .getByRole("button")
+    .filter({ has: page.getByText(template, { exact: true }) })
     .click();
   // Choosing a template opens a dialog to name the deck before it is created.
   await page.getByRole("button", { name: /Create presentation/i }).click();
@@ -180,7 +194,7 @@ test.describe("authoring and presenting", () => {
 
   test("flies the camera between scenes rather than cutting", async ({ page }) => {
     await signIn(page);
-    const deck = await createLectureDeck(page);
+    const deck = await createTemplateDeck(page, WORKED_EXAMPLE);
     await page.goto(deck.replace("/edit/", "/present/"));
     // The world layer is a zero-size origin box, so it is attached, not visible.
     await page.waitForSelector("[data-world]", { state: "attached" });
@@ -235,7 +249,7 @@ test.describe("authoring and presenting", () => {
 
   test("pulls the camera back over the whole journey", async ({ page }) => {
     await signIn(page);
-    const deck = await createLectureDeck(page);
+    const deck = await createTemplateDeck(page, WORKED_EXAMPLE);
     await page.goto(deck.replace("/edit/", "/present/"));
     await page.waitForSelector("[data-world]", { state: "attached" });
     await page.waitForSelector("[data-stage]");
@@ -271,7 +285,7 @@ test.describe("authoring and presenting", () => {
 
   test("arranges the world from the journey map", async ({ page }) => {
     await signIn(page);
-    const deck = await createLectureDeck(page);
+    const deck = await createTemplateDeck(page, WORKED_EXAMPLE);
     await page.goto(deck);
     await page.waitForSelector("[data-stage]");
 
@@ -296,12 +310,18 @@ test.describe("authoring and presenting", () => {
 
   test("shows the room which movement it is in", async ({ page }) => {
     await signIn(page);
-    const deck = await createLectureDeck(page);
+    // The lecture, specifically: its opening movement spans two scenes, which
+    // is what makes "says nothing in the middle of a movement" a claim with
+    // anything in it. On a template whose first movement is one scene long,
+    // scene one is already that movement's last and the signpost is correct to
+    // be showing before a key is pressed.
+    const deck = await createTemplateDeck(page, "Lecture");
     await page.goto(deck.replace("/edit/", "/present/"));
     await page.waitForSelector("[data-stage]");
 
-    // The lecture template carries its own shape, so a deck made from it
-    // arrives with movements rather than needing them authored first.
+    // A deck made from a template arrives with movements rather than needing
+    // them authored first, and the rail lists all of them — not only the one
+    // the room is in.
     await expect(page.getByText("OPEN", { exact: true })).toBeVisible();
     await expect(page.getByText("EVIDENCE", { exact: true })).toBeVisible();
 
@@ -316,7 +336,7 @@ test.describe("authoring and presenting", () => {
     // Regression: section edits marked nothing dirty, so autosave never wrote
     // them and the rename was gone on reload.
     await signIn(page);
-    const deck = await createLectureDeck(page);
+    const deck = await createTemplateDeck(page, WORKED_EXAMPLE);
     await page.goto(deck);
     await page.waitForSelector("[data-stage]");
     await page.getByRole("radio", { name: /Journey/i }).click();
@@ -545,7 +565,7 @@ test.describe("the narrative map", () => {
 
   test("a template arrives with a real argument, not an empty page", async ({ page }) => {
     await signIn(page);
-    mapDeck = await createLectureDeck(page);
+    mapDeck = await createTemplateDeck(page, WORKED_EXAMPLE);
     const map = await openMap(page, mapDeck);
 
     // Every moment states what it is for and what the room leaves with. That

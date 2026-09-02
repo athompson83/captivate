@@ -37,9 +37,9 @@ export function TemplateGallery({ templates }: { templates: TemplatePreview[] })
           Templates
         </h1>
         <p className="text-ink-3 mt-1.5 max-w-2xl text-[14px] leading-relaxed">
-          Six structures rather than a hundred variations on a grid. Each one is a narrative shape
-          that works — objectives and a case for teaching, problem and proof for a pitch — with
-          prompts in place of filler text.
+          Narrative structures rather than a hundred variations on a grid. Each one is a shape that
+          works — objectives and a case for teaching, problem and proof for a pitch — with prompts
+          in place of filler text.
         </p>
       </header>
 
