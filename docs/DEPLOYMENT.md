@@ -359,8 +359,16 @@ signs the user straight in.
 ### 2. Redirect URLs
 
 Add your deployment origin to **Authentication → URL Configuration → Redirect
-URLs**, including `https://<your-host>/auth/callback`. Confirmation and recovery
-links fail silently otherwise.
+URLs**, including `https://<your-host>/auth/callback`, and set **Site URL** to
+the origin too. Confirmation and recovery links fail silently otherwise — and
+"silently" means this: GoTrue accepts the `redirect_to` the app sends, checks
+it against the allowlist, and on a miss writes the **Site URL** into the email
+instead. Nothing errors. On 2026-09-02 a sign-up and a recovery requested
+through the production project both arrived with
+`redirect_to=http://localhost:3000`, which is the default Site URL, so every
+real confirmation link was sending people to a machine that is not there. It
+is a dashboard setting with no management token available to the agent, and
+is recorded as an owner action in `PROJECT_CHECKLIST.md`.
 
 Set `NEXT_PUBLIC_SITE_URL` to the same origin so the app builds absolute links
 rather than inferring them from request headers.

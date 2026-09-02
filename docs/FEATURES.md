@@ -82,17 +82,17 @@ restricted to http and https.
 
 ## Media
 
-| Feature                         | Status      | Notes                                                                                                     |
-| ------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------- |
-| Upload images, audio, video     | Implemented | Direct to storage, so no function body limit                                                              |
-| Drag and drop                   | Implemented | Anywhere on the assets page, or into the picker                                                           |
-| MIME and size validation        | Implemented | Client and server, plus a bucket-level allowlist                                                          |
-| Media library and reuse         | Implemented | Filter by type; reuse across presentations                                                                |
-| Alt text                        | Implemented | Prominent, with a count of images still missing it                                                        |
-| Fit, focal point, scrim, radius | Implemented | Drag the focal point directly                                                                             |
-| Replace media                   | Implemented | Upload, library or URL                                                                                    |
-| Cropping beyond focal point     | Partial     | Focal point and fit only; no free crop                                                                    |
-| AI image generation             | Deferred    | Captivate suggests what a picture should show; generating one costs money and never happens automatically |
+| Feature                         | Status      | Notes                                                                                                           |
+| ------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------- |
+| Upload images, audio, video     | Implemented | Direct to storage, so no function body limit                                                                    |
+| Drag and drop                   | Implemented | Anywhere on the assets page, or into the picker                                                                 |
+| MIME and size validation        | Implemented | Client and server, plus a bucket-level allowlist                                                                |
+| Media library and reuse         | Implemented | Filter by type; reuse across presentations                                                                      |
+| Alt text                        | Implemented | Prominent, with a count of images still missing it                                                              |
+| Fit, focal point, scrim, radius | Implemented | Drag the focal point directly                                                                                   |
+| Replace media                   | Implemented | Upload, library or URL                                                                                          |
+| Cropping beyond focal point     | Partial     | Focal point and fit only; no free crop                                                                          |
+| AI image generation             | Implemented | Paid plans only, from the picker's Generate tab; the first real picture came back from production on 2026-09-02 |
 
 ---
 
