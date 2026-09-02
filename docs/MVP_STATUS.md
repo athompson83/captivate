@@ -175,16 +175,17 @@ clean, no suppressions beyond five documented `next/image` exemptions and one
 documented `exhaustive-deps` exemption. Production
 build: succeeds.
 
-**Unit.** 502 tests across 23 files. All pass.
+**Unit.** 1,324 tests across 88 files. All pass.
 
-**End-to-end.** 50 Playwright tests in a real Chromium, across four projects —
-37 against a running application (`smoke` and `authenticated`), and 13 more
-(`shader` and `lifecycle`) that need no server and no account. The 37 were run
-against the live Supabase project during the original verification round; the 13
-are re-run on every change here, most recently green, because they need nothing
-but a browser. Coverage includes zero-console-errors, security headers, keyboard
-focus visibility, narrow-viewport overflow, both colour schemes and reduced
-motion.
+**End-to-end.** 130 Playwright tests in a real Chromium, across four projects —
+65 against a running application (`smoke` 37, `authenticated` 28) and 65 more
+(`shader` 5, `lifecycle` 60) that need no server and no account. All four now
+run in CI on every push: the server-free two against a production build, the
+smoke project against that same build, and the journeys against a local Supabase
+stack started in the job, so the signed-in paths are no longer proved only by
+hand against the live project. Coverage includes zero-console-errors, security
+headers, keyboard focus visibility, narrow-viewport overflow, both colour schemes
+and reduced motion.
 
 **Database.** RLS isolation verified twice: locally with a Postgres stub, and
 against the live project through PostgREST with two real JWTs. A second user

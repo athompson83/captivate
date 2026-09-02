@@ -56,11 +56,11 @@ npx playwright test --project=shader      # compiles the committed GLSL
 npx playwright test --project=lifecycle   # mounts the component in a browser
 ```
 
-**Smoke** (10 tests, no account needed) — public pages render, security headers
+**Smoke** (37 tests, no account needed) — public pages render, security headers
 are present, keyboard focus is visible, there are no console errors, nothing
 overflows at 390px, both colour schemes work, and reduced motion is respected.
 
-**Journeys** (21 tests, needs an account) — sign in, create from a template, add
+**Journeys** (22 tests, needs an account) — sign in, create from a template, add
 an element, autosave, survive a reload, undo and redo, write speaker notes and
 verify they do not appear on the audience surface, present with no editor
 chrome, navigate by keyboard, use the laser/highlight/ink tools and clear them,
@@ -77,10 +77,19 @@ the map existed still opens one.
 **The shader** (5 tests, no server) — compiles the committed GLSL, draws it with
 regions of known colour at known positions, and reads the pixels back.
 
-**The lifecycle** (5 tests, no server) — bundles
-`src/components/stage/atmosphere.tsx` itself and mounts it under StrictMode in a
-browser that really has WebGL, then unmounts and remounts it. See **Atmosphere**
-below for what that is for.
+**The lifecycle** (60 tests in 12 files, no server) — real components, bundled
+from source and mounted in a real browser, for the defects that exist only
+there. It started as one spec (the atmosphere across a StrictMode remount — see
+**Atmosphere** below) and is now where anything testable without a server or an
+account belongs: the editor at every width, inline editing's caret, dialog
+focus, the share-link viewer, the presenter camera on a fake capture device,
+recording quality, deck export, and the camera's flight between two regions.
+
+That last one is worth naming. A flight is transforms written straight to one
+element, outside React, sixty times a second, so no unit test can tell travel
+from a cut; `camera-flight.spec.ts` mounts the world alone at a fixed viewport,
+flies it, and reads back every transform it wrote. The `cut` case is its
+control.
 
 Journeys are **skipped, not failed**, when credentials are absent, so the suite
 never produces misleading red on a machine without an account.
