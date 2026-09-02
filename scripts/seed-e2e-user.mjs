@@ -90,6 +90,12 @@ async function waitForUsableSignIn() {
         method: "POST",
         headers: { apikey: serviceRole, "content-type": "application/json" },
         body: JSON.stringify({ email, password }),
+        // Bounded by whatever is left of the deadline. A container that accepts
+        // the connection and then never sends headers leaves an unbounded fetch
+        // pending forever, and the loop below could not enforce its own timeout
+        // — a readiness check that hangs is worse than one that fails, because
+        // the job sits there until the runner kills it with nothing to read.
+        signal: AbortSignal.timeout(Math.max(1000, deadline - Date.now())),
       });
       const token = await attempt.json().catch(() => null);
 
