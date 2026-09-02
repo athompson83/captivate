@@ -8,7 +8,7 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted runtime
 - Current release target: First public production release
 - Detailed roadmap and evidence: [`docs/MVP_STATUS.md`](docs/MVP_STATUS.md), [`docs/FEATURES.md`](docs/FEATURES.md)
-- Last updated: 2026-09-01
+- Last updated: 2026-09-02
 
 Status values are limited to `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `DEFERRED`, and `SUPERSEDED`.
 
