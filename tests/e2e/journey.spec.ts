@@ -21,6 +21,65 @@ test.skip(
   "Set CAPTIVATE_E2E_EMAIL and CAPTIVATE_E2E_PASSWORD to run the authenticated journeys.",
 );
 
+/**
+ * What the page said while the journey ran, and what the deployment answered.
+ *
+ * A journey asserts what it came to see; it does not notice an exception the
+ * page threw somewhere else or a route that answered 500 to a request it never
+ * looked at. Both are failures of the deployment whatever the journey was
+ * about, so both fail the test. Console errors and failed requests are
+ * recorded on the test rather than asserted, because a cancelled navigation
+ * reports itself as a failed request and a third-party script can write to
+ * the console without anything being wrong; they are there to read when a
+ * journey fails for a reason it cannot name.
+ */
+interface Inspection {
+  uncaught: string[];
+  serverErrors: string[];
+  consoleErrors: string[];
+  failedRequests: string[];
+}
+const inspections = new WeakMap<Page, Inspection>();
+
+test.beforeEach(({ page }) => {
+  const seen: Inspection = {
+    uncaught: [],
+    serverErrors: [],
+    consoleErrors: [],
+    failedRequests: [],
+  };
+  inspections.set(page, seen);
+  page.on("pageerror", (error) => seen.uncaught.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") seen.consoleErrors.push(message.text());
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 500) {
+      seen.serverErrors.push(
+        `${response.status()} ${response.request().method()} ${response.url()}`,
+      );
+    }
+  });
+  page.on("requestfailed", (request) => {
+    seen.failedRequests.push(
+      `${request.method()} ${request.url()} ${request.failure()?.errorText ?? ""}`.trim(),
+    );
+  });
+});
+
+test.afterEach(({ page }, info) => {
+  const seen = inspections.get(page);
+  if (!seen) return;
+  for (const [type, lines] of [
+    ["console", seen.consoleErrors],
+    ["request-failed", seen.failedRequests],
+  ] as const) {
+    for (const line of lines) info.annotations.push({ type, description: line });
+  }
+  expect(seen.uncaught, "the page threw an uncaught exception").toEqual([]);
+  expect(seen.serverErrors, "the deployment answered a request with a 5xx").toEqual([]);
+});
+
 async function signIn(page: Page) {
   await page.goto("/sign-in");
   await page.getByLabel("Email").fill(EMAIL!);
