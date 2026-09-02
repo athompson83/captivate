@@ -186,23 +186,51 @@ test.describe("authoring and presenting", () => {
     await page.waitForSelector("[data-world]", { state: "attached" });
     await page.waitForSelector("[data-stage]");
 
-    const worldTransform = () =>
-      page.locator("[data-world]").evaluate((node) => (node as HTMLElement).style.transform);
+    // The camera's first framing is written by an effect, after paint. Until
+    // it exists the world has no known origin, and a move from nowhere is
+    // correctly a cut — so waiting for it is part of the setup, not a
+    // convenience.
+    await page.waitForFunction(() =>
+      Boolean((document.querySelector("[data-world]") as HTMLElement)?.style.transform),
+    );
 
-    const before = await worldTransform();
+    // Recorded frame by frame in the page rather than sampled from here at a
+    // fixed offset. A flight is transforms written straight to the element
+    // sixty times a second; two samples taken across a CDP round-trip on a
+    // loaded runner can land either side of the whole thing and say nothing
+    // about what happened in between.
+    await page.evaluate(() => {
+      const seen: string[] = [];
+      Object.assign(window, { __cameraTrace: seen });
+      const read = () => {
+        const node = document.querySelector("[data-world]") as HTMLElement | null;
+        const value = node ? node.style.transform : "";
+        if (seen[seen.length - 1] !== value) seen.push(value);
+      };
+      const deadline = performance.now() + 4000;
+      const tick = () => {
+        read();
+        if (performance.now() < deadline) requestAnimationFrame(tick);
+      };
+      read();
+      requestAnimationFrame(tick);
+    });
+
     await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(4200);
+    const seen: string[] = await page.evaluate(
+      () => (window as unknown as { __cameraTrace: string[] }).__cameraTrace,
+    );
 
-    // Sampled while the flight should still be in the air. If the camera cut
-    // straight there, or froze on the first frame, these would match.
-    await page.waitForTimeout(220);
-    const during = await worldTransform();
-
-    await page.waitForTimeout(2500);
-    const after = await worldTransform();
-
-    expect(during).not.toBe(before);
-    expect(after).not.toBe(during);
-    expect(after).toContain("translate(");
+    // Three is the smallest number that can tell travel from a cut: where the
+    // camera started, somewhere it was on the way, and where it landed. The
+    // trace goes into the message because when this fails, what the camera
+    // actually did is the whole diagnosis — one entry means it never moved,
+    // two mean it cut.
+    const trace = `world transforms written:\n${seen.join("\n")}`;
+    expect(seen.length, trace).toBeGreaterThanOrEqual(3);
+    expect(seen[seen.length - 1], trace).not.toBe(seen[0]);
+    expect(seen[seen.length - 1]).toContain("translate(");
   });
 
   test("pulls the camera back over the whole journey", async ({ page }) => {
