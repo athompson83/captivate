@@ -4,12 +4,13 @@
 
 - Product: Captivate
 - Lifecycle stage: Beta / production-readiness
-- Control-graph node: HOSTED_RUNTIME_VERIFICATION (live app in owner-driven test loop)
-- Current milestone: Production readiness — discoverability, the signed-in
-  coverage gap, password policy, and a trust surface
-- Branch: `claude/premium-ui-presentation-akzjzs` → PR #51, merged; branch
-  restarted from `main` for the follow-up
-- `main`: PRs #22–#51 merged and deployed via Vercel auto-deploy
+- Control-graph node: HOSTED_RUNTIME_VERIFICATION — production driven end to
+  end by the suite itself on 2026-09-02, two defects found and fixed in PR #60
+- Current milestone: Close verified release gaps and prove the canonical hosted
+  runtime
+- Branch: `claude/captivate-prod-readiness-7ntlye` → PR #60
+- `main`: PRs #22–#57 merged and deployed via Vercel auto-deploy; `4944dde` at
+  session start
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -28,6 +29,79 @@
   executable by no role at all.
 
 ## Latest Session
+
+### Production, driven end to end — and what it was hiding
+
+The whole point of this session was to stop inferring. Every previous record
+about the hosted runtime ended in "needs a signed-in production session this
+environment does not have"; this one made the session and drove it.
+
+**The account.** A disposable user was created through the production
+project's own sign-up endpoint — the same call the sign-up page makes — with a
+mailbox on a domain the owner's Resend account receives for, so the
+confirmation email Supabase sent could actually be read and followed. It was.
+That is also how the first defect surfaced before a single journey ran: both
+the confirmation link and a recovery link requested with the app's own
+`redirect_to` came back pointing at `http://localhost:3000`. GoTrue checks
+`redirect_to` against the allowlist and on a miss writes the Site URL into the
+email, silently; production's allowlist does not carry `www.axtevi.com`, and
+its Site URL is the default. Every real confirmation and reset has been sending
+people to a machine that is not there. It is a dashboard setting with no
+management token available here, so it is the one new owner action.
+
+**The suites.** With `CAPTIVATE_E2E_URL=https://www.axtevi.com`: 37 of 37
+`smoke` and `accessibility` cases, 28 of 28 signed-in journeys. Getting a
+browser to production at all took `--ssl-version-max=tls1.2` and a few
+`--disable-features` — the agent container's TLS-re-terminating proxy drops
+Chromium's default ClientHello, while `curl` from the same shell gets a 200 —
+which is why `CAPTIVATE_E2E_CHROMIUM_ARGS` now exists. Every journey also
+records console errors and failed requests and fails on an uncaught page
+exception or a 5xx, which is the "console/network inspection" BETA-001 asked
+for by name.
+
+**Imagery, proven and then not kept.** Production resolves images to OpenAI —
+`OPENAI_API_KEY` is set, `CAPTIVATE_IMAGE_PROVIDER` is not — and text to
+Anthropic directly; nothing runs through OpenRouter, so that account's
+exhausted balance affects nothing. A Pro grant on the disposable account (the
+free-plan refusal was asserted first) asked the picker for a picture and got
+one from `gpt-image-2` in 41.7 s, with a `succeeded` ledger row at $0.05. Then
+"Use this image" spun forever. The accept path handed the preview data URL —
+several megabytes for 1536x1024 — to a server action, which stops reading its
+body at 1 MB; the action threw before its first line, the `await` never
+settled, and no sentence was shown. The bytes now go from the browser straight
+into the caller's own storage prefix, the way every upload already goes, and
+only the provenance row goes through an action. The fill pass keeps its bytes
+through a `server-only` store, and the two image-signature checkers that had
+drifted apart in `visual-sourcing.ts` are one module the browser can use too.
+
+**Basic and Pro, half proven.** `/settings` offers both tiers with an Upgrade
+button each, so `STRIPE_PRICE_BASIC_MONTHLY` and `STRIPE_PRICE_PRO_MONTHLY`
+resolve at request time. Pressing either created the Stripe customer — in
+live mode, which settles which key production holds — and then no Checkout
+Session in either mode: Stripe rejected the create call and the action caught
+every error into "Couldn't reach Stripe", recording nothing. The billing
+actions now log at the choke point and tell a price Stripe does not recognise
+apart from an unreachable Stripe, because a price id copied from test mode
+into a live-key deployment fails in exactly this shape. The journey reads the
+sentence back once PR #60 is live.
+
+**The blank scenes.** The owner's twenty-one-scene deck from 2026-09-01 has ten
+empty scenes: nine `statement` layouts whose heading came back empty, and one
+blank inserted by hand. The composer defect was fixed by PR #44 — an hour
+_after_ that deck was generated, and its comment names one of these very
+scenes. Rebuilding the live deck is the owner's call on their own data, so the
+rebuilt result was written to a **copy** in their library instead, titled
+"…— rebuilt copy (review before use)": every row carried over with ids
+remapped the way `duplicatePresentation` does it, the nine statements drawn as
+their centred heading by the same composer the app uses, and the original
+untouched.
+
+**What could not be read from here, precisely.** The Vercel connector's grant
+covers a different project; the Captivate project id is now known from the
+bot's PR comment and answers 403 to logs, deployments and configuration. So
+stderr lines the observability module writes are still unreadable from this
+environment, and the deployment id and built SHA behind `www.axtevi.com`
+remain inferred from behaviour rather than read.
 
 ### Four releases: the spend boundary, a second gateway, and the stage itself
 
@@ -372,10 +446,16 @@ boundary holds from the writer's side too.
 
 ## Blockers
 
-- None.
+- None for engineering. One owner-only production setting is wrong and is
+  listed first under standing owner actions.
 
 ## Standing owner actions
 
+0. **Set Supabase Auth's URL configuration for production** — Authentication
+   → URL Configuration: Site URL `https://www.axtevi.com`, and
+   `https://www.axtevi.com/auth/callback` under Redirect URLs. Until then every
+   confirmation and password-reset email points at `http://localhost:3000`.
+   Read from the emails themselves on 2026-09-02, not inferred.
 1. Set the Stripe account's public business name to **Axtevi** — it appears on
    card statements, receipts and the Billing Portal.
 2. Confirm `STRIPE_WEBHOOK_SECRET` matches the mode of `STRIPE_SECRET_KEY`.
@@ -394,8 +474,10 @@ boundary holds from the writer's side too.
 6. **Review the privacy and terms wording.** The facts in both are derived from
    the code and are accurate; the wording has had no legal review.
 
-`PEXELS_API_KEY` and `OPENAI_API_KEY` were recorded here as configured, and the
-evidence says otherwise. `ai_generations` holds **zero** rows of kind `image`
+`PEXELS_API_KEY` and `OPENAI_API_KEY` are configured — read back on 2026-09-02
+from a signed-in production session, where the picker offered Find and Generate
+and a picture came back. The paragraph that follows is what the evidence said
+before that, kept because it is how the gap was found: `ai_generations` holds **zero** rows of kind `image`
 for the life of the deployment, which is decisive for the generated path — a
 call would have written one. Stock photography leaves no row, so it is
 inferred rather than read: a twenty-one-scene deck generated on 2026-09-01 came
@@ -532,18 +614,11 @@ and the job now fails if the image and `supabase/config.toml` disagree.
 
 ### Still open
 
-1. **Whether generated imagery actually works in production has not been
-   proven.** Paid tiers advertise it on a public page and the only thing behind
-   that promise is `OPENAI_API_KEY` — or, since PR #50, `OPENROUTER_API_KEY`.
-   The failure is honest everywhere an author looks — the picker hides the tab,
-   the service says so — which is exactly why it could be absent for a long time
-   unnoticed. `tests/e2e/journey.spec.ts` asks the deployment directly and now
-   runs on every push with a real signed-in session, but only where
-   `CAPTIVATE_E2E_URL` names a deployment: CI's own Supabase stack is built with
-   no model credentials, so its answer would be about that container rather than
-   about production. Pointing the suite at the hosted candidate settles it, and
-   that needs a key set first. Genuinely unverified rather than
-   verified-and-fine.
-2. **The four price ids need setting in Vercel.** There is no tool in this
-   session that writes Vercel environment variables, and the Vercel MCP account
-   available here does not have the Captivate project in scope.
+1. **Whether an accepted image is kept on production** is proven by the journey
+   only after PR #60 deploys; the generation itself is proven, on 2026-09-02,
+   with a ledger row to show for it.
+2. **Why Stripe rejects the checkout** is unknown until PR #60 is live and the
+   toast says which. The likeliest cause is a test-mode price id under a
+   live key, and the fix for that is two Vercel variables the agent cannot
+   write.
+3. **The Supabase Auth URL configuration** — see standing owner actions.
