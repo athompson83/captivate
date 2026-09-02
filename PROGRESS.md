@@ -530,20 +530,21 @@ out of it, and only one was in the tests:
 The RLS suite also moved to the Postgres major production actually runs (17),
 and the job now fails if the image and `supabase/config.toml` disagree.
 
+### Closed on 2026-09-02
+
+- **Generated imagery is proven in production.** The ledger holds one succeeded
+  `image` generation — `gpt-image-2`, 41.7 s, $0.05, on a real presentation, by
+  a `pro`-granted account — the deployment's first. The unprefixed model id
+  matches the OpenAI gateway's default naming, which is consistent with
+  OpenAI serving it and not proof: the ledger keeps the model string, not
+  the gateway, and a `CAPTIVATE_IMAGE_MODEL` override would record the same
+  value through OpenRouter. Before this, the promise on the
+  pricing page was backed by no completed generation at all, and the failure
+  was honest everywhere an author looked — the picker hid the tab, the service
+  said so — which is exactly why it could have stayed absent unnoticed.
+
 ### Still open
 
-1. **Whether generated imagery actually works in production has not been
-   proven.** Paid tiers advertise it on a public page and the only thing behind
-   that promise is `OPENAI_API_KEY` — or, since PR #50, `OPENROUTER_API_KEY`.
-   The failure is honest everywhere an author looks — the picker hides the tab,
-   the service says so — which is exactly why it could be absent for a long time
-   unnoticed. `tests/e2e/journey.spec.ts` asks the deployment directly and now
-   runs on every push with a real signed-in session, but only where
-   `CAPTIVATE_E2E_URL` names a deployment: CI's own Supabase stack is built with
-   no model credentials, so its answer would be about that container rather than
-   about production. Pointing the suite at the hosted candidate settles it, and
-   that needs a key set first. Genuinely unverified rather than
-   verified-and-fine.
-2. **The four price ids need setting in Vercel.** There is no tool in this
+1. **The four price ids need setting in Vercel.** There is no tool in this
    session that writes Vercel environment variables, and the Vercel MCP account
    available here does not have the Captivate project in scope.
