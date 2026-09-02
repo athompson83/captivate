@@ -51,6 +51,7 @@ npm run format       # prettier --write .
 `npm run verify` is the gate. Nothing is "done" until it exits 0.
 
 <!-- BEGIN ECONOMICAL CI -->
+
 ## Economical CI (Codex and Claude)
 
 These rules apply equally to Codex and Claude.
@@ -64,6 +65,7 @@ These rules apply equally to Codex and Claude.
 - Do not manually rerun failed Actions or create empty commits to retrigger CI before the root cause is known. Allow at most one targeted rerun when evidence specifically indicates a transient external failure.
 - Use a draft pull request while iterating; mark it ready only after the selected local checks pass so hosted runners are not consumed on every work-in-progress push.
 - Preserve typecheck, lint, unit, build, RLS/migration, shader/lifecycle, production-server smoke, authenticated local-Supabase, security, Preview, and release assurance whenever the corresponding risk boundary changed. Cost reduction must not weaken those gates.
+
 <!-- END ECONOMICAL CI -->
 
 ## The rules that actually bite
@@ -236,27 +238,3 @@ There is a regression test for it; it genuinely fails if you revert the fix.
 ## Tests
 
 Unit and component tests live in `tests/unit/`; end-to-end specs live in
-`tests/e2e/`. When you fix a bug, add the test that fails without the fix — and check
-that it does fail. Several tests in this repo exist because a "fix" turned out not to
-have been applied at all.
-
-Two Playwright projects need no server and no account — `shader` compiles the
-committed GLSL and reads the pixels back, `lifecycle` bundles a component and
-mounts it in a real browser. Reach for those before concluding that something is
-untestable outside a running application.
-
-## Database
-
-Migrations are append-only files in `supabase/migrations/`, applied in name order. Every
-table has RLS enabled and is owner-scoped; helper functions are `SECURITY DEFINER` with
-a pinned `search_path`. Storage buckets are private and served through signed URLs.
-Adding a table means adding its policies in the same migration — see `docs/DATABASE.md`.
-
-## Don't
-
-- Commit credentials, service-role keys or `.env.local`.
-- Ship a control that looks functional but isn't. An unbuilt feature is absent, not
-  disabled-with-a-tooltip.
-- Let model output reach the document without passing its schema.
-- Describe something in `docs/` that the code does not do. Documentation here is meant
-  to be accurate about what exists, including what doesn't.
