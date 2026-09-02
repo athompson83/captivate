@@ -535,7 +535,10 @@ and the job now fails if the image and `supabase/config.toml` disagree.
 - **Generated imagery is proven in production.** The ledger holds one succeeded
   `image` generation — `gpt-image-2`, 41.7 s, $0.05, on a real presentation, by
   a `pro`-granted account — the deployment's first. The unprefixed model id
-  means OpenAI served it, not OpenRouter. Before this, the promise on the
+  matches the OpenAI gateway's default naming, which is consistent with
+  OpenAI serving it and not proof: the ledger keeps the model string, not
+  the gateway, and a `CAPTIVATE_IMAGE_MODEL` override would record the same
+  value through OpenRouter. Before this, the promise on the
   pricing page was backed by no completed generation at all, and the failure
   was honest everywhere an author looked — the picker hid the tab, the service
   said so — which is exactly why it could have stayed absent unnoticed.
