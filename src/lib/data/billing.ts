@@ -6,6 +6,7 @@ import { PAID_PLANS } from "@/lib/billing/plans";
 import { currentPlan } from "@/lib/billing/entitlement";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { logFailure } from "@/lib/observability";
 
 /**
  * Starting and managing a subscription.
@@ -20,6 +21,36 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
  */
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+
+/**
+ * A Stripe call that threw, turned into a value the caller can show.
+ *
+ * Logged first, because this is the choke point where a billing failure
+ * becomes invisible: the action returns a sentence, the page shows it in a
+ * toast, and nothing else records that Stripe said no. The first time the
+ * Basic and Pro controls were driven on production, the customer was created
+ * and the session was not, and the only trace was a toast that had gone by
+ * the time anyone looked. Stripe's message never carries card details, and
+ * this file never hands it a prompt or a note, so the line is safe to keep.
+ *
+ * Then told apart. An unreachable Stripe and a rejected request read the same
+ * to a user — nothing happened — but mean opposite things to the operator:
+ * one is the network, the other is this deployment's own configuration. A
+ * price Stripe does not recognise is the specific case worth its own sentence,
+ * because a price id copied from the wrong Stripe mode fails exactly this way,
+ * with the key working and every other page looking right.
+ */
+function stripeFailure(operation: string, error: unknown, nothing: string): Result<never> {
+  logFailure(operation, error);
+  const details = error as { type?: unknown; code?: unknown; param?: unknown } | null;
+  if (details?.type === "StripeInvalidRequestError") {
+    if (details.code === "resource_missing" && String(details.param ?? "").includes("price")) {
+      return { ok: false, error: `Stripe doesn't recognise that plan's price. ${nothing}` };
+    }
+    return { ok: false, error: `Stripe rejected that request. ${nothing}` };
+  }
+  return { ok: false, error: `Couldn't reach Stripe. ${nothing}` };
+}
 
 const CheckoutInput = z.object({
   plan: z.enum(PAID_PLANS),
@@ -74,8 +105,8 @@ export async function startCheckout(input: unknown): Promise<Result<{ url: strin
 
     if (!session.url) return { ok: false, error: "Couldn't start checkout. Nothing was charged." };
     return { ok: true, data: { url: session.url } };
-  } catch {
-    return { ok: false, error: "Couldn't reach Stripe. Nothing was charged." };
+  } catch (error) {
+    return stripeFailure("billing.checkout", error, "Nothing was charged.");
   }
 }
 
@@ -130,8 +161,8 @@ export async function startTopUp(): Promise<Result<{ url: string }>> {
 
     if (!session.url) return { ok: false, error: "Couldn't start checkout. Nothing was charged." };
     return { ok: true, data: { url: session.url } };
-  } catch {
-    return { ok: false, error: "Couldn't reach Stripe. Nothing was charged." };
+  } catch (error) {
+    return stripeFailure("billing.topup", error, "Nothing was charged.");
   }
 }
 
@@ -164,8 +195,8 @@ export async function openBillingPortal(): Promise<Result<{ url: string }>> {
     });
 
     return { ok: true, data: { url: session.url } };
-  } catch {
-    return { ok: false, error: "Couldn't reach Stripe. Nothing was changed." };
+  } catch (error) {
+    return stripeFailure("billing.portal", error, "Nothing was changed.");
   }
 }
 

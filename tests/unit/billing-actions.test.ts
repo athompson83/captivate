@@ -99,6 +99,56 @@ describe("startCheckout", () => {
     });
   });
 
+  it("records a Stripe failure on stderr rather than swallowing it", async () => {
+    // A returned failure reaches a toast and nothing else. The first time the
+    // upgrade controls were driven on production the customer was created,
+    // the session was not, and the only trace had faded by the time anyone
+    // looked; this is the line that would have said why.
+    const stderr = vi.spyOn(console, "error").mockImplementation(() => {});
+    create.mockRejectedValue(new Error("No such price: 'price_from_the_other_mode'"));
+    const { startCheckout } = await import("@/lib/data/billing");
+    await startCheckout({ plan: "pro" });
+
+    const line = stderr.mock.calls
+      .map((call) => String(call[0]))
+      .find((l) => l.includes("billing"));
+    expect(line).toContain("billing.checkout");
+    expect(line).toContain("No such price");
+    stderr.mockRestore();
+  });
+
+  it("tells a price Stripe does not recognise apart from an unreachable Stripe", async () => {
+    // A price id copied from the wrong Stripe mode fails with the key working
+    // and every other page looking right. The user sees the same "nothing
+    // happened" either way; the sentence is what sends the operator to the
+    // environment rather than the network.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { startCheckout } = await import("@/lib/data/billing");
+
+    create.mockRejectedValue(
+      Object.assign(new Error("No such price: 'price_x'"), {
+        type: "StripeInvalidRequestError",
+        code: "resource_missing",
+        param: "line_items[0][price]",
+      }),
+    );
+    const rejected = await startCheckout({ plan: "pro" });
+    expect(rejected).toEqual({
+      ok: false,
+      error: "Stripe doesn't recognise that plan's price. Nothing was charged.",
+    });
+
+    create.mockRejectedValue(
+      Object.assign(new Error("ECONNRESET"), { type: "StripeConnectionError" }),
+    );
+    const unreachable = await startCheckout({ plan: "pro" });
+    expect(unreachable).toEqual({
+      ok: false,
+      error: "Couldn't reach Stripe. Nothing was charged.",
+    });
+    vi.restoreAllMocks();
+  });
+
   it("reuses an existing Stripe customer instead of minting a second one", async () => {
     maybeSingle.mockResolvedValue({ data: { stripe_customer_id: "cus_existing" } });
     const { startCheckout } = await import("@/lib/data/billing");

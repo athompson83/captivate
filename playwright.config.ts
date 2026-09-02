@@ -22,6 +22,20 @@ const PROVISIONED_CHROMIUM = "/opt/pw-browsers/chromium";
 const executablePath = existsSync(PROVISIONED_CHROMIUM) ? PROVISIONED_CHROMIUM : undefined;
 
 /**
+ * Extra Chromium switches, whitespace-separated, for the environment the suite
+ * runs in rather than the deployment it points at.
+ *
+ * The case that needed it: an agent container whose only route out is a
+ * TLS-re-terminating proxy that drops Chromium's default ClientHello, so every
+ * navigation to the hosted candidate died with a connection reset while curl
+ * from the same shell got a 200. `--proxy-server=... --ssl-version-max=tls1.2`
+ * and a couple of `--disable-features` got the browser through. Those are
+ * facts about one network, not about the product, so they are supplied rather
+ * than committed.
+ */
+const extraArgs = (process.env.CAPTIVATE_E2E_CHROMIUM_ARGS ?? "").split(/\s+/).filter(Boolean);
+
+/**
  * Projects that need no running application.
  *
  * `shader` compiles the committed GLSL on a bare canvas; `lifecycle` bundles
@@ -67,7 +81,7 @@ export default defineConfig({
     {
       name: "smoke",
       testMatch: /(smoke|accessibility)\.spec\.ts/,
-      use: { ...devices["Desktop Chrome"], launchOptions: { executablePath } },
+      use: { ...devices["Desktop Chrome"], launchOptions: { executablePath, args: extraArgs } },
     },
     {
       // The shader, compiled and rendered from source. Needs no server and no
@@ -82,7 +96,7 @@ export default defineConfig({
           // CI has no GPU. The field is a gradient; software rendering draws
           // it correctly, which is the whole point of accepting such a context
           // at runtime too.
-          args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
+          args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader", ...extraArgs],
         },
       },
     },
@@ -105,6 +119,7 @@ export default defineConfig({
             // real getUserMedia track through real pointer capture.
             "--use-fake-ui-for-media-stream",
             "--use-fake-device-for-media-stream",
+            ...extraArgs,
           ],
         },
       },
@@ -120,6 +135,7 @@ export default defineConfig({
             "--use-fake-ui-for-media-stream",
             "--use-fake-device-for-media-stream",
             "--auto-accept-this-tab-capture",
+            ...extraArgs,
           ],
         },
       },
