@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PresentationDocument } from "@/lib/schema/presentation";
 import { getTheme } from "@/lib/schema/theme";
 import { useEditor } from "@/lib/editor/store";
@@ -72,9 +72,20 @@ export function EditorRoot({
   // `init` has run, which is also what every child selector depends on.
   const ready = useEditor((s) => s.document.presentation.id === presentationId);
 
+  // Keyed on which deck this is, not on the identity of the object carrying it.
+  // `document` is a prop from a server component, so every re-render of the
+  // route hands down a structurally identical but *new* object — and
+  // `revalidatePath("/edit/:id")`, which several server actions call, causes
+  // exactly that. Depending on the object meant `init` ran again on a deck the
+  // author was in the middle of editing, and `init` resets `past` and `future`:
+  // the undo history simply vanished, mid-session, for no reason the author
+  // could see.
+  const initialisedFor = useRef<string | null>(null);
   useEffect(() => {
+    if (initialisedFor.current === presentationId) return;
+    initialisedFor.current = presentationId;
     init(initial);
-  }, [init, initial]);
+  }, [init, initial, presentationId]);
 
   const { flush } = useAutosave(presentationId);
   useEditorShortcuts({
