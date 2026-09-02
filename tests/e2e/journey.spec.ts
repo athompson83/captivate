@@ -678,6 +678,16 @@ test.describe("the narrative map", () => {
    * point: nothing in the unit suite can fail when a key is absent.
    */
   test("the deployment can actually generate the imagery paid plans are sold", async ({ page }) => {
+    // Only where there is a deployment to ask. CI points this suite at a
+    // Supabase stack it starts and throws away, built with no model
+    // credentials of any kind — so the answer there is "no key", which is
+    // true, intended, and says nothing about any deployment anyone uses. The
+    // check is not relaxed: pointed at a real host it still fails, loudly, on
+    // exactly the configuration gap it was written for.
+    test.skip(
+      !process.env.CAPTIVATE_E2E_URL,
+      "no deployment to ask — the local stack carries no model credentials by design",
+    );
     await signIn(page);
 
     const status = await page.evaluate(async () => {

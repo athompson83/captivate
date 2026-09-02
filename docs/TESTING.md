@@ -92,7 +92,12 @@ flies it, and reads back every transform it wrote. The `cut` case is its
 control.
 
 Journeys are **skipped, not failed**, when credentials are absent, so the suite
-never produces misleading red on a machine without an account.
+never produces misleading red on a machine without an account. One journey goes
+further and skips unless `CAPTIVATE_E2E_URL` names a deployment: it asks
+`/api/ai/status` whether the environment can actually generate the imagery the
+paid plans advertise, and CI's throwaway Supabase stack carries no model
+credentials at all, so a red there would only ever mean "the container CI just
+built has no API key".
 
 ```bash
 CAPTIVATE_E2E_EMAIL=you@example.com \
