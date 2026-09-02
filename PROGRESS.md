@@ -496,16 +496,54 @@ opens an annual checkout; the annual price ids are read only so a subscription
 bought earlier still resolves to the tier its holder paid for. Re-enabling it
 is gated on measured cost per presentation, which the ledger can now answer.
 
+### The signed-in journeys now run themselves
+
+For most of this project the signed-in half of the product was proved by hand:
+the `authenticated` Playwright project needed an account, and neither a hosted
+sign-up nor a local Supabase stack was reachable from the agent's container. It
+runs in CI now — the job starts a Supabase stack, applies every migration, seeds
+its own synthetic account from the stack's own freshly minted service key, builds
+against it and drives twenty-seven journeys through a real browser. Nothing is
+stored: the account exists for the life of the job.
+
+Running them for the first time is what running them is for. Four defects came
+out of it, and only one was in the tests:
+
+- **Undo history vanished mid-edit.** `EditorRoot` re-initialised the store on
+  any re-render that handed down a new `document` object, and `init` clears
+  `past` and `future`. Several server actions call `revalidatePath("/edit/:id")`,
+  which does exactly that — so an author's undo stack disappeared for no reason
+  they could see. Keyed on the deck's id now, with the regression covered in
+  `tests/unit/editor-history-persistence.test.tsx`.
+- **A journey helper drove the wrong template.** It clicked the first card on
+  the gallery, which is the worked example, while the movement-rail test asserts
+  the lecture's movements. It takes the template's name now.
+- **The camera flight was asserted by two samples across a CDP round-trip**,
+  which says more about scheduling than about the camera. The journey records
+  every transform the world writes and asserts it passed through the middle;
+  `tests/e2e/camera-flight.spec.ts` pins the same property with no server and no
+  account, and uses `travel: "cut"` as its control.
+- **A deployment-configuration check ran against a throwaway container.** The
+  imagery check asks a deployment whether it has a model key; CI's stack has none
+  by design. It runs where the question exists.
+
+The RLS suite also moved to the Postgres major production actually runs (17),
+and the job now fails if the image and `supabase/config.toml` disagree.
+
 ### Still open
 
 1. **Whether generated imagery actually works in production has not been
    proven.** Paid tiers advertise it on a public page and the only thing behind
-   that promise is `OPENAI_API_KEY`. The failure is honest everywhere an author
-   looks — the picker hides the tab, the service says so — which is exactly why
-   it could be absent for a long time unnoticed. `tests/e2e/journey.spec.ts` now
-   asks the deployment directly, but the `authenticated` project needs account
-   credentials this environment does not have, so it has not been run. This
-   remains genuinely unverified rather than verified-and-fine.
+   that promise is `OPENAI_API_KEY` — or, since PR #50, `OPENROUTER_API_KEY`.
+   The failure is honest everywhere an author looks — the picker hides the tab,
+   the service says so — which is exactly why it could be absent for a long time
+   unnoticed. `tests/e2e/journey.spec.ts` asks the deployment directly and now
+   runs on every push with a real signed-in session, but only where
+   `CAPTIVATE_E2E_URL` names a deployment: CI's own Supabase stack is built with
+   no model credentials, so its answer would be about that container rather than
+   about production. Pointing the suite at the hosted candidate settles it, and
+   that needs a key set first. Genuinely unverified rather than
+   verified-and-fine.
 2. **The four price ids need setting in Vercel.** There is no tool in this
    session that writes Vercel environment variables, and the Vercel MCP account
    available here does not have the Captivate project in scope.
