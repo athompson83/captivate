@@ -1,19 +1,15 @@
 name: CI
 
-# Runs the release-critical suites this repo already treats as the merge bar
-# (see AGENTS.md: "npm run verify is the gate"). Mirrors exactly what an
-# independent release-candidate audit ran by hand before this workflow
-# existed, so a future PR gets the same evidence automatically instead of
-# depending on someone re-running it manually.
+# The verify job is the stable pull-request gate. It classifies the diff, runs
+# the repository-wide gate when code changed, and selects only the expensive
+# release-critical suites whose risk boundaries were touched.
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
-# What each job may do, and what it is trusted with. None of this changes which
-# suites run or when — every job below stays unconditional.
-#
 # `contents: read` because no job here writes to the repository, comments on a
 # pull request, or publishes anything. A job that one day does can raise its own
 # permissions rather than every job inheriting the need.
@@ -35,28 +31,106 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: captivate-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   verify:
     name: verify (typecheck, lint, unit tests, build)
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      run-verify: ${{ steps.changes.outputs.run-verify }}
+      run-rls: ${{ steps.changes.outputs.run-rls }}
+      run-e2e: ${{ steps.changes.outputs.run-e2e }}
+      run-smoke: ${{ steps.changes.outputs.run-smoke }}
+      run-authenticated: ${{ steps.changes.outputs.run-authenticated }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - id: changes
+        name: Select required checks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "run-verify=true" >> "$GITHUB_OUTPUT"
+            echo "run-rls=true" >> "$GITHUB_OUTPUT"
+            echo "run-e2e=true" >> "$GITHUB_OUTPUT"
+            echo "run-smoke=true" >> "$GITHUB_OUTPUT"
+            echo "run-authenticated=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Triple-dot isolates changes introduced by the PR. Disabling rename
+          # detection reports both sides of a move so risk cannot disappear
+          # when executable or schema files move into documentation paths.
+          if ! changed_output=$(git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA"); then
+            echo "Unable to classify pull-request changes; refusing to skip validation." >&2
+            exit 1
+          fi
+          mapfile -t changed_files <<< "$changed_output"
+          run_verify=false
+          run_rls=false
+          run_e2e=false
+          run_smoke=false
+          run_authenticated=false
+
+          for path in "${changed_files[@]}"; do
+            case "$path" in
+              *.md|LICENSE|LICENSE.*)
+                ;;
+              *)
+                run_verify=true
+                ;;
+            esac
+
+            case "$path" in
+              .github/workflows/ci.yml|package.json|package-lock.json|supabase/*|scripts/check-migrations.mjs|scripts/seed-e2e-user.mjs|src/proxy.ts|src/app/api/*|src/lib/data/*|src/lib/present/*|src/lib/supabase/*)
+                run_rls=true
+                ;;
+            esac
+
+            case "$path" in
+              .github/workflows/ci.yml|package.json|package-lock.json|playwright.config.*|next.config.*|tsconfig.json|*.config.*|public/*|src/*|tests/e2e/*)
+                run_e2e=true
+                run_smoke=true
+                ;;
+            esac
+
+            case "$path" in
+              .github/workflows/ci.yml|package.json|package-lock.json|playwright.config.*|next.config.*|tsconfig.json|*.config.*|public/*|scripts/seed-e2e-user.mjs|src/*|supabase/*|tests/e2e/*)
+                run_authenticated=true
+                ;;
+            esac
+          done
+
+          echo "run-verify=$run_verify" >> "$GITHUB_OUTPUT"
+          echo "run-rls=$run_rls" >> "$GITHUB_OUTPUT"
+          echo "run-e2e=$run_e2e" >> "$GITHUB_OUTPUT"
+          echo "run-smoke=$run_smoke" >> "$GITHUB_OUTPUT"
+          echo "run-authenticated=$run_authenticated" >> "$GITHUB_OUTPUT"
+      - if: steps.changes.outputs.run-verify != 'true'
+        run: echo "Documentation-only change; full verification is not required."
+      - if: steps.changes.outputs.run-verify == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
-      - run: npm ci
-      - run: npm run verify
+      - if: steps.changes.outputs.run-verify == 'true'
+        run: npm ci
+      - if: steps.changes.outputs.run-verify == 'true'
+        run: npm run verify
 
   rls:
     name: RLS suite (all migrations, isolation + share-link assertions)
+    needs: verify
+    if: needs.verify.outputs.run-rls == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -122,6 +196,8 @@ jobs:
 
   e2e-serverless:
     name: "Playwright (server-free: shader + lifecycle)"
+    needs: verify
+    if: needs.verify.outputs.run-e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -143,6 +219,8 @@ jobs:
 
   smoke:
     name: "Playwright (production server: every route renders)"
+    needs: verify
+    if: needs.verify.outputs.run-smoke == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # The one suite that exercises a real React Server Components runtime.
@@ -165,6 +243,8 @@ jobs:
 
   authenticated:
     name: "Playwright (local Supabase: the signed-in journeys)"
+    needs: verify
+    if: needs.verify.outputs.run-authenticated == 'true'
     runs-on: ubuntu-latest
     # Longer than the others on purpose: this one pulls and starts the whole
     # Supabase stack before it can build anything.
@@ -246,9 +326,9 @@ jobs:
           CAPTIVATE_E2E_PASSWORD: ${{ github.run_id }}-e2e-local
         run: npx playwright test --project=authenticated
 
-      - if: always()
+      - if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: authenticated-playwright-report
           path: playwright-report/
-          retention-days: 7
+          retention-days: 3
