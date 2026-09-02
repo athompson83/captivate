@@ -532,8 +532,13 @@ and the job now fails if the image and `supabase/config.toml` disagree.
 
 ### Still open
 
-1. **Whether generated imagery actually works in production has not been
-   proven.** Paid tiers advertise it on a public page and the only thing behind
+1. **Generated imagery is proven in production as of 2026-09-02.** The ledger
+   holds one succeeded `image` generation — `gpt-image-2`, 41.7 s, $0.05, on a
+   real presentation, by a `pro`-granted account — the deployment's first. The
+   unprefixed model id means OpenAI served it, not OpenRouter. The paragraph
+   below is kept as the record of how long this was open and why.
+   Previously: whether generated imagery actually works in production had not
+   been proven. Paid tiers advertise it on a public page and the only thing behind
    that promise is `OPENAI_API_KEY` — or, since PR #50, `OPENROUTER_API_KEY`.
    The failure is honest everywhere an author looks — the picker hides the tab,
    the service says so — which is exactly why it could be absent for a long time
