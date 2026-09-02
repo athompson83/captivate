@@ -11,6 +11,29 @@ on:
   push:
     branches: [main]
 
+# What each job may do, and what it is trusted with. None of this changes which
+# suites run or when — every job below stays unconditional.
+#
+# `contents: read` because no job here writes to the repository, comments on a
+# pull request, or publishes anything. A job that one day does can raise its own
+# permissions rather than every job inheriting the need.
+#
+# `persist-credentials: false` on each checkout because nothing talks to git
+# after it, so the token has no reason to remain in .git/config where a later
+# step — or a dependency's install script — could read it.
+#
+# The two actions are pinned by commit rather than by a major-version tag,
+# which is a branch that moves: whoever controls it controls what runs here,
+# beside `npm ci` and a database. The trailing comment is the readable version
+# and the thing to bump.
+#
+# They are on v7, not the v4 this workflow used to float on. v4 runs on node20,
+# which the runner is retiring; a pin freezes whatever it names, so pinning the
+# old major would have turned a tag that at least drifted forward into a fixed
+# point on a runtime with an end date.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -19,18 +42,23 @@ jobs:
   verify:
     name: verify (typecheck, lint, unit tests, build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run verify
 
   rls:
     name: RLS suite (all migrations, isolation + share-link assertions)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -51,11 +79,14 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: postgres
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run test:rls
       # The assertions in supabase/schema_required.sql are what a deploy runs
@@ -75,12 +106,16 @@ jobs:
   e2e-serverless:
     name: "Playwright (server-free: shader + lifecycle)"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       # The "authenticated" project needs live credentials — deliberately out
@@ -92,16 +127,20 @@ jobs:
   smoke:
     name: "Playwright (production server: every route renders)"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # The one suite that exercises a real React Server Components runtime.
     # `next build` succeeds on a server module that imports a `"use client"`
     # helper; the route then answers 500 for every visitor. Nothing else in
     # this workflow can see that, because nothing else runs the server.
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run build
