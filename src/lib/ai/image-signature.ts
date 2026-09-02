@@ -30,8 +30,21 @@ export const STORABLE_IMAGE: Record<string, ImageSignature> = {
 
 export function sniffImage(bytes: Uint8Array): ImageSignature | null {
   const at = (i: number) => bytes[i] ?? -1;
-  if (at(0) === 0x89 && at(1) === 0x50 && at(2) === 0x4e && at(3) === 0x47)
+  // All eight bytes of the PNG signature, not the four that spell "PNG": the
+  // trailing CR LF SUB LF is what tells a real file from a payload that merely
+  // begins with the letters, and a browser given the latter renders nothing.
+  if (
+    at(0) === 0x89 &&
+    at(1) === 0x50 &&
+    at(2) === 0x4e &&
+    at(3) === 0x47 &&
+    at(4) === 0x0d &&
+    at(5) === 0x0a &&
+    at(6) === 0x1a &&
+    at(7) === 0x0a
+  ) {
     return STORABLE_IMAGE["image/png"];
+  }
   if (at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff) return STORABLE_IMAGE["image/jpeg"];
   if (
     at(0) === 0x52 &&

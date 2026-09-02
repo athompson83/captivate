@@ -83,20 +83,33 @@ export async function keepGeneratedImage(
     .upload(storagePath, bytes, { contentType: signature.mimeType, upsert: false });
   if (error) return { ok: false, error: "Couldn't save the image. Nothing was changed." };
 
-  const registered = await registerGeneratedImage({
-    storagePath,
-    mimeType: signature.mimeType,
-    byteSize: bytes.byteLength,
-    prompt: preview.prompt,
-    model: preview.model,
-    quality: preview.quality,
-    generationMs: preview.generationMs,
-    altText: options.altText,
-    presentationId: options.presentationId,
-  });
-  // Registration removes the object when the row cannot be written, so a
-  // failure here leaves nothing behind to report on.
-  if (!registered.ok) return { ok: false, error: registered.error };
+  // The row, from the object's own bytes: the action reads them back and
+  // sniffs them, so nothing here is asked to be believed. If the row cannot be
+  // written — the action refused, or the call itself failed on the way — the
+  // object is removed from here, because the action only cleans up after
+  // failures it reached. An orphan in a private bucket is invisible, and a
+  // retry that mints a fresh id every time would leave one behind per attempt.
+  let registered: Awaited<ReturnType<typeof registerGeneratedImage>>;
+  try {
+    registered = await registerGeneratedImage({
+      storagePath,
+      prompt: preview.prompt,
+      model: preview.model,
+      quality: preview.quality,
+      generationMs: preview.generationMs,
+      altText: options.altText,
+      presentationId: options.presentationId,
+    });
+  } catch {
+    registered = { ok: false, error: "Couldn't save the image. Nothing was changed." };
+  }
+  if (!registered.ok) {
+    await supabase.storage
+      .from(STORAGE_BUCKETS.assets)
+      .remove([storagePath])
+      .catch(() => undefined);
+    return { ok: false, error: registered.error };
+  }
 
   return {
     ok: true,

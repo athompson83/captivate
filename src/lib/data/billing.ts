@@ -43,7 +43,16 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 function stripeFailure(operation: string, error: unknown, nothing: string): Result<never> {
   logFailure(operation, error);
   const details = error as { type?: unknown; code?: unknown; param?: unknown } | null;
-  if (details?.type === "StripeInvalidRequestError") {
+  // Each try block also reads the session and the customer mapping from
+  // Supabase. A failure there is not Stripe's, and a sentence that names
+  // Stripe sends a user to the wrong status page and an operator to the wrong
+  // dependency. Stripe's SDK stamps every error it raises with a `type` that
+  // begins "Stripe"; anything else is reported as what it is — the request
+  // did not complete — with the same guarantee about money.
+  if (typeof details?.type !== "string" || !details.type.startsWith("Stripe")) {
+    return { ok: false, error: `Couldn't complete that request. ${nothing}` };
+  }
+  if (details.type === "StripeInvalidRequestError") {
     if (details.code === "resource_missing" && String(details.param ?? "").includes("price")) {
       return { ok: false, error: `Stripe doesn't recognise that plan's price. ${nothing}` };
     }

@@ -149,6 +149,21 @@ describe("startCheckout", () => {
     vi.restoreAllMocks();
   });
 
+  it("does not blame Stripe for a failure that was not Stripe's", async () => {
+    // The same try block reads the session and the customer mapping. A
+    // database outage there must not send the user to Stripe's status page.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    customerCreate.mockResolvedValue({ id: "cus_new" });
+    maybeSingle.mockRejectedValue(new Error("connection refused"));
+    const { startCheckout } = await import("@/lib/data/billing");
+    const result = await startCheckout({ plan: "pro" });
+    expect(result.ok).toBe(false);
+    expect(result.ok ? "" : result.error).not.toMatch(/Stripe/);
+    expect(result.ok ? "" : result.error).toContain("Nothing was charged.");
+    expect(create).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
   it("reuses an existing Stripe customer instead of minting a second one", async () => {
     maybeSingle.mockResolvedValue({ data: { stripe_customer_id: "cus_existing" } });
     const { startCheckout } = await import("@/lib/data/billing");

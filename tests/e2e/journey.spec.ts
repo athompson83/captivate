@@ -28,10 +28,10 @@ test.skip(
  * page threw somewhere else or a route that answered 500 to a request it never
  * looked at. Both are failures of the deployment whatever the journey was
  * about, so both fail the test. Console errors and failed requests are
- * recorded on the test rather than asserted, because a cancelled navigation
- * reports itself as a failed request and a third-party script can write to
- * the console without anything being wrong; they are there to read when a
- * journey fails for a reason it cannot name.
+ * recorded on the test rather than asserted, because a request can fail for
+ * the network's reasons and a third-party script can write to the console
+ * without anything being wrong; they are there to read when a journey fails
+ * for a reason it cannot name.
  */
 interface Inspection {
   uncaught: string[];
@@ -61,9 +61,13 @@ test.beforeEach(({ page }) => {
     }
   });
   page.on("requestfailed", (request) => {
-    seen.failedRequests.push(
-      `${request.method()} ${request.url()} ${request.failure()?.errorText ?? ""}`.trim(),
-    );
+    // A navigation cancels the prefetches in flight behind it, and each one
+    // reports itself as a failed request; a run of the suite against
+    // production recorded over a thousand of them and nothing else. They are
+    // the router working, not the deployment failing.
+    const reason = request.failure()?.errorText ?? "";
+    if (reason === "net::ERR_ABORTED") return;
+    seen.failedRequests.push(`${request.method()} ${request.url()} ${reason}`.trim());
   });
 });
 
@@ -884,8 +888,11 @@ test.describe("what only a deployment can prove", () => {
       expect(text, "the picker refused for a reason other than the plan").toMatch(
         /comes with Captivate Basic and Pro/,
       );
-      test.info().annotations.push({ type: "imagery", description: `refused: ${text}` });
-      return;
+      // The gate held, which is correct — and it means the account this suite
+      // signs in as cannot exercise what the test is named for. A pass here
+      // would keep a deployment green with generation and the keep path both
+      // broken, so it is reported as the missing fixture it is.
+      test.skip(true, `the account holds a free plan, so the picker refused: ${text}`);
     }
 
     await inspector.getByRole("button", { name: "Use this image" }).click();

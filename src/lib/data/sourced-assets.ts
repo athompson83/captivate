@@ -4,7 +4,8 @@ import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase/server";
 import { fetchImageBytes, storeSourcedImage, IMAGE_PROVIDER } from "@/lib/ai/visual-sourcing";
 import { insertSourced } from "./sourced-store";
-import { STORABLE_IMAGE } from "@/lib/ai/image-signature";
+import { sniffImage } from "@/lib/ai/image-signature";
+import { STORAGE_BUCKETS } from "@/lib/supabase/config";
 import { MAX_UPLOAD_BYTES } from "./upload-limits";
 import type { AssetResult } from "./assets";
 
@@ -37,9 +38,6 @@ const StockInput = z.object({
 const GeneratedInput = z.object({
   /** Where the browser put the bytes: the caller's own prefix, checked below. */
   storagePath: z.string().min(1).max(400),
-  /** Read out of the bytes by the browser before upload, and re-checked here. */
-  mimeType: z.string().min(1).max(160),
-  byteSize: z.number().int().min(1).max(MAX_UPLOAD_BYTES),
   prompt: z.string().max(1000),
   model: z.string().max(120),
   quality: z.string().max(40),
@@ -100,20 +98,19 @@ export async function saveStockPhoto(
  * caller's own storage prefix — and this action writes the row that says what
  * the picture is and what made it.
  *
- * What is checked: the path is under the caller's own id, the type is one of
- * the three the deployment stores, and the size is inside the upload limit.
- * The type is what the browser read out of the bytes rather than what the
- * provider claimed, for the same reason the server sniffed them before: a
- * WebP filed as a PNG renders nowhere.
+ * What the row says about the object is read from the object, not from the
+ * caller. The path has to be under the caller's own id; then the stored bytes
+ * are fetched back and sniffed, and their length is what is recorded. A
+ * caller can put anything under their own prefix — the bucket allows it — but
+ * cannot have this action call it a PNG, or a picture at all, or a size it is
+ * not. An object that is not an image this deployment keeps is removed rather
+ * than left as an orphan.
  */
 export async function registerGeneratedImage(
   input: unknown,
 ): Promise<AssetResult<{ id: string; url: string }>> {
   const parsed = GeneratedInput.safeParse(input);
   if (!parsed.success) return { ok: false, error: "That image couldn't be saved." };
-
-  const storable = STORABLE_IMAGE[parsed.data.mimeType];
-  if (!storable) return { ok: false, error: "That file isn't an image this deployment keeps." };
 
   const supabase = await supabaseServer();
   const {
@@ -124,11 +121,39 @@ export async function registerGeneratedImage(
   // Client-supplied, so proved rather than trusted. Storage RLS refuses a
   // write outside the caller's prefix too; a row pointing into somebody else's
   // is still a mess worth preventing.
-  if (!parsed.data.storagePath.startsWith(`${user.id}/`)) {
+  const { storagePath } = parsed.data;
+  if (!storagePath.startsWith(`${user.id}/`)) {
     return { ok: false, error: "Invalid upload path." };
   }
 
-  return insertSourced(parsed.data.storagePath, storable.mimeType, parsed.data.byteSize, {
+  // A path already recorded belongs to the row that recorded it. Registering
+  // it again would fail on the unique key and then remove the object out from
+  // under that row — so it is refused before anything is read or removed.
+  const { data: existing } = await supabase
+    .from("assets")
+    .select("id")
+    .eq("storage_path", storagePath)
+    .maybeSingle();
+  if (existing) return { ok: false, error: "That image is already in your library." };
+
+  const bucket = supabase.storage.from(STORAGE_BUCKETS.assets);
+  const { data: object, error: readError } = await bucket.download(storagePath);
+  if (readError || !object) {
+    return { ok: false, error: "Couldn't read the uploaded image. Nothing was saved." };
+  }
+  const bytes = new Uint8Array(await object.arrayBuffer());
+  const sniffed = sniffImage(bytes);
+  if (!sniffed || bytes.byteLength > MAX_UPLOAD_BYTES) {
+    await bucket.remove([storagePath]);
+    return {
+      ok: false,
+      error: sniffed
+        ? "That image is larger than the upload limit."
+        : "That file isn't an image, whatever it claims to be.",
+    };
+  }
+
+  return insertSourced(storagePath, sniffed.mimeType, bytes.byteLength, {
     presentation_id: parsed.data.presentationId ?? null,
     alt_text: parsed.data.altText,
     original_filename: parsed.data.prompt.slice(0, 200),

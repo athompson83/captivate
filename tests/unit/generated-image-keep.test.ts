@@ -20,11 +20,13 @@ const dataUrl = (bytes: Uint8Array, claimed = "image/png") =>
 
 describe("keepGeneratedImage", () => {
   const upload = vi.fn();
+  const remove = vi.fn();
   const register = vi.fn();
 
   beforeEach(() => {
     vi.resetModules();
     upload.mockResolvedValue({ error: null });
+    remove.mockResolvedValue({ error: null });
     register.mockResolvedValue({
       ok: true,
       data: { id: "asset-1", url: "/api/assets/asset-1/content" },
@@ -32,7 +34,7 @@ describe("keepGeneratedImage", () => {
     vi.doMock("@/lib/supabase/client", () => ({
       supabaseBrowser: () => ({
         auth: { getUser: async () => ({ data: { user: { id: "user-1" } } }) },
-        storage: { from: () => ({ upload }) },
+        storage: { from: () => ({ upload, remove }) },
       }),
     }));
     vi.doMock("@/lib/data/sourced-assets", () => ({ registerGeneratedImage: register }));
@@ -71,13 +73,14 @@ describe("keepGeneratedImage", () => {
     expect(new Uint8Array(body)).toEqual(PNG);
     expect(options).toMatchObject({ contentType: "image/png", upsert: false });
 
-    // The action never sees a data URL — that is the whole point.
+    // The action never sees a data URL — that is the whole point — and it is
+    // not told what the bytes are either: it reads them back and decides.
     const registered = register.mock.calls[0][0];
     expect(JSON.stringify(registered)).not.toContain("base64");
+    expect(registered).not.toHaveProperty("mimeType");
+    expect(registered).not.toHaveProperty("byteSize");
     expect(registered).toMatchObject({
       storagePath: path,
-      mimeType: "image/png",
-      byteSize: PNG.byteLength,
       model: "gpt-image-2",
       prompt: "a calm wash of teal",
       quality: "medium",
@@ -93,46 +96,75 @@ describe("keepGeneratedImage", () => {
     const [path, , options] = upload.mock.calls[0];
     expect(path).toMatch(/\.webp$/);
     expect(options).toMatchObject({ contentType: "image/webp" });
-    expect(register.mock.calls[0][0]).toMatchObject({ mimeType: "image/webp" });
   });
 
   it("refuses bytes that are not an image before anything is uploaded", async () => {
     const { keepGeneratedImage } = await import("@/lib/data/upload-generated");
-    const result = await keepGeneratedImage(preview(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])), {
-      altText: "",
-      presentationId: null,
-    });
-    expect(result.ok).toBe(false);
+    for (const bytes of [
+      new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]),
+      // The four letters of a PNG signature without the four bytes after
+      // them: a payload that says "PNG" and is not one.
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0, 1, 2, 3, 4]),
+    ]) {
+      const result = await keepGeneratedImage(preview(bytes), {
+        altText: "",
+        presentationId: null,
+      });
+      expect(result.ok).toBe(false);
+    }
     expect(upload).not.toHaveBeenCalled();
     expect(register).not.toHaveBeenCalled();
   });
 
-  it("returns the registration's own reason when the row cannot be written", async () => {
+  it("returns the registration's own reason and removes the object when the row is refused", async () => {
     register.mockResolvedValue({ ok: false, error: "Invalid upload path." });
     const { keepGeneratedImage } = await import("@/lib/data/upload-generated");
     const result = await keepGeneratedImage(preview(PNG), { altText: "", presentationId: null });
     expect(result).toEqual({ ok: false, error: "Invalid upload path." });
+    expect(remove).toHaveBeenCalledWith([upload.mock.calls[0][0]]);
+  });
+
+  it("removes the object when the registration call itself fails", async () => {
+    // An expired session or a dropped connection throws from the action
+    // rather than returning; without this the object stays behind, invisible,
+    // and every retry mints another.
+    register.mockRejectedValue(new Error("fetch failed"));
+    const { keepGeneratedImage } = await import("@/lib/data/upload-generated");
+    const result = await keepGeneratedImage(preview(PNG), { altText: "", presentationId: null });
+    expect(result.ok).toBe(false);
+    expect(remove).toHaveBeenCalledWith([upload.mock.calls[0][0]]);
   });
 });
 
 describe("registerGeneratedImage", () => {
   const insert = vi.fn();
   const remove = vi.fn();
+  const download = vi.fn();
   let userId: string | null = "user-1";
+  let existingId: string | null = null;
 
   beforeEach(() => {
     vi.resetModules();
     userId = "user-1";
+    existingId = null;
     insert.mockReturnValue({
       select: () => ({ single: async () => ({ data: { id: "asset-9" }, error: null }) }),
     });
     remove.mockResolvedValue({ error: null });
+    download.mockResolvedValue({ data: new Blob([PNG]), error: null });
     vi.doMock("next/cache", () => ({ revalidatePath: () => {} }));
     vi.doMock("@/lib/supabase/server", () => ({
       supabaseServer: async () => ({
         auth: { getUser: async () => ({ data: { user: userId ? { id: userId } : null } }) },
-        from: () => ({ insert }),
-        storage: { from: () => ({ remove }) },
+        from: () => ({
+          insert,
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: existingId ? { id: existingId } : null }),
+            }),
+          }),
+        }),
+        storage: { from: () => ({ remove, download }) },
       }),
     }));
     vi.doMock("@/lib/ai/visual-sourcing", () => ({
@@ -151,8 +183,6 @@ describe("registerGeneratedImage", () => {
 
   const input = (overrides: Record<string, unknown> = {}) => ({
     storagePath: "user-1/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d.png",
-    mimeType: "image/png",
-    byteSize: 2_400_000,
     prompt: "a calm wash of teal",
     model: "gpt-image-2",
     quality: "medium",
@@ -162,7 +192,7 @@ describe("registerGeneratedImage", () => {
     ...overrides,
   });
 
-  it("writes the provenance row for an object in the caller's own prefix", async () => {
+  it("writes the provenance row from the object's own bytes, not the caller's word", async () => {
     const { registerGeneratedImage } = await import("@/lib/data/sourced-assets");
     const result = await registerGeneratedImage(input());
 
@@ -173,7 +203,7 @@ describe("registerGeneratedImage", () => {
     expect(insert.mock.calls[0][0]).toMatchObject({
       storage_path: "user-1/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d.png",
       mime_type: "image/png",
-      byte_size: 2_400_000,
+      byte_size: PNG.byteLength,
       kind: "image",
       source: "generated",
       provider: "openai",
@@ -189,11 +219,45 @@ describe("registerGeneratedImage", () => {
     const result = await registerGeneratedImage(input({ storagePath: "user-2/theirs.png" }));
     expect(result).toEqual({ ok: false, error: "Invalid upload path." });
     expect(insert).not.toHaveBeenCalled();
+    expect(download).not.toHaveBeenCalled();
   });
 
-  it("refuses a type the deployment does not keep, and the old bytes-carrying shape", async () => {
+  it("records what was stored, whatever the path's extension says", async () => {
+    download.mockResolvedValue({ data: new Blob([WEBP]), error: null });
     const { registerGeneratedImage } = await import("@/lib/data/sourced-assets");
-    expect((await registerGeneratedImage(input({ mimeType: "image/svg+xml" }))).ok).toBe(false);
+    await registerGeneratedImage(input());
+    expect(insert.mock.calls[0][0]).toMatchObject({
+      mime_type: "image/webp",
+      byte_size: WEBP.byteLength,
+    });
+  });
+
+  it("refuses and removes an object that is not an image this deployment keeps", async () => {
+    // An authenticated caller can put anything under their own prefix — the
+    // bucket allows it — but cannot have this action call it a picture.
+    download.mockResolvedValue({
+      data: new Blob([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])]),
+      error: null,
+    });
+    const { registerGeneratedImage } = await import("@/lib/data/sourced-assets");
+    const result = await registerGeneratedImage(input());
+    expect(result.ok).toBe(false);
+    expect(remove).toHaveBeenCalledWith(["user-1/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d.png"]);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("refuses a path some row already owns, and leaves that object alone", async () => {
+    existingId = "asset-earlier";
+    const { registerGeneratedImage } = await import("@/lib/data/sourced-assets");
+    const result = await registerGeneratedImage(input());
+    expect(result.ok).toBe(false);
+    expect(download).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("refuses the old bytes-carrying shape", async () => {
+    const { registerGeneratedImage } = await import("@/lib/data/sourced-assets");
     expect((await registerGeneratedImage({ dataUrl: dataUrl(PNG), prompt: "x" })).ok).toBe(false);
     expect(insert).not.toHaveBeenCalled();
   });
