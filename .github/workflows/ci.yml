@@ -61,7 +61,11 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:16
+        # The major production runs (17.6, read from `server_version`), and the
+        # one `supabase/config.toml` sets for a local stack. A policy exercised
+        # against a different major from the one it will be enforced on is a
+        # policy nobody has tested; the step below fails if these drift apart.
+        image: postgres:17
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -88,6 +92,19 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: The running major is the one this repository declares
+        run: |
+          declared=$(sed -n 's/^major_version *= *\([0-9]\+\).*/\1/p' supabase/config.toml)
+          running=$(psql -h localhost -U postgres -tAc 'SHOW server_version_num')
+          if [ -z "$declared" ]; then
+            echo "supabase/config.toml declares no major_version" >&2
+            exit 1
+          fi
+          if [ "$((running / 10000))" != "$declared" ]; then
+            echo "config.toml declares Postgres $declared; this job is running $((running / 10000))" >&2
+            exit 1
+          fi
+          echo "Postgres major $declared, as declared."
       - run: npm run test:rls
       # The assertions in supabase/schema_required.sql are what a deploy runs
       # against the real database. Running them here, against a scratch
