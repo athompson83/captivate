@@ -173,7 +173,11 @@ jobs:
 
       - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
-          version: latest
+          # Pinned, not `latest`. The CLI decides how config.toml is read and
+          # what `supabase start` brings up, so a release could change this job
+          # with no commit here — which is exactly how the major_version
+          # rejection arrived. Bump it deliberately.
+          version: 2.116.0
       # `supabase start` applies supabase/migrations in name order, so this is
       # also the only place the app is exercised against a database built the
       # way a real one is.

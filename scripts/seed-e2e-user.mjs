@@ -68,8 +68,61 @@ try {
 
 const body = await response.json().catch(() => null);
 
+/**
+ * Signs in as the seeded account, retrying briefly.
+ *
+ * Two jobs. It proves the credential actually works, so a bad password fails
+ * here with one line rather than as twenty-eight confusing UI timeouts. And it
+ * absorbs the clock skew between the freshly started containers and the host:
+ * GoTrue mints a token with an `iat` from the container's clock, and if that
+ * runs ahead the app rejects it as "JWT issued at future" — which is what the
+ * first real run of this job hit, on the dashboard, seconds after sign-in.
+ * Waiting for one token to be accepted is a real readiness check; sleeping a
+ * fixed number of seconds only looks like one.
+ */
+async function waitForUsableSignIn() {
+  const deadline = Date.now() + 60_000;
+  let lastProblem = "never attempted";
+
+  while (Date.now() < deadline) {
+    try {
+      const attempt = await fetch(new URL("/auth/v1/token?grant_type=password", url), {
+        method: "POST",
+        headers: { apikey: serviceRole, "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const token = await attempt.json().catch(() => null);
+
+      if (attempt.ok && typeof token?.access_token === "string") {
+        // `iat` in the future is the failure being guarded against, so check it
+        // rather than trusting that a 200 means the app will accept the token.
+        const [, payload] = token.access_token.split(".");
+        const claims = JSON.parse(Buffer.from(payload, "base64url").toString());
+        const skew = claims.iat * 1000 - Date.now();
+        if (skew <= 0) {
+          console.log(`seed-e2e-user: ${email} can sign in`);
+          return;
+        }
+        lastProblem = `token issued ${Math.ceil(skew / 1000)}s in the future`;
+      } else {
+        lastProblem =
+          typeof token?.error_description === "string"
+            ? token.error_description
+            : `HTTP ${attempt.status}`;
+      }
+    } catch (error) {
+      lastProblem = error instanceof Error ? error.message : String(error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
+  console.error(`seed-e2e-user: ${email} could not sign in within 60s — ${lastProblem}`);
+  process.exit(1);
+}
+
 if (response.ok) {
   console.log(`seed-e2e-user: created ${email}`);
+  await waitForUsableSignIn();
   process.exit(0);
 }
 
@@ -78,6 +131,7 @@ if (response.ok) {
 const message = typeof body?.msg === "string" ? body.msg : JSON.stringify(body);
 if (response.status === 422 && /already been registered|already exists/i.test(message)) {
   console.log(`seed-e2e-user: ${email} already exists`);
+  await waitForUsableSignIn();
   process.exit(0);
 }
 

@@ -67,7 +67,10 @@ test.describe("authoring and presenting", () => {
     await expect(
       page.getByRole("heading", { name: /Good (morning|afternoon|evening)|Still up/ }),
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: /Create with AI/i })).toBeVisible();
+    // The dashboard offers this twice, as a card and as a button, so a loose
+    // name matches both and Playwright refuses the ambiguity. Assert the
+    // button: it is the one present on every width.
+    await expect(page.getByRole("link", { name: "Create with AI", exact: true })).toBeVisible();
   });
 
   test("creates a presentation from a template", async ({ page }) => {
