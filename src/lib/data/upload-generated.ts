@@ -21,6 +21,11 @@ import { MAX_UPLOAD_BYTES } from "./upload-limits";
  * The bytes are read back out of the data URL by hand rather than through
  * `fetch(dataUrl)`, because the page's `connect-src` does not list `data:` and
  * a fetch of one is refused by the browser before it starts.
+ *
+ * Cleanup is deliberately asymmetric. A refusal the server returned means
+ * nothing committed, so the uploaded object is this operation's to remove; a
+ * call that threw means nobody knows, so the object stays. Getting that
+ * backwards deletes a picture out from under a row that already points at it.
  */
 
 export interface GeneratedPreview {
@@ -84,14 +89,15 @@ export async function keepGeneratedImage(
   if (error) return { ok: false, error: "Couldn't save the image. Nothing was changed." };
 
   // The row, from the object's own bytes: the action reads them back and
-  // sniffs them, so nothing here is asked to be believed. If the row cannot be
-  // written — the action refused, or the call itself failed on the way — the
-  // object is removed from here, because the action only cleans up after
-  // failures it reached. An orphan in a private bucket is invisible, and a
-  // retry that mints a fresh id every time would leave one behind per attempt.
-  let registered: Awaited<ReturnType<typeof registerGeneratedImage>>;
-  try {
-    registered = await registerGeneratedImage({
+  // sniffs them, so nothing here is asked to be believed.
+  //
+  // Registering is idempotent, which is what makes the retry below safe and
+  // what makes it worth doing. A call that *throws* is ambiguous — the row may
+  // have committed and the response been lost — so it is retried rather than
+  // treated as a failure, and the retry answers with the committed row if
+  // there is one.
+  const register = () =>
+    registerGeneratedImage({
       storagePath,
       prompt: preview.prompt,
       model: preview.model,
@@ -100,19 +106,37 @@ export async function keepGeneratedImage(
       altText: options.altText,
       presentationId: options.presentationId,
     });
-  } catch {
-    registered = { ok: false, error: "Couldn't save the image. Nothing was changed." };
+
+  let registered: Awaited<ReturnType<typeof registerGeneratedImage>> | null = null;
+  let ambiguous = false;
+  for (let attempt = 0; attempt < 2 && !registered; attempt += 1) {
+    try {
+      registered = await register();
+    } catch {
+      ambiguous = true;
+    }
   }
-  if (!registered.ok) {
+
+  if (registered?.ok) {
+    return {
+      ok: true,
+      asset: { id: registered.data.id, url: registered.data.url, alt: options.altText },
+    };
+  }
+
+  // Removed only when the server answered and said no: then nothing committed,
+  // and the object is this operation's orphan. After a throw that survived the
+  // retry, nothing is removed — an orphan in a private bucket is invisible and
+  // costs storage, while deleting an object a committed row points at is a
+  // broken picture in somebody's library, which is worse and is not undoable.
+  if (!ambiguous) {
     await supabase.storage
       .from(STORAGE_BUCKETS.assets)
       .remove([storagePath])
       .catch(() => undefined);
-    return { ok: false, error: registered.error };
   }
-
   return {
-    ok: true,
-    asset: { id: registered.data.id, url: registered.data.url, alt: options.altText },
+    ok: false,
+    error: registered?.ok === false ? registered.error : "Couldn't save the image. Try again.",
   };
 }

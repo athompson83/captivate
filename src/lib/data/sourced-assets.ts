@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase/server";
 import { fetchImageBytes, storeSourcedImage, IMAGE_PROVIDER } from "@/lib/ai/visual-sourcing";
-import { insertSourced } from "./sourced-store";
+import { insertSourced, ownerRowFor } from "./sourced-store";
 import { sniffImage } from "@/lib/ai/image-signature";
 import { STORAGE_BUCKETS } from "@/lib/supabase/config";
 import { MAX_UPLOAD_BYTES } from "./upload-limits";
@@ -105,6 +105,11 @@ export async function saveStockPhoto(
  * cannot have this action call it a PNG, or a picture at all, or a size it is
  * not. An object that is not an image this deployment keeps is removed rather
  * than left as an orphan.
+ *
+ * Registering the same path twice is a success, not a refusal: the second call
+ * gets the row the first one wrote. That is what makes a retry safe, and a
+ * retry is the only way the browser can tell a lost response from a real
+ * rejection.
  */
 export async function registerGeneratedImage(
   input: unknown,
@@ -126,15 +131,15 @@ export async function registerGeneratedImage(
     return { ok: false, error: "Invalid upload path." };
   }
 
-  // A path already recorded belongs to the row that recorded it. Registering
-  // it again would fail on the unique key and then remove the object out from
-  // under that row — so it is refused before anything is read or removed.
-  const { data: existing } = await supabase
-    .from("assets")
-    .select("id")
-    .eq("storage_path", storagePath)
-    .maybeSingle();
-  if (existing) return { ok: false, error: "That image is already in your library." };
+  // A path already recorded belongs to the row that recorded it, and this call
+  // is the same registration arriving twice — a retry after a lost response,
+  // most likely. Answering with that row makes registering idempotent, which
+  // is what lets the browser retry at all: the alternative is a refusal the
+  // caller reads as failure and then "cleans up" by deleting a picture that is
+  // in somebody's library. Racing callers are caught by the same rule in
+  // `insertSourced`, since this check and the insert are not one operation.
+  const owned = await ownerRowFor(storagePath);
+  if (owned) return { ok: true, data: { id: owned, url: `/api/assets/${owned}/content` } };
 
   const bucket = supabase.storage.from(STORAGE_BUCKETS.assets);
   const { data: object, error: readError } = await bucket.download(storagePath);

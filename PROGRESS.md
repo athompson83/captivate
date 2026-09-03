@@ -59,12 +59,18 @@ records console errors and failed requests and fails on an uncaught page
 exception or a 5xx, which is the "console/network inspection" BETA-001 asked
 for by name.
 
-**Imagery, proven and then not kept.** Production resolves images to OpenAI —
-`OPENAI_API_KEY` is set, `CAPTIVATE_IMAGE_PROVIDER` is not — and text to
-Anthropic directly; nothing runs through OpenRouter, so that account's
-exhausted balance affects nothing. A Pro grant on the disposable account (the
-free-plan refusal was asserted first) asked the picker for a picture and got
-one from `gpt-image-2` in 41.7 s, with a `succeeded` ledger row at $0.05. Then
+**Imagery, proven and then not kept.** An image key is set on production — the
+picker's Generate tab renders only when one is — and every settled text row
+names `claude-sonnet-5`, which is Anthropic's own gateway. Which gateway serves
+_images_ is not readable from here and is not settled by the row: the ledger
+persists the model string and not the gateway, and `gpt-image-2` without an
+`openai/` prefix is how OpenAI's default is named and equally what a
+`CAPTIVATE_IMAGE_MODEL` override would record through OpenRouter. So the
+OpenRouter account's exhausted balance is not ruled out as a future failure on
+the image path, though nothing has failed on it yet. A Pro grant on the
+disposable account (the free-plan refusal was asserted first) asked the picker
+for a picture and got one from `gpt-image-2` in 41.7 s, with a `succeeded`
+ledger row at $0.05. Then
 "Use this image" spun forever. The accept path handed the preview data URL —
 several megabytes for 1536x1024 — to a server action, which stops reading its
 body at 1 MB; the action threw before its first line, the `await` never
@@ -474,10 +480,14 @@ boundary holds from the writer's side too.
 6. **Review the privacy and terms wording.** The facts in both are derived from
    the code and are accurate; the wording has had no legal review.
 
-`PEXELS_API_KEY` and `OPENAI_API_KEY` are configured — read back on 2026-09-02
-from a signed-in production session, where the picker offered Find and Generate
-and a picture came back. The paragraph that follows is what the evidence said
-before that, kept because it is how the gap was found: `ai_generations` holds **zero** rows of kind `image`
+`PEXELS_API_KEY` and an image key are both configured, and neither is an owner
+action any more — read back on 2026-09-02 from a signed-in production session,
+where the picker offered a Find tab (which renders only when the stock key
+resolves) and a Generate tab (only when an image key does), and a picture came
+back. `PROJECT_CHECKLIST.md` says the same; the two agreed once this session
+finished rather than one describing the other's world. The paragraph that
+follows is what the evidence said before that, kept because it is how the gap
+was found: `ai_generations` holds **zero** rows of kind `image`
 for the life of the deployment, which is decisive for the generated path — a
 call would have written one. Stock photography leaves no row, so it is
 inferred rather than read: a twenty-one-scene deck generated on 2026-09-01 came
@@ -611,6 +621,19 @@ out of it, and only one was in the tests:
 
 The RLS suite also moved to the Postgres major production actually runs (17),
 and the job now fails if the image and `supabase/config.toml` disagree.
+
+### Closed on 2026-09-02
+
+- **Generated imagery is proven in production.** The ledger holds one succeeded
+  `image` generation — `gpt-image-2`, 41.7 s, $0.05, on a real presentation, by
+  a `pro`-granted account — the deployment's first. The unprefixed model id
+  matches the OpenAI gateway's default naming, which is consistent with
+  OpenAI serving it and not proof: the ledger keeps the model string, not
+  the gateway, and a `CAPTIVATE_IMAGE_MODEL` override would record the same
+  value through OpenRouter. Before this, the promise on the
+  pricing page was backed by no completed generation at all, and the failure
+  was honest everywhere an author looked — the picker hid the tab, the service
+  said so — which is exactly why it could have stayed absent unnoticed.
 
 ### Still open
 

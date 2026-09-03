@@ -121,18 +121,33 @@ describe("keepGeneratedImage", () => {
     const { keepGeneratedImage } = await import("@/lib/data/upload-generated");
     const result = await keepGeneratedImage(preview(PNG), { altText: "", presentationId: null });
     expect(result).toEqual({ ok: false, error: "Invalid upload path." });
+    // The server answered, so nothing committed and the object is this
+    // operation's orphan to clear.
     expect(remove).toHaveBeenCalledWith([upload.mock.calls[0][0]]);
   });
 
-  it("removes the object when the registration call itself fails", async () => {
-    // An expired session or a dropped connection throws from the action
-    // rather than returning; without this the object stays behind, invisible,
-    // and every retry mints another.
+  it("retries a throw once, because a lost response may have committed the row", async () => {
+    // The registration is idempotent, so the second call answers with whatever
+    // the first one wrote. That is the only way the browser can tell a lost
+    // response from a real rejection.
+    register.mockRejectedValueOnce(new Error("fetch failed"));
+    const { keepGeneratedImage } = await import("@/lib/data/upload-generated");
+    const result = await keepGeneratedImage(preview(PNG), { altText: "", presentationId: null });
+    expect(result.ok).toBe(true);
+    expect(register).toHaveBeenCalledTimes(2);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps the object when the outcome stays unknown", async () => {
+    // Both attempts threw, so nobody knows whether a row committed. Deleting
+    // the object would break a picture already in the library; an orphan in a
+    // private bucket is invisible and merely costs storage.
     register.mockRejectedValue(new Error("fetch failed"));
     const { keepGeneratedImage } = await import("@/lib/data/upload-generated");
     const result = await keepGeneratedImage(preview(PNG), { altText: "", presentationId: null });
     expect(result.ok).toBe(false);
-    expect(remove).toHaveBeenCalledWith([upload.mock.calls[0][0]]);
+    expect(register).toHaveBeenCalledTimes(2);
+    expect(remove).not.toHaveBeenCalled();
   });
 });
 
@@ -142,11 +157,15 @@ describe("registerGeneratedImage", () => {
   const download = vi.fn();
   let userId: string | null = "user-1";
   let existingId: string | null = null;
+  let raced: string | null = null;
+  let lookups = 0;
 
   beforeEach(() => {
     vi.resetModules();
     userId = "user-1";
     existingId = null;
+    raced = null;
+    lookups = 0;
     insert.mockReturnValue({
       select: () => ({ single: async () => ({ data: { id: "asset-9" }, error: null }) }),
     });
@@ -160,7 +179,13 @@ describe("registerGeneratedImage", () => {
           insert,
           select: () => ({
             eq: () => ({
-              maybeSingle: async () => ({ data: existingId ? { id: existingId } : null }),
+              maybeSingle: async () => {
+                // First call is the pre-check; a second one only happens after
+                // an insert failed, and asks whether a racing row now owns it.
+                lookups += 1;
+                const id = lookups === 1 ? existingId : raced;
+                return { data: id ? { id } : null };
+              },
             }),
           }),
         }),
@@ -246,14 +271,47 @@ describe("registerGeneratedImage", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
-  it("refuses a path some row already owns, and leaves that object alone", async () => {
+  it("answers with the existing row when the same path is registered twice", async () => {
+    // Idempotent, so a retry after a lost response succeeds rather than being
+    // read as a rejection and answered with a delete.
     existingId = "asset-earlier";
     const { registerGeneratedImage } = await import("@/lib/data/sourced-assets");
     const result = await registerGeneratedImage(input());
-    expect(result.ok).toBe(false);
+    expect(result).toEqual({
+      ok: true,
+      data: { id: "asset-earlier", url: "/api/assets/asset-earlier/content" },
+    });
     expect(download).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
     expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("keeps the object when the insert loses a race for the same path", async () => {
+    // The check above and the insert are not one operation: two callers can
+    // both see no row. The loser must not delete the winner's picture.
+    insert.mockReturnValue({
+      select: () => ({
+        single: async () => ({ data: null, error: { message: "duplicate key value" } }),
+      }),
+    });
+    raced = "asset-winner";
+    const { registerGeneratedImage } = await import("@/lib/data/sourced-assets");
+    const result = await registerGeneratedImage(input());
+    expect(result).toEqual({
+      ok: true,
+      data: { id: "asset-winner", url: "/api/assets/asset-winner/content" },
+    });
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("removes the object when the insert fails and nothing owns the path", async () => {
+    insert.mockReturnValue({
+      select: () => ({ single: async () => ({ data: null, error: { message: "boom" } }) }),
+    });
+    const { registerGeneratedImage } = await import("@/lib/data/sourced-assets");
+    const result = await registerGeneratedImage(input());
+    expect(result.ok).toBe(false);
+    expect(remove).toHaveBeenCalledWith(["user-1/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d.png"]);
   });
 
   it("refuses the old bytes-carrying shape", async () => {

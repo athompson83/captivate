@@ -64,7 +64,17 @@ export async function storeGeneratedImage(
   });
 }
 
-/** The row for an object already in storage; removes the object if it fails. */
+/**
+ * The row for an object already in storage.
+ *
+ * On failure it removes the object — but only after establishing that no row
+ * owns it. The two are not the same question: an insert can fail because the
+ * path is already recorded (a concurrent registration won the race, or a
+ * retried one arrived twice), and removing then deletes the picture the
+ * winning row points at, which is a broken image in somebody's library rather
+ * than the tidy-up it looks like. So a path that turns out to be owned is
+ * returned as the success it effectively is, and the object is left alone.
+ */
 export async function insertSourced(
   storagePath: string,
   mimeType: string,
@@ -84,12 +94,34 @@ export async function insertSourced(
     .select("id")
     .single();
 
-  if (error || !data) {
-    // Orphaned object; remove it so storage does not accumulate junk.
-    await supabase.storage.from(STORAGE_BUCKETS.assets).remove([storagePath]);
-    return { ok: false, error: error?.message ?? "Could not save the image." };
+  if (data) {
+    revalidatePath("/assets");
+    return { ok: true, data: { id: data.id, url: assetContentUrl(data.id) } };
   }
 
-  revalidatePath("/assets");
-  return { ok: true, data: { id: data.id, url: `/api/assets/${data.id}/content` } };
+  // Owned by a row already — this insert lost a race with one that wrote the
+  // same path, or is the same registration arriving twice. Either way the
+  // picture is kept and its own row is what the caller wanted.
+  const owner = await ownerRowFor(storagePath);
+  if (owner) {
+    revalidatePath("/assets");
+    return { ok: true, data: { id: owner, url: assetContentUrl(owner) } };
+  }
+
+  // Nothing owns it, so it is this operation's orphan to clear.
+  await supabase.storage.from(STORAGE_BUCKETS.assets).remove([storagePath]);
+  return { ok: false, error: error?.message ?? "Could not save the image." };
 }
+
+/** The id of the row that owns this path, as the caller can see it. */
+export async function ownerRowFor(storagePath: string): Promise<string | null> {
+  const supabase = await supabaseServer();
+  const { data } = await supabase
+    .from("assets")
+    .select("id")
+    .eq("storage_path", storagePath)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+const assetContentUrl = (id: string) => `/api/assets/${id}/content`;
