@@ -47,6 +47,24 @@ before that decision still resolves to the tier its holder paid for.
 Re-enabling it means measured cost per presentation first — see the ledger note
 below — not just adding a price.
 
+### Two settings Stripe keeps outside the API
+
+Both are saved in the Stripe dashboard, both are per-mode, and neither is
+visible in any environment variable — which is why a deployment can look
+completely configured and still fail on the first customer.
+
+**The Customer Portal needs a saved configuration.** Without one Stripe refuses
+`billingPortal.sessions.create` outright, so "Manage billing" in `/settings`
+fails for anybody who subscribes. This is not reachable in testing until a
+subscription exists, so it is worth checking before one does:
+`GET /v1/billing_portal/configurations` returning an empty list is the answer.
+
+**The statement descriptor is what a bank shows.** It is separate from the
+business name and from the dashboard display name, and it defaults to the
+account holder's own name on an individual account — so a subscriber can see a
+person's name on their card statement rather than the product they bought,
+which is the usual cause of a chargeback for an unrecognised charge.
+
 ### Rotating a price
 
 Each `STRIPE_PRICE_*` variable holds a **comma-separated list, newest first**.
