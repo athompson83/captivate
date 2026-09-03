@@ -693,6 +693,22 @@ and the job now fails if the image and `supabase/config.toml` disagree.
   cannot affect an image any user generates.
 - **The disposable production identity is removed**, storage objects included.
 
+### Found by reading Stripe rather than the code
+
+**There is no Customer Portal configuration on the Stripe account** — none in
+live mode and none in test. Stripe refuses to open a portal session until one
+is saved, so "Manage billing" in `/settings` would fail for the first person
+who ever subscribes: the one control a paying customer needs to cancel, change
+a card, or move tier. Nothing caught it because nothing has subscribed yet —
+the journeys reach that button only on an account with a real subscription,
+and the checkout that would create one is itself refused. Two gaps hiding
+each other is the ordinary shape of this: each looks like the other's
+precondition until somebody reads the account.
+
+It is a settings decision with money attached — what a customer may do to
+their own subscription without asking — so it is recorded as an owner action
+rather than defaulted by the agent.
+
 ### Still open
 
 1. **Why Stripe refuses the checkout — narrowed to one unreadable line.**
