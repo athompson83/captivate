@@ -11,8 +11,8 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/premium-ui-presentation-akzjzs` → PR #63 (merged), PR #64 (merged)
-- `main`: PRs #22–#57 merged and deployed via Vercel auto-deploy; `4944dde` at
-  session start
+- `main`: through PR #64 (merged) as this session begins; `1e37370` — every
+  migration through `0029_gateway_from_model.sql` applied to production
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -37,12 +37,16 @@
 A phone screenshot showed the `/new` flow's toast: "Generation failed —
 Couldn't reach the server. Your work is unaffected." Root cause:
 `create-from-map` writes the presentation, its movements and its moments
-through fast, synchronous Supabase inserts, then calls the slow, sequential
-per-scene AI writer inside the same request (`maxDuration = 300`). A dropped
-connection or a killed function after that point loses the response, but not
-the work already committed — so "unaffected" was false in exactly the case
-that toast exists to describe, and a retry from that screen could create a
-second presentation from the same map.
+through fast, synchronous Supabase inserts, then calls the slow generation
+step inside the same request (`maxDuration = 300`) — one `generateStructured`
+call that writes every scene's content in a single model response
+(`buildScenesFromMap` in `src/lib/ai/service.ts`), followed by media dressing
+run in parallel across scenes, then one bulk upsert of the finished rows. A
+dropped connection or a killed function anywhere in that request loses the
+response, but not the presentation/movements/moments already committed — so
+"unaffected" was false in exactly the case that toast exists to describe, and
+a retry from that screen could create a second presentation from the same
+map.
 
 PR #63 taught the client (`src/lib/ai/client.ts`) to export that failure as
 `NETWORK_ERROR` and taught `create-flow.tsx` to name the real recovery path —
@@ -57,12 +61,16 @@ the incident and gave explicit direction, recorded verbatim reasoning in
 `PROJECT_CHECKLIST.md` (`BETA-006`): raising `maxDuration` further (Vercel
 Fluid Compute) would reduce how often this happens without closing the
 architectural gap — a request can still fail from a dropped connection, a
-runtime kill, a provider interruption, browser abandonment, or one scene's
-own failure, and today every one of those means starting over by hand. The
-root fix is a durable, resumable generation workflow: create the
-presentation with an explicit lifecycle state immediately, assign the
-request an idempotency key, persist a generation job with progress, generate
-scenes in bounded units instead of one long request, and let the dashboard
+runtime kill, a provider interruption, or browser abandonment, and today
+every one of those means starting over by hand. Today's `buildScenesFromMap`
+also has no unit smaller than the whole deck to resume: one model call
+writes every scene's content together, so a malformed response or a single
+scene failing validation fails the batch, not just that scene. The root fix
+is a durable, resumable generation workflow — a new architecture, not
+persistence bolted onto the current one: create the presentation with an
+explicit lifecycle state immediately, assign the request an idempotency key,
+persist a generation job with progress, generate scenes in bounded units
+genuinely smaller than one deck, and let the dashboard
 show and act on Generating / Partially generated / Generation failed / Ready.
 Fluid Compute is `DEFERRED` as its own later performance/cost decision, not
 purchased to patch this. Design has not started; see BETA-006 for the full
