@@ -33,7 +33,11 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promi
       signal,
     });
 
-    const data = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
+    let bodyReadFailed = false;
+    const data = (await response.json().catch(() => {
+      bodyReadFailed = true;
+      return null;
+    })) as (T & { error?: string }) | null;
 
     if (!response.ok) {
       return {
@@ -41,6 +45,10 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promi
         error: data?.error ?? `That didn't work (${response.status}). Nothing was changed.`,
       };
     }
+    // A response with an OK status but an unreadable body means the connection
+    // dropped after the route committed its work (see NETWORK_ERROR above) —
+    // that's the same partial-write risk, not a clean "nothing to report".
+    if (bodyReadFailed) return { ok: false, error: NETWORK_ERROR };
     if (!data) return { ok: false, error: "The server returned an empty response." };
 
     return { ok: true, ...data };
