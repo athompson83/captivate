@@ -15,6 +15,15 @@ import type { Reference } from "@/lib/ingest/reference";
 
 export type AiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 
+/**
+ * What a caller sees when `fetch` itself rejects rather than resolving —
+ * exported so a caller whose route can leave something behind before it gets
+ * this far (`create-from-map` creates the presentation before writing scenes)
+ * can tell this failure apart from one the route reported on purpose, and
+ * say what it actually means for them rather than repeating this text.
+ */
+export const NETWORK_ERROR = "Couldn't reach the server. Your work is unaffected.";
+
 async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<AiResult<T>> {
   try {
     const response = await fetch(path, {
@@ -39,7 +48,7 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promi
     if (error instanceof DOMException && error.name === "AbortError") {
       return { ok: false, error: "Cancelled." };
     }
-    return { ok: false, error: "Couldn't reach the server. Your work is unaffected." };
+    return { ok: false, error: NETWORK_ERROR };
   }
 }
 

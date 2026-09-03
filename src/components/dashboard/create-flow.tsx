@@ -19,7 +19,7 @@ import { THEMES, getTheme } from "@/lib/schema/theme";
 import type { ProposedMap } from "@/lib/ai/schemas";
 import { ROLE_META, ROLE_ORDER } from "@/lib/schema/narrative";
 import type { AvailableEvidence } from "@/lib/narrative/generate";
-import { requestMap, requestPresentationFromMap } from "@/lib/ai/client";
+import { NETWORK_ERROR, requestMap, requestPresentationFromMap } from "@/lib/ai/client";
 import { ReferencePicker } from "./reference-picker";
 import type { Reference } from "@/lib/ingest/reference";
 import { createPresentation } from "@/lib/data/actions";
@@ -298,7 +298,18 @@ function AiPath({ folderId }: { folderId: string | null }) {
 
     if (!result.ok) {
       setStep("map");
-      toast({ tone: "error", title: "Generation failed", description: result.error });
+      // This route creates the presentation, its movements and its moments
+      // before it ever starts writing scenes — a network-level failure (as
+      // opposed to one the route reported itself) can arrive after that, on a
+      // full-depth deck slow enough to outlast the connection. "Nothing
+      // changed" would be a guess this call cannot back up, so the recovery
+      // path is named instead of implied: check the dashboard for a deck with
+      // this title before generating another one from the same map.
+      const description =
+        result.error === NETWORK_ERROR
+          ? `${result.error} If this deck was slow to write, a presentation titled "${map.title}" may already be in your dashboard with its structure but no scenes yet — open it there instead of generating again, or retry here if it isn't.`
+          : result.error;
+      toast({ tone: "error", title: "Generation failed", description });
       return;
     }
 
