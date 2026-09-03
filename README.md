@@ -9,7 +9,7 @@
 ![Stage](https://img.shields.io/badge/stage-beta%20hardening-2938F2?style=flat-square)
 ![Product](https://img.shields.io/badge/product-presentations-6D39F7?style=flat-square)
 ![AI](https://img.shields.io/badge/AI-structured%20generation-E83ABF?style=flat-square)
-![License](https://img.shields.io/badge/status-private%20product-061436?style=flat-square)
+![Repository](https://img.shields.io/badge/repository-public-061436?style=flat-square)
 
 [![Technology stack](https://skillicons.dev/icons?i=nextjs,react,ts,tailwind,supabase,vercel)](https://github.com/athompson83/captivate)
 
