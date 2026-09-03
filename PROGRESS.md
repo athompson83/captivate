@@ -707,6 +707,19 @@ and the job now fails if the image and `supabase/config.toml` disagree.
 
 ### Found by reading Stripe rather than the code
 
+**Billing readiness was marked done on half a proof.** PROD-007 said the
+subscription loop was proven end to end with a live subscription, and a live
+subscription does exist in the account's history — one, `e2e_webhook_probe`,
+tagged `delete_me`, cancelled the same minute it was made. What it was not is
+a purchase: it was created through the API, and the live account has **zero
+Checkout Sessions in its entire history**. So what that proof covers is
+everything after the sale — webhook, signature, mirrored row, entitlement —
+and nothing before it. The item now says so and is no longer DONE.
+
+The distinction matters because the two halves fail independently and the
+checklist is a release gate. A reader taking "billing readiness: DONE" at face
+value would conclude a customer can buy, and no customer can.
+
 **There is no Customer Portal configuration on the Stripe account** — none in
 live mode and none in test. Stripe refuses to open a portal session until one
 is saved, so "Manage billing" in `/settings` would fail for the first person
