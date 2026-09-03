@@ -800,12 +800,21 @@ test.describe("what only a deployment can prove", () => {
     await signIn(page);
     await page.goto("/settings");
 
-    // A subscribed or granted account is offered "Manage billing" instead of
-    // an upgrade, and a deployment that sells nothing shows no picker at all.
-    // Only the first is a reason to stand down.
+    // Read the plan before deciding, and wait for it: `isVisible()` answers
+    // immediately, so an earlier version of this asked a page that had not
+    // rendered yet and always got "no". It also asked for the wrong control —
+    // a *granted* plan has no Stripe customer, so the section offers neither
+    // an upgrade picker nor "Manage billing", and the test failed on an
+    // account that simply had nothing to buy.
+    //
+    // What the upgrade controls need is a free account. Anything else is a
+    // missing fixture rather than a fault, and says which plan it found.
+    const section = page.getByRole("region", { name: "Plan" });
+    await expect(section).toBeVisible();
+    const plan = (await section.innerText()).replace(/\s+/g, " ").trim();
     test.skip(
-      await page.getByRole("button", { name: "Manage billing" }).isVisible(),
-      "this account already holds a paid plan; the upgrade controls only show for a free one",
+      !/\bFree\b/.test(plan),
+      `the upgrade controls only show for a free account, and this one reads: ${plan.slice(0, 120)}`,
     );
 
     await page.route("https://checkout.stripe.com/**", (route) =>
@@ -814,9 +823,9 @@ test.describe("what only a deployment can prove", () => {
 
     for (const tier of ["Basic", "Pro"] as const) {
       await page.goto("/settings");
-      const plan = page.getByRole("radiogroup", { name: "Plan" });
-      await expect(plan, `the ${tier} control should be offered`).toBeVisible();
-      await plan.getByRole("radio", { name: tier }).click();
+      const picker = page.getByRole("radiogroup", { name: "Plan" });
+      await expect(picker, `the ${tier} control should be offered`).toBeVisible();
+      await picker.getByRole("radio", { name: tier }).click();
 
       const opened = page
         .waitForRequest(/^https:\/\/checkout\.stripe\.com\/c\/pay\//, { timeout: 30_000 })
@@ -903,11 +912,32 @@ test.describe("what only a deployment can prove", () => {
     const src = await stored.getAttribute("src");
     test.info().annotations.push({ type: "imagery", description: `stored: ${src}` });
 
-    await expect(page.locator("header [role=status]")).toContainText(/Saved|All changes saved/i, {
-      timeout: 20_000,
-    });
-    await page.reload();
-    await page.waitForSelector("[data-stage]");
-    await expect(page.locator(`img[src="${src}"]`).first()).toBeVisible({ timeout: 30_000 });
+    // Reload until the picture comes back, rather than once after the header
+    // says "Saved".
+    //
+    // That status is not a signal about *this* change: accepting a generated
+    // image uploads, registers and then patches the element, and at the moment
+    // the picture appears the header can still be reading "All changes saved"
+    // from the edit before it. Reloading on that read the document a moment
+    // before autosave committed — the row was correct in the database and the
+    // page showed an empty frame — which is a race in the test and would have
+    // been reported as the product losing an author's picture.
+    //
+    // Polling is still an honest assertion: it fails if the image never
+    // survives a reload, which is the thing this journey exists to catch.
+    await expect
+      .poll(
+        async () => {
+          await page.reload();
+          await page.waitForSelector("[data-stage]");
+          return page.locator(`img[src="${src}"]`).count();
+        },
+        {
+          message: "the accepted image should still be on the scene after a reload",
+          timeout: 60_000,
+          intervals: [2_000, 3_000, 5_000, 5_000, 5_000],
+        },
+      )
+      .toBeGreaterThan(0);
   });
 });

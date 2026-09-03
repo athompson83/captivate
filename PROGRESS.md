@@ -59,15 +59,16 @@ records console errors and failed requests and fails on an uncaught page
 exception or a 5xx, which is the "console/network inspection" BETA-001 asked
 for by name.
 
-**Imagery, proven and then not kept.** An image key is set on production — the
-picker's Generate tab renders only when one is — and every settled text row
-names `claude-sonnet-5`, which is Anthropic's own gateway. Which gateway serves
-_images_ is not readable from here and is not settled by the row: the ledger
-persists the model string and not the gateway, and `gpt-image-2` without an
+**Imagery, proven and then not kept — and then kept.** An image key is set on
+production, and every settled text row names `claude-sonnet-5`, which is
+Anthropic's own gateway. Which gateway serves _images_ the `ai_generations`
+ledger cannot say: it persists a model string, and `gpt-image-2` without an
 `openai/` prefix is how OpenAI's default is named and equally what a
-`CAPTIVATE_IMAGE_MODEL` override would record through OpenRouter. So the
-OpenRouter account's exhausted balance is not ruled out as a future failure on
-the image path, though nothing has failed on it yet. A Pro grant on the
+`CAPTIVATE_IMAGE_MODEL` override would record through OpenRouter. The fixed
+accept path settled it a day later, because `assets.provider` stores the
+resolved `IMAGE_PROVIDER` rather than a model: the row written on 2026-09-03
+says `openai`. Production's images go through OpenAI, and the OpenRouter
+account's exhausted balance cannot reach them. A Pro grant on the
 disposable account (the free-plan refusal was asserted first) asked the picker
 for a picture and got one from `gpt-image-2` in 41.7 s, with a `succeeded`
 ledger row at $0.05. Then
@@ -637,11 +638,17 @@ and the job now fails if the image and `supabase/config.toml` disagree.
 
 ### Still open
 
-1. **Whether an accepted image is kept on production** is proven by the journey
-   only after PR #60 deploys; the generation itself is proven, on 2026-09-02,
-   with a ledger row to show for it.
-2. **Why Stripe rejects the checkout** is unknown until PR #60 is live and the
-   toast says which. The likeliest cause is a test-mode price id under a
-   live key, and the fix for that is two Vercel variables the agent cannot
-   write.
-3. **The Supabase Auth URL configuration** — see standing owner actions.
+1. **Why Stripe refuses the checkout.** PR #60 deployed and production now
+   answers "Stripe rejected that request", which rules out the case it has its
+   own sentence for — a price Stripe does not recognise — and leaves an
+   invalid-request refusal of the session itself. Both live prices are active
+   on active products, and the customer is created in live mode, so the key and
+   the ids are not the problem. The reason Stripe gave is on the deployment's
+   stderr now; reading it needs the Vercel dashboard, which this session cannot
+   open (the connector's grant covers a different project and answers 403).
+   Stripe's own go-live checklist is the leading candidate: live checkout is
+   blocked until the customer-facing business details are submitted, and
+   "set the account's public business name to Axtevi" has been a standing owner
+   action since before this session.
+2. **The Supabase Auth URL configuration** — see standing owner actions. It is
+   the one defect found this session that no code change can fix.
