@@ -4,12 +4,15 @@
 
 - Product: Captivate
 - Lifecycle stage: Beta / production-readiness
-- Control-graph node: HOSTED_RUNTIME_VERIFICATION (live app in owner-driven test loop)
-- Current milestone: Production readiness — discoverability, the signed-in
-  coverage gap, password policy, and a trust surface
-- Branch: `claude/premium-ui-presentation-akzjzs` → PR #51, merged; branch
-  restarted from `main` for the follow-up
-- `main`: PRs #22–#51 merged and deployed via Vercel auto-deploy
+- Control-graph node: HOSTED_RUNTIME_VERIFICATION — production driven end to
+  end by the suite itself. The suite found two defects; both were fixed and
+  deployed, and the fixes were re-proved against the running deployment on
+  2026-09-03
+- Current milestone: Close verified release gaps and prove the canonical hosted
+  runtime
+- Branch: `claude/captivate-prod-readiness-7ntlye` → PR #60 (merged), then PR #62
+- `main`: PRs #22–#57 merged and deployed via Vercel auto-deploy; `4944dde` at
+  session start
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -28,6 +31,175 @@
   executable by no role at all.
 
 ## Latest Session
+
+### A ledger column that cost nothing to falsify — PR #61
+
+`0028` (this branch, opened 2026-09-02) added `ai_generations.provider` so a
+human could read off which gateway a settlement actually paid — the question
+the first production image row (below) could not answer, because it recorded
+only a model string and `CAPTIVATE_IMAGE_MODEL` can make either gateway write
+the same one. The fix as first written let a settlement name the gateway
+directly, through a `p_provider` argument next to `p_model`.
+
+That repeats a trust boundary this file already accepts and does not close
+it. `0020_ledger_integrity.sql` explains at length why a caller can forge
+`model` and token counts on their own pending reservation, and why that is an
+acceptable trade: a cheap fake model prices the row near zero, which costs the
+forger the answer they were generating. `provider` broke that trade. It never
+touches `cost_usd`, so a caller could relabel an OpenRouter call `anthropic`,
+or the reverse, purely to corrupt the audit column — at no cost to themselves.
+An audit trail nobody pays to falsify is not evidence, and Codex's review of
+PR #61 said so within four minutes of the PR opening; `athompson83` said the
+same thing independently on the PR the next day, in stronger terms, and named
+it the blocking finding.
+
+The fix is not a new credential — this deployment has none that distinguishes
+the Next.js server from a browser calling the same RPC on the same JWT, and
+0020 already explains why one is not cheap to add. Instead `0029_gateway_
+from_model.sql` removes `p_provider` as a parameter entirely. Each settlement
+function now derives it from the `p_model` it is settling, under the naming
+convention this codebase already documents and calls its own — `0027`'s own
+comment on OpenRouter's `vendor/`-prefixed ids, mirrored in `DEFAULT_MODEL` and
+`DEFAULT_IMAGE_MODEL`. A caller can still forge `model`, exactly as before and
+at exactly the cost 0020 already prices in; what is gone is the ability to
+name a gateway disconnected from it. Both migrations are applied to
+`qnbwyymwhvqprjtyfdmb`; `0029` needed no release coordination with `0021`'s or
+`0022`'s, because no build this repository has ever shipped sent the seventh
+argument `0029` removes — `0028` gave it a default for exactly this reason,
+and the application code never used it.
+
+### The journeys that said "pass" without looking — PR #62
+
+PR #60 fixed the two production defects. This is what happened when the tests
+written to prove it were asked to prove it honestly, and it is the more useful
+half of the story: **both new journeys passed before either could have.**
+
+**A refusal counted as a success.** The checkout journey ran against a free
+account, took the free-plan copy as the end of the story, and reported a pass
+without ever pressing an Upgrade button. It gates on the control it drives
+now, and skips out loud when there is nothing to drive — a deployment that
+sells no tier, or an account holding a granted plan, offers no checkout to
+open, and a test that cannot reach its subject must say so rather than agree.
+
+**A tag counted as a picture.** The imagery journey asserted that an `img`
+element existed after reload. An element whose `src` 404s is still an element;
+`naturalWidth` is what separates a picture from a placeholder. Asserting it
+immediately exposed a worse defect in the test itself: the reload raced
+autosave, and the polling loop written to wait for the save was destroying it
+on every pass. The header says `All changes saved` when idle and `Saved` after
+a write, and the loose regex matched the stale idle text — so the test watched
+for a state that was already on screen, reloaded into the middle of the write,
+and then failed on the picture it had just discarded. It now waits for the
+status to leave idle, waits for it to settle, and reloads once. Against
+production that journey generates a picture, keeps it, and finds it decoded at
+1536x1024 after a reload.
+
+**What the two have in common** is that neither was failing. Both were green,
+and both were green for a reason unrelated to the thing they were named after.
+A test that cannot fail for the right reason is worse than an absent one,
+because it is counted.
+
+**The imagery gate got stricter, and was checked rather than assumed.** The
+first fix waited for the header to leave its idle text, which a reviewer
+pointed out is still satisfied by the _previous_ edit's "Saved". The gate now
+requires a state that can only be about this change — "Unsaved changes" or
+"Saving…" — before waiting for the settle. Whether the deployed build shows
+that state long enough for an assertion to catch it is exactly the sort of
+thing worth checking rather than reasoning about, so a disposable free account
+made one edit on production while a 120 ms poll recorded the header: it read
+`Unsaved changes`, `Saving…`, `Saved`, in that order. That account and its one
+deck were removed immediately afterwards.
+
+**The disposable identity is gone.** The production account created for this
+verification was removed in full on 2026-09-03: its four generated images
+first, through the product's own delete path so the storage objects went with
+the rows rather than being orphaned by a SQL delete, then its 27 decks, the
+`ai_generations` and `lecture_notes` rows, the `billing_customers` row and the
+`auth.users` record. Read back afterwards: two accounts, 15 decks — 14 of them
+the Product Owner's, including the rebuilt copy left for review — and no
+storage object under the disposable prefix. Nothing of the owner's was
+touched at any point; every mutation this session went to data the session
+had created itself.
+
+### Production, driven end to end — and what it was hiding
+
+The whole point of this session was to stop inferring. Every previous record
+about the hosted runtime ended in "needs a signed-in production session this
+environment does not have"; this one made the session and drove it.
+
+**The account.** A disposable user was created through the production
+project's own sign-up endpoint — the same call the sign-up page makes — with a
+mailbox on a domain the owner's Resend account receives for, so the
+confirmation email Supabase sent could actually be read and followed. It was.
+That is also how the first defect surfaced before a single journey ran: both
+the confirmation link and a recovery link requested with the app's own
+`redirect_to` came back pointing at `http://localhost:3000`. GoTrue checks
+`redirect_to` against the allowlist and on a miss writes the Site URL into the
+email, silently; production's allowlist does not carry `www.axtevi.com`, and
+its Site URL is the default. Every real confirmation and reset has been sending
+people to a machine that is not there. It is a dashboard setting with no
+management token available here, so it is the one new owner action.
+
+**The suites.** With `CAPTIVATE_E2E_URL=https://www.axtevi.com`: 37 of 37
+`smoke` and `accessibility` cases, 28 of 28 signed-in journeys. Getting a
+browser to production at all took `--ssl-version-max=tls1.2` and a few
+`--disable-features` — the agent container's TLS-re-terminating proxy drops
+Chromium's default ClientHello, while `curl` from the same shell gets a 200 —
+which is why `CAPTIVATE_E2E_CHROMIUM_ARGS` now exists. Every journey also
+records console errors and failed requests and fails on an uncaught page
+exception or a 5xx, which is the "console/network inspection" BETA-001 asked
+for by name.
+
+**Imagery, proven and then not kept — and then kept.** An image key is set on
+production, and every settled text row names `claude-sonnet-5`, which is
+Anthropic's own gateway. Which gateway serves _images_ the `ai_generations`
+ledger cannot say: it persists a model string, and `gpt-image-2` without an
+`openai/` prefix is how OpenAI's default is named and equally what a
+`CAPTIVATE_IMAGE_MODEL` override would record through OpenRouter. The fixed
+accept path settled it a day later, because `assets.provider` stores the
+resolved `IMAGE_PROVIDER` rather than a model: the row written on 2026-09-03
+says `openai`. Production's images go through OpenAI, and the OpenRouter
+account's exhausted balance cannot reach them. A Pro grant on the
+disposable account (the free-plan refusal was asserted first) asked the picker
+for a picture and got one from `gpt-image-2` in 41.7 s, with a `succeeded`
+ledger row at $0.05. Then
+"Use this image" spun forever. The accept path handed the preview data URL —
+several megabytes for 1536x1024 — to a server action, which stops reading its
+body at 1 MB; the action threw before its first line, the `await` never
+settled, and no sentence was shown. The bytes now go from the browser straight
+into the caller's own storage prefix, the way every upload already goes, and
+only the provenance row goes through an action. The fill pass keeps its bytes
+through a `server-only` store, and the two image-signature checkers that had
+drifted apart in `visual-sourcing.ts` are one module the browser can use too.
+
+**Basic and Pro, half proven.** `/settings` offers both tiers with an Upgrade
+button each, so `STRIPE_PRICE_BASIC_MONTHLY` and `STRIPE_PRICE_PRO_MONTHLY`
+resolve at request time. Pressing either created the Stripe customer — in
+live mode, which settles which key production holds — and then no Checkout
+Session in either mode: Stripe rejected the create call and the action caught
+every error into "Couldn't reach Stripe", recording nothing. The billing
+actions now log at the choke point and tell a price Stripe does not recognise
+apart from an unreachable Stripe, because a price id copied from test mode
+into a live-key deployment fails in exactly this shape. The journey reads the
+sentence back once PR #60 is live.
+
+**The blank scenes.** The owner's twenty-one-scene deck from 2026-09-01 has ten
+empty scenes: nine `statement` layouts whose heading came back empty, and one
+blank inserted by hand. The composer defect was fixed by PR #44 — an hour
+_after_ that deck was generated, and its comment names one of these very
+scenes. Rebuilding the live deck is the owner's call on their own data, so the
+rebuilt result was written to a **copy** in their library instead, titled
+"…— rebuilt copy (review before use)": every row carried over with ids
+remapped the way `duplicatePresentation` does it, the nine statements drawn as
+their centred heading by the same composer the app uses, and the original
+untouched.
+
+**What could not be read from here, precisely.** The Vercel connector's grant
+covers a different project; the Captivate project id is now known from the
+bot's PR comment and answers 403 to logs, deployments and configuration. So
+stderr lines the observability module writes are still unreadable from this
+environment, and the deployment id and built SHA behind `www.axtevi.com`
+remain inferred from behaviour rather than read.
 
 ### Four releases: the spend boundary, a second gateway, and the stage itself
 
@@ -372,10 +544,16 @@ boundary holds from the writer's side too.
 
 ## Blockers
 
-- None.
+- None for engineering. One owner-only production setting is wrong and is
+  listed first under standing owner actions.
 
 ## Standing owner actions
 
+0. **Set Supabase Auth's URL configuration for production** — Authentication
+   → URL Configuration: Site URL `https://www.axtevi.com`, and
+   `https://www.axtevi.com/auth/callback` under Redirect URLs. Until then every
+   confirmation and password-reset email points at `http://localhost:3000`.
+   Read from the emails themselves on 2026-09-02, not inferred.
 1. Set the Stripe account's public business name to **Axtevi** — it appears on
    card statements, receipts and the Billing Portal.
 2. Confirm `STRIPE_WEBHOOK_SECRET` matches the mode of `STRIPE_SECRET_KEY`.
@@ -394,8 +572,14 @@ boundary holds from the writer's side too.
 6. **Review the privacy and terms wording.** The facts in both are derived from
    the code and are accurate; the wording has had no legal review.
 
-`PEXELS_API_KEY` and `OPENAI_API_KEY` were recorded here as configured, and the
-evidence says otherwise. `ai_generations` holds **zero** rows of kind `image`
+`PEXELS_API_KEY` and an image key are both configured, and neither is an owner
+action any more — read back on 2026-09-02 from a signed-in production session,
+where the picker offered a Find tab (which renders only when the stock key
+resolves) and a Generate tab (only when an image key does), and a picture came
+back. `PROJECT_CHECKLIST.md` says the same; the two agreed once this session
+finished rather than one describing the other's world. The paragraph that
+follows is what the evidence said before that, kept because it is how the gap
+was found: `ai_generations` holds **zero** rows of kind `image`
 for the life of the deployment, which is decisive for the generated path — a
 call would have written one. Stock photography leaves no row, so it is
 inferred rather than read: a twenty-one-scene deck generated on 2026-09-01 came
@@ -558,11 +742,71 @@ and the job now fails if the image and `supabase/config.toml` disagree.
   2026-09-02 ahead of the deploy and read back — new signatures present, old
   ones gone, `authenticated` may execute and `anon` may not.
 
+### Closed on 2026-09-03
+
+- **Keeping a generated image works on production.** The journey
+  `a paid account can generate an image and keep it` ran against
+  `https://www.axtevi.com` after PR #60 deployed: generated, kept, saved, and
+  the picture decoded at 1536x1024 after a full reload. The `assets` row it
+  left carried `source = 'generated'`, `provider = 'openai'`, the MIME type
+  read out of the bytes rather than declared, and the real byte count.
+- **Which gateway serves production's images is settled, not inferred.** That
+  row's `provider` column records the resolved `IMAGE_PROVIDER`, not a model
+  string, and it reads `openai`. The OpenRouter account's exhausted balance
+  cannot affect an image any user generates.
+- **The disposable production identity is removed**, storage objects included.
+
+### Found by reading Stripe rather than the code
+
+**Billing readiness was marked done on half a proof.** PROD-007 said the
+subscription loop was proven end to end with a live subscription, and a live
+subscription does exist in the account's history — one, `e2e_webhook_probe`,
+tagged `delete_me`, cancelled the same minute it was made. What it was not is
+a purchase: it was created through the API, and the live account has **zero
+Checkout Sessions in its entire history**. So what that proof covers is
+everything after the sale — webhook, signature, mirrored row, entitlement —
+and nothing before it. The item now says so and is no longer DONE.
+
+The distinction matters because the two halves fail independently and the
+checklist is a release gate. A reader taking "billing readiness: DONE" at face
+value would conclude a customer can buy, and no customer can.
+
+**There is no Customer Portal configuration on the Stripe account** — none in
+live mode and none in test. Stripe refuses to open a portal session until one
+is saved, so "Manage billing" in `/settings` would fail for the first person
+who ever subscribes: the one control a paying customer needs to cancel, change
+a card, or move tier. Nothing caught it because nothing has subscribed yet —
+the journeys reach that button only on an account with a real subscription,
+and the checkout that would create one is itself refused. Two gaps hiding
+each other is the ordinary shape of this: each looks like the other's
+precondition until somebody reads the account.
+
+It is a settings decision with money attached — what a customer may do to
+their own subscription without asking — so it is recorded as an owner action
+rather than defaulted by the agent.
+
 ### Still open
 
-1. **Two price ids are set and not yet read back.** `STRIPE_PRICE_TOPUP` is
-   confirmed live by the top-up row on the production `/pricing` page.
-   `STRIPE_PRICE_BASIC_MONTHLY` and `STRIPE_PRICE_PRO_MONTHLY` were set in
-   Vercel by the owner and only show on a signed-in `/settings` or at
-   checkout, neither of which this session can reach — and the Vercel account
-   available here does not have the Captivate project in scope.
+1. **Why Stripe refuses the checkout — narrowed to one unreadable line.**
+   Production answers "Stripe rejected that request", which rules out the case
+   with its own sentence — a price Stripe does not recognise — and leaves an
+   invalid-request refusal of the session itself. On 2026-09-03 every input to
+   that call was read back and every one is valid: the live account has
+   `charges_enabled`, `payouts_enabled` and `details_submitted` all true, no
+   requirement currently or past due, no `disabled_reason`, and active card
+   payments; the customer exists in live mode on that account; both prices are
+   recurring, active and on active products; and the success and cancel URLs
+   are absolute, which production's own `robots.txt`, sitemap and canonical tag
+   confirm by publishing `https://www.axtevi.com` out of the same variable.
+
+   So **account activation is not the blocker**, which is what this record said
+   for two days on the strength of it being the usual one. What remains is the
+   message Stripe itself returned. The deployment logs it at the choke point,
+   and Stripe keeps its own copy under Developers → Logs; both need a console
+   this environment has no grant for — the Vercel connector's projects were
+   listed again on 2026-09-03 and Captivate is still not among them.
+
+   Reading one line in either console settles it, and nothing else can.
+
+2. **The Supabase Auth URL configuration** — see standing owner actions. It is
+   the one defect found this session that no code change can fix.

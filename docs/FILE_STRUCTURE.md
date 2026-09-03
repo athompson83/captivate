@@ -120,7 +120,7 @@ captivate/
 │  └─ models/                      Its weights
 │
 ├─ supabase/
-│  ├─ migrations/                  0001 core … 0028, applied in name order
+│  ├─ migrations/                  0001 core … 0029, applied in name order
 │  └─ tests/                       RLS isolation suite + runner
 │
 ├─ tests/

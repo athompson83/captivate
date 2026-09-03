@@ -240,8 +240,6 @@ export async function complete(
   result: {
     status: "succeeded" | "failed" | "invalid_output";
     model?: string;
-    /** Which gateway was paid. The model id alone cannot say — see 0028. */
-    provider?: string;
     usage?: { input: number; output: number };
     error?: string;
   },
@@ -252,7 +250,6 @@ export async function complete(
       p_id: reservation.id,
       p_status: result.status,
       p_model: result.model ?? null,
-      p_provider: result.provider ?? null,
       p_input_tokens: result.usage?.input ?? null,
       p_output_tokens: result.usage?.output ?? null,
       p_error: result.error?.slice(0, 500) ?? null,

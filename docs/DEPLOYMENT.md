@@ -47,6 +47,24 @@ before that decision still resolves to the tier its holder paid for.
 Re-enabling it means measured cost per presentation first — see the ledger note
 below — not just adding a price.
 
+### Two settings Stripe keeps outside the API
+
+Both are saved in the Stripe dashboard, both are per-mode, and neither is
+visible in any environment variable — which is why a deployment can look
+completely configured and still fail on the first customer.
+
+**The Customer Portal needs a saved configuration.** Without one Stripe refuses
+`billingPortal.sessions.create` outright, so "Manage billing" in `/settings`
+fails for anybody who subscribes. This is not reachable in testing until a
+subscription exists, so it is worth checking before one does:
+`GET /v1/billing_portal/configurations` returning an empty list is the answer.
+
+**The statement descriptor is what a bank shows.** It is separate from the
+business name and from the dashboard display name, and it defaults to the
+account holder's own name on an individual account — so a subscriber can see a
+person's name on their card statement rather than the product they bought,
+which is the usual cause of a chargeback for an unrecognised charge.
+
 ### Rotating a price
 
 Each `STRIPE_PRICE_*` variable holds a **comma-separated list, newest first**.
@@ -252,7 +270,8 @@ supabase db push
 | `0025_webhook_claim_completion.sql`  | A webhook claim records whether its work finished, so a failed delivery is retried rather than answered as a duplicate                                        |
 | `0026_pin_helper_search_path.sql`    | `search_path` pinned on the helpers that had shipped without it                                                                                               |
 | `0027_openrouter_model_rates.sql`    | Prices for the models reachable through OpenRouter                                                                                                            |
-| `0028_generation_provider.sql`       | `ai_generations.provider`: every settlement names the gateway that was paid, because the model id alone cannot                                                |
+| `0028_generation_provider.sql`       | `ai_generations.provider`; settlement accepted it as a caller-supplied argument, corrected below                                                              |
+| `0029_gateway_from_model.sql`        | Provider stops being a parameter and is derived from the settled model id, so a caller cannot name a gateway the model it supplied did not use                |
 
 Every one is additive except `0021`, `0022` and `0024`: new columns carry
 defaults and new tables carry their own policies, so applying them ahead of a
@@ -283,6 +302,17 @@ is live, and the new build calls the two-argument form as soon as it is. Apply
 the migration and release the application as one coordinated step, migration
 first — that is the order that closes the hole soonest, and the failure either
 side of it is a clean refusal saying nothing was spent, not a corrupted row.
+
+**`0029` also drops and recreates a signature, and is safe regardless of
+order.** It removes the `p_provider` argument `0028` added, because that
+argument let an authenticated caller name the gateway independently of the
+model it actually settled — the one column this deployment added specifically
+so a human could read off which balance was charged, made falsifiable at no
+cost to the falsifier. No deployed build has ever sent that seventh argument:
+`0028` gave it a default so the application running when `0028` was applied
+kept settling without it, and the application built against this repository
+has never sent it either, on either side of `0029`. There is no window to
+coordinate.
 
 **`0014` touches `realtime.messages`, which Supabase owns.** The migration
 enables RLS on it only if it is not already enabled, because Supabase enables it
@@ -362,8 +392,16 @@ signs the user straight in.
 ### 2. Redirect URLs
 
 Add your deployment origin to **Authentication → URL Configuration → Redirect
-URLs**, including `https://<your-host>/auth/callback`. Confirmation and recovery
-links fail silently otherwise.
+URLs**, including `https://<your-host>/auth/callback`, and set **Site URL** to
+the origin too. Confirmation and recovery links fail silently otherwise — and
+"silently" means this: GoTrue accepts the `redirect_to` the app sends, checks
+it against the allowlist, and on a miss writes the **Site URL** into the email
+instead. Nothing errors. On 2026-09-02 a sign-up and a recovery requested
+through the production project both arrived with
+`redirect_to=http://localhost:3000`, which is the default Site URL, so every
+real confirmation link was sending people to a machine that is not there. It
+is a dashboard setting with no management token available to the agent, and
+is recorded as an owner action in `PROJECT_CHECKLIST.md`.
 
 Set `NEXT_PUBLIC_SITE_URL` to the same origin so the app builds absolute links
 rather than inferring them from request headers.

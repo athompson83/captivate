@@ -6,14 +6,15 @@ import {
   isStockSearchConfigured,
   searchStockPhotos,
 } from "./visual-sourcing";
-import { saveGeneratedImage, saveStockPhoto } from "@/lib/data/sourced-assets";
+import { saveStockPhoto } from "@/lib/data/sourced-assets";
+import { storeGeneratedImage } from "@/lib/data/sourced-store";
 
 /**
  * Filling a generated deck's media slots with real photographs.
  *
  * Every picture goes through the same boundary a hand-picked one does:
  * `searchStockPhotos` / `generateImage` choose it, `saveStockPhoto` /
- * `saveGeneratedImage` fetch, verify and re-host the bytes into the caller's
+ * `storeGeneratedImage` fetch, verify and re-host the bytes into the caller's
  * own storage with provenance. Nothing here hotlinks a provider's CDN into a
  * document, and the paid path reserves budget before spending exactly as the
  * picker does.
@@ -86,15 +87,7 @@ export async function fillWithGeneratedImage(
   );
   if (!generated.ok) return null;
 
-  const saved = await saveGeneratedImage({
-    dataUrl: generated.data.previewDataUrl,
-    prompt: generated.data.prompt,
-    model: generated.data.model,
-    quality: generated.data.quality,
-    generationMs: generated.data.generationMs,
-    altText: trimmed,
-    presentationId,
-  });
+  const saved = await storeGeneratedImage(generated.data, { altText: trimmed, presentationId });
   if (!saved.ok) return null;
 
   return { url: saved.data.url, assetId: saved.data.id, alt: trimmed };
