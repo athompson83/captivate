@@ -295,4 +295,21 @@ describe("an answer cut off at the token ceiling", () => {
     expect(result.reason).toBe("invalid_output");
     expect(result.usage).toEqual({ input: 200, output: 400 });
   });
+
+  it("records which fields the model actually got wrong, separately from the user-facing message", async () => {
+    // Without this, a recurring invalid_output is undiagnosable after the
+    // fact: the ledger and the toast both said only "didn't match the
+    // required shape" and nothing recorded which field caused it.
+    reply = () => ({
+      content: [{ type: "tool_use", id: "toolu_test_1", name: "answer", input: { wrong: true } }],
+      usage: { input_tokens: 100, output_tokens: 200 },
+    });
+    const result = await run();
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/required shape/i);
+    expect(result.detail).toBeDefined();
+    expect(result.detail).not.toBe(result.error);
+    expect(result.detail).toContain("value");
+  });
 });

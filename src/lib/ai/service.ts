@@ -881,7 +881,10 @@ function toRecord<T>(result: StructuredResult<T>) {
     : {
         status:
           result.reason === "invalid_output" ? ("invalid_output" as const) : ("failed" as const),
-        error: result.error,
+        // The ledger gets the diagnostic detail when there is one (which
+        // fields the model's answer actually got wrong); the user never
+        // sees it, only the generic, actionable toast text.
+        error: result.detail ?? result.error,
         // A near-miss and a truncated answer bill two full model calls. The
         // ledger recorded nothing for them, which made real spend invisible in
         // the cost record and left the limiter unable to tell a generation
