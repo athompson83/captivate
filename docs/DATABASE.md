@@ -272,21 +272,28 @@ Append-only, applied in filename order.
 Everything is idempotent (`create table if not exists`, `drop policy if
 exists`), so re-running is safe.
 
-**After applying any migration that changes the exposed schema — a function,
-table, column, view, type, or foreign-key relationship — reload PostgREST's
-schema cache: `NOTIFY pgrst, 'reload schema';`.** PostgREST caches all of
-these, not just function signatures (its own docs list table, view and type
-DDL alongside function DDL as triggers for automatic reloading). The Supabase
-CLI sends the reload notification automatically; applying a migration through
-the Management API or an MCP tool does not. Skipping it leaves the cache
-serving a stale view of `public` — on 2026-09-03, applying `0028` and `0029`
-that way left `captivate_reserve_generation` intermittently returning `404
-PGRST202` ("could not find the function in the schema cache") on production
-for hours afterward, even though the function was present in Postgres the
-whole time
-with the exact signature callers used. The client's own fallback absorbed it
-(nothing was spent, a structural draft was offered instead), which is why it
-surfaced as a confusing but non-destructive toast rather than a hard failure.
+**If a function or table you just confirmed exists still returns `404
+PGRST202` ("could not find the function/table in the schema cache"), fire a
+manual reload: `NOTIFY pgrst, 'reload schema';`.** Every project ships a
+`pgrst_ddl_watch` event trigger (`select * from pg_event_trigger`) that
+already sends this notification automatically on `CREATE/ALTER FUNCTION`,
+`CREATE/ALTER TABLE`, view, type and foreign-key DDL — this fires from
+Postgres itself on commit, independent of which client ran the migration
+(CLI, Management API, MCP tool, or a raw `psql` session), so it is not a
+client-side step to remember. Despite that, on 2026-09-03 `captivate_
+reserve_generation` intermittently returned `404 PGRST202` on production for
+hours after `0028` and `0029` were applied — twice, minutes apart — even
+though the function was present in Postgres the whole time with the exact
+signature callers used, and the automatic trigger had already fired at
+migration time. The precise reason PostgREST's cache didn't pick that up is
+unconfirmed (a plausible cause is connection pooling between PostgREST and
+Postgres delivering the `NOTIFY` to a different session than the one serving
+requests); a manual `NOTIFY` resolved it immediately both times. Treat a
+`PGRST202` against a function you've verified exists as this class of issue
+rather than a missing migration. The client's own fallback absorbed the
+failure correctly while this was unresolved (nothing was spent, a structural
+draft was offered instead), which is why it surfaced as a confusing but
+non-destructive toast rather than a hard failure.
 
 ### Testing
 
