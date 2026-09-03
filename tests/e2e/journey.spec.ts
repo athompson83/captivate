@@ -800,32 +800,53 @@ test.describe("what only a deployment can prove", () => {
     await signIn(page);
     await page.goto("/settings");
 
-    // Read the plan before deciding, and wait for it: `isVisible()` answers
-    // immediately, so an earlier version of this asked a page that had not
-    // rendered yet and always got "no". It also asked for the wrong control —
-    // a *granted* plan has no Stripe customer, so the section offers neither
-    // an upgrade picker nor "Manage billing", and the test failed on an
-    // account that simply had nothing to buy.
+    // Gate on the control this journey drives, not on the word "Free".
     //
-    // What the upgrade controls need is a free account. Anything else is a
-    // missing fixture rather than a fault, and says which plan it found.
+    // The billing section has four shapes and only one of them can be tested:
+    // a paid subscription offers "Manage billing", a *granted* plan offers
+    // nothing at all (there is no Stripe customer to manage), a deployment
+    // that sells no tier renders the free copy with no controls, and a free
+    // account on a selling deployment gets an "Upgrade to …" button. An
+    // earlier version looked for "Free" and would have failed on the third of
+    // those, which is a correct deployment with nothing to buy.
+    //
+    // Which tiers are offered is also the deployment's to say: the picker is a
+    // radiogroup only when more than one tier is sellable, and a single one
+    // renders as a plain label. So the buttons themselves are the list.
     const section = page.getByRole("region", { name: "Plan" });
     await expect(section).toBeVisible();
-    const plan = (await section.innerText()).replace(/\s+/g, " ").trim();
+    const upgrades = section.getByRole("button", { name: /^Upgrade to / });
+    const offered = await upgrades.evaluateAll((buttons) =>
+      buttons.map((b) => (b.textContent ?? "").replace(/^Upgrade to\s+/, "").trim()),
+    );
+    const picker = section.getByRole("radiogroup", { name: "Plan" });
+    const tiers = (await picker.isVisible())
+      ? await picker
+          .getByRole("radio")
+          .evaluateAll((radios) => radios.map((r) => (r.textContent ?? "").trim()))
+      : offered;
     test.skip(
-      !/\bFree\b/.test(plan),
-      `the upgrade controls only show for a free account, and this one reads: ${plan.slice(0, 120)}`,
+      tiers.length === 0,
+      `this deployment offers no upgrade control to a free account; the plan section reads: ${(
+        await section.innerText()
+      )
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 120)}`,
     );
 
     await page.route("https://checkout.stripe.com/**", (route) =>
       route.fulfill({ status: 200, contentType: "text/html", body: "<title>Stripe stub</title>" }),
     );
 
-    for (const tier of ["Basic", "Pro"] as const) {
+    for (const tier of tiers) {
       await page.goto("/settings");
-      const picker = page.getByRole("radiogroup", { name: "Plan" });
-      await expect(picker, `the ${tier} control should be offered`).toBeVisible();
-      await picker.getByRole("radio", { name: tier }).click();
+      const plan = page.getByRole("region", { name: "Plan" });
+      // Only where there is a choice to make; one sellable tier is a label.
+      const choose = plan.getByRole("radiogroup", { name: "Plan" });
+      if (await choose.isVisible()) await choose.getByRole("radio", { name: tier }).click();
+      const upgrade = plan.getByRole("button", { name: `Upgrade to ${tier}` });
+      await expect(upgrade, `the ${tier} control should be offered`).toBeVisible();
 
       const opened = page
         .waitForRequest(/^https:\/\/checkout\.stripe\.com\/c\/pay\//, { timeout: 30_000 })
@@ -841,7 +862,7 @@ test.describe("what only a deployment can prove", () => {
         async () => ({ said: await toast.innerText() }),
         () => new Promise<{ said: string }>(() => {}),
       );
-      await page.getByRole("button", { name: `Upgrade to ${tier}` }).click();
+      await upgrade.click();
 
       const outcome = await Promise.race([opened, refused]);
       const said = "said" in outcome ? outcome.said : null;
