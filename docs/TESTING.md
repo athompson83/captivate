@@ -106,6 +106,24 @@ CAPTIVATE_E2E_URL=https://your-host \
 npx playwright test --project=authenticated
 ```
 
+Two more journeys run only where `CAPTIVATE_E2E_URL` names a deployment, for
+the same reason: they ask things only a deployment can answer. One selects
+Basic and then Pro on `/settings` and asserts that each "Upgrade" hands the
+browser to a `checkout.stripe.com` session — the request is answered locally
+rather than sent, so nothing is charged and Stripe's own page is not under
+test; when the action refuses instead, the failure quotes the toast. The other
+drives the picker's Generate tab on a fresh deck: a free account must be
+refused with the plan sentence, a paid one must get a picture, keep it, and
+find it again as a stored asset after a reload. That second journey spends one
+image generation against the deployment's budget each time it runs.
+
+`CAPTIVATE_E2E_CHROMIUM_ARGS` appends switches to every project's Chromium,
+whitespace-separated. It exists for the environment the suite runs in rather
+than the deployment it points at: an agent container whose only route out is a
+TLS-re-terminating proxy needed `--proxy-server=… --ssl-version-max=tls1.2` and
+a few `--disable-features` before a single navigation to the hosted candidate
+succeeded, while `curl` from the same shell got a 200.
+
 ### Database
 
 `supabase/tests/run.sh` applies `0001_captivate_core.sql` to a throwaway

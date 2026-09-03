@@ -4,7 +4,8 @@ import { useState } from "react";
 import { AlertTriangle, Loader2, Search, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";
-import { saveGeneratedImage, saveStockPhoto } from "@/lib/data/sourced-assets";
+import { saveStockPhoto } from "@/lib/data/sourced-assets";
+import { keepGeneratedImage } from "@/lib/data/upload-generated";
 
 /**
  * Finding a picture, and making one.
@@ -218,21 +219,24 @@ export function ImageGeneration({
   const accept = async () => {
     if (!preview) return;
     setSaving(true);
-    const saved = await saveGeneratedImage({
-      dataUrl: preview.previewDataUrl,
-      prompt: preview.prompt,
-      model: preview.model,
-      quality: preview.quality,
-      generationMs: preview.generationMs,
-      altText: preview.prompt.slice(0, 200),
-      presentationId,
-    });
+    // The bytes go from here straight into storage; only the row goes through
+    // an action. A thrown failure still lands in the toast rather than leaving
+    // the button spinning, which is how the first production save was lost.
+    let saved: Awaited<ReturnType<typeof keepGeneratedImage>>;
+    try {
+      saved = await keepGeneratedImage(preview, {
+        altText: preview.prompt.slice(0, 200),
+        presentationId,
+      });
+    } catch {
+      saved = { ok: false, error: "Couldn't save the image. Nothing was changed." };
+    }
     setSaving(false);
     if (!saved.ok) {
       toast({ tone: "error", title: "Couldn't use that image", description: saved.error });
       return;
     }
-    onApply({ id: saved.data.id, url: saved.data.url, alt: preview.prompt.slice(0, 200) });
+    onApply(saved.asset);
   };
 
   return (

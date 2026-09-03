@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { sniffImage } from "./image-signature";
 import { supabaseServer } from "@/lib/supabase/server";
 import { STORAGE_BUCKETS } from "@/lib/supabase/config";
 import { MAX_UPLOAD_BYTES } from "@/lib/data/upload-limits";
@@ -229,44 +230,6 @@ function imageRequestBody(prompt: string): Record<string, unknown> {
   return IMAGE_PROVIDER === "openrouter"
     ? { ...common, aspect_ratio: "3:2" }
     : { ...common, size: "1536x1024" };
-}
-
-/** Image types this deployment will store, and what to call the file. */
-const STORABLE: Record<string, { mimeType: string; extension: string }> = {
-  "image/png": { mimeType: "image/png", extension: "png" },
-  "image/jpeg": { mimeType: "image/jpeg", extension: "jpg" },
-  "image/webp": { mimeType: "image/webp", extension: "webp" },
-};
-
-/**
- * What the bytes actually are, as opposed to what anything says they are.
- *
- * The accept path used to test for a PNG signature and store `image/png`,
- * which was right while exactly one model could produce a generated image and
- * silently wrong the moment another could: a WebP stored under a PNG content
- * type renders nowhere, and the check that was supposed to catch a lie instead
- * rejected a perfectly good picture. Sniffing answers both questions at once —
- * is this an image at all, and which one — so the claim in the data URL never
- * has to be trusted.
- */
-export function sniffImage(bytes: Uint8Array): { mimeType: string; extension: string } | null {
-  const at = (i: number) => bytes[i] ?? -1;
-  if (at(0) === 0x89 && at(1) === 0x50 && at(2) === 0x4e && at(3) === 0x47)
-    return STORABLE["image/png"];
-  if (at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff) return STORABLE["image/jpeg"];
-  if (
-    at(0) === 0x52 &&
-    at(1) === 0x49 &&
-    at(2) === 0x46 &&
-    at(3) === 0x46 &&
-    at(8) === 0x57 &&
-    at(9) === 0x45 &&
-    at(10) === 0x42 &&
-    at(11) === 0x50
-  ) {
-    return STORABLE["image/webp"];
-  }
-  return null;
 }
 
 /**
@@ -519,33 +482,6 @@ async function settle(
 /* Ingestion                                                                   */
 /* -------------------------------------------------------------------------- */
 
-/** Magic bytes, because a Content-Type header is a claim rather than a fact. */
-const SIGNATURES: { mime: string; ext: string; matches: (b: Uint8Array) => boolean }[] = [
-  {
-    mime: "image/png",
-    ext: "png",
-    matches: (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
-  },
-  {
-    mime: "image/jpeg",
-    ext: "jpg",
-    matches: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
-  },
-  {
-    mime: "image/webp",
-    ext: "webp",
-    matches: (b) =>
-      b[0] === 0x52 &&
-      b[1] === 0x49 &&
-      b[2] === 0x46 &&
-      b[3] === 0x46 &&
-      b[8] === 0x57 &&
-      b[9] === 0x45 &&
-      b[10] === 0x42 &&
-      b[11] === 0x50,
-  },
-];
-
 export type IngestFailure =
   "host-not-allowed" | "unreachable" | "too-large" | "not-an-image" | "storage";
 
@@ -613,10 +549,10 @@ export async function fetchImageBytes(rawUrl: string): Promise<Sourced<IngestedB
       offset += chunk.byteLength;
     }
 
-    const signature = SIGNATURES.find((candidate) => candidate.matches(bytes));
+    const signature = sniffImage(bytes);
     if (!signature) return { ok: false, error: "not-an-image" satisfies IngestFailure };
 
-    return { ok: true, data: { bytes, mimeType: signature.mime, extension: signature.ext } };
+    return { ok: true, data: { bytes, ...signature } };
   } catch {
     return { ok: false, error: "unreachable" satisfies IngestFailure };
   }
@@ -642,3 +578,4 @@ export async function storeSourcedImage(
 }
 
 export { INGEST_HOSTS };
+export { sniffImage } from "./image-signature";
