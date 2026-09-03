@@ -80,8 +80,23 @@ WebVTT is derived from it on demand rather than stored.
 
 ### `ai_generations`
 
-An audit row per model call: kind, prompt, status, model, token counts and any
-error. It is what makes cost visible, and it is also the rate limiter's counter.
+An audit row per model call: kind, prompt, status, model, the gateway that
+served it, token counts and any error. It is what makes cost visible, and it is
+also the rate limiter's counter. `provider` (`0028`) is derived at settlement
+from the settled model id (`0029`) rather than accepted as its own argument —
+an unprefixed id is a direct call, a `vendor/`-prefixed one is OpenRouter, the
+same naming convention `DEFAULT_MODEL`/`DEFAULT_IMAGE_MODEL` already use, so
+recording it costs nothing new to trust beyond what `model` already carries.
+The alternative, letting a settlement name the gateway on its own, was tried
+first and reverted before release: it let an authenticated caller falsify the
+one column this deployment added so a human could read off which balance was
+charged, at no cost to the falsifier — unlike lying about `model` or the token
+counts, which prices the row near zero and is the accepted trade described
+below. `0029` backfills every row that has ever had no `provider` — not only
+the ones `0028` settled, since the column did not exist before it — wherever
+`model` is recorded and shaped like a real gateway id; a row whose model is
+absent or does not match that shape (predating this rule, or already flagged
+malformed) keeps a null rather than a guess.
 
 ### `ai_image_limits`
 

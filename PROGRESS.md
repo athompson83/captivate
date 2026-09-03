@@ -32,6 +32,42 @@
 
 ## Latest Session
 
+### A ledger column that cost nothing to falsify — PR #61
+
+`0028` (this branch, opened 2026-09-02) added `ai_generations.provider` so a
+human could read off which gateway a settlement actually paid — the question
+the first production image row (below) could not answer, because it recorded
+only a model string and `CAPTIVATE_IMAGE_MODEL` can make either gateway write
+the same one. The fix as first written let a settlement name the gateway
+directly, through a `p_provider` argument next to `p_model`.
+
+That repeats a trust boundary this file already accepts and does not close
+it. `0020_ledger_integrity.sql` explains at length why a caller can forge
+`model` and token counts on their own pending reservation, and why that is an
+acceptable trade: a cheap fake model prices the row near zero, which costs the
+forger the answer they were generating. `provider` broke that trade. It never
+touches `cost_usd`, so a caller could relabel an OpenRouter call `anthropic`,
+or the reverse, purely to corrupt the audit column — at no cost to themselves.
+An audit trail nobody pays to falsify is not evidence, and Codex's review of
+PR #61 said so within four minutes of the PR opening; `athompson83` said the
+same thing independently on the PR the next day, in stronger terms, and named
+it the blocking finding.
+
+The fix is not a new credential — this deployment has none that distinguishes
+the Next.js server from a browser calling the same RPC on the same JWT, and
+0020 already explains why one is not cheap to add. Instead `0029_gateway_
+from_model.sql` removes `p_provider` as a parameter entirely. Each settlement
+function now derives it from the `p_model` it is settling, under the naming
+convention this codebase already documents and calls its own — `0027`'s own
+comment on OpenRouter's `vendor/`-prefixed ids, mirrored in `DEFAULT_MODEL` and
+`DEFAULT_IMAGE_MODEL`. A caller can still forge `model`, exactly as before and
+at exactly the cost 0020 already prices in; what is gone is the ability to
+name a gateway disconnected from it. Both migrations are applied to
+`qnbwyymwhvqprjtyfdmb`; `0029` needed no release coordination with `0021`'s or
+`0022`'s, because no build this repository has ever shipped sent the seventh
+argument `0029` removes — `0028` gave it a default for exactly this reason,
+and the application code never used it.
+
 ### The journeys that said "pass" without looking — PR #62
 
 PR #60 fixed the two production defects. This is what happened when the tests
@@ -690,6 +726,21 @@ and the job now fails if the image and `supabase/config.toml` disagree.
   pricing page was backed by no completed generation at all, and the failure
   was honest everywhere an author looked — the picker hid the tab, the service
   said so — which is exactly why it could have stayed absent unnoticed.
+- **A ledger row now names the gateway that was paid.** The row above could
+  say `gpt-image-2` and nothing about who served it, because settlement kept
+  the model string alone and a `CAPTIVATE_IMAGE_MODEL` override records the
+  same string through either gateway. `0028` adds `ai_generations.provider`,
+  constrained to the three gateways the application can be built against,
+  and both settlement functions take it as a defaulted final argument — so
+  the build running when the migration was applied kept settling, with the
+  gateway unrecorded, until it was rebuilt. Text settlement passes the
+  resolved `AI_PROVIDER`, image settlement `IMAGE_PROVIDER`; an unknown value
+  is refused and leaves the row pending for the retry rather than written
+  half-true. Nothing is backfilled: a row settled before the column existed
+  has no honest answer, and stamping the current environment onto it would be
+  the cross-reference the column exists to end. Applied to production on
+  2026-09-02 ahead of the deploy and read back — new signatures present, old
+  ones gone, `authenticated` may execute and `anon` may not.
 
 ### Closed on 2026-09-03
 

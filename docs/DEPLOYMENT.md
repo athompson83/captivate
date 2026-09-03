@@ -268,6 +268,10 @@ supabase db push
 | `0023_text_generation_cost.sql`      | Every settled text generation records what it cost                                                                                                            |
 | `0024_generation_credits.sql`        | Top-up credits, and a reservation that can spend one; **not additive — see below**                                                                            |
 | `0025_webhook_claim_completion.sql`  | A webhook claim records whether its work finished, so a failed delivery is retried rather than answered as a duplicate                                        |
+| `0026_pin_helper_search_path.sql`    | `search_path` pinned on the helpers that had shipped without it                                                                                               |
+| `0027_openrouter_model_rates.sql`    | Prices for the models reachable through OpenRouter                                                                                                            |
+| `0028_generation_provider.sql`       | `ai_generations.provider`; settlement accepted it as a caller-supplied argument, corrected below                                                              |
+| `0029_gateway_from_model.sql`        | Provider stops being a parameter and is derived from the settled model id, so a caller cannot name a gateway the model it supplied did not use                |
 
 Every one is additive except `0021`, `0022` and `0024`: new columns carry
 defaults and new tables carry their own policies, so applying them ahead of a
@@ -298,6 +302,17 @@ is live, and the new build calls the two-argument form as soon as it is. Apply
 the migration and release the application as one coordinated step, migration
 first — that is the order that closes the hole soonest, and the failure either
 side of it is a clean refusal saying nothing was spent, not a corrupted row.
+
+**`0029` also drops and recreates a signature, and is safe regardless of
+order.** It removes the `p_provider` argument `0028` added, because that
+argument let an authenticated caller name the gateway independently of the
+model it actually settled — the one column this deployment added specifically
+so a human could read off which balance was charged, made falsifiable at no
+cost to the falsifier. No deployed build has ever sent that seventh argument:
+`0028` gave it a default so the application running when `0028` was applied
+kept settling without it, and the application built against this repository
+has never sent it either, on either side of `0029`. There is no window to
+coordinate.
 
 **`0014` touches `realtime.messages`, which Supabase owns.** The migration
 enables RLS on it only if it is not already enabled, because Supabase enables it
