@@ -272,14 +272,18 @@ Append-only, applied in filename order.
 Everything is idempotent (`create table if not exists`, `drop policy if
 exists`), so re-running is safe.
 
-**After applying a migration that changes a function's definition, reload
-PostgREST's schema cache: `NOTIFY pgrst, 'reload schema';`.** The Supabase CLI
-sends this automatically; applying a migration through the Management API or
-an MCP tool does not. Skipping it leaves the cache serving a stale view of
-`public` — on 2026-09-03, applying `0028` and `0029` that way left
-`captivate_reserve_generation` intermittently returning `404 PGRST202`
-("could not find the function in the schema cache") on production for hours
-afterward, even though the function was present in Postgres the whole time
+**After applying any migration that changes the exposed schema — a function,
+table, column, view, type, or foreign-key relationship — reload PostgREST's
+schema cache: `NOTIFY pgrst, 'reload schema';`.** PostgREST caches all of
+these, not just function signatures (its own docs list table, view and type
+DDL alongside function DDL as triggers for automatic reloading). The Supabase
+CLI sends the reload notification automatically; applying a migration through
+the Management API or an MCP tool does not. Skipping it leaves the cache
+serving a stale view of `public` — on 2026-09-03, applying `0028` and `0029`
+that way left `captivate_reserve_generation` intermittently returning `404
+PGRST202` ("could not find the function in the schema cache") on production
+for hours afterward, even though the function was present in Postgres the
+whole time
 with the exact signature callers used. The client's own fallback absorbed it
 (nothing was spent, a structural draft was offered instead), which is why it
 surfaced as a confusing but non-destructive toast rather than a hard failure.
