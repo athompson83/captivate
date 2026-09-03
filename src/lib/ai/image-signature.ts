@@ -28,6 +28,15 @@ export const STORABLE_IMAGE: Record<string, ImageSignature> = {
   "image/webp": { mimeType: "image/webp", extension: "webp" },
 };
 
+/**
+ * The type these bytes actually are, or null if they are not one this
+ * deployment keeps.
+ *
+ * Answers both questions at once — is this an image, and which one — so no
+ * caller has to trust a declared content type. Null is a real answer and the
+ * callers act on it: nothing is uploaded, stored or recorded for bytes that do
+ * not identify themselves.
+ */
 export function sniffImage(bytes: Uint8Array): ImageSignature | null {
   const at = (i: number) => bytes[i] ?? -1;
   // All eight bytes of the PNG signature, not the four that spell "PNG": the
