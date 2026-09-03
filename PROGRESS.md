@@ -5,10 +5,11 @@
 - Product: Captivate
 - Lifecycle stage: Beta / production-readiness
 - Control-graph node: HOSTED_RUNTIME_VERIFICATION — production driven end to
-  end by the suite itself on 2026-09-02, two defects found and fixed in PR #60
+  end by the suite itself, the two defects that found fixed and deployed, and
+  the fix re-proved against the running deployment on 2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/captivate-prod-readiness-7ntlye` → PR #60
+- Branch: `claude/captivate-prod-readiness-7ntlye` → PR #60 (merged), then PR #62
 - `main`: PRs #22–#57 merged and deployed via Vercel auto-deploy; `4944dde` at
   session start
 - Brand: Captivate is the product; Axtevi is the company it sits under
@@ -29,6 +30,48 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The journeys that said "pass" without looking — PR #62
+
+PR #60 fixed the two production defects. This is what happened when the tests
+written to prove it were asked to prove it honestly, and it is the more useful
+half of the story: **both new journeys passed before either could have.**
+
+**A refusal counted as a success.** The checkout journey ran against a free
+account, took the free-plan copy as the end of the story, and reported a pass
+without ever pressing an Upgrade button. It gates on the control it drives
+now, and skips out loud when there is nothing to drive — a deployment that
+sells no tier, or an account holding a granted plan, offers no checkout to
+open, and a test that cannot reach its subject must say so rather than agree.
+
+**A tag counted as a picture.** The imagery journey asserted that an `img`
+element existed after reload. An element whose `src` 404s is still an element;
+`naturalWidth` is what separates a picture from a placeholder. Asserting it
+immediately exposed a worse defect in the test itself: the reload raced
+autosave, and the polling loop written to wait for the save was destroying it
+on every pass. The header says `All changes saved` when idle and `Saved` after
+a write, and the loose regex matched the stale idle text — so the test watched
+for a state that was already on screen, reloaded into the middle of the write,
+and then failed on the picture it had just discarded. It now waits for the
+status to leave idle, waits for it to settle, and reloads once. Against
+production that journey generates a picture, keeps it, and finds it decoded at
+1536x1024 after a reload.
+
+**What the two have in common** is that neither was failing. Both were green,
+and both were green for a reason unrelated to the thing they were named after.
+A test that cannot fail for the right reason is worse than an absent one,
+because it is counted.
+
+**The disposable identity is gone.** The production account created for this
+verification was removed in full on 2026-09-03: its four generated images
+first, through the product's own delete path so the storage objects went with
+the rows rather than being orphaned by a SQL delete, then its 27 decks, the
+`ai_generations` and `lecture_notes` rows, the `billing_customers` row and the
+`auth.users` record. Read back afterwards: two accounts, 15 decks — 14 of them
+the Product Owner's, including the rebuilt copy left for review — and no
+storage object under the disposable prefix. Nothing of the owner's was
+touched at any point; every mutation this session went to data the session
+had created itself.
 
 ### Production, driven end to end — and what it was hiding
 
@@ -635,6 +678,20 @@ and the job now fails if the image and `supabase/config.toml` disagree.
   pricing page was backed by no completed generation at all, and the failure
   was honest everywhere an author looked — the picker hid the tab, the service
   said so — which is exactly why it could have stayed absent unnoticed.
+
+### Closed on 2026-09-03
+
+- **Keeping a generated image works on production.** The journey
+  `a paid account can generate an image and keep it` ran against
+  `https://www.axtevi.com` after PR #60 deployed: generated, kept, saved, and
+  the picture decoded at 1536x1024 after a full reload. The `assets` row it
+  left carried `source = 'generated'`, `provider = 'openai'`, the MIME type
+  read out of the bytes rather than declared, and the real byte count.
+- **Which gateway serves production's images is settled, not inferred.** That
+  row's `provider` column records the resolved `IMAGE_PROVIDER`, not a model
+  string, and it reads `openai`. The OpenRouter account's exhausted balance
+  cannot affect an image any user generates.
+- **The disposable production identity is removed**, storage objects included.
 
 ### Still open
 
