@@ -108,6 +108,8 @@ describe("a network failure while generating scenes names the recovery path", ()
       { selector: "p" },
     );
     expect(description.textContent).toContain(MAP.title);
-    expect(description.textContent).not.toBe("Couldn't reach the server. Your work is unaffected.");
+    // The generic message claims nothing changed; this route can leave a
+    // presentation behind, so the two must never appear in the same toast.
+    expect(description.textContent).not.toMatch(/unaffected/i);
   });
 });

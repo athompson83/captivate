@@ -307,7 +307,7 @@ function AiPath({ folderId }: { folderId: string | null }) {
       // this title before generating another one from the same map.
       const description =
         result.error === NETWORK_ERROR
-          ? `${result.error} If this deck was slow to write, a presentation titled "${map.title}" may already be in your dashboard with its structure but no scenes yet — open it there instead of generating again, or retry here if it isn't.`
+          ? `Couldn't reach the server. If this deck was slow to write, a presentation titled "${map.title}" may already be in your dashboard with its structure but no scenes yet — open it there instead of generating again, or retry here if it isn't.`
           : result.error;
       toast({ tone: "error", title: "Generation failed", description });
       return;
