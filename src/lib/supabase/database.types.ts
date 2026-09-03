@@ -175,6 +175,11 @@ export type AiGenerationRow = {
   cost_usd: number;
   /** How long the provider took. Not tokens — an image response has none. */
   duration_ms: number | null;
+  /**
+   * Which gateway served the call. Derived server-side from `model` at
+   * settlement, not accepted as its own argument — see 0029.
+   */
+  provider: "anthropic" | "openai" | "openrouter" | null;
 };
 
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {

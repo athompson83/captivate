@@ -15,6 +15,15 @@ import type { Reference } from "@/lib/ingest/reference";
 
 export type AiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 
+/**
+ * What a caller sees when `fetch` itself rejects rather than resolving —
+ * exported so a caller whose route can leave something behind before it gets
+ * this far (`create-from-map` creates the presentation before writing scenes)
+ * can tell this failure apart from one the route reported on purpose, and
+ * say what it actually means for them rather than repeating this text.
+ */
+export const NETWORK_ERROR = "Couldn't reach the server. Your work is unaffected.";
+
 async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<AiResult<T>> {
   try {
     const response = await fetch(path, {
@@ -24,7 +33,11 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promi
       signal,
     });
 
-    const data = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
+    let bodyReadFailed = false;
+    const data = (await response.json().catch(() => {
+      bodyReadFailed = true;
+      return null;
+    })) as (T & { error?: string }) | null;
 
     if (!response.ok) {
       return {
@@ -32,6 +45,10 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promi
         error: data?.error ?? `That didn't work (${response.status}). Nothing was changed.`,
       };
     }
+    // A response with an OK status but an unreadable body means the connection
+    // dropped after the route committed its work (see NETWORK_ERROR above) —
+    // that's the same partial-write risk, not a clean "nothing to report".
+    if (bodyReadFailed) return { ok: false, error: NETWORK_ERROR };
     if (!data) return { ok: false, error: "The server returned an empty response." };
 
     return { ok: true, ...data };
@@ -39,7 +56,7 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promi
     if (error instanceof DOMException && error.name === "AbortError") {
       return { ok: false, error: "Cancelled." };
     }
-    return { ok: false, error: "Couldn't reach the server. Your work is unaffected." };
+    return { ok: false, error: NETWORK_ERROR };
   }
 }
 

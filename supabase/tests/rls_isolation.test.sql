@@ -379,17 +379,62 @@ select 'reserve_own_deck_attributed' as check,
   (presentation_id = 'aaaaaaaa-0000-0000-0000-000000000001')::int as n
   from public.ai_generations where id = :'own_id';
 
--- Completing moves pending to terminal, once.
+-- The gateway is derived from the model, not accepted as its own parameter
+-- (0029) — an unprefixed id is Anthropic direct, a `vendor/` prefix is
+-- OpenRouter, the same convention `DEFAULT_MODEL` in the application codes
+-- against. Completing moves pending to terminal, once, and records it.
 select 'complete_own_pending' as check,
   (public.captivate_complete_generation(
      (select id from public.ai_generations
        where kind = 'scenes' and prompt = 'first'),
-     'succeeded', 'test-model', 10, 20, null))::int as n;
+     'succeeded', 'claude-sonnet-5', 10, 20, null))::int as n;
+select 'complete_derives_direct_gateway' as check,
+  (provider = 'anthropic')::int as n
+  from public.ai_generations where kind = 'scenes' and prompt = 'first';
 select 'complete_is_not_replayable' as check,
   (not public.captivate_complete_generation(
      (select id from public.ai_generations
        where kind = 'scenes' and prompt = 'first'),
      'succeeded', 'test-model', 10, 20, null))::int as n;
+
+-- The other branch: a `vendor/` prefix derives OpenRouter. Nothing lets a
+-- caller claim `anthropic` while supplying an OpenRouter-shaped model id, or
+-- the reverse — the two are no longer independent parameters (0029).
+select 'complete_derives_openrouter_gateway' as check,
+  (public.captivate_complete_generation(
+     (select id from public.ai_generations
+       where kind = 'scenes' and prompt = 'third'),
+     'succeeded', 'anthropic/claude-sonnet-5', 10, 20, null))::int as n;
+select 'complete_openrouter_gateway_recorded' as check,
+  (provider = 'openrouter')::int as n
+  from public.ai_generations where kind = 'scenes' and prompt = 'third';
+
+-- A model that merely contains a slash without being shaped like a real
+-- gateway id derives no gateway at all, rather than a plausible-looking one.
+-- `/`, `vendor/` (empty model), `/model` (empty vendor) and `a/b/c` (more
+-- than one split) all satisfy "contains a slash"; none is a model this
+-- application, or any gateway it calls, has ever named anything by. The
+-- settlement still succeeds — a malformed model is exactly as forgeable as
+-- it always was — but leaves `provider` unset rather than wrong.
+--
+-- A user of its own, so a probe reservation cannot shift the burst and
+-- allowance counts the rest of this file's narrative depends on.
+reset role;
+insert into auth.users (id, email)
+values ('55555555-5555-5555-5555-555555555555', 'malformed-model@example.com')
+on conflict (id) do nothing;
+set role authenticated;
+set "request.jwt.claim.sub" = '55555555-5555-5555-5555-555555555555';
+select id from public.captivate_reserve_generation(
+  'moment', 'light', 'malformed', null) \gset malformed_
+select 'complete_rejects_malformed_model_gateway' as check,
+  (public.captivate_complete_generation(:'malformed_id'::uuid, 'succeeded', 'a/b/c', 1, 1, null))::int as n;
+select 'complete_malformed_model_gateway_unset' as check,
+  (status = 'succeeded' and model = 'a/b/c' and provider is null)::int as n
+  from public.ai_generations where id = :'malformed_id'::uuid;
+reset role;
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 
 -- And it cannot rewind a row to pending, which is how you would stop it
 -- counting against you.
@@ -590,10 +635,15 @@ update public.ai_image_limits set daily_max = 25;
 set role authenticated;
 set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 
--- Settling records how the call went, once — and does not restate the price.
+-- Settling records how the call went, once, derives the gateway from the
+-- model the same way text settlement does (0029), and does not restate the
+-- price.
 select 'image_settle_own_pending' as check,
   (public.captivate_settle_image_generation(
-     :'first_id'::uuid, 'succeeded', 'test-image-model', 4200, null))::int as n;
+     :'first_id'::uuid, 'succeeded', 'gpt-image-2', 4200, null))::int as n;
+select 'image_settle_derives_direct_gateway' as check,
+  (select (provider = 'openai')::int
+     from public.ai_generations where id = :'first_id'::uuid) as n;
 select 'image_settle_is_not_replayable' as check,
   (not public.captivate_settle_image_generation(
      :'first_id'::uuid, 'succeeded', 'test-image-model', 1, null))::int as n;
@@ -603,6 +653,24 @@ select 'image_settle_is_not_replayable' as check,
 select 'image_settled_cost_is_the_reserved_estimate' as check,
   (select (cost_usd = 0.05 and duration_ms = 4200)::int
      from public.ai_generations where id = :'first_id'::uuid) as n;
+
+-- The other branch: a `vendor/`-prefixed model id derives OpenRouter, same
+-- as text settlement — the two functions share one convention, not two.
+select id from public.captivate_reserve_image_generation('via openrouter', null) \gset router_
+select 'image_settle_derives_openrouter_gateway' as check,
+  (public.captivate_settle_image_generation(
+     :'router_id'::uuid, 'succeeded', 'openai/gpt-image-2', 9000, null))::int as n;
+select 'image_openrouter_gateway_recorded' as check,
+  (select (provider = 'openrouter')::int
+     from public.ai_generations where id = :'router_id'::uuid) as n;
+
+-- Same malformed-model behaviour on the image path: settles, does not guess.
+select id from public.captivate_reserve_image_generation('malformed model', null) \gset malformed_
+select 'image_settle_rejects_malformed_model_gateway' as check,
+  (public.captivate_settle_image_generation(:'malformed_id'::uuid, 'succeeded', 'vendor/', 100, null))::int as n;
+select 'image_malformed_model_gateway_unset' as check,
+  (select (status = 'succeeded' and model = 'vendor/' and provider is null)::int
+     from public.ai_generations where id = :'malformed_id'::uuid) as n;
 reset role;
 
 -- Bob cannot settle Alice's reservation, which is what would let him zero its

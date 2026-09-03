@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("@/lib/data/actions", () => ({ createPresentation: vi.fn() }));
 vi.mock("@/lib/ai/client", () => ({
+  NETWORK_ERROR: "Couldn't reach the server. Your work is unaffected.",
   requestMap: vi.fn(),
   requestPresentationFromMap: vi.fn(),
   aiConfigured: vi.fn(async () => false),

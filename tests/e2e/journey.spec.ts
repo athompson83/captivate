@@ -21,6 +21,69 @@ test.skip(
   "Set CAPTIVATE_E2E_EMAIL and CAPTIVATE_E2E_PASSWORD to run the authenticated journeys.",
 );
 
+/**
+ * What the page said while the journey ran, and what the deployment answered.
+ *
+ * A journey asserts what it came to see; it does not notice an exception the
+ * page threw somewhere else or a route that answered 500 to a request it never
+ * looked at. Both are failures of the deployment whatever the journey was
+ * about, so both fail the test. Console errors and failed requests are
+ * recorded on the test rather than asserted, because a request can fail for
+ * the network's reasons and a third-party script can write to the console
+ * without anything being wrong; they are there to read when a journey fails
+ * for a reason it cannot name.
+ */
+interface Inspection {
+  uncaught: string[];
+  serverErrors: string[];
+  consoleErrors: string[];
+  failedRequests: string[];
+}
+const inspections = new WeakMap<Page, Inspection>();
+
+test.beforeEach(({ page }) => {
+  const seen: Inspection = {
+    uncaught: [],
+    serverErrors: [],
+    consoleErrors: [],
+    failedRequests: [],
+  };
+  inspections.set(page, seen);
+  page.on("pageerror", (error) => seen.uncaught.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") seen.consoleErrors.push(message.text());
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 500) {
+      seen.serverErrors.push(
+        `${response.status()} ${response.request().method()} ${response.url()}`,
+      );
+    }
+  });
+  page.on("requestfailed", (request) => {
+    // A navigation cancels the prefetches in flight behind it, and each one
+    // reports itself as a failed request; a run of the suite against
+    // production recorded over a thousand of them and nothing else. They are
+    // the router working, not the deployment failing.
+    const reason = request.failure()?.errorText ?? "";
+    if (reason === "net::ERR_ABORTED") return;
+    seen.failedRequests.push(`${request.method()} ${request.url()} ${reason}`.trim());
+  });
+});
+
+test.afterEach(({ page }, info) => {
+  const seen = inspections.get(page);
+  if (!seen) return;
+  for (const [type, lines] of [
+    ["console", seen.consoleErrors],
+    ["request-failed", seen.failedRequests],
+  ] as const) {
+    for (const line of lines) info.annotations.push({ type, description: line });
+  }
+  expect(seen.uncaught, "the page threw an uncaught exception").toEqual([]);
+  expect(seen.serverErrors, "the deployment answered a request with a 5xx").toEqual([]);
+});
+
 async function signIn(page: Page) {
   await page.goto("/sign-in");
   await page.getByLabel("Email").fill(EMAIL!);
@@ -704,5 +767,218 @@ test.describe("the narrative map", () => {
       status.body.imageGeneration,
       "OPENAI_API_KEY is not set on this deployment, so the imagery paid plans are sold cannot be produced",
     ).toBe(true);
+  });
+});
+
+/**
+ * Two things only a deployment can answer: whether the paid tiers can actually
+ * be bought, and whether a paid account can actually produce an image.
+ *
+ * Both were "very likely" for a release — the price ids were set, the key was
+ * set — and neither had been read back, because each is consumed at request
+ * time by a signed-in session. These run wherever `CAPTIVATE_E2E_URL` names a
+ * deployment and skip against CI's own stack, which has no Stripe key and no
+ * model key by design.
+ */
+test.describe("what only a deployment can prove", () => {
+  test.skip(
+    !process.env.CAPTIVATE_E2E_URL,
+    "no deployment to ask — the local stack carries no Stripe or model credentials by design",
+  );
+
+  /**
+   * The Basic and Pro controls, and a checkout opening from each.
+   *
+   * Opening a Checkout Session is not a purchase: nothing is charged until a
+   * card is entered on Stripe's page, and an abandoned session expires on its
+   * own. The browser is stopped at Stripe's door — the request to
+   * `checkout.stripe.com` is answered here rather than sent — because what
+   * this proves is that the app resolved a price and handed the browser a
+   * session for it, and Stripe's own page is not this product's to test.
+   */
+  test("Basic and Pro can each open a Stripe checkout from settings", async ({ page }) => {
+    await signIn(page);
+    await page.goto("/settings");
+
+    // Gate on the control this journey drives, not on the word "Free".
+    //
+    // The billing section has four shapes and only one of them can be tested:
+    // a paid subscription offers "Manage billing", a *granted* plan offers
+    // nothing at all (there is no Stripe customer to manage), a deployment
+    // that sells no tier renders the free copy with no controls, and a free
+    // account on a selling deployment gets an "Upgrade to …" button. An
+    // earlier version looked for "Free" and would have failed on the third of
+    // those, which is a correct deployment with nothing to buy.
+    //
+    // Which tiers are offered is also the deployment's to say: the picker is a
+    // radiogroup only when more than one tier is sellable, and a single one
+    // renders as a plain label. So the buttons themselves are the list.
+    const section = page.getByRole("region", { name: "Plan" });
+    await expect(section).toBeVisible();
+    const upgrades = section.getByRole("button", { name: /^Upgrade to / });
+    const offered = await upgrades.evaluateAll((buttons) =>
+      buttons.map((b) => (b.textContent ?? "").replace(/^Upgrade to\s+/, "").trim()),
+    );
+    const picker = section.getByRole("radiogroup", { name: "Plan" });
+    const tiers = (await picker.isVisible())
+      ? await picker
+          .getByRole("radio")
+          .evaluateAll((radios) => radios.map((r) => (r.textContent ?? "").trim()))
+      : offered;
+    test.skip(
+      tiers.length === 0,
+      `this deployment offers no upgrade control to a free account; the plan section reads: ${(
+        await section.innerText()
+      )
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 120)}`,
+    );
+
+    await page.route("https://checkout.stripe.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<title>Stripe stub</title>" }),
+    );
+
+    for (const tier of tiers) {
+      await page.goto("/settings");
+      const plan = page.getByRole("region", { name: "Plan" });
+      // Only where there is a choice to make; one sellable tier is a label.
+      const choose = plan.getByRole("radiogroup", { name: "Plan" });
+      if (await choose.isVisible()) await choose.getByRole("radio", { name: tier }).click();
+      const upgrade = plan.getByRole("button", { name: `Upgrade to ${tier}` });
+      await expect(upgrade, `the ${tier} control should be offered`).toBeVisible();
+
+      const opened = page
+        .waitForRequest(/^https:\/\/checkout\.stripe\.com\/c\/pay\//, { timeout: 30_000 })
+        .then(
+          (request) => ({ url: request.url() }),
+          () => ({ url: null }),
+        );
+      // The action reports a failure as a toast, which is gone by the time the
+      // wait above gives up — so it is read the moment it appears, and a
+      // failure names what the page said rather than "no request".
+      const toast = page.locator('[aria-live="polite"]').filter({ hasText: /start checkout/ });
+      const refused = toast.waitFor({ state: "visible", timeout: 30_000 }).then(
+        async () => ({ said: await toast.innerText() }),
+        () => new Promise<{ said: string }>(() => {}),
+      );
+      await upgrade.click();
+
+      const outcome = await Promise.race([opened, refused]);
+      const said = "said" in outcome ? outcome.said : null;
+      expect(said, `no checkout opened for ${tier}; the page said: ${said}`).toBeNull();
+      const handedOff = "url" in outcome ? outcome.url : null;
+      expect(handedOff, `no checkout opened for ${tier}`).not.toBeNull();
+      const url = new URL(handedOff!);
+      // The session id says which Stripe mode the deployment runs in; the
+      // fragment carries the page's own key and is left out.
+      test.info().annotations.push({
+        type: `checkout:${tier}`,
+        description: `${url.origin}${url.pathname}`,
+      });
+    }
+  });
+
+  /**
+   * One real image, through the picker an author uses, kept on the scene.
+   *
+   * Generation is gated on a paid plan before any budget is touched, so a free
+   * account is refused in the picker with the sentence that says so. That is a
+   * correct outcome and is asserted as one; anything else the picker reports is
+   * a provider failure and fails with the provider's own words. With a paid
+   * plan the picture must arrive, be accepted, and come back after a reload as
+   * a stored asset rather than the data URL it was previewed from.
+   */
+  test("a paid account can generate an image and keep it", async ({ page }) => {
+    test.setTimeout(240_000);
+    await signIn(page);
+    await createDeck(page, `Imagery deck ${Date.now()}`);
+
+    await page.getByRole("button", { name: "Insert", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Image" }).click();
+
+    const inspector = page.getByRole("complementary", { name: "Element inspector" });
+    const source = inspector.getByRole("radiogroup", { name: "Media source" });
+    await expect(source).toBeVisible();
+    // Absent, not disabled, where the deployment has no image key — which the
+    // status journey above already fails on.
+    await source.getByRole("radio", { name: "Generate" }).click();
+
+    await inspector
+      .getByLabel("Describe the image to generate")
+      .fill("A calm abstract wash of teal and gold light, soft focus, no text");
+    await inspector.getByRole("button", { name: "Generate an image" }).click();
+
+    const preview = inspector.getByRole("img", { name: /^Generated from:/ });
+    const notice = inspector.getByRole("status").filter({ hasNotText: /a picture can be wrong/ });
+    await expect(preview.or(notice)).toBeVisible({ timeout: 120_000 });
+
+    if (!(await preview.isVisible())) {
+      const text = await notice.innerText();
+      expect(text, "the picker refused for a reason other than the plan").toMatch(
+        /comes with Captivate Basic and Pro/,
+      );
+      // The gate held, which is correct — and it means the account this suite
+      // signs in as cannot exercise what the test is named for. A pass here
+      // would keep a deployment green with generation and the keep path both
+      // broken, so it is reported as the missing fixture it is.
+      test.skip(true, `the account holds a free plan, so the picker refused: ${text}`);
+    }
+
+    await inspector.getByRole("button", { name: "Use this image" }).click();
+    const stored = page.locator('img[src^="/api/assets/"]').first();
+    await expect(stored, "the accepted image should be a stored asset").toBeVisible({
+      timeout: 30_000,
+    });
+    const src = await stored.getAttribute("src");
+    test.info().annotations.push({ type: "imagery", description: `stored: ${src}` });
+
+    // Watch this edit's own save happen, rather than reading a status that was
+    // already on screen.
+    //
+    // The header has four texts — "All changes saved" when idle, "Unsaved
+    // changes", "Saving…", and "Saved" just after a write — and only the
+    // middle two are about a change the editor has just noticed. Both settled
+    // texts are indistinguishable from the edit before this one, so waiting
+    // for either proves nothing about the picture: accepting a generated image
+    // uploads, registers and then patches the element, and the header can
+    // still be reading the previous edit's result while all of that is in
+    // flight.
+    //
+    // Reloading on that read is not merely a false green. The navigation
+    // *discards* the debounced save, so the picture really was lost — by the
+    // test, which then reported it as the product losing an author's work.
+    // Requiring a dirty or saving state first is what ties the wait to this
+    // edit; the settle after it is then the real one.
+    const status = page.locator("header [role=status]");
+    await expect(status, "accepting an image should mark the document dirty").toHaveText(
+      /^(Unsaved changes|Saving…)$/,
+      { timeout: 15_000 },
+    );
+    await expect(status, "the document should settle to saved").toHaveText(
+      /^(Saved|All changes saved)$/,
+      { timeout: 30_000 },
+    );
+
+    await page.reload();
+    await page.waitForSelector("[data-stage]");
+    // `naturalWidth`, not the element's existence. An `<img>` whose source
+    // 403s or 404s stays in the DOM and renders a broken glyph — exactly what
+    // an author would report as "my picture is gone" — and the 5xx guard above
+    // does not see it. A decoded image is the only answer that means the
+    // picture came back. Polled because the stage loads its images lazily.
+    await expect
+      .poll(
+        () =>
+          page.evaluate((selector) => {
+            const img = document.querySelector(selector);
+            return img instanceof HTMLImageElement ? img.naturalWidth : 0;
+          }, `img[src="${src}"]`),
+        {
+          message: "the accepted image should still be on the scene, and load, after a reload",
+          timeout: 30_000,
+        },
+      )
+      .toBeGreaterThan(0);
   });
 });

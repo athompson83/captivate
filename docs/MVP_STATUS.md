@@ -175,7 +175,7 @@ clean, no suppressions beyond five documented `next/image` exemptions and one
 documented `exhaustive-deps` exemption. Production
 build: succeeds.
 
-**Unit.** 1,324 tests across 88 files. All pass.
+**Unit.** 1,342 tests across 89 files. All pass.
 
 **End-to-end.** 130 Playwright tests in a real Chromium, across four projects —
 65 against a running application (`smoke` 37, `authenticated` 28) and 65 more
