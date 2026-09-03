@@ -122,6 +122,13 @@ export type StructuredResult<T> =
        * left the building. Absent means nothing was spent.
        */
       usage?: { input: number; output: number };
+      /**
+       * Diagnostic detail for the ledger, never the user — the toast stays
+       * generic and actionable, but a recurring `invalid_output` is
+       * undiagnosable after the fact unless *which* fields the model got
+       * wrong is written down somewhere.
+       */
+      detail?: string;
     };
 
 let client: Anthropic | null = null;
@@ -660,12 +667,12 @@ export async function generateStructured<T>(
       };
     }
 
-    if (attempt === 0) {
-      const issues = parsed.error.issues
-        .slice(0, 8)
-        .map((i) => `- ${i.path.join(".") || "(root)"}: ${i.message}`)
-        .join("\n");
+    const issues = parsed.error.issues
+      .slice(0, 8)
+      .map((i) => `- ${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("\n");
 
+    if (attempt === 0) {
       conversation.correct(
         `That input didn't match the schema:\n${issues}\n\nCall ${options.toolName} again with corrected input. Respect every length limit exactly.`,
       );
@@ -678,6 +685,11 @@ export async function generateStructured<T>(
       usage: { input: totalInput, output: totalOutput },
       error:
         "The model's answer didn't match the required shape, so nothing was applied. Try again, or rephrase your prompt.",
+      // Never shown to the user — the ledger's only record of *why* a
+      // near-miss stayed a near-miss after the model was told and given a
+      // second try. Without this, a recurring validation failure is
+      // undiagnosable after the fact: the toast text is the same every time.
+      detail: `${options.toolName}: ${issues}`,
     };
   }
 
