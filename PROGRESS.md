@@ -695,17 +695,26 @@ and the job now fails if the image and `supabase/config.toml` disagree.
 
 ### Still open
 
-1. **Why Stripe refuses the checkout.** PR #60 deployed and production now
-   answers "Stripe rejected that request", which rules out the case it has its
-   own sentence for — a price Stripe does not recognise — and leaves an
-   invalid-request refusal of the session itself. Both live prices are active
-   on active products, and the customer is created in live mode, so the key and
-   the ids are not the problem. The reason Stripe gave is on the deployment's
-   stderr now; reading it needs the Vercel dashboard, which this session cannot
-   open (the connector's grant covers a different project and answers 403).
-   Stripe's own go-live checklist is the leading candidate: live checkout is
-   blocked until the customer-facing business details are submitted, and
-   "set the account's public business name to Axtevi" has been a standing owner
-   action since before this session.
+1. **Why Stripe refuses the checkout — narrowed to one unreadable line.**
+   Production answers "Stripe rejected that request", which rules out the case
+   with its own sentence — a price Stripe does not recognise — and leaves an
+   invalid-request refusal of the session itself. On 2026-09-03 every input to
+   that call was read back and every one is valid: the live account has
+   `charges_enabled`, `payouts_enabled` and `details_submitted` all true, no
+   requirement currently or past due, no `disabled_reason`, and active card
+   payments; the customer exists in live mode on that account; both prices are
+   recurring, active and on active products; and the success and cancel URLs
+   are absolute, which production's own `robots.txt`, sitemap and canonical tag
+   confirm by publishing `https://www.axtevi.com` out of the same variable.
+
+   So **account activation is not the blocker**, which is what this record said
+   for two days on the strength of it being the usual one. What remains is the
+   message Stripe itself returned. The deployment logs it at the choke point,
+   and Stripe keeps its own copy under Developers → Logs; both need a console
+   this environment has no grant for — the Vercel connector's projects were
+   listed again on 2026-09-03 and Captivate is still not among them.
+
+   Reading one line in either console settles it, and nothing else can.
+
 2. **The Supabase Auth URL configuration** — see standing owner actions. It is
    the one defect found this session that no code change can fix.
