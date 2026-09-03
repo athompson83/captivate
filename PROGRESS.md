@@ -10,9 +10,9 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/captivate-prod-readiness-7ntlye` → PR #60 (merged), then PR #62
-- `main`: PRs #22–#57 merged and deployed via Vercel auto-deploy; `4944dde` at
-  session start
+- Branch: `claude/premium-ui-presentation-akzjzs` → PR #63 (merged), PR #64 (merged)
+- `main`: through PR #64 (merged) as this session begins; `1e37370` — every
+  migration through `0029_gateway_from_model.sql` applied to production
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -31,6 +31,50 @@
   executable by no role at all.
 
 ## Latest Session
+
+### An honest error message, and the durability gap it was standing in for — PRs #63, #64
+
+A phone screenshot showed the `/new` flow's toast: "Generation failed —
+Couldn't reach the server. Your work is unaffected." Root cause:
+`create-from-map` writes the presentation, its movements and its moments
+through fast, synchronous Supabase inserts, then calls the slow generation
+step inside the same request (`maxDuration = 300`) — one `generateStructured`
+call that writes every scene's content in a single model response
+(`buildScenesFromMap` in `src/lib/ai/service.ts`), followed by media dressing
+run in parallel across scenes, then one bulk upsert of the finished rows. A
+dropped connection or a killed function anywhere in that request loses the
+response, but not the presentation/movements/moments already committed — so
+"unaffected" was false in exactly the case that toast exists to describe, and
+a retry from that screen could create a second presentation from the same
+map.
+
+PR #63 taught the client (`src/lib/ai/client.ts`) to export that failure as
+`NETWORK_ERROR` and taught `create-flow.tsx` to name the real recovery path —
+check the dashboard for a deck with this title — instead of implying nothing
+happened. PR #64 closed a second case CodeRabbit caught in review of #63 and
+that went unaddressed before merge: a resolved, OK response whose body fails
+to parse (the connection dropping mid-stream) was falling into a third,
+unrelated message that the same `NETWORK_ERROR` check didn't recognize.
+
+**Both PRs are a client-side mitigation, not the fix.** The owner reviewed
+the incident and gave explicit direction, recorded verbatim reasoning in
+`PROJECT_CHECKLIST.md` (`BETA-006`): raising `maxDuration` further (Vercel
+Fluid Compute) would reduce how often this happens without closing the
+architectural gap — a request can still fail from a dropped connection, a
+runtime kill, a provider interruption, or browser abandonment, and today
+every one of those means starting over by hand. Today's `buildScenesFromMap`
+also has no unit smaller than the whole deck to resume: one model call
+writes every scene's content together, so a malformed response or a single
+scene failing validation fails the batch, not just that scene. The root fix
+is a durable, resumable generation workflow — a new architecture, not
+persistence bolted onto the current one: create the presentation with an
+explicit lifecycle state immediately, assign the request an idempotency key,
+persist a generation job with progress, generate scenes in bounded units
+genuinely smaller than one deck, and let the dashboard
+show and act on Generating / Partially generated / Generation failed / Ready.
+Fluid Compute is `DEFERRED` as its own later performance/cost decision, not
+purchased to patch this. Design has not started; see BETA-006 for the full
+acceptance criteria this needs before it can be marked `DONE`.
 
 ### A ledger column that cost nothing to falsify — PR #61
 
@@ -589,6 +633,13 @@ Both keys are listed as owner actions in `PROJECT_CHECKLIST.md`.
 
 ## Recommended Next Steps
 
+0. **`BETA-006`: durable, resumable `create-from-map` generation.** Owner-scoped
+   next high-priority reliability item, not yet started. `create-from-map`
+   still runs as one long synchronous request with no persisted job, no
+   idempotency key, and no per-scene resumability — see "An honest error
+   message, and the durability gap it was standing in for" above for the
+   incident that surfaced it and the full acceptance criteria in
+   `PROJECT_CHECKLIST.md`.
 1. **Account deletion.** Not self-service, and the privacy page says so. Doing
    it properly means cascading through presentations, scenes, assets,
    recordings, storage objects and the Stripe subscription; doing it badly
