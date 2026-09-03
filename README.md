@@ -41,7 +41,7 @@ A conventional deck is one arrangement supported by the engine—not the entire 
 
 ## Architecture principles
 
-- The audience route contains no presenter-only notes or controls.
+- Audience-only mode (`?audience=1`) contains no presenter-only notes or controls; the standard single-screen presentation route intentionally includes presenter controls.
 - AI selects structured content and layout intent; it does not position arbitrary pixels.
 - Generated content remains fully editable.
 - Annotations are ephemeral presentation-session overlays.
