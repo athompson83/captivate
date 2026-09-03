@@ -177,3 +177,68 @@ describe("a refused reservation never reaches the model", () => {
     expect(generateStructured).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The ledger write, not just the returned result.
+ *
+ * `generateStructured` computing `detail` is only half the fix — the
+ * generic error reaches the user either way, so a test on its return value
+ * alone would still pass if `toRecord` in service.ts never read `detail` at
+ * all. This drives a real failure through `spend`, past `toRecord`, into the
+ * `captivate_complete_generation` RPC, and reads back what was actually
+ * written.
+ */
+describe("the persistence boundary threads the model's diagnostic detail", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-a-real-one");
+  });
+
+  it("writes the model's diagnostic detail to the ledger, not the generic toast text", async () => {
+    const rpc = mockRpc((name) => (name === "captivate_reserve_generation" ? issued() : true));
+    vi.doMock("@/lib/ai/provider", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/lib/ai/provider")>()),
+      generateStructured: vi.fn(async () => ({
+        ok: false,
+        reason: "invalid_output",
+        usage: { input: 100, output: 200 },
+        error:
+          "The model's answer didn't match the required shape, so nothing was applied. Try again, or rephrase your prompt.",
+        detail: "write_scene: - value: Required",
+      })),
+      isAiConfigured: () => true,
+    }));
+
+    const { suggestVisuals } = await import("@/lib/ai/service");
+    await suggestVisuals({ title: "T", text: "body" }, {}, null);
+
+    const completeCall = rpc.mock.calls.find((call) => call[0] === "captivate_complete_generation");
+    expect(completeCall?.[1]).toMatchObject({
+      p_status: "invalid_output",
+      p_error: "write_scene: - value: Required",
+    });
+  });
+
+  it("falls back to the generic error when generateStructured reports no detail", async () => {
+    const rpc = mockRpc((name) => (name === "captivate_reserve_generation" ? issued() : true));
+    vi.doMock("@/lib/ai/provider", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/lib/ai/provider")>()),
+      generateStructured: vi.fn(async () => ({
+        ok: false,
+        reason: "provider_error",
+        usage: { input: 0, output: 0 },
+        error: "The provider is unavailable.",
+      })),
+      isAiConfigured: () => true,
+    }));
+
+    const { suggestVisuals } = await import("@/lib/ai/service");
+    await suggestVisuals({ title: "T", text: "body" }, {}, null);
+
+    const completeCall = rpc.mock.calls.find((call) => call[0] === "captivate_complete_generation");
+    expect(completeCall?.[1]).toMatchObject({
+      p_status: "failed",
+      p_error: "The provider is unavailable.",
+    });
+  });
+});
