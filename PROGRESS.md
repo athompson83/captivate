@@ -5,8 +5,9 @@
 - Product: Captivate
 - Lifecycle stage: Beta / production-readiness
 - Control-graph node: HOSTED_RUNTIME_VERIFICATION — production driven end to
-  end by the suite itself, the two defects that found fixed and deployed, and
-  the fix re-proved against the running deployment on 2026-09-03
+  end by the suite itself. The suite found two defects; both were fixed and
+  deployed, and the fixes were re-proved against the running deployment on
+  2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/captivate-prod-readiness-7ntlye` → PR #60 (merged), then PR #62
@@ -61,6 +62,17 @@ production that journey generates a picture, keeps it, and finds it decoded at
 and both were green for a reason unrelated to the thing they were named after.
 A test that cannot fail for the right reason is worse than an absent one,
 because it is counted.
+
+**The imagery gate got stricter, and was checked rather than assumed.** The
+first fix waited for the header to leave its idle text, which a reviewer
+pointed out is still satisfied by the _previous_ edit's "Saved". The gate now
+requires a state that can only be about this change — "Unsaved changes" or
+"Saving…" — before waiting for the settle. Whether the deployed build shows
+that state long enough for an assertion to catch it is exactly the sort of
+thing worth checking rather than reasoning about, so a disposable free account
+made one edit on production while a 120 ms poll recorded the header: it read
+`Unsaved changes`, `Saving…`, `Saved`, in that order. That account and its one
+deck were removed immediately afterwards.
 
 **The disposable identity is gone.** The production account created for this
 verification was removed in full on 2026-09-03: its four generated images

@@ -933,29 +933,26 @@ test.describe("what only a deployment can prove", () => {
     const src = await stored.getAttribute("src");
     test.info().annotations.push({ type: "imagery", description: `stored: ${src}` });
 
-    // Reload until the picture comes back, rather than once after the header
-    // says "Saved".
+    // Watch this edit's own save happen, rather than reading a status that was
+    // already on screen.
     //
-    // That status is not a signal about *this* change: accepting a generated
-    // image uploads, registers and then patches the element, and at the moment
-    // the picture appears the header can still be reading "All changes saved"
-    // from the edit before it. Reloading on that read the document a moment
-    // before autosave committed — the row was correct in the database and the
-    // page showed an empty frame — which is a race in the test and would have
-    // been reported as the product losing an author's picture.
+    // The header has four texts — "All changes saved" when idle, "Unsaved
+    // changes", "Saving…", and "Saved" just after a write — and only the
+    // middle two are about a change the editor has just noticed. Both settled
+    // texts are indistinguishable from the edit before this one, so waiting
+    // for either proves nothing about the picture: accepting a generated image
+    // uploads, registers and then patches the element, and the header can
+    // still be reading the previous edit's result while all of that is in
+    // flight.
     //
-    // Polling is still an honest assertion: it fails if the image never
-    // survives a reload, which is the thing this journey exists to catch.
-    // Watch the save happen, rather than reading a status that was already
-    // there. The header has two settled texts — "All changes saved" when idle
-    // and "Saved" just after writing — and matching either one loosely passes
-    // instantly on the idle text left over from the edit before. Reloading on
-    // that read is not merely a false green: the navigation *discards* the
-    // debounced save, so the picture really was lost, by the test. So: first
-    // wait for the editor to notice the change, then for it to settle.
+    // Reloading on that read is not merely a false green. The navigation
+    // *discards* the debounced save, so the picture really was lost — by the
+    // test, which then reported it as the product losing an author's work.
+    // Requiring a dirty or saving state first is what ties the wait to this
+    // edit; the settle after it is then the real one.
     const status = page.locator("header [role=status]");
-    await expect(status, "accepting an image should mark the document dirty").not.toHaveText(
-      "All changes saved",
+    await expect(status, "accepting an image should mark the document dirty").toHaveText(
+      /^(Unsaved changes|Saving…)$/,
       { timeout: 15_000 },
     );
     await expect(status, "the document should settle to saved").toHaveText(
