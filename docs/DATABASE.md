@@ -272,28 +272,35 @@ Append-only, applied in filename order.
 Everything is idempotent (`create table if not exists`, `drop policy if
 exists`), so re-running is safe.
 
-**If a function or table you just confirmed exists still returns `404
-PGRST202` ("could not find the function/table in the schema cache"), fire a
-manual reload: `NOTIFY pgrst, 'reload schema';`.** Every project ships a
-`pgrst_ddl_watch` event trigger (`select * from pg_event_trigger`) that
-already sends this notification automatically on `CREATE/ALTER FUNCTION`,
-`CREATE/ALTER TABLE`, view, type and foreign-key DDL — this fires from
-Postgres itself on commit, independent of which client ran the migration
-(CLI, Management API, MCP tool, or a raw `psql` session), so it is not a
-client-side step to remember. Despite that, on 2026-09-03 `captivate_
-reserve_generation` intermittently returned `404 PGRST202` on production for
-hours after `0028` and `0029` were applied — twice, minutes apart — even
-though the function was present in Postgres the whole time with the exact
-signature callers used, and the automatic trigger had already fired at
-migration time. The precise reason PostgREST's cache didn't pick that up is
-unconfirmed (a plausible cause is connection pooling between PostgREST and
-Postgres delivering the `NOTIFY` to a different session than the one serving
-requests); a manual `NOTIFY` resolved it immediately both times. Treat a
-`PGRST202` against a function you've verified exists as this class of issue
-rather than a missing migration. The client's own fallback absorbed the
-failure correctly while this was unresolved (nothing was spent, a structural
-draft was offered instead), which is why it surfaced as a confusing but
-non-destructive toast rather than a hard failure.
+**If a schema object you just confirmed exists still returns a PostgREST
+`404`/`400` schema-cache error, fire a manual reload: `NOTIFY pgrst, 'reload
+schema';`.** PostgREST's schema-cache errors are object-specific — `PGRST202`
+is a missing or stale _function_ signature, `PGRST205` is a missing _table_,
+and `PGRST200` is a stale _relationship_ — so check which one the response
+actually names before assuming what's stale. Supabase provisions a
+`pgrst_ddl_watch` event trigger (`select * from pg_event_trigger`) on every
+project that fires this notification automatically on `CREATE/ALTER
+FUNCTION`, `CREATE/ALTER TABLE`, view, type and foreign-key DDL, independent
+of which client ran the migration (CLI, Management API, MCP tool, or a raw
+`psql` session) — but that only reaches PostgREST if its `LISTEN/NOTIFY`
+listener is actually connected and running; PostgREST's own docs say the
+listener fails outright against a read replica and must be disabled
+(`db-channel-enabled=false`) behind PgBouncer-style transaction-mode
+pooling, in which case nothing delivers the notification at all. Despite the
+trigger existing and firing, on 2026-09-03 `captivate_reserve_generation`
+intermittently returned `404 PGRST202` on production for hours after `0028`
+and `0029` were applied — twice, minutes apart — even though the function
+was present in Postgres the whole time with the exact signature callers
+used. The precise reason PostgREST's cache didn't pick that up here is
+unconfirmed; connection pooling between PostgREST and Postgres is a
+plausible direction (per the constraints above), but that is a hypothesis to
+check, not a diagnosis. A manual `NOTIFY` resolved it immediately both
+times. Treat a schema-cache error against an object you've verified exists
+as this class of issue rather than a missing migration. The client's own
+fallback absorbed the failure correctly while this was unresolved (nothing
+was spent, a structural draft was offered instead), which is why it
+surfaced as a confusing but non-destructive toast rather than a hard
+failure.
 
 ### Testing
 
