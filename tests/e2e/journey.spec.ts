@@ -800,23 +800,53 @@ test.describe("what only a deployment can prove", () => {
     await signIn(page);
     await page.goto("/settings");
 
-    // A subscribed or granted account is offered "Manage billing" instead of
-    // an upgrade, and a deployment that sells nothing shows no picker at all.
-    // Only the first is a reason to stand down.
+    // Gate on the control this journey drives, not on the word "Free".
+    //
+    // The billing section has four shapes and only one of them can be tested:
+    // a paid subscription offers "Manage billing", a *granted* plan offers
+    // nothing at all (there is no Stripe customer to manage), a deployment
+    // that sells no tier renders the free copy with no controls, and a free
+    // account on a selling deployment gets an "Upgrade to …" button. An
+    // earlier version looked for "Free" and would have failed on the third of
+    // those, which is a correct deployment with nothing to buy.
+    //
+    // Which tiers are offered is also the deployment's to say: the picker is a
+    // radiogroup only when more than one tier is sellable, and a single one
+    // renders as a plain label. So the buttons themselves are the list.
+    const section = page.getByRole("region", { name: "Plan" });
+    await expect(section).toBeVisible();
+    const upgrades = section.getByRole("button", { name: /^Upgrade to / });
+    const offered = await upgrades.evaluateAll((buttons) =>
+      buttons.map((b) => (b.textContent ?? "").replace(/^Upgrade to\s+/, "").trim()),
+    );
+    const picker = section.getByRole("radiogroup", { name: "Plan" });
+    const tiers = (await picker.isVisible())
+      ? await picker
+          .getByRole("radio")
+          .evaluateAll((radios) => radios.map((r) => (r.textContent ?? "").trim()))
+      : offered;
     test.skip(
-      await page.getByRole("button", { name: "Manage billing" }).isVisible(),
-      "this account already holds a paid plan; the upgrade controls only show for a free one",
+      tiers.length === 0,
+      `this deployment offers no upgrade control to a free account; the plan section reads: ${(
+        await section.innerText()
+      )
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 120)}`,
     );
 
     await page.route("https://checkout.stripe.com/**", (route) =>
       route.fulfill({ status: 200, contentType: "text/html", body: "<title>Stripe stub</title>" }),
     );
 
-    for (const tier of ["Basic", "Pro"] as const) {
+    for (const tier of tiers) {
       await page.goto("/settings");
-      const plan = page.getByRole("radiogroup", { name: "Plan" });
-      await expect(plan, `the ${tier} control should be offered`).toBeVisible();
-      await plan.getByRole("radio", { name: tier }).click();
+      const plan = page.getByRole("region", { name: "Plan" });
+      // Only where there is a choice to make; one sellable tier is a label.
+      const choose = plan.getByRole("radiogroup", { name: "Plan" });
+      if (await choose.isVisible()) await choose.getByRole("radio", { name: tier }).click();
+      const upgrade = plan.getByRole("button", { name: `Upgrade to ${tier}` });
+      await expect(upgrade, `the ${tier} control should be offered`).toBeVisible();
 
       const opened = page
         .waitForRequest(/^https:\/\/checkout\.stripe\.com\/c\/pay\//, { timeout: 30_000 })
@@ -832,7 +862,7 @@ test.describe("what only a deployment can prove", () => {
         async () => ({ said: await toast.innerText() }),
         () => new Promise<{ said: string }>(() => {}),
       );
-      await page.getByRole("button", { name: `Upgrade to ${tier}` }).click();
+      await upgrade.click();
 
       const outcome = await Promise.race([opened, refused]);
       const said = "said" in outcome ? outcome.said : null;
@@ -903,11 +933,52 @@ test.describe("what only a deployment can prove", () => {
     const src = await stored.getAttribute("src");
     test.info().annotations.push({ type: "imagery", description: `stored: ${src}` });
 
-    await expect(page.locator("header [role=status]")).toContainText(/Saved|All changes saved/i, {
-      timeout: 20_000,
-    });
+    // Watch this edit's own save happen, rather than reading a status that was
+    // already on screen.
+    //
+    // The header has four texts — "All changes saved" when idle, "Unsaved
+    // changes", "Saving…", and "Saved" just after a write — and only the
+    // middle two are about a change the editor has just noticed. Both settled
+    // texts are indistinguishable from the edit before this one, so waiting
+    // for either proves nothing about the picture: accepting a generated image
+    // uploads, registers and then patches the element, and the header can
+    // still be reading the previous edit's result while all of that is in
+    // flight.
+    //
+    // Reloading on that read is not merely a false green. The navigation
+    // *discards* the debounced save, so the picture really was lost — by the
+    // test, which then reported it as the product losing an author's work.
+    // Requiring a dirty or saving state first is what ties the wait to this
+    // edit; the settle after it is then the real one.
+    const status = page.locator("header [role=status]");
+    await expect(status, "accepting an image should mark the document dirty").toHaveText(
+      /^(Unsaved changes|Saving…)$/,
+      { timeout: 15_000 },
+    );
+    await expect(status, "the document should settle to saved").toHaveText(
+      /^(Saved|All changes saved)$/,
+      { timeout: 30_000 },
+    );
+
     await page.reload();
     await page.waitForSelector("[data-stage]");
-    await expect(page.locator(`img[src="${src}"]`).first()).toBeVisible({ timeout: 30_000 });
+    // `naturalWidth`, not the element's existence. An `<img>` whose source
+    // 403s or 404s stays in the DOM and renders a broken glyph — exactly what
+    // an author would report as "my picture is gone" — and the 5xx guard above
+    // does not see it. A decoded image is the only answer that means the
+    // picture came back. Polled because the stage loads its images lazily.
+    await expect
+      .poll(
+        () =>
+          page.evaluate((selector) => {
+            const img = document.querySelector(selector);
+            return img instanceof HTMLImageElement ? img.naturalWidth : 0;
+          }, `img[src="${src}"]`),
+        {
+          message: "the accepted image should still be on the scene, and load, after a reload",
+          timeout: 30_000,
+        },
+      )
+      .toBeGreaterThan(0);
   });
 });
