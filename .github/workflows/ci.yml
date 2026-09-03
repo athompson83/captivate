@@ -90,7 +90,7 @@ jobs:
             esac
 
             case "$path" in
-              .github/workflows/ci.yml|package.json|package-lock.json|supabase/*|scripts/check-migrations.mjs|scripts/seed-e2e-user.mjs|src/proxy.ts|src/app/api/*|src/app/auth/*|src/lib/ai/*|src/lib/auth/*|src/lib/billing/*|src/lib/data/*|src/lib/present/*|src/lib/supabase/*)
+              .github/workflows/ci.yml|package.json|package-lock.json|supabase/*|scripts/check-migrations.mjs|scripts/seed-e2e-user.mjs|src/*)
                 run_rls=true
                 ;;
             esac
