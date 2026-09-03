@@ -92,8 +92,11 @@ first and reverted before release: it let an authenticated caller falsify the
 one column this deployment added so a human could read off which balance was
 charged, at no cost to the falsifier — unlike lying about `model` or the token
 counts, which prices the row near zero and is the accepted trade described
-below. Rows settled before `0028` keep a null; rows `0028` settled with a
-caller-supplied provider were re-derived from their own model by `0029`.
+below. `0029` backfills every row that has ever had no `provider` — not only
+the ones `0028` settled, since the column did not exist before it — wherever
+`model` is recorded and shaped like a real gateway id; a row whose model is
+absent or does not match that shape (predating this rule, or already flagged
+malformed) keeps a null rather than a guess.
 
 ### `ai_image_limits`
 

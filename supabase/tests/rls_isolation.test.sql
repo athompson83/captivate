@@ -409,6 +409,33 @@ select 'complete_openrouter_gateway_recorded' as check,
   (provider = 'openrouter')::int as n
   from public.ai_generations where kind = 'scenes' and prompt = 'third';
 
+-- A model that merely contains a slash without being shaped like a real
+-- gateway id derives no gateway at all, rather than a plausible-looking one.
+-- `/`, `vendor/` (empty model), `/model` (empty vendor) and `a/b/c` (more
+-- than one split) all satisfy "contains a slash"; none is a model this
+-- application, or any gateway it calls, has ever named anything by. The
+-- settlement still succeeds — a malformed model is exactly as forgeable as
+-- it always was — but leaves `provider` unset rather than wrong.
+--
+-- A user of its own, so a probe reservation cannot shift the burst and
+-- allowance counts the rest of this file's narrative depends on.
+reset role;
+insert into auth.users (id, email)
+values ('55555555-5555-5555-5555-555555555555', 'malformed-model@example.com')
+on conflict (id) do nothing;
+set role authenticated;
+set "request.jwt.claim.sub" = '55555555-5555-5555-5555-555555555555';
+select id from public.captivate_reserve_generation(
+  'moment', 'light', 'malformed', null) \gset malformed_
+select 'complete_rejects_malformed_model_gateway' as check,
+  (public.captivate_complete_generation(:'malformed_id'::uuid, 'succeeded', 'a/b/c', 1, 1, null))::int as n;
+select 'complete_malformed_model_gateway_unset' as check,
+  (status = 'succeeded' and model = 'a/b/c' and provider is null)::int as n
+  from public.ai_generations where id = :'malformed_id'::uuid;
+reset role;
+set role authenticated;
+set "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+
 -- And it cannot rewind a row to pending, which is how you would stop it
 -- counting against you.
 select 'complete_cannot_reopen' as check,
@@ -636,6 +663,14 @@ select 'image_settle_derives_openrouter_gateway' as check,
 select 'image_openrouter_gateway_recorded' as check,
   (select (provider = 'openrouter')::int
      from public.ai_generations where id = :'router_id'::uuid) as n;
+
+-- Same malformed-model behaviour on the image path: settles, does not guess.
+select id from public.captivate_reserve_image_generation('malformed model', null) \gset malformed_
+select 'image_settle_rejects_malformed_model_gateway' as check,
+  (public.captivate_settle_image_generation(:'malformed_id'::uuid, 'succeeded', 'vendor/', 100, null))::int as n;
+select 'image_malformed_model_gateway_unset' as check,
+  (select (status = 'succeeded' and model = 'vendor/' and provider is null)::int
+     from public.ai_generations where id = :'malformed_id'::uuid) as n;
 reset role;
 
 -- Bob cannot settle Alice's reservation, which is what would let him zero its

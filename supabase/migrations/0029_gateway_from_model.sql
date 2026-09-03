@@ -22,14 +22,37 @@
 -- already documents and depends on (0027, and `DEFAULT_MODEL` /
 -- `DEFAULT_IMAGE_MODEL` in `src/lib/ai/provider.ts` and
 -- `src/lib/ai/visual-sourcing.ts`) — an OpenRouter model id carries a
--- `vendor/` prefix; a direct call to Anthropic or OpenAI does not. A caller
--- can still forge `model`, exactly as before and exactly as 0020 accepts, but
--- can no longer pick a `provider` disconnected from it: claiming `anthropic`
--- now requires supplying an unprefixed model id, at whatever cost forging
--- `model` already carried. Nothing new is trusted; one previously-independent
--- lie is retired.
+-- `vendor/model` shape; a direct call to Anthropic or OpenAI does not. A
+-- caller can still forge `model`, exactly as before and exactly as 0020
+-- accepts, but can no longer pick a `provider` disconnected from it: claiming
+-- `anthropic` now requires supplying an unprefixed model id, at whatever cost
+-- forging `model` already carried. Nothing new is trusted; one
+-- previously-independent lie is retired.
+--
+-- Deriving from *any* string containing a slash was the first draft, and a
+-- review caught what it missed: `p_model = '/'`, `'vendor/'`, `'/model'` and
+-- `'a/b/c'` all satisfy "contains a slash" without being a real gateway id,
+-- and would have labelled an obviously-garbage row `openrouter` anyway — an
+-- honest-looking lie is cheaper to catch than a plausible one, but it is
+-- still a lie the schema let through. `v_gateway_shape` matches only what
+-- this codebase actually calls a model by: letters, digits, `.`, `_`, `-`,
+-- optionally one `vendor/model` split, with no empty segment on either side.
+-- A `p_model` that fails it settles as everything else did — status, tokens,
+-- cost — and simply leaves `provider` null, the same as a row this migration
+-- cannot honestly answer for.
 -- ---------------------------------------------------------------------------
 
+alter table public.ai_generations
+  add column if not exists provider text
+    check (provider in ('anthropic', 'openai', 'openrouter'));
+
+comment on column public.ai_generations.provider is
+  'Which gateway served the call, derived from the settled model id. Null where the model is unrecorded or unrecognised.';
+
+-- ---------------------------------------------------------------------------
+-- Text settlement: unchanged in every rule (see 0020 and 0023), plus the
+-- gateway, derived rather than accepted.
+-- ---------------------------------------------------------------------------
 drop function if exists public.captivate_complete_generation(uuid, text, text, integer, integer, text, text);
 
 create function public.captivate_complete_generation(
@@ -47,14 +70,11 @@ as $$
 declare
   v_user uuid := auth.uid();
   v_rows integer;
-  -- OpenRouter is the only gateway this application calls whose model ids
-  -- carry a `vendor/` prefix; a direct call to Anthropic never does. See
-  -- 0027's own comment on the same convention.
-  v_provider text := case
-    when p_model is null then null
-    when p_model like '%/%' then 'openrouter'
-    else 'anthropic'
-  end;
+  -- One vendor/model split at most, neither side empty. Matches
+  -- `claude-sonnet-5` and `anthropic/claude-sonnet-5`; rejects `/`,
+  -- `vendor/`, `/model` and `a/b/c`.
+  v_gateway_shape constant text := '^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)?$';
+  v_provider text;
 begin
   if v_user is null then
     return false;
@@ -65,6 +85,13 @@ begin
   if coalesce(p_input_tokens, 0) < 0 or coalesce(p_output_tokens, 0) < 0 then
     return false;
   end if;
+
+  v_provider := case
+    when p_model is null then null
+    when p_model !~ v_gateway_shape then null
+    when p_model like '%/%' then 'openrouter'
+    else 'anthropic'
+  end;
 
   update public.ai_generations g
      set status         = p_status,
@@ -93,6 +120,10 @@ revoke all on function public.captivate_complete_generation(uuid, text, text, in
 revoke all on function public.captivate_complete_generation(uuid, text, text, integer, integer, text) from anon;
 grant execute on function public.captivate_complete_generation(uuid, text, text, integer, integer, text) to authenticated;
 
+-- ---------------------------------------------------------------------------
+-- Image settlement: unchanged in every rule (see 0020), plus the gateway,
+-- derived rather than accepted.
+-- ---------------------------------------------------------------------------
 drop function if exists public.captivate_settle_image_generation(uuid, text, text, integer, text, text);
 
 create function public.captivate_settle_image_generation(
@@ -109,13 +140,8 @@ as $$
 declare
   v_user uuid := auth.uid();
   v_rows integer;
-  -- Unprefixed is OpenAI direct (`gpt-image-2`); a `vendor/` prefix is
-  -- OpenRouter (`openai/gpt-image-2`) — see `DEFAULT_IMAGE_MODEL`.
-  v_provider text := case
-    when p_model is null then null
-    when p_model like '%/%' then 'openrouter'
-    else 'openai'
-  end;
+  v_gateway_shape constant text := '^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)?$';
+  v_provider text;
 begin
   if v_user is null then
     return false;
@@ -123,6 +149,15 @@ begin
   if p_status is null or p_status not in ('succeeded', 'failed', 'invalid_output') then
     return false;
   end if;
+
+  -- Unprefixed is OpenAI direct (`gpt-image-2`); a `vendor/model` shape is
+  -- OpenRouter (`openai/gpt-image-2`) — see `DEFAULT_IMAGE_MODEL`.
+  v_provider := case
+    when p_model is null then null
+    when p_model !~ v_gateway_shape then null
+    when p_model like '%/%' then 'openrouter'
+    else 'openai'
+  end;
 
   update public.ai_generations
      set status        = p_status,
@@ -147,12 +182,14 @@ grant execute on function public.captivate_settle_image_generation(uuid, text, t
 -- ---------------------------------------------------------------------------
 -- Backfill, only where the answer is actually known.
 --
--- The handful of rows 0028 settled with a caller-independent, honest
--- `p_provider` (this deployment's own server, before this migration existed)
--- can be re-derived from their own `model` the same way new rows now are —
--- that is not the cross-reference 0028's comment warned against, because it
--- reads the row's own recorded model rather than the current environment.
--- Rows with no model recorded are left null, as before.
+-- Every settled row that has never had a `provider` — every row `ai_generations`
+-- has ever held, not only the ones `0028` settled, since the column did not
+-- exist before it — gets one now if its `model` is both recorded and shaped
+-- like a real gateway id under the same rule settlement now enforces. A model
+-- that fails that shape is left null rather than guessed at, for the same
+-- reason a settlement leaves it null: the model column was never validated at
+-- write time, so a historical value that predates this rule has no honest
+-- provider to derive.
 -- ---------------------------------------------------------------------------
 update public.ai_generations
    set provider = case
@@ -161,4 +198,5 @@ update public.ai_generations
      else 'anthropic'
    end
  where model is not null
+   and model ~ '^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)?$'
    and provider is null;

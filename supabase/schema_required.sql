@@ -223,3 +223,32 @@ select 'FORBIDDEN function public.' || p.proname ||
    and p.proname = 'captivate_reserve_generation'
    and p.oid is distinct from
        to_regprocedure('public.captivate_reserve_generation(text,text,text,uuid)');
+
+-- The same question again for both settlement functions. `0029` drops the
+-- seven-argument forms `0028` shipped, because a `p_provider` argument next
+-- to `p_model` let an authenticated caller name the gateway independently of
+-- the model it actually settled — the one column added so a human could read
+-- off which balance was charged, made falsifiable at no cost to the
+-- falsifier. `0028` granted `authenticated` execute on that form, so a
+-- database that still carries it beside the six-argument one — a half-applied
+-- `0029` is exactly how — leaves that hole open regardless of what the new
+-- signature does.
+select 'FORBIDDEN function public.' || p.proname ||
+       '(' || pg_get_function_identity_arguments(p.oid) || ')' ||
+       '   → keeps: a settlement that can name its own gateway'
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname = 'captivate_complete_generation'
+   and p.oid is distinct from
+       to_regprocedure('public.captivate_complete_generation(uuid,text,text,integer,integer,text)');
+
+select 'FORBIDDEN function public.' || p.proname ||
+       '(' || pg_get_function_identity_arguments(p.oid) || ')' ||
+       '   → keeps: a settlement that can name its own gateway'
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname = 'captivate_settle_image_generation'
+   and p.oid is distinct from
+       to_regprocedure('public.captivate_settle_image_generation(uuid,text,text,integer,text)');
