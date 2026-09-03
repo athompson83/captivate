@@ -925,17 +925,40 @@ test.describe("what only a deployment can prove", () => {
     //
     // Polling is still an honest assertion: it fails if the image never
     // survives a reload, which is the thing this journey exists to catch.
+    // Watch the save happen, rather than reading a status that was already
+    // there. The header has two settled texts — "All changes saved" when idle
+    // and "Saved" just after writing — and matching either one loosely passes
+    // instantly on the idle text left over from the edit before. Reloading on
+    // that read is not merely a false green: the navigation *discards* the
+    // debounced save, so the picture really was lost, by the test. So: first
+    // wait for the editor to notice the change, then for it to settle.
+    const status = page.locator("header [role=status]");
+    await expect(status, "accepting an image should mark the document dirty").not.toHaveText(
+      "All changes saved",
+      { timeout: 15_000 },
+    );
+    await expect(status, "the document should settle to saved").toHaveText(
+      /^(Saved|All changes saved)$/,
+      { timeout: 30_000 },
+    );
+
+    await page.reload();
+    await page.waitForSelector("[data-stage]");
+    // `naturalWidth`, not the element's existence. An `<img>` whose source
+    // 403s or 404s stays in the DOM and renders a broken glyph — exactly what
+    // an author would report as "my picture is gone" — and the 5xx guard above
+    // does not see it. A decoded image is the only answer that means the
+    // picture came back. Polled because the stage loads its images lazily.
     await expect
       .poll(
-        async () => {
-          await page.reload();
-          await page.waitForSelector("[data-stage]");
-          return page.locator(`img[src="${src}"]`).count();
-        },
+        () =>
+          page.evaluate((selector) => {
+            const img = document.querySelector(selector);
+            return img instanceof HTMLImageElement ? img.naturalWidth : 0;
+          }, `img[src="${src}"]`),
         {
-          message: "the accepted image should still be on the scene after a reload",
-          timeout: 60_000,
-          intervals: [2_000, 3_000, 5_000, 5_000, 5_000],
+          message: "the accepted image should still be on the scene, and load, after a reload",
+          timeout: 30_000,
         },
       )
       .toBeGreaterThan(0);
