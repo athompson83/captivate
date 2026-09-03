@@ -1,3 +1,7 @@
+<!-- Curated GitHub README layout; preserve its badge, table, and line-break formatting. -->
+
+<!-- prettier-ignore-start -->
+
 <div align="center">
 
 <img src="public/brand/captivate-lockup.png" alt="Captivate by Axtevi" width="360" />
@@ -96,3 +100,5 @@ Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · Zod · Zustand · Mot
 ## Brand
 
 The approved Captivate assets live in `public/brand/`. Preserve their proportions and colors; do not recreate, stretch, recolor, or add effects to the wordmark or icon.
+
+<!-- prettier-ignore-end -->
