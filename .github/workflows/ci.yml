@@ -83,6 +83,7 @@ jobs:
           for path in "${changed_files[@]}"; do
             case "$path" in
               *.md|LICENSE|LICENSE.*)
+                continue
                 ;;
               *)
                 run_verify=true
