@@ -203,23 +203,28 @@ const FRAGMENT = /* glsl */ `
   // there is no 3×3 search. Presence is thinned so the field is not a lattice.
   // Under motion the disc is stretched along the heading — a streak, not a
   // blur, because the thing the room should read is direction.
-  float motes(vec2 fragment, float c, float s, float depth, float seed, vec2 heading, float streak) {
+  // 'cell' is the lattice pitch in world units and 'sparsity' the share of
+  // cells left empty: the near layer is a few large, very soft motes and the
+  // far layers a fine dust, because that is what depth looks like — big
+  // things close and small things far — and a field of same-sized discs
+  // reads as snowfall, not distance.
+  float motes(vec2 fragment, float c, float s, float depth, float seed, float cell, float sparsity, vec2 heading, float streak) {
     float inv = uInvScale + depth * uStage / uResolution.x;
     vec2 d = (fragment - uHalf) * inv;
     vec2 p = uCamera + vec2(d.x * c - d.y * s, d.x * s + d.y * c);
 
-    float cell = uStage * (0.19 + seed * 0.04);
     vec2 g = p / cell;
     vec2 i = floor(g);
     vec2 f = g - i;
 
-    // Thinned to a scatter at rest; a flight brings more of the field out.
+    // Thinned to a scatter at rest; a flight brings a little more of the
+    // field out, never all of it.
     float presence = hash(i + seed * 17.0);
-    float alive = step(0.5 - 0.25 * uMotion, presence);
+    float alive = step(sparsity - 0.12 * uMotion, presence);
 
     vec2 jitter = 0.3 + 0.4 * vec2(hash(i + 3.1 + seed), hash(i + 7.7 + seed));
     jitter += 0.03 * vec2(sin(uTime * 0.15 + presence * 6.28), cos(uTime * 0.11 + presence * 3.1));
-    float size = 0.05 + 0.07 * hash(i + 11.3 + seed);
+    float size = 0.04 + 0.08 * hash(i + 11.3 + seed) * hash(i + 5.9 + seed);
 
     // Stretch in screen pixels, where a streak has a length, then back to
     // cells, where the disc has a size.
@@ -313,17 +318,20 @@ const FRAGMENT = /* glsl */ `
       vec2 heading = length(uHeading) > 0.5 ? uHeading : vec2(1.0, 0.0);
       // Bounded so a stretched disc still fits its cell (see motes).
       float streak = uMotion * 1.3;
-      float dust = motes(fragment, c, s, 0.6, 0.0, heading, streak) * 0.55
-        + motes(fragment, c, s, 2.2, 1.0, heading, streak) * 0.8
-        + motes(fragment, c, s, 6.0, 2.0, heading, streak);
+      float dust = motes(fragment, c, s, 0.6, 0.0, uStage * 0.34, 0.86, heading, streak) * 0.5
+        + motes(fragment, c, s, 2.2, 1.0, uStage * 0.2, 0.74, heading, streak) * 0.75
+        + motes(fragment, c, s, 6.0, 2.0, uStage * 0.16, 0.66, heading, streak);
 
-      // Faint at rest, present in flight. Lightness moves away from the room's
-      // own — up in a dark room, down in a light one — so a mote is visible on
-      // every theme and never clips to white on paper.
-      float lit = uDepth * (0.035 + 0.16 * uMotion) * dust;
-      float dir = air.x < 0.55 ? 1.0 : -1.0;
-      air.x += dir * lit;
-      air.yz = mix(air.yz, glow.yz, min(1.0, lit * 1.5));
+      // Faint at rest, present in flight — present, not a blizzard: the room
+      // should notice it moved, not that it snowed. Lightness moves away from
+      // the room's own — up in a dark room, down on paper — so a mote is
+      // visible on every theme and never clips to white; on paper the push
+      // is gentler still, because dark specks on a light ground carry
+      // further than light ones on a dark ground.
+      float dark = step(air.x, 0.55);
+      float lit = uDepth * (0.03 + 0.1 * uMotion) * dust * mix(0.6, 1.0, dark);
+      air.x += mix(-1.0, 1.0, dark) * lit;
+      air.yz = mix(air.yz, glow.yz, min(1.0, lit * 0.9));
     }
 
     // A vignette pulls the eye to the middle of the frame, which is where the

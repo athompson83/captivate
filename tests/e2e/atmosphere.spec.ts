@@ -178,6 +178,30 @@ async function draw(
   );
 }
 
+/**
+ * The share of pixels that visibly changed between two frames.
+ *
+ * A mean over the frame is the wrong measure for a sparse field: the dust is
+ * a few dozen soft discs on a canvas that is otherwise still, so the mean
+ * reports almost nothing however bright they are. What a room sees is that
+ * *some* of the frame moved, and this counts that — a pixel is stirred when
+ * any channel moved by more than the dither and the fbm drift can account
+ * for.
+ */
+function stirred(a: number[], b: number[]): number {
+  let moved = 0;
+  for (let i = 0; i < a.length; i += 4) {
+    if (
+      Math.abs(a[i] - b[i]) > 8 ||
+      Math.abs(a[i + 1] - b[i + 1]) > 8 ||
+      Math.abs(a[i + 2] - b[i + 2]) > 8
+    ) {
+      moved += 1;
+    }
+  }
+  return moved / (a.length / 4);
+}
+
 /** Mean absolute difference per channel between two frames. */
 function difference(a: number[], b: number[]): number {
   let total = 0;
@@ -280,15 +304,15 @@ test.describe("depth", () => {
     const resting = await draw(page, regions, camera, { motion: 0, heading: [0, 0] });
     const flying = await draw(page, regions, camera, { motion: 1, heading: [1, 0] });
 
-    const atRest = difference(resting.frame, flat.frame);
-    const inFlight = difference(flying.frame, resting.frame);
-
-    // Mean per-channel differences over the whole frame. The dust covers a
-    // small fraction of it, and this canvas is a quarter the width of a real
-    // viewport so every mote is proportionally smaller — the flight threshold
-    // is a floor on "visibly changed", not a claim about how much.
-    expect(atRest, "resting dust should be faint").toBeLessThan(1.5);
-    expect(inFlight, "a flight should visibly stir the air").toBeGreaterThan(0.3);
+    // Rest is judged by the mean: nothing anywhere should stand out from the
+    // flat field. Flight is judged by how much of the frame moved, because
+    // the dust is sparse on purpose and a mean over a mostly-still canvas
+    // reports almost nothing however visible the motes are.
+    expect(difference(resting.frame, flat.frame), "resting dust should be faint").toBeLessThan(1.5);
+    expect(
+      stirred(flying.frame, resting.frame),
+      "a flight should visibly stir the air",
+    ).toBeGreaterThan(0.002);
   });
 
   test("the dust is anchored to the world, not to the screen", async ({ page }) => {

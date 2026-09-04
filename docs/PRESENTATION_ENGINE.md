@@ -167,13 +167,18 @@ a factor of e every 0.4 s after landing (`settleMotion`), so the air is still
 moving for a beat after the content has stopped. A reduced-motion preference
 pins it still; the journey's `depth` at zero removes it.
 
-Cost is one hash lookup per layer per pixel: a mote is jittered within the
-middle of its cell and its radius never reaches the edge, so no neighbour can
-intrude and there is no 3×3 search. Lightness moves _away_ from the room's own
+The layers are not alike, on purpose. The near one is a few large, very soft
+motes on a wide lattice with most of its cells empty; the far ones are a finer
+dust — big things close and small things far is what depth looks like, and a
+field of same-sized discs at one density read as snowfall when it was first
+rendered. Cost is one hash lookup per layer per pixel: a mote is jittered
+within the middle of its cell and its radius never reaches the edge, so no
+neighbour can intrude and there is no 3×3 search. Lightness moves _away_ from the room's own
 — up in a dark theme, down on paper — so a mote is visible on every theme and
 never clips to white. The shader test renders a flat, a resting and a flying
-frame and asserts the resting dust is faint, the flight visibly stirs it, a
-pan moves it, and a streak lies along the heading.
+frame and asserts the resting dust is faint (by the frame's mean), the flight
+visibly stirs it (by the share of pixels that moved — the right measure for a
+sparse field), a pan moves it, and a streak lies along the heading.
 
 ---
 
