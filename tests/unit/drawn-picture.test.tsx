@@ -81,3 +81,49 @@ describe("DrawnPicture", () => {
     expect(svg?.getAttribute("aria-label")).toBe(element.alt);
   });
 });
+
+describe("what a stroke may carry beyond its geometry", () => {
+  const picture: DrawingElement = {
+    ...element,
+    strokeWidth: 3,
+    paths: [
+      { d: "M 0 0 L 10 0", stage: 0, weight: 1.6 },
+      { d: "M 0 5 L 10 5", stage: 0, ink: "accent" },
+      { d: "M 0 0 L 10 0 L 10 10 Z", stage: 1, fill: true },
+    ],
+  };
+
+  it("scales the stroke by the path's weight", () => {
+    const { container } = render(<DrawnPicture element={picture} step={1} />);
+    const strokes = [...container.querySelectorAll("path.dp-path")];
+    expect(strokes[0].getAttribute("stroke-width")).toBe(String(3 * 1.6));
+    expect(strokes[1].getAttribute("stroke-width")).toBe("3");
+  });
+
+  it("lets one stroke take the accent while the element stays in ink", () => {
+    const { container } = render(<DrawnPicture element={picture} step={1} />);
+    const strokes = [...container.querySelectorAll("path.dp-path")];
+    expect(strokes[0].getAttribute("stroke")).toBe("var(--stage-ink)");
+    expect(strokes[1].getAttribute("stroke")).toBe("var(--stage-accent)");
+  });
+
+  it("lays a wash under a filled path that waits for its stroke", () => {
+    const { container } = render(<DrawnPicture element={picture} step={1} />);
+    const washes = [...container.querySelectorAll("path.dp-fill")];
+    expect(washes).toHaveLength(1);
+    const wash = washes[0] as SVGPathElement;
+    expect(wash.classList.contains("dp-drawn")).toBe(true);
+    // The lone stage-1 path takes the whole pace; its wash starts as it ends.
+    expect(wash.style.getPropertyValue("--dp-del")).toBe(`${picture.paceSeconds}s`);
+    // And it comes before its own stroke in document order, so the stroke
+    // paints over it.
+    const group = wash.parentElement!;
+    expect(group.firstElementChild).toBe(wash);
+  });
+
+  it("holds the wash back with the stroke until its stage is reached", () => {
+    const { container } = render(<DrawnPicture element={picture} step={0} />);
+    const wash = container.querySelector("path.dp-fill")!;
+    expect(wash.classList.contains("dp-drawn")).toBe(false);
+  });
+});

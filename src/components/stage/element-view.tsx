@@ -454,7 +454,16 @@ export const ElementView = memo(function ElementView({
       );
     }
 
-    case "image":
+    case "image": {
+      // A soft edge is rounded generously and feathered on all four sides by
+      // a mask, so the picture pools into the surface instead of ending at a
+      // line. Two gradients intersected rather than one radial: a radial
+      // feather leaves a full-bleed photograph as an oval, and a picture's
+      // corners are the part of it that should go quietly, not its middle.
+      const soft = element.edge === "soft";
+      const radiusPx = Math.max(element.radius, soft ? 2.4 : 0) * rem;
+      const feather =
+        "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent), linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent)";
       return (
         <div
           style={{
@@ -462,7 +471,11 @@ export const ElementView = memo(function ElementView({
             width: "100%",
             height: "100%",
             overflow: "hidden",
-            borderRadius: `${element.radius * rem}px`,
+            borderRadius: `${radiusPx}px`,
+            maskImage: soft ? feather : undefined,
+            maskComposite: soft ? "intersect" : undefined,
+            WebkitMaskImage: soft ? feather : undefined,
+            WebkitMaskComposite: soft ? "source-in" : undefined,
           }}
         >
           {element.url ? (
@@ -486,7 +499,12 @@ export const ElementView = memo(function ElementView({
               }}
             />
           ) : (
-            <ImagePlaceholder theme={theme} rem={rem} label={element.alt || "Image"} />
+            <ImagePlaceholder
+              theme={theme}
+              rem={rem}
+              label={element.alt || "Image"}
+              radiusPx={radiusPx}
+            />
           )}
           {/* A scrim darkens a photograph so a caption over it stays legible.
               With no photograph it is a dark rectangle over nothing — which on
@@ -503,6 +521,7 @@ export const ElementView = memo(function ElementView({
           )}
         </div>
       );
+    }
 
     case "video":
       return element.url ? (
@@ -682,29 +701,40 @@ export const ElementView = memo(function ElementView({
                 ? "#E2604F"
                 : theme.tokens.inkMuted;
 
-      return (
+      // The open variant paints nothing behind itself. An icon set large, a
+      // short rule in the tone colour, a title and a line — straight onto the
+      // surface, so three of them in a row read as three ideas on one page
+      // rather than three panels leaning against a wall.
+      //
+      // A wide, short box (the explainer's stacked points) lays the icon
+      // beside the words rather than above them; a tall one (a three-up or a
+      // call to action's steps) stacks them.
+      const open = element.variant === "open";
+      const row = open && boxWidth > boxHeight * 2;
+      const iconPx = rem * (open ? 3.2 : 1.8);
+
+      const icon = (
+        <StageIcon
+          name={element.icon}
+          strokeWidth={open ? 1.6 : undefined}
+          style={{ width: `${iconPx}px`, height: `${iconPx}px`, color: toneColor, flexShrink: 0 }}
+        />
+      );
+      const rule = open && (
         <div
+          aria-hidden
           style={{
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
-            gap: `${rem * 0.7}px`,
-            padding: `${rem * 1.4}px`,
-            background: theme.tokens.surface,
-            borderRadius: `${rem * 0.8}px`,
-            borderTop: `${rem * 0.16}px solid ${toneColor}`,
+            width: `${rem * 2.4}px`,
+            height: `${rem * 0.18}px`,
+            borderRadius: `${rem * 0.09}px`,
+            background: toneColor,
+            opacity: 0.7,
+            flexShrink: 0,
           }}
-        >
-          <StageIcon
-            name={element.icon}
-            style={{
-              width: `${rem * 1.8}px`,
-              height: `${rem * 1.8}px`,
-              color: toneColor,
-              flexShrink: 0,
-            }}
-          />
+        />
+      );
+      const words = (
+        <>
           {element.title && (
             <p
               style={{
@@ -712,7 +742,7 @@ export const ElementView = memo(function ElementView({
                 fontSize: `${scale.h3 * rem * element.style.size * 0.9}px`,
                 fontWeight: 600,
                 color: theme.tokens.ink,
-                fontFamily: theme.fonts.sans,
+                fontFamily: open ? theme.fonts.display : theme.fonts.sans,
                 lineHeight: 1.25,
               }}
             >
@@ -734,7 +764,11 @@ export const ElementView = memo(function ElementView({
                 element.style,
                 "sans",
                 undefined,
-                { width: 0.84, height: 0.46 },
+                row
+                  ? { width: 0.74, height: 0.6 }
+                  : open
+                    ? { width: 0.98, height: 0.4 }
+                    : { width: 0.84, height: 0.46 },
               )}px`,
               color: theme.tokens.inkMuted,
               fontFamily: theme.fonts.sans,
@@ -746,6 +780,67 @@ export const ElementView = memo(function ElementView({
           >
             <Runs runs={element.content} theme={theme} />
           </div>
+        </>
+      );
+
+      if (row) {
+        return (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: `${rem * 1.2}px`,
+              padding: `${rem * 0.3}px 0`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: `${rem * 0.5}px`,
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+              {rule}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: `${rem * 0.3}px`,
+                flex: 1,
+                minWidth: 0,
+                minHeight: 0,
+              }}
+            >
+              {words}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            gap: `${rem * (open ? 0.55 : 0.7)}px`,
+            padding: open ? `${rem * 0.4}px 0` : `${rem * 1.4}px`,
+            background: open ? "transparent" : theme.tokens.surface,
+            borderRadius: open ? 0 : `${rem * 0.8}px`,
+            borderTop: open ? "none" : `${rem * 0.16}px solid ${toneColor}`,
+          }}
+        >
+          {icon}
+          {rule}
+          {words}
         </div>
       );
     }
@@ -831,11 +926,14 @@ function ImagePlaceholder({
   rem,
   label,
   icon = "image",
+  radiusPx,
 }: {
   theme: PresentationTheme;
   rem: number;
   label: string;
   icon?: "image" | "video";
+  /** The corner of the frame the placeholder stands in, so the outline matches. */
+  radiusPx?: number;
 }) {
   const Icon = icon === "video" ? VideoIcon : PlaceholderImageIcon;
   return (
@@ -854,7 +952,7 @@ function ImagePlaceholder({
         // says "a picture goes here" without putting a block on the surface.
         background: "transparent",
         border: `${Math.max(1, rem * 0.08)}px dashed ${theme.tokens.line}`,
-        borderRadius: `${rem * 0.6}px`,
+        borderRadius: `${radiusPx ?? rem * 0.6}px`,
         color: theme.tokens.inkMuted,
       }}
     >

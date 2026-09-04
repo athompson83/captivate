@@ -209,13 +209,23 @@ export function pointsFor(rem: number, slideWidth: number): number {
 /** The SVG a drawing's paths make, as a standalone document. */
 export function drawingSvg(
   element: Extract<SceneElement, { type: "drawing" }>,
-  ink: string,
+  ink: string | { ink: string; accent: string; muted: string },
 ): string {
+  // One colour still works — the tests and any older caller hand a string —
+  // but a drawing's strokes may each name their own ink, so the export takes
+  // the theme's three and resolves per path exactly as the stage does.
+  const inks = typeof ink === "string" ? { ink, accent: ink, muted: ink } : ink;
   const paths = element.paths
-    .map(
-      (path) =>
-        `<path d="${path.d}" fill="none" stroke="${ink}" stroke-width="${element.strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`,
-    )
+    .map((path) => {
+      const colour = inks[path.ink ?? element.ink ?? "ink"];
+      const width = element.strokeWidth * (path.weight ?? 1);
+      // The wash under a filled shape: the stage draws it at 14% once the
+      // stroke has closed, and a slide shows the finished picture.
+      const wash = path.fill
+        ? `<path d="${path.d}" fill="${colour}" fill-opacity="0.14" stroke="none"/>`
+        : "";
+      return `${wash}<path d="${path.d}" fill="none" stroke="${colour}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    })
     .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${element.viewBox.width} ${element.viewBox.height}" width="${element.viewBox.width}" height="${element.viewBox.height}">${paths}</svg>`;
 }
@@ -403,16 +413,14 @@ function planSlide(
         break;
       }
       case "drawing": {
-        const ink =
-          element.ink === "accent"
-            ? theme.tokens.accent
-            : element.ink === "muted"
-              ? theme.tokens.inkMuted
-              : theme.tokens.ink;
         shapes.push({
           kind: "drawing",
           box,
-          svg: drawingSvg(element, ink),
+          svg: drawingSvg(element, {
+            ink: theme.tokens.ink,
+            accent: theme.tokens.accent,
+            muted: theme.tokens.inkMuted,
+          }),
           alt: element.alt,
           opacity,
         });
@@ -455,16 +463,19 @@ function planSlide(
       }
       case "callout": {
         const tint = element.tone === "accent" ? theme.tokens.accent : theme.tokens.surface;
-        shapes.push({
-          kind: "shape",
-          box,
-          shape: "rectangle",
-          fill: theme.tokens.surface,
-          stroke: tint,
-          strokeWidth: 1,
-          radius: 0.1,
-          opacity,
-        });
+        // An open callout has no panel on the stage, so it gets none here.
+        if (element.variant !== "open") {
+          shapes.push({
+            kind: "shape",
+            box,
+            shape: "rectangle",
+            fill: theme.tokens.surface,
+            stroke: tint,
+            strokeWidth: 1,
+            radius: 0.1,
+            opacity,
+          });
+        }
         const label = element.title ? [{ text: element.title, bold: true }] : [];
         shapes.push({
           kind: "text",

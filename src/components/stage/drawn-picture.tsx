@@ -21,6 +21,17 @@ import type { DrawingElement } from "@/lib/schema/presentation";
  * `paceSeconds` between them; earlier stages hold their finished state.
  * `prefers-reduced-motion` keeps the pacing (the stages are the argument
  * being built) and drops only the sweep — see globals.css.
+ *
+ * Three things a path may carry beyond its geometry, all of which exist
+ * because a picture drawn at one weight in one colour with no mass is a
+ * wireframe, and a wireframe is what "the drawings are weak" looks like:
+ *
+ *  - `weight` scales the stroke, so an outline can be heavier than its detail
+ *    and construction lighter than both;
+ *  - `ink` overrides the element's colour for one stroke, so the idea a stage
+ *    adds can arrive in the accent while the rest stays in ink;
+ *  - `fill` lays a soft wash inside a closed path once its stroke has
+ *    finished, which gives a shape body without a second colour.
  */
 
 const INK: Record<DrawingElement["ink"], string> = {
@@ -79,23 +90,40 @@ export function DrawnPicture({
       {element.paths.map((path, i) => {
         const siblings = perStage.get(path.stage) ?? 1;
         const duration = element.paceSeconds / siblings;
+        const drawn = path.stage <= step;
+        const colour = INK[path.ink ?? element.ink];
+        const timing = {
+          "--dp-dur": `${duration}s`,
+          "--dp-del": `${slots[i] * duration}s`,
+        } as React.CSSProperties;
         return (
-          <path
-            key={i}
-            ref={measureDrawnPath}
-            d={path.d}
-            className={path.stage <= step ? "dp-path dp-drawn" : "dp-path"}
-            stroke={INK[element.ink]}
-            strokeWidth={element.strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={
-              {
-                "--dp-dur": `${duration}s`,
-                "--dp-del": `${slots[i] * duration}s`,
-              } as React.CSSProperties
-            }
-          />
+          <g key={i}>
+            {/* The wash goes under the stroke and waits for it: its delay is
+                the stroke's own delay plus its duration, so the shape fills
+                the moment its outline closes rather than before it exists. */}
+            {path.fill && (
+              <path
+                d={path.d}
+                className={drawn ? "dp-fill dp-drawn" : "dp-fill"}
+                fill={colour}
+                style={
+                  {
+                    "--dp-del": `${slots[i] * duration + duration}s`,
+                  } as React.CSSProperties
+                }
+              />
+            )}
+            <path
+              ref={measureDrawnPath}
+              d={path.d}
+              className={drawn ? "dp-path dp-drawn" : "dp-path"}
+              stroke={colour}
+              strokeWidth={element.strokeWidth * (path.weight ?? 1)}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={timing}
+            />
+          </g>
         );
       })}
     </svg>

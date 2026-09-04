@@ -384,7 +384,10 @@ export function replaceMediaWithDrawing(
     paths: safe.paths,
     stageLabels: safe.stageLabels,
     ink: "ink",
-    strokeWidth: 2,
+    // 3, up from 2. The drawing's box is about half the stage, so a unit of
+    // its 800-wide viewBox is a pixel on a 1600-pixel stage — and a two-pixel
+    // line disappears on a projector. Weights on the paths scale from here.
+    strokeWidth: 3,
     paceSeconds: 1.6,
     prompt: prompt.slice(0, 1000),
     alt: safe.alt || placeholder.alt,
@@ -429,7 +432,7 @@ export function replaceMediaWithPhoto(
 }
 
 /**
- * How many staged drawings a deck of this length deserves: one per ten
+ * How many staged drawings a deck of this length deserves: one per eight
  * minutes, at least one, and bounded the way every other array here is —
  * each drawing is a full model call someone is paying for.
  *
@@ -442,8 +445,12 @@ export function replaceMediaWithPhoto(
  * alternative, and stays where it was when photographs are doing the rest.
  */
 export function drawingCap(totalSeconds: number, soleSource = false): number {
-  const perSeconds = soleSource ? 300 : 600;
-  const ceiling = soleSource ? 10 : 6;
+  // The sole-source ceiling is the per-presentation drawing budget every
+  // plan sells (`PER_PRESENTATION.drawing`), and a test holds the two
+  // together: raising it here without raising the budget would sell decks a
+  // customer could not finish illustrating.
+  const perSeconds = soleSource ? 240 : 480;
+  const ceiling = soleSource ? 10 : 8;
   if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return 1;
   return Math.min(ceiling, Math.max(1, Math.ceil(totalSeconds / perSeconds)));
 }

@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_REGIONS,
+  STILL,
   atmosphereDpr,
+  cameraMotion,
   falloffFor,
   fragmentFromUv,
   nearestRegions,
   packRegions,
   regionBuffers,
   screenToWorld,
+  settleMotion,
   viewUniforms,
 } from "@/lib/present/atmosphere";
 import { paletteOf } from "@/lib/present/ambient";
@@ -273,5 +276,83 @@ describe("scale and cost", () => {
   it("survives a browser reporting nonsense for its pixel ratio", () => {
     expect(atmosphereDpr(0)).toBe(1);
     expect(atmosphereDpr(Number.NaN)).toBe(1);
+  });
+});
+
+describe("how stirred the air is", () => {
+  const viewport = { width: 1600, height: 900 };
+  const still = { x: 0, y: 0, width: 1600, rotation: 0 };
+
+  it("is calm with no previous frame, no time, or no camera movement", () => {
+    expect(cameraMotion(null, still, 1 / 60, viewport)).toEqual(STILL);
+    expect(cameraMotion(still, still, 0, viewport)).toEqual(STILL);
+    expect(cameraMotion(still, { ...still }, 1 / 60, viewport).amount).toBe(0);
+  });
+
+  it("measures a pan on the screen, so an overview hop reads at the room's speed", () => {
+    // The same world distance in one frame, seen close in and pulled back:
+    // close in it crosses most of the screen, pulled back barely any of it.
+    const close = cameraMotion(still, { ...still, x: 40 }, 1 / 60, viewport);
+    const far = cameraMotion(
+      { ...still, width: 16000 },
+      { ...still, width: 16000, x: 40 },
+      1 / 60,
+      viewport,
+    );
+    expect(close.amount).toBeGreaterThan(far.amount);
+    expect(close.amount).toBeGreaterThan(0.9);
+  });
+
+  it("saturates at one, however fast the flight", () => {
+    expect(cameraMotion(still, { ...still, x: 100000 }, 1 / 60, viewport).amount).toBe(1);
+  });
+
+  it("counts a pure zoom as travel, with no heading", () => {
+    const dive = cameraMotion(still, { ...still, width: 800 }, 1 / 60, viewport);
+    expect(dive.amount).toBeGreaterThan(0.5);
+    expect(dive.headingX).toBe(0);
+    expect(dive.headingY).toBe(0);
+  });
+
+  it("reports the heading in screen space, turned with the camera", () => {
+    // Moving along world +x under a camera rotated a quarter turn is seen by
+    // the room as vertical movement.
+    const level = cameraMotion(still, { ...still, x: 100 }, 1 / 60, viewport);
+    expect(level.headingX).toBeCloseTo(1, 6);
+    expect(level.headingY).toBeCloseTo(0, 6);
+
+    const turned = cameraMotion(
+      { ...still, rotation: 90 },
+      { ...still, rotation: 90, x: 100 },
+      1 / 60,
+      viewport,
+    );
+    expect(Math.abs(turned.headingY)).toBeCloseTo(1, 6);
+    expect(Math.abs(turned.headingX)).toBeCloseTo(0, 6);
+  });
+
+  it("rises instantly and settles gently", () => {
+    const stirred = settleMotion(STILL, { amount: 1, headingX: 1, headingY: 0 }, 1 / 60);
+    expect(stirred.amount).toBe(1);
+
+    // A camera that has landed: each frame of stillness decays the value,
+    // and it is gone within a second rather than lingering.
+    let motion = stirred;
+    const after = (seconds: number) => {
+      for (let i = 0; i < seconds * 60; i += 1) motion = settleMotion(motion, STILL, 1 / 60);
+      return motion;
+    };
+    expect(after(0.2).amount).toBeGreaterThan(0.3);
+    expect(after(0.8).amount).toBeLessThan(0.1);
+    expect(after(2).amount).toBe(0);
+  });
+
+  it("keeps the last heading while settling, so the streak does not swing", () => {
+    const stirred = settleMotion(STILL, { amount: 1, headingX: 0, headingY: 1 }, 1 / 60);
+    const settling = settleMotion(stirred, STILL, 1 / 60);
+    expect(settling.headingY).toBe(1);
+    // And a zoom-only sample, which has no heading of its own, inherits it too.
+    const diving = settleMotion(settling, { amount: 1, headingX: 0, headingY: 0 }, 1 / 60);
+    expect(diving.headingY).toBe(1);
   });
 });

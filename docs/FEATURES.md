@@ -99,8 +99,12 @@ restricted to http and https.
 ## Themes and layout
 
 Six themes — Midnight, Paper, Clinical, Signal, Ember, Chalk — as token sets, so
-re-theming never rewrites element content. Fourteen named layouts own their
-geometry, which is what keeps generated and hand-edited scenes composed.
+re-theming never rewrites element content. Eighteen named layouts own their
+geometry, which is what keeps generated and hand-edited scenes composed — four
+of them (take-home, call to action, one number, explainer) are points rather
+than pages, drawn as icon-led open callouts with no panel behind them, and the
+generator routes a movement's last beat, an application, a close and a
+context moment to them.
 
 Text auto-fit shrinks over-long text so it cannot spill onto the element below.
 

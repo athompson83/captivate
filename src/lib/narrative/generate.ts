@@ -264,11 +264,39 @@ export function briefsFor(movements: Section[], moments: Moment[]): MomentBrief[
  * Intent is deliberately one level above layout, so this mapping lives in the
  * application rather than in the map: changing how a comparison is composed
  * should not require rewriting every presentation that contains one.
+ *
+ * `context.endsMovement` is the one thing about the *shape* of the argument
+ * this reads: a beat that closes a movement is where the room should be
+ * handed the point of it, so the roles that carry a point land there as a
+ * take-home rather than as one more page.
  */
+export interface LayoutContext {
+  endsMovement?: boolean;
+}
+
+/**
+ * Roles whose movement-ending beat is the take-home point of that movement.
+ *
+ * Not `application`: it usually *is* the last beat of a movement, and its
+ * imperative-and-steps composition is the call to action the whole change
+ * exists to put in front of a room. A take-home would keep the sentence and
+ * lose the steps.
+ */
+const LANDS_A_POINT: NarrativeRole[] = [
+  "claim",
+  "reframe",
+  "synthesis",
+  "evidence",
+  "example",
+  "contrast",
+  "context",
+];
+
 export function layoutFor(
   intent: VisualIntent,
   role: NarrativeRole,
   index: number,
+  context: LayoutContext = {},
 ):
   | "title"
   | "cover"
@@ -283,7 +311,11 @@ export function layoutFor(
   | "split-right"
   | "code"
   | "closing"
-  | "section" {
+  | "section"
+  | "takeaway"
+  | "action"
+  | "figure"
+  | "explainer" {
   // The deck opens on a cover — a full-bleed image with the title over it,
   // lifted by the first advance. With no image to fill it, the composition
   // degrades to the title slide it covers.
@@ -303,6 +335,13 @@ export function layoutFor(
     (role === "hook" || role === "provocation" || role === "question")
   ) {
     return "cover";
+  }
+
+  // The end of a movement is where its point is handed over. An explicit
+  // intent still wins — a comparison that closes a movement is a comparison —
+  // but a beat left to the application to compose lands as a take-home.
+  if (context.endsMovement && intent === "auto" && LANDS_A_POINT.includes(role)) {
+    return "takeaway";
   }
 
   switch (intent) {
@@ -361,20 +400,32 @@ export function layoutFor(
        */
       return index % 2 === 1 ? (index % 4 === 1 ? "split-right" : "split-left") : "statement";
     case "evidence":
-      return "chart";
+      // Alternating one number with a chart. Most evidence a talk leans on is
+      // a single figure — a rate, a count, a ratio — and a chart drawn around
+      // one number is a chart with nothing to compare; setting the number
+      // large enough to be the scene is what a room actually remembers.
+      return index % 2 === 0 ? "figure" : "chart";
+    case "context":
+      // What the room needs in order to follow: a plain line, three points,
+      // and a picture — the composition of an explanation, not of a list.
+      return "explainer";
     case "contrast":
       return "two-column";
     case "example":
     case "demonstration":
       return index % 2 === 0 ? "split-right" : "split-left";
     case "application":
-      return "three-up";
+      // "Show them what to do differently" is a call to action by definition.
+      return "action";
     case "callback":
       return "quote";
     case "transition":
       return "section";
     case "close":
-      return "closing";
+      // A deck ends on what to do next, not on a list of what was said. The
+      // steps are still there — the layout carries up to three — but the
+      // imperative leads.
+      return "action";
     default:
       return "bullets";
   }

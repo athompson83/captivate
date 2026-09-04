@@ -111,6 +111,35 @@ const CONTENT: Record<string, LayoutContent> = {
     heading: "What to take away",
     bullets: ["Treat perfusion, not numbers", "Trust the skin", "Escalate early"],
   },
+  takeaway: {
+    eyebrow: "Take this with you",
+    icon: "heart-pulse",
+    heading: "Treat the perfusion, not the number",
+    body: "A normal blood pressure can be the last thing shock lets go of.",
+  },
+  action: {
+    eyebrow: "What to do next",
+    heading: "On your next shift, look before you measure",
+    cards: [
+      { title: "Skin first", body: "Colour, warmth, capillary refill.", icon: "eye" },
+      { title: "Then the numbers", body: "Heart rate before pressure.", icon: "activity" },
+      { title: "Escalate early", body: "Say the word shock out loud.", icon: "megaphone" },
+    ],
+  },
+  figure: {
+    heading: "Every minute of delay costs survival",
+    figure: { value: "7.6%", label: "fall in survival per hour before antibiotics" },
+    body: "Recognition is the treatment that happens before any drug.",
+  },
+  explainer: {
+    heading: "Shock is a delivery problem, not a pressure problem",
+    cards: [
+      { title: "What it is", body: "Not enough oxygen reaching the tissues.", icon: "info" },
+      { title: "Why it hides", body: "The body compensates until it cannot.", icon: "shield" },
+      { title: "What to do", body: "Find the cause while you support the pump.", icon: "target" },
+    ],
+    media: { url: "", alt: "" },
+  },
   custom: { heading: "Custom", body: "An author-arranged scene." },
 };
 
@@ -173,6 +202,10 @@ const ORDER: SceneLayout[] = [
   "split-right",
   "media-full",
   "closing",
+  "takeaway",
+  "action",
+  "figure",
+  "explainer",
   "custom",
 ];
 

@@ -252,6 +252,8 @@ export function fallbackScene(
     attribution: "",
     caption: "",
     cards: [],
+    icon: null,
+    figure: null,
     chart: null,
     code: null,
     imagePrompt: "",
@@ -386,6 +388,66 @@ export function fallbackScene(
       return { ...base, code: { code: "// Replace with your example", language: "text" } };
     case "section":
       return { ...base, eyebrow: "Section", heading: momentBrief.title };
+    case "takeaway":
+      // The takeaway *is* the point; the purpose says why it holds.
+      return {
+        ...base,
+        eyebrow: "Take this with you",
+        icon: "lightbulb",
+        heading: takeaway && takeaway.length <= 120 ? takeaway : momentBrief.title,
+        subheading: "",
+        body: clip(purpose || "Say in one line why this is true.", 320),
+      };
+    case "action": {
+      const steps = [
+        takeaway && { title: "Do this", body: clip(takeaway, 180), icon: "check-circle" },
+        purpose && { title: "Because", body: clip(purpose, 180), icon: "target" },
+        evidence[0] && {
+          title: "Grounded in",
+          body: clip(evidence.join(" · "), 180),
+          icon: "clipboard-check",
+        },
+      ].filter(Boolean) as { title: string; body: string; icon: IconName }[];
+      return {
+        ...base,
+        eyebrow: "What to do next",
+        icon: "arrow_right",
+        heading: momentBrief.title,
+        subheading: "",
+        cards: steps.length
+          ? steps
+          : [{ title: "First step", body: "What to do, and when.", icon: "check-circle" }],
+      };
+    }
+    case "figure":
+      // No number is invented. The claim and its consequence are the author's
+      // own words from the map; the figure slot waits for a real one.
+      return {
+        ...base,
+        heading: momentBrief.title,
+        subheading: "",
+        body: clip(takeaway || purpose || "Put the number here, and what it means.", 320),
+      };
+    case "explainer":
+      return {
+        ...base,
+        heading: takeaway && takeaway.length <= 120 ? takeaway : momentBrief.title,
+        subheading: "",
+        cards: [
+          { title: "What it is", body: clip(purpose || "Say what this is.", 180), icon: "info" },
+          {
+            title: "Why it matters",
+            body: clip(takeaway || "Say why it matters.", 180),
+            icon: "lightbulb",
+          },
+          {
+            title: "What follows",
+            body: clip(evidence[0] || "Say what to do with it.", 180),
+            icon: "arrow_right",
+          },
+        ],
+        imagePrompt: `A simple diagram explaining ${momentBrief.title}`,
+      };
     default:
       return { ...base, bullets: ["First point", "Second point", "Third point"] };
   }

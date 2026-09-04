@@ -120,6 +120,13 @@ function flow(scenes: ArrangeInput[], stage: Size): ScenePlacement[] {
   // camera never jumps back across the whole page to start the next one.
   //
   // Square-ish in *cells* is 16:9 in world units, because a cell is a scene.
+  //
+  // Level, deliberately. A tilt per region was tried — a page of scenes all
+  // sitting square reads as a grid — and taken out the same day: the camera
+  // shares a scene's rotation on arrival, so every flight rolled the room by
+  // the difference, and a rolling horizon is the one camera move that makes
+  // an audience feel ill. The way out of the grid is the content's own edges
+  // (see `ImageElement.edge`), not the camera.
   const columns = Math.max(1, Math.ceil(Math.sqrt(scenes.length)));
   const stepX = stage.width * (1 + GAP);
   const stepY = stage.height * (1 + GAP);

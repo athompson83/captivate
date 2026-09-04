@@ -10,7 +10,8 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/premium-ui-presentation-akzjzs` → PR #63 (merged), PR #64 (merged)
+- Branch: `claude/presentation-experience-redesign-r10l4q` → the presentation
+  experience redesign (this session; PR pending review)
 - `main`: through PR #64 (merged) as this session begins; `1e37370` — every
   migration through `0029_gateway_from_model.sql` applied to production
 - Brand: Captivate is the product; Axtevi is the company it sits under
@@ -31,6 +32,75 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The presentation experience: depth, points, and drawings that hold up
+
+The owner's brief: a background with genuine depth that moves during a
+transition and stays quiet on a scene; get out of the slides-at-right-angles
+mindset; more images, icons, take-home points, calls to action and simple
+explanations; and drawings that are not weak. Four changes, each with the
+test that would have failed without it.
+
+**Depth in the air.** The atmosphere shader gains three layers of soft motes
+at 0.6, 2.2 and 6 scene-widths behind the content. Each is the content plane
+seen by a camera that far back — its world-units-per-pixel is the camera's
+plus the distance over the viewport — so a pan slides a far layer slower and a
+zoom grows it less: real parallax, not a scrolled texture. At rest they are a
+faint drift; in flight they brighten, more of the field appears, and each disc
+streaks along the direction of travel. The stirring is measured from
+consecutive cameras (`cameraMotion`), rises instantly and settles in 0.4 s
+(`settleMotion`), so the transition is the one moment the background is seen
+moving. One hash per layer per pixel, no neighbour search; reduced motion pins
+it still. The shader spec now renders flat, resting and flying frames and
+asserts the dust is faint at rest, stirred in flight, world-anchored under a
+pan, and streaked along the heading.
+
+**No right angles — in the content, not the camera.** The first cut tilted
+each region of the default `flow` page a degree or two so the pulled-back
+view read as a composition rather than a grid. The owner corrected it the
+same day: the right angles they meant are the slides and pictures, and a
+camera that rolls the horizon on every flight is a motion-sickness risk. The
+tilt is gone (`flow` places level, and a test now holds `flow`, `reel` and
+`grid` at zero rotation). In its place, `ImageElement.edge`: every composed
+picture — split scenes, explainers, full-bleed backdrops, the cover's veil —
+and every picture an author inserts is `soft`, rounded generously and
+feathered on all four sides by a mask so it pools into the page rather than
+ending at a hard line. Stored rows keep their hard edge; the inspector offers
+both.
+
+**Points, not pages.** Four layouts: `takeaway` (an icon as large as the
+heading, one line of why), `action` (the imperative, up to three icon-led
+steps), `figure` (one number set large enough to be the scene, its label, the
+claim, one sentence) and `explainer` (a plain sentence, three points — what,
+why, what follows — and a picture the drawing pass fills). Their points are
+callouts in a new `open` variant with no panel behind them; `three-up`
+composes open now too, and open points are set at 1.4 rather than the panel's
+0.66, which was seventeen-pixel body text on a sixteen-hundred-pixel stage.
+`layoutFor` routes a movement's last claim, evidence, example or synthesis to
+a take-home, `application` and `close` to a call to action, `context` to an
+explainer, and alternates evidence between a figure and a chart. The scene
+prompt teaches the model what each is for and forbids a figure it was not
+given; the structural fallback never invents a number. `figure` round-trips
+through `extractContent` by element-id contract, the way a cover's veil does.
+
+**Drawings with weight.** A path may carry `weight` (a multiple of the
+element's stroke), `ink` (so the idea a stage adds arrives in the accent) and
+`fill` (a 14% wash inside a closed shape, arriving once its stroke closes).
+Generated drawings are placed at stroke 3, not 2 — two pixels vanished on a
+projector. The generator is briefed as an explainer illustrator with exact
+construction recipes (a circle is two arcs, a rounded box four quadratics, an
+arrow a shaft and a two-stroke head), a weight hierarchy, mass on two or three
+shapes, the stage's idea in accent, and no lettering ever. The drawing budget
+rises to one per eight minutes (one per four with no photo provider), with
+the sole-source ceiling held at the ten every plan sells — the billing test
+that couples the two is what stopped it going higher without a migration.
+
+Verified: `npm run verify` green; the `shader` and `lifecycle` Playwright
+projects pass, including the layout sheet, which caught the number's line box
+overflowing and the open points being composed too small. Not verified here:
+the depth layer on a physical GPU and the model's actual drawings against the
+new brief — both need the hosted candidate and a real provider (BETA-002,
+BETA-003).
 
 ### An honest error message, and the durability gap it was standing in for — PRs #63, #64
 

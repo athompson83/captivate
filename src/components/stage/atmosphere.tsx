@@ -7,13 +7,17 @@ import type { Palette } from "@/lib/present/ambient";
 import type { Camera, Size } from "@/lib/present/camera";
 import {
   MAX_REGIONS,
+  STILL,
   atmosphereDpr,
+  cameraMotion,
   falloffFor,
   nearestRegions,
   packRegions,
   regionBuffers,
+  settleMotion,
   viewUniforms,
   webglAvailable,
+  type Motion,
 } from "@/lib/present/atmosphere";
 
 /**
@@ -33,6 +37,16 @@ import {
  * them. Depth is two layers of drifting fbm parallaxed against the camera, so
  * travelling has something to travel *through* that is light rather than
  * furniture.
+ *
+ * Behind that, three layers of soft motes at different depths give the room a
+ * third dimension. Each is the content plane seen by a camera sitting further
+ * back, so a pan slides it slower than the content and a zoom grows it less —
+ * genuine parallax, not a texture scrolled at a made-up rate. While the
+ * presenter stands on a scene they are barely there: a faint, slowly drifting
+ * dust that nobody's eye should catch. During a flight they brighten and
+ * streak along the direction of travel, so the transition is the one moment
+ * the background is allowed to be seen moving. The stirring settles in under
+ * half a second of landing.
  *
  * Three rules it inherits:
  *
@@ -105,6 +119,9 @@ const FRAGMENT = /* glsl */ `
   uniform float uTime;
   uniform float uDepth;
   uniform float uFalloff;
+  uniform float uStage;
+  uniform float uMotion;
+  uniform vec2  uHeading;
   uniform int   uCount;
 
   uniform vec2 uPositions[${MAX_REGIONS}];
@@ -172,6 +189,53 @@ const FRAGMENT = /* glsl */ `
       amplitude *= 0.5;
     }
     return total / sum;
+  }
+
+  // A field of soft motes at one depth behind the content.
+  //
+  // The layer is the content plane seen by a camera 'depth' scene-widths
+  // further back: its world-units-per-pixel is the camera's plus the extra
+  // distance divided by the viewport. Nothing else is needed for it to pan
+  // slower and zoom less than the content, which is what depth looks like.
+  //
+  // One lookup per pixel: a mote is jittered within the middle of its cell
+  // and its radius never reaches the edge, so no neighbour can intrude and
+  // there is no 3×3 search. Presence is thinned so the field is not a lattice.
+  // Under motion the disc is stretched along the heading — a streak, not a
+  // blur, because the thing the room should read is direction.
+  // 'cell' is the lattice pitch in world units and 'sparsity' the share of
+  // cells left empty: the near layer is a few large, very soft motes and the
+  // far layers a fine dust, because that is what depth looks like — big
+  // things close and small things far — and a field of same-sized discs
+  // reads as snowfall, not distance.
+  float motes(vec2 fragment, float c, float s, float depth, float seed, float cell, float sparsity, vec2 heading, float streak) {
+    float inv = uInvScale + depth * uStage / uResolution.x;
+    vec2 d = (fragment - uHalf) * inv;
+    vec2 p = uCamera + vec2(d.x * c - d.y * s, d.x * s + d.y * c);
+
+    vec2 g = p / cell;
+    vec2 i = floor(g);
+    vec2 f = g - i;
+
+    // Thinned to a scatter at rest; a flight brings a little more of the
+    // field out, never all of it.
+    float presence = hash(i + seed * 17.0);
+    float alive = step(sparsity - 0.12 * uMotion, presence);
+
+    vec2 jitter = 0.3 + 0.4 * vec2(hash(i + 3.1 + seed), hash(i + 7.7 + seed));
+    jitter += 0.03 * vec2(sin(uTime * 0.15 + presence * 6.28), cos(uTime * 0.11 + presence * 3.1));
+    float size = 0.04 + 0.08 * hash(i + 11.3 + seed) * hash(i + 5.9 + seed);
+
+    // Stretch in screen pixels, where a streak has a length, then back to
+    // cells, where the disc has a size.
+    float pxPerCell = cell / inv;
+    vec2 dpx = (f - jitter) * pxPerCell;
+    float along = dot(dpx, heading);
+    float across = dpx.x * heading.y - dpx.y * heading.x;
+    float dist = length(vec2(along / (1.0 + streak), across)) / pxPerCell;
+
+    float disc = 1.0 - smoothstep(size * 0.25, size, dist);
+    return alive * disc * disc * (0.5 + 0.5 * presence);
   }
 
   void main() {
@@ -246,6 +310,30 @@ const FRAGMENT = /* glsl */ `
     // the theme's; the accent is a suggestion of light on top of it.
     air = mix(air, glow, glowAmount * (0.09 + field * 0.05));
 
+    // The dust. Three depths, nearest first; each further one is smaller on
+    // screen by construction, so the far layer reads as distance rather than
+    // as a second copy of the near one. The heading falls back to an axis so a
+    // still camera measures a round disc rather than a degenerate one.
+    if (uStage > 0.0 && uDepth > 0.0) {
+      vec2 heading = length(uHeading) > 0.5 ? uHeading : vec2(1.0, 0.0);
+      // Bounded so a stretched disc still fits its cell (see motes).
+      float streak = uMotion * 1.3;
+      float dust = motes(fragment, c, s, 0.6, 0.0, uStage * 0.34, 0.86, heading, streak) * 0.5
+        + motes(fragment, c, s, 2.2, 1.0, uStage * 0.2, 0.74, heading, streak) * 0.75
+        + motes(fragment, c, s, 6.0, 2.0, uStage * 0.16, 0.66, heading, streak);
+
+      // Faint at rest, present in flight — present, not a blizzard: the room
+      // should notice it moved, not that it snowed. Lightness moves away from
+      // the room's own — up in a dark room, down on paper — so a mote is
+      // visible on every theme and never clips to white; on paper the push
+      // is gentler still, because dark specks on a light ground carry
+      // further than light ones on a dark ground.
+      float dark = step(air.x, 0.55);
+      float lit = uDepth * (0.03 + 0.1 * uMotion) * dust * mix(0.6, 1.0, dark);
+      air.x += mix(-1.0, 1.0, dark) * lit;
+      air.yz = mix(air.yz, glow.yz, min(1.0, lit * 0.9));
+    }
+
     // A vignette pulls the eye to the middle of the frame, which is where the
     // camera has just put the thing worth looking at.
     vec2 centred = vUv - 0.5;
@@ -296,6 +384,16 @@ export function Atmosphere({
   // render, and that is the right trade under the React Compiler rules.
   const buffersRef = useRef(regionBuffers());
   const lastCameraRef = useRef<Camera | null>(null);
+  /**
+   * How stirred the air is, and which way.
+   *
+   * Measured from consecutive cameras handed to `draw` and settled here rather
+   * than in the world: the idle loop below also paints, and it has to keep
+   * settling the same value after the last flight frame or the streak would
+   * freeze mid-air until the next advance.
+   */
+  const motionRef = useRef<Motion>(STILL);
+  const lastPaintAtRef = useRef(0);
 
   // Props the imperative draw loop reads. Kept in a ref because `draw` is
   // called from outside React and must never see a stale closure — and written
@@ -311,7 +409,7 @@ export function Atmosphere({
     inputsRef.current = { placements, palettes, base, stage, depth, viewport, still };
   });
 
-  const render = useCallback((camera: Camera, timeSeconds: number): boolean => {
+  const render = useCallback((camera: Camera, timeSeconds: number, motion: Motion): boolean => {
     const renderer = rendererRef.current;
     const uniforms = uniformsRef.current;
     const scene = sceneRef.current;
@@ -330,8 +428,11 @@ export function Atmosphere({
     uniforms.uRotation.value = view.rotation;
     uniforms.uResolution.value.set(viewport.width, viewport.height);
     uniforms.uFalloff.value = falloffFor(stage);
+    uniforms.uStage.value = stage.width;
     uniforms.uDepth.value = depth;
     uniforms.uTime.value = timeSeconds;
+    uniforms.uMotion.value = motion.amount;
+    uniforms.uHeading.value.set(motion.headingX, motion.headingY);
     uniforms.uCount.value = count;
     uniforms.uBaseCanvas.value.set(base.canvas.L, base.canvas.a, base.canvas.b);
     uniforms.uBaseAccent.value.set(base.accent.L, base.accent.a, base.accent.b);
@@ -340,16 +441,33 @@ export function Atmosphere({
     return true;
   }, []);
 
+  /**
+   * One frame, with the motion bookkeeping every path shares.
+   *
+   * Under a reduced-motion preference the air is never stirred: the drift is
+   * frozen at t=0 and the motion is pinned to still, so the depth layers sit
+   * exactly where a static background would.
+   */
+  const paint = useCallback(
+    (camera: Camera, nowMs: number): boolean => {
+      const { still, viewport } = inputsRef.current;
+      const dt = lastPaintAtRef.current > 0 ? (nowMs - lastPaintAtRef.current) / 1000 : 0;
+      const sample = still ? STILL : cameraMotion(lastCameraRef.current, camera, dt, viewport);
+      motionRef.current = still ? STILL : settleMotion(motionRef.current, sample, dt);
+      lastCameraRef.current = camera;
+      lastPaintAtRef.current = nowMs;
+      return render(camera, still ? 0 : nowMs / 1000, motionRef.current);
+    },
+    [render],
+  );
+
   useEffect(() => {
     if (!onReady || lost) return;
     onReady({
-      draw: (camera: Camera) => {
-        lastCameraRef.current = camera;
-        return render(camera, inputsRef.current.still ? 0 : performance.now() / 1000);
-      },
+      draw: (camera: Camera) => paint(camera, performance.now()),
     });
     return () => onReady(null);
-  }, [onReady, render, lost]);
+  }, [onReady, paint, lost]);
 
   // Set-up and teardown. Context creation can fail — an old driver, a
   // blocklisted GPU, too many live contexts — and that is a normal outcome
@@ -401,6 +519,9 @@ export function Atmosphere({
       uTime: { value: 0 },
       uDepth: { value: 0.55 },
       uFalloff: { value: 1 },
+      uStage: { value: 0 },
+      uMotion: { value: 0 },
+      uHeading: { value: new THREE.Vector2() },
       uCount: { value: 0 },
       uPositions: { value: buffersRef.current.positions },
       uCanvas: { value: buffersRef.current.canvas },
@@ -436,7 +557,11 @@ export function Atmosphere({
     const first = inputsRef.current.viewport;
     renderer.setSize(first.width, first.height, false);
     if (lastCameraRef.current) {
-      render(lastCameraRef.current, inputsRef.current.still ? 0 : performance.now() / 1000);
+      render(
+        lastCameraRef.current,
+        inputsRef.current.still ? 0 : performance.now() / 1000,
+        motionRef.current,
+      );
     }
 
     return () => {
@@ -476,7 +601,11 @@ export function Atmosphere({
       // Real time, not zero: rendering a resize at t=0 snapped the field back
       // to where it started, up to twelve times a second, while a window was
       // being dragged.
-      render(lastCameraRef.current, inputsRef.current.still ? 0 : performance.now() / 1000);
+      render(
+        lastCameraRef.current,
+        inputsRef.current.still ? 0 : performance.now() / 1000,
+        motionRef.current,
+      );
     }
   }, [viewport.width, viewport.height, render]);
 
@@ -508,12 +637,12 @@ export function Atmosphere({
       if (now - last < INTERVAL) return;
       last = now;
       if (document.visibilityState === "hidden") return;
-      if (lastCameraRef.current) render(lastCameraRef.current, now / 1000);
+      if (lastCameraRef.current) paint(lastCameraRef.current, now);
     };
 
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [still, depth, lost, render]);
+  }, [still, depth, lost, paint]);
 
   return (
     <canvas

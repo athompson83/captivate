@@ -285,6 +285,16 @@ export const ImageElement = z.object({
   radius: z.number().min(0).max(50).default(0),
   /** Darkens the image so overlaid text stays readable. */
   scrim: z.number().min(0).max(1).default(0),
+  /**
+   * How the picture meets the surface around it.
+   *
+   * `hard` ends at its frame. `soft` is rounded generously and feathered on
+   * every side, so a photograph pools into the page rather than sitting on it
+   * as a card — a rectangle with a hard edge is the strongest "this is a
+   * slide" cue an image can send, and every composed picture is soft for
+   * that reason. Stored rows that predate the field keep the edge they had.
+   */
+  edge: z.enum(["hard", "soft"]).default("hard"),
 });
 
 export const VideoElement = z.object({
@@ -340,6 +350,15 @@ export const CalloutElement = z.object({
   ...elementBase,
   type: z.literal("callout"),
   tone: z.enum(["neutral", "accent", "success", "warning", "danger"]).default("accent"),
+  /**
+   * `card` is a filled panel with a coloured rule; `open` paints no box at all
+   * — an icon, a short rule, a title and a line, straight onto the surface.
+   *
+   * Three filled panels in a row is the strongest "these are slides" cue a
+   * scene can send, which is why the layouts that carry ideas as icon-led
+   * points compose them open. The card stays for authors who want a panel.
+   */
+  variant: z.enum(["card", "open"]).default("card"),
   icon: z.string().max(64).default("lightbulb"),
   title: z.string().max(240).default(""),
   content: RichText,
@@ -390,11 +409,37 @@ export const EmbedElement = z.object({
  */
 const PATH_DATA = /^[MmLlHhVvCcSsQqTtAaZz0-9eE,.\-+\s]+$/;
 
-export const DrawnPath = z.object({
-  d: z.string().min(1).max(20_000).regex(PATH_DATA),
-  /** Which press of "next" sketches this path. Stage 0 draws on arrival. */
-  stage: z.number().int().min(0).max(19).default(0),
-});
+export const DrawnPath = z
+  .object({
+    d: z.string().min(1).max(20_000).regex(PATH_DATA),
+    /** Which press of "next" sketches this path. Stage 0 draws on arrival. */
+    stage: z.number().int().min(0).max(19).default(0),
+    /**
+     * Stroke weight as a multiple of the element's `strokeWidth`.
+     *
+     * A picture drawn at one weight is a wireframe. An outline heavier than its
+     * detail, and construction lighter than both, is what makes line art read
+     * as a drawing rather than as a plot of coordinates.
+     */
+    weight: z.number().min(0.25).max(4).optional(),
+    /** Overrides the element's ink for this stroke; the accent marks the idea a stage adds. */
+    ink: z.enum(["ink", "accent", "muted"]).optional(),
+    /**
+     * A soft wash inside a closed path, in the path's own ink at low opacity,
+     * arriving once the stroke has finished sketching. Gives a shape mass
+     * without a second colour, so a drawing still works in every theme.
+     */
+    fill: z.boolean().optional(),
+  })
+  .refine((path) => !path.fill || /[Zz]\s*$/.test(path.d), {
+    // SVG fills an open path as if it were closed, so a filled arrow or
+    // connector becomes a polygon across the picture. The prompt says fills are
+    // for closed shapes; the boundary is where that is enforced, and a model
+    // that fills an open stroke earns the corrective retry rather than a
+    // rendered mistake.
+    message: "A fill needs a closed path (ending in Z)",
+    path: ["fill"],
+  });
 export type DrawnPath = z.infer<typeof DrawnPath>;
 
 /**
@@ -515,6 +560,10 @@ export const SceneLayout = z.enum([
   "chart", // heading + data
   "code", // heading + code block
   "closing", // wrap-up / thank you
+  "takeaway", // one take-home point, led by an icon
+  "action", // a call to action: the imperative, then up to three steps
+  "figure", // one number, large, with what it means
+  "explainer", // a plain-language line, three icon-led points, and a picture
 ]);
 export type SceneLayout = z.infer<typeof SceneLayout>;
 

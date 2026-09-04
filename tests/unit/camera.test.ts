@@ -284,6 +284,19 @@ describe("arrangements", () => {
     expect(widest).toBeLessThan(STAGE.width * 2);
   });
 
+  it("keeps the default page level, so a flight never rolls the room", () => {
+    // A tilt per region was tried and taken out: the camera shares a scene's
+    // rotation on arrival, so every flight rolled the horizon by the
+    // difference, and a rolling horizon is the camera move that makes an
+    // audience feel ill. Softening the page is the content's job, not the
+    // camera's.
+    for (const preset of ["flow", "reel", "grid"] as const) {
+      for (const placement of arrange(preset, scenes(12), STAGE)) {
+        expect(placement.rotation, preset).toBe(0);
+      }
+    }
+  });
+
   it("lays a reel out in a straight line at one zoom", () => {
     const placements = arrange("reel", scenes(4), STAGE);
     expect(placements.every((p) => p.y === 0 && p.scale === 1)).toBe(true);

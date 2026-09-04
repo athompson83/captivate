@@ -330,6 +330,29 @@
       animation-delay: 0s;
     }
   }
+  /* A drawing's soft fills: invisible until the stroke around them has
+     closed, then a low wash in the path's own ink. Not fitted to --dp-len,
+     because a fill has no length to sketch; it simply arrives. */
+  .dp-fill {
+    stroke: none;
+    fill-opacity: 0;
+  }
+  .dp-fill.dp-drawn {
+    animation: dp-wash 0.5s ease-out var(--dp-del, 0s) both;
+  }
+  @keyframes dp-wash {
+    from {
+      fill-opacity: 0;
+    }
+    to {
+      fill-opacity: 0.14;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dp-fill.dp-drawn {
+      animation-delay: 0s;
+    }
+  }
   /* The journey route's direction dots, arriving after the path has drawn. */
   .dp-fade {
     animation: dp-fade 0.6s ease-out both;
