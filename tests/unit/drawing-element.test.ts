@@ -41,6 +41,21 @@ describe("path data grammar", () => {
     expect(DrawnPath.safeParse({ d, stage: 0 }).success).toBe(false);
   });
 
+  it("refuses a fill on a path that is not closed", () => {
+    // SVG fills an open path as if it were closed, so a filled arrow becomes
+    // a polygon across the picture. The prompt says fills are for closed
+    // shapes; the schema is where that holds.
+    expect(DrawnPath.safeParse({ d: "M 0 0 L 10 0 L 10 10 Z", stage: 0, fill: true }).success).toBe(
+      true,
+    );
+    expect(
+      DrawnPath.safeParse({ d: "M 0 0 L 10 0 L 10 10 z ", stage: 0, fill: true }).success,
+    ).toBe(true);
+    expect(DrawnPath.safeParse({ d: "M 0 0 L 10 0", stage: 0, fill: true }).success).toBe(false);
+    // An open path with no fill is what an arrow is.
+    expect(DrawnPath.safeParse({ d: "M 0 0 L 10 0", stage: 0, fill: false }).success).toBe(true);
+  });
+
   it("caps stage where the step machinery caps", () => {
     expect(DrawnPath.safeParse({ d: "M 0 0", stage: 20 }).success).toBe(false);
     expect(DrawnPath.safeParse({ d: "M 0 0", stage: -1 }).success).toBe(false);

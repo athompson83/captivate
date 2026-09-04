@@ -126,3 +126,12 @@ describe("what the model may hand back for a point", () => {
     ).toBe(false);
   });
 });
+
+describe("an application that closes a movement", () => {
+  it("is still a call to action, not a take-home", () => {
+    // Codex, reviewing the PR: applications usually are the last beat of a
+    // movement, and the movement-ending rule was turning every one of them
+    // into a take-home — keeping the sentence and losing the steps.
+    expect(layoutFor("auto", "application", 8, { endsMovement: true })).toBe("action");
+  });
+});

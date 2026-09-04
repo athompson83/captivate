@@ -114,8 +114,10 @@ describe("the one-number layout", () => {
       label: "fall in survival per hour before antibiotics",
     });
     expect(extracted.heading).toBe("Every hour of delay costs survival");
-    // The label is a text element too, and must not be mistaken for prose.
-    expect(extracted.subheading).toBe("Recognition is the treatment that happens before any drug.");
+    // The label is a text element too, and must not be mistaken for prose;
+    // the prose goes back to the body slot it came out of.
+    expect(extracted.body).toBe("Recognition is the treatment that happens before any drug.");
+    expect(extracted.subheading).toBeUndefined();
 
     // Re-applying the layout is the editor's own path, and it rebuilds the
     // same scene from what it extracts. (A layout with no figure slot drops
@@ -182,5 +184,50 @@ describe("the layout picker", () => {
     for (const card of content.elements.filter((el) => el.type === "callout")) {
       if (card.type === "callout") expect(card.variant).toBe("open");
     }
+  });
+});
+
+describe("what a point keeps through a relayout", () => {
+  // Codex, reviewing the PR: a take-home's or a figure's body sentence was
+  // extracted as `subheading`, which neither layout has a slot for, so
+  // re-applying the same layout silently dropped the one line that said why
+  // the point holds. Prose now goes back to the slot it came out of.
+  it("keeps a take-home's reason", () => {
+    const content = composeScene("takeaway", {
+      icon: "shield",
+      heading: "Protect the airway",
+      body: "Everything else can wait ninety seconds; this cannot.",
+    });
+    expect(extractContent(content).body).toBe(
+      "Everything else can wait ninety seconds; this cannot.",
+    );
+    const again = extractContent(relayoutScene(content, "takeaway"));
+    expect(again.body).toBe("Everything else can wait ninety seconds; this cannot.");
+  });
+
+  it("keeps a figure's consequence, beside its label", () => {
+    const content = composeScene("figure", {
+      heading: "Every hour costs survival",
+      figure: { value: "7.6%", label: "per hour" },
+      body: "Recognition is the treatment that happens before any drug.",
+    });
+    const again = extractContent(relayoutScene(content, "figure"));
+    expect(again.figure).toEqual({ value: "7.6%", label: "per hour" });
+    expect(again.body).toBe("Recognition is the treatment that happens before any drug.");
+  });
+
+  it("keeps a bullets scene's paragraph too", () => {
+    const content = composeScene("bullets", {
+      heading: "H",
+      body: "A paragraph rather than a list.",
+    });
+    expect(extractContent(relayoutScene(content, "bullets")).body).toBe(
+      "A paragraph rather than a list.",
+    );
+  });
+
+  it("still reads a title scene's subheading as a subheading", () => {
+    const content = composeScene("title", { heading: "H", subheading: "The promise." });
+    expect(extractContent(content).subheading).toBe("The promise.");
   });
 });

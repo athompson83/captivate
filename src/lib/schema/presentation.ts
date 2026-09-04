@@ -409,27 +409,37 @@ export const EmbedElement = z.object({
  */
 const PATH_DATA = /^[MmLlHhVvCcSsQqTtAaZz0-9eE,.\-+\s]+$/;
 
-export const DrawnPath = z.object({
-  d: z.string().min(1).max(20_000).regex(PATH_DATA),
-  /** Which press of "next" sketches this path. Stage 0 draws on arrival. */
-  stage: z.number().int().min(0).max(19).default(0),
-  /**
-   * Stroke weight as a multiple of the element's `strokeWidth`.
-   *
-   * A picture drawn at one weight is a wireframe. An outline heavier than its
-   * detail, and construction lighter than both, is what makes line art read
-   * as a drawing rather than as a plot of coordinates.
-   */
-  weight: z.number().min(0.25).max(4).optional(),
-  /** Overrides the element's ink for this stroke; the accent marks the idea a stage adds. */
-  ink: z.enum(["ink", "accent", "muted"]).optional(),
-  /**
-   * A soft wash inside a closed path, in the path's own ink at low opacity,
-   * arriving once the stroke has finished sketching. Gives a shape mass
-   * without a second colour, so a drawing still works in every theme.
-   */
-  fill: z.boolean().optional(),
-});
+export const DrawnPath = z
+  .object({
+    d: z.string().min(1).max(20_000).regex(PATH_DATA),
+    /** Which press of "next" sketches this path. Stage 0 draws on arrival. */
+    stage: z.number().int().min(0).max(19).default(0),
+    /**
+     * Stroke weight as a multiple of the element's `strokeWidth`.
+     *
+     * A picture drawn at one weight is a wireframe. An outline heavier than its
+     * detail, and construction lighter than both, is what makes line art read
+     * as a drawing rather than as a plot of coordinates.
+     */
+    weight: z.number().min(0.25).max(4).optional(),
+    /** Overrides the element's ink for this stroke; the accent marks the idea a stage adds. */
+    ink: z.enum(["ink", "accent", "muted"]).optional(),
+    /**
+     * A soft wash inside a closed path, in the path's own ink at low opacity,
+     * arriving once the stroke has finished sketching. Gives a shape mass
+     * without a second colour, so a drawing still works in every theme.
+     */
+    fill: z.boolean().optional(),
+  })
+  .refine((path) => !path.fill || /[Zz]\s*$/.test(path.d), {
+    // SVG fills an open path as if it were closed, so a filled arrow or
+    // connector becomes a polygon across the picture. The prompt says fills are
+    // for closed shapes; the boundary is where that is enforced, and a model
+    // that fills an open stroke earns the corrective retry rather than a
+    // rendered mistake.
+    message: "A fill needs a closed path (ending in Z)",
+    path: ["fill"],
+  });
 export type DrawnPath = z.infer<typeof DrawnPath>;
 
 /**

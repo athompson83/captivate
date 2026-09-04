@@ -489,6 +489,29 @@ describe("colour", () => {
 });
 
 describe("the drawing's SVG", () => {
+  it("keeps each stroke's weight, ink and wash, as the stage draws them", () => {
+    // Codex, reviewing the PR: the export emitted every path at the element's
+    // width in the element's ink with no fill, stripping exactly the things
+    // that make a drawing hold up.
+    const svg = drawingSvg(
+      {
+        type: "drawing",
+        ink: "ink",
+        viewBox: { width: 100, height: 50 },
+        paths: [
+          { d: "M0 0 L10 10", stage: 0, weight: 1.6 },
+          { d: "M0 5 L10 5", stage: 0, ink: "accent" },
+          { d: "M0 0 L10 0 L10 10 Z", stage: 1, fill: true },
+        ],
+        strokeWidth: 2,
+      } as never,
+      { ink: "#111111", accent: "#ABCDEF", muted: "#888888" },
+    );
+    expect(svg).toContain('stroke-width="3.2"');
+    expect(svg).toContain('stroke="#ABCDEF"');
+    expect(svg).toContain('fill="#111111" fill-opacity="0.14"');
+  });
+
   it("is a standalone document with the theme's ink, not a colour the model chose", () => {
     const svg = drawingSvg(
       {

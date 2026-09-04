@@ -274,7 +274,14 @@ export interface LayoutContext {
   endsMovement?: boolean;
 }
 
-/** Roles whose movement-ending beat is the take-home point of that movement. */
+/**
+ * Roles whose movement-ending beat is the take-home point of that movement.
+ *
+ * Not `application`: it usually *is* the last beat of a movement, and its
+ * imperative-and-steps composition is the call to action the whole change
+ * exists to put in front of a room. A take-home would keep the sentence and
+ * lose the steps.
+ */
 const LANDS_A_POINT: NarrativeRole[] = [
   "claim",
   "reframe",
@@ -283,7 +290,6 @@ const LANDS_A_POINT: NarrativeRole[] = [
   "example",
   "contrast",
   "context",
-  "application",
 ];
 
 export function layoutFor(

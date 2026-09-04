@@ -1143,8 +1143,19 @@ export function extractContent(content: SceneContent): LayoutContent {
   }
 
   if (texts.length) {
-    out.subheading ??= texts[0];
-    if (texts.length > 1) out.body ??= texts.slice(1).join("\n\n");
+    // Prose goes back to the slot it came out of. A layout with a body and
+    // no subheading — a take-home, a figure, a bullets scene with a paragraph
+    // — would otherwise hand its explanation to `subheading`, which the same
+    // layout then has nowhere to draw: re-applying it silently dropped the
+    // one sentence that said why the point holds. `custom` has no slots to
+    // consult and keeps the old first-is-subheading guess.
+    const slots = content.layout === "custom" ? null : layoutSlots(content.layout);
+    if (slots && !slots.subheading && slots.body) {
+      out.body ??= texts.join("\n\n");
+    } else {
+      out.subheading ??= texts[0];
+      if (texts.length > 1) out.body ??= texts.slice(1).join("\n\n");
+    }
   }
   return out;
 }
