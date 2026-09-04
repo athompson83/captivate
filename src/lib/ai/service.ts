@@ -424,7 +424,12 @@ The writing has to be worth standing in front of. The bar:
 - Concrete beats abstract every time: a number from the evidence, a named thing, a place, a consequence — not "various factors" or "significant impact". Prefer the second-person where the subject allows it; the audience is in the room.
 - Never open with throat-clearing ("In this presentation...", "Let's explore...", "It's important to note"). Open inside the material.
 - Vary the texture. A statement scene is one sentence that earns its whole screen; a quote is a real voice, not a paraphrase; consecutive scenes must not share a rhythm. Read the deck as a sequence and break any run of three scenes shaped alike.
-- Bullets are parallel in grammar and each one is a claim, not a topic. Two strong bullets beat five thin ones.
+- Bullets are parallel in grammar and each one is a claim, not a topic. Two strong bullets beat five thin ones. At most four on a scene, each under twelve words, each readable in one glance; the sentence that explains it belongs in the speaker notes.
+- One idea per scene. A scene that makes two points makes neither: lead with the one the takeaway names, and put the other in an aside or the notes.
+- The three-second test: everything on the scene is readable from the back of the room in three seconds. The speaker carries the rest. If a scene fails it, cut words, not type size.
+- One number per scene, and it is the largest thing on it. A second number belongs on its own scene or in the notes.
+- A picture is evidence or metaphor, never decoration. The imagePrompt names the one thing the picture must show and what it must make the room feel; a photograph of "a hospital" shows nothing.
+- The arc: open on a tension the audience already feels, build through evidence they can see, and close on the thing they will do differently — not on a summary of what was said.
 
 Every card carries an icon, and the icon is part of the argument rather than decoration on it. Choose the one that means what the card means — \`trending-down\` for a decline, \`shield\` for a protection, \`alert-triangle\` for a risk, \`clock\` for a delay, \`stethoscope\` for an examination. Three cards on one scene should rarely share an icon; if they do, the three ideas are probably one idea. Choose only from the list the schema gives you. A takeaway, an action and a statement carry one icon of their own in \`icon\`, chosen the same way.
 

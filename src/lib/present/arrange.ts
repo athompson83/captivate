@@ -110,19 +110,6 @@ function grid(scenes: ArrangeInput[], stage: Size): ScenePlacement[] {
   return out;
 }
 
-/**
- * The tilt each region of a `flow` page takes, in degrees, by index.
- *
- * A page of scenes all sitting at exactly ninety degrees is a grid, and a grid
- * is the one shape that tells the audience they are looking at slides. A few
- * degrees either way — never the same on two neighbours, never enough to read
- * as a mistake — turns the pulled-back view into a composition, and gives
- * every flight a slight turn as the camera squares up to the next region.
- * The camera shares a scene's rotation on arrival, so nothing the audience
- * reads is ever off-square; only the journey between is.
- */
-export const FLOW_TILT: readonly number[] = [-2.2, 1.6, -1.1, 2.1, -1.8, 1.3];
-
 function flow(scenes: ArrangeInput[], stage: Size): ScenePlacement[] {
   // One page, filled.
   //
@@ -133,20 +120,22 @@ function flow(scenes: ArrangeInput[], stage: Size): ScenePlacement[] {
   // camera never jumps back across the whole page to start the next one.
   //
   // Square-ish in *cells* is 16:9 in world units, because a cell is a scene.
+  //
+  // Level, deliberately. A tilt per region was tried — a page of scenes all
+  // sitting square reads as a grid — and taken out the same day: the camera
+  // shares a scene's rotation on arrival, so every flight rolled the room by
+  // the difference, and a rolling horizon is the one camera move that makes
+  // an audience feel ill. The way out of the grid is the content's own edges
+  // (see `ImageElement.edge`), not the camera.
   const columns = Math.max(1, Math.ceil(Math.sqrt(scenes.length)));
-  // The tilt widens a region's footprint by its own sine, and the step
-  // reserves exactly that so the gap between neighbours is the gap, not the
-  // gap minus whatever the rotation ate.
-  const tilt = Math.max(...FLOW_TILT.map((degrees) => Math.abs(degrees)));
-  const sin = Math.sin((tilt * Math.PI) / 180);
-  const stepX = stage.width * (1 + GAP) + stage.height * sin;
-  const stepY = stage.height * (1 + GAP) + stage.width * sin;
+  const stepX = stage.width * (1 + GAP);
+  const stepY = stage.height * (1 + GAP);
 
   return scenes.map((_, i) => {
     const row = Math.floor(i / columns);
     const withinRow = i % columns;
     const column = row % 2 === 0 ? withinRow : columns - 1 - withinRow;
-    return placement(column * stepX, row * stepY, 1, FLOW_TILT[i % FLOW_TILT.length]);
+    return placement(column * stepX, row * stepY);
   });
 }
 

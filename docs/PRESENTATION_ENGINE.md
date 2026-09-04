@@ -38,6 +38,13 @@ content.**
 - An image element with no image is an outline, not a filled block, and its
   scrim — which exists to keep a caption legible over a photograph — is not
   drawn when there is no photograph.
+- An image element is `soft` by composition (`ImageElement.edge`): rounded
+  generously and feathered on all four sides by a mask, so a photograph beside
+  a heading pools into the page rather than ending at a hard vertical line.
+  The feather is two linear gradients intersected, not a radial one, because a
+  radial feather turns a full-bleed photograph into an oval; corners are the
+  part of a picture that should go quietly. Rows that predate the field keep
+  their hard edge, and the inspector offers both.
 
 Every one of those was a rectangle on the page before it was fixed.
 
@@ -188,15 +195,15 @@ authored by dragging one scene inside another on the journey map.
 `src/lib/present/arrange.ts` turns an ordered list of scenes into positions.
 Each preset is a pure function of index, section and count.
 
-| Preset          | Shape                                                                             |
-| --------------- | --------------------------------------------------------------------------------- |
-| `flow`          | **Default.** A serpentine filling a page, each row reversing, each region tilted. |
-| `reel`          | A straight line at one zoom — a conventional deck.                                |
-| `grid`          | Sections become rows.                                                             |
-| `timeline`      | A spine with scenes alternating above and below it.                               |
-| `spiral`        | Winds outward; the shape reads as widening scope.                                 |
-| `nested`        | Each scene inside the last, surfacing every third.                                |
-| `constellation` | Sections cluster in their own regions.                                            |
+| Preset          | Shape                                                         |
+| --------------- | ------------------------------------------------------------- |
+| `flow`          | **Default.** A serpentine filling a page, each row reversing. |
+| `reel`          | A straight line at one zoom — a conventional deck.            |
+| `grid`          | Sections become rows.                                         |
+| `timeline`      | A spine with scenes alternating above and below it.           |
+| `spiral`        | Winds outward; the shape reads as widening scope.             |
+| `nested`        | Each scene inside the last, surfacing every third.            |
+| `constellation` | Sections cluster in their own regions.                        |
 
 Applying an arrangement stamps a placement onto every scene, in one statement
 and one undo step. Dragging a scene afterwards overrides its placement; the rest
@@ -208,14 +215,12 @@ Every arrangement holds one invariant, which is tested: two consecutive scenes
 are either clearly apart or one sits wholly inside the other. A partial overlap
 is just a mess.
 
-`flow` tilts every region by a degree or two (`FLOW_TILT`), never the same on
-two neighbours. A page of scenes all sitting square is a grid, and a grid is
-the one shape that tells an audience they are looking at slides; the camera
-shares a scene's rotation on arrival, so nothing the room reads is ever
-off-square — only the pulled-back composition and the turn the camera makes on
-the way. The row step reserves the footprint the tilt adds, so the no-overlap
-invariant holds by construction rather than by luck. `reel` stays square,
-because it is the conventional deck on purpose.
+The camera stays level. A tilt per region was tried, so the pulled-back page
+would read as a composition rather than a grid, and taken out the same day:
+the camera shares a scene's rotation on arrival, so every flight rolled the
+horizon by the difference, and a rolling horizon is the one camera move that
+makes an audience feel ill. Getting the page out of the grid is the content's
+job — see the soft image edge above — not the camera's.
 
 ---
 

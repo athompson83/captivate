@@ -285,6 +285,16 @@ export const ImageElement = z.object({
   radius: z.number().min(0).max(50).default(0),
   /** Darkens the image so overlaid text stays readable. */
   scrim: z.number().min(0).max(1).default(0),
+  /**
+   * How the picture meets the surface around it.
+   *
+   * `hard` ends at its frame. `soft` is rounded generously and feathered on
+   * every side, so a photograph pools into the page rather than sitting on it
+   * as a card — a rectangle with a hard edge is the strongest "this is a
+   * slide" cue an image can send, and every composed picture is soft for
+   * that reason. Stored rows that predate the field keep the edge they had.
+   */
+  edge: z.enum(["hard", "soft"]).default("hard"),
 });
 
 export const VideoElement = z.object({

@@ -115,6 +115,7 @@ export function createElement(type: SceneElementType, at?: { x: number; y: numbe
         focalY: 0.5,
         radius: 1.5,
         scrim: 0,
+        edge: "soft",
       };
 
     case "video":

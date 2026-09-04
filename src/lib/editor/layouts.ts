@@ -456,6 +456,10 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
       // A full-bleed image behind text always gets a scrim; otherwise the
       // heading becomes unreadable over a busy photo.
       scrim: isBackdrop ? 0.55 : 0,
+      // Every composed picture pools into the surface. A hard-edged
+      // rectangle beside a heading is a slide; the same photograph feathered
+      // into the page is a place.
+      edge: "soft",
       hidden: false,
       locked: false,
       opacity: 1,
@@ -880,6 +884,7 @@ function composeCover(content: LayoutContent): SceneContent {
       focalY: 0.5,
       radius: 0,
       scrim: 0.45,
+      edge: "soft",
       hidden: false,
       locked: false,
       opacity: 1,

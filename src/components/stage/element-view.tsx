@@ -454,7 +454,16 @@ export const ElementView = memo(function ElementView({
       );
     }
 
-    case "image":
+    case "image": {
+      // A soft edge is rounded generously and feathered on all four sides by
+      // a mask, so the picture pools into the surface instead of ending at a
+      // line. Two gradients intersected rather than one radial: a radial
+      // feather leaves a full-bleed photograph as an oval, and a picture's
+      // corners are the part of it that should go quietly, not its middle.
+      const soft = element.edge === "soft";
+      const radiusPx = Math.max(element.radius, soft ? 2.4 : 0) * rem;
+      const feather =
+        "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent), linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent)";
       return (
         <div
           style={{
@@ -462,7 +471,11 @@ export const ElementView = memo(function ElementView({
             width: "100%",
             height: "100%",
             overflow: "hidden",
-            borderRadius: `${element.radius * rem}px`,
+            borderRadius: `${radiusPx}px`,
+            maskImage: soft ? feather : undefined,
+            maskComposite: soft ? "intersect" : undefined,
+            WebkitMaskImage: soft ? feather : undefined,
+            WebkitMaskComposite: soft ? "source-in" : undefined,
           }}
         >
           {element.url ? (
@@ -486,7 +499,12 @@ export const ElementView = memo(function ElementView({
               }}
             />
           ) : (
-            <ImagePlaceholder theme={theme} rem={rem} label={element.alt || "Image"} />
+            <ImagePlaceholder
+              theme={theme}
+              rem={rem}
+              label={element.alt || "Image"}
+              radiusPx={radiusPx}
+            />
           )}
           {/* A scrim darkens a photograph so a caption over it stays legible.
               With no photograph it is a dark rectangle over nothing — which on
@@ -503,6 +521,7 @@ export const ElementView = memo(function ElementView({
           )}
         </div>
       );
+    }
 
     case "video":
       return element.url ? (
@@ -907,11 +926,14 @@ function ImagePlaceholder({
   rem,
   label,
   icon = "image",
+  radiusPx,
 }: {
   theme: PresentationTheme;
   rem: number;
   label: string;
   icon?: "image" | "video";
+  /** The corner of the frame the placeholder stands in, so the outline matches. */
+  radiusPx?: number;
 }) {
   const Icon = icon === "video" ? VideoIcon : PlaceholderImageIcon;
   return (
@@ -930,7 +952,7 @@ function ImagePlaceholder({
         // says "a picture goes here" without putting a block on the surface.
         background: "transparent",
         border: `${Math.max(1, rem * 0.08)}px dashed ${theme.tokens.line}`,
-        borderRadius: `${rem * 0.6}px`,
+        borderRadius: `${radiusPx ?? rem * 0.6}px`,
         color: theme.tokens.inkMuted,
       }}
     >

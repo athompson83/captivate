@@ -55,12 +55,18 @@ it still. The shader spec now renders flat, resting and flying frames and
 asserts the dust is faint at rest, stirred in flight, world-anchored under a
 pan, and streaked along the heading.
 
-**No right angles by default.** `flow` — the default arrangement — tilts each
-region by one to two degrees, never the same on two neighbours, with the row
-step reserving the footprint the tilt adds so the no-overlap invariant holds by
-construction. The camera squares up on arrival, so the audience never reads
-tilted text; the pulled-back page reads as a composition and every flight has
-a small turn in it. `reel` stays square on purpose.
+**No right angles — in the content, not the camera.** The first cut tilted
+each region of the default `flow` page a degree or two so the pulled-back
+view read as a composition rather than a grid. The owner corrected it the
+same day: the right angles they meant are the slides and pictures, and a
+camera that rolls the horizon on every flight is a motion-sickness risk. The
+tilt is gone (`flow` places level, and a test now holds `flow`, `reel` and
+`grid` at zero rotation). In its place, `ImageElement.edge`: every composed
+picture — split scenes, explainers, full-bleed backdrops, the cover's veil —
+and every picture an author inserts is `soft`, rounded generously and
+feathered on all four sides by a mask so it pools into the page rather than
+ending at a hard line. Stored rows keep their hard edge; the inspector offers
+both.
 
 **Points, not pages.** Four layouts: `takeaway` (an icon as large as the
 heading, one line of why), `action` (the imperative, up to three icon-led

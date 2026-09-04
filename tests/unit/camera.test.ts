@@ -284,21 +284,17 @@ describe("arrangements", () => {
     expect(widest).toBeLessThan(STAGE.width * 2);
   });
 
-  it("never sits a flow page at right angles, and never tilts two neighbours alike", () => {
-    // A page of scenes all sitting square is a grid, and a grid is what tells
-    // an audience they are looking at slides. The tilt is small enough to be
-    // felt rather than seen — the camera squares up on arrival — and never
-    // repeats across a neighbouring pair, or the page would read as a pattern.
-    const placements = arrange("flow", scenes(12), STAGE);
-    for (const placement of placements) {
-      expect(Math.abs(placement.rotation)).toBeGreaterThan(0.5);
-      expect(Math.abs(placement.rotation)).toBeLessThan(4);
+  it("keeps the default page level, so a flight never rolls the room", () => {
+    // A tilt per region was tried and taken out: the camera shares a scene's
+    // rotation on arrival, so every flight rolled the horizon by the
+    // difference, and a rolling horizon is the camera move that makes an
+    // audience feel ill. Softening the page is the content's job, not the
+    // camera's.
+    for (const preset of ["flow", "reel", "grid"] as const) {
+      for (const placement of arrange(preset, scenes(12), STAGE)) {
+        expect(placement.rotation, preset).toBe(0);
+      }
     }
-    for (let i = 1; i < placements.length; i += 1) {
-      expect(placements[i].rotation).not.toBe(placements[i - 1].rotation);
-    }
-    // The conventional deck stays conventional.
-    for (const placement of arrange("reel", scenes(6), STAGE)) expect(placement.rotation).toBe(0);
   });
 
   it("lays a reel out in a straight line at one zoom", () => {

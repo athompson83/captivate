@@ -372,6 +372,18 @@ function StyleControls({
 
       {element.type === "image" && (
         <>
+          <Field label="Edge">
+            <Segmented
+              label="Image edge"
+              size="sm"
+              value={element.edge}
+              onChange={(v) => patch((el: typeof element) => ({ ...el, edge: v }), "Change edge")}
+              options={[
+                { value: "soft", label: "Soft" },
+                { value: "hard", label: "Hard" },
+              ]}
+            />
+          </Field>
           <Field label="Fit">
             <Segmented
               label="Image fit"
