@@ -10,10 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` → the presentation
-  experience redesign (this session; PR pending review)
-- `main`: through PR #64 (merged) as this session begins; `1e37370` — every
-  migration through `0029_gateway_from_model.sql` applied to production
+- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #70 (merged,
+  squash `bc63d2f`); this closeout on `claude/presentation-experience-closeout`
+- `main`: through PR #70 (merged) — `bc63d2f`; every migration through
+  `0029_gateway_from_model.sql` applied to production (this session added none)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -95,12 +95,35 @@ rises to one per eight minutes (one per four with no photo provider), with
 the sole-source ceiling held at the ten every plan sells — the billing test
 that couples the two is what stopped it going higher without a migration.
 
-Verified: `npm run verify` green; the `shader` and `lifecycle` Playwright
-projects pass, including the layout sheet, which caught the number's line box
-overflowing and the open points being composed too small. Not verified here:
-the depth layer on a physical GPU and the model's actual drawings against the
-new brief — both need the hosted candidate and a real provider (BETA-002,
-BETA-003).
+**Tuned by eye, reviewed, shipped.** Rendered at projector size, the first
+depth layer was a field of same-sized discs at one density — snowfall, and
+on paper a purple one. The near layer became a few large, very soft motes on
+a mostly empty lattice, the far layers a finer dust, the flight brings out a
+little more of the field rather than all of it, and the light-theme push is
+gentler; the shader spec now judges flight by the share of pixels that moved,
+the right measure for a field that is sparse on purpose. Codex reviewed the
+PR and found four real things, each fixed with the test that fails without
+it: the PowerPoint export stripped per-path weight, ink and fill; a
+take-home's or figure's body was extracted as a subheading neither layout
+draws, so re-applying the layout lost it (prose now returns to the slot it
+came from, which also fixes a bullets scene with a paragraph); a
+movement-ending application became a take-home instead of a call to action;
+and a fill on an open path rendered as a polygon (the schema now requires a
+filled path to close). CodeRabbit does not auto-review this repository
+(fewer than ten stars); Codex is the reviewer of record.
+
+Verified before merge: `npm run verify` green on every commit; PR CI green
+on the final head `0004d9c` (verify, RLS, shader + lifecycle, production-
+server routes, signed-in journeys). Verified in production after merge:
+the site's static-asset fingerprint changed sixty seconds after the squash
+landed (`x-vercel-id iad1::iad1::4x7bs-1788549614320-991df4df275b`), the live
+stylesheet carries this change's `dp-wash` and `dp-fill` rules, and the
+smoke suite run from this environment against `https://www.axtevi.com` —
+through the agent proxy with the documented Chromium switches — passed 37 of
+37 on the new build, as it had on the old. Not verified: the depth layer on
+a physical GPU and the model's actual drawings against the new brief — both
+need a real presentation in a real browser and a real provider (BETA-002,
+BETA-003), and remain the owner's to look at.
 
 ### An honest error message, and the durability gap it was standing in for — PRs #63, #64
 
