@@ -340,6 +340,15 @@ export const CalloutElement = z.object({
   ...elementBase,
   type: z.literal("callout"),
   tone: z.enum(["neutral", "accent", "success", "warning", "danger"]).default("accent"),
+  /**
+   * `card` is a filled panel with a coloured rule; `open` paints no box at all
+   * — an icon, a short rule, a title and a line, straight onto the surface.
+   *
+   * Three filled panels in a row is the strongest "these are slides" cue a
+   * scene can send, which is why the layouts that carry ideas as icon-led
+   * points compose them open. The card stays for authors who want a panel.
+   */
+  variant: z.enum(["card", "open"]).default("card"),
   icon: z.string().max(64).default("lightbulb"),
   title: z.string().max(240).default(""),
   content: RichText,
@@ -394,6 +403,22 @@ export const DrawnPath = z.object({
   d: z.string().min(1).max(20_000).regex(PATH_DATA),
   /** Which press of "next" sketches this path. Stage 0 draws on arrival. */
   stage: z.number().int().min(0).max(19).default(0),
+  /**
+   * Stroke weight as a multiple of the element's `strokeWidth`.
+   *
+   * A picture drawn at one weight is a wireframe. An outline heavier than its
+   * detail, and construction lighter than both, is what makes line art read
+   * as a drawing rather than as a plot of coordinates.
+   */
+  weight: z.number().min(0.25).max(4).optional(),
+  /** Overrides the element's ink for this stroke; the accent marks the idea a stage adds. */
+  ink: z.enum(["ink", "accent", "muted"]).optional(),
+  /**
+   * A soft wash inside a closed path, in the path's own ink at low opacity,
+   * arriving once the stroke has finished sketching. Gives a shape mass
+   * without a second colour, so a drawing still works in every theme.
+   */
+  fill: z.boolean().optional(),
 });
 export type DrawnPath = z.infer<typeof DrawnPath>;
 
@@ -515,6 +540,10 @@ export const SceneLayout = z.enum([
   "chart", // heading + data
   "code", // heading + code block
   "closing", // wrap-up / thank you
+  "takeaway", // one take-home point, led by an icon
+  "action", // a call to action: the imperative, then up to three steps
+  "figure", // one number, large, with what it means
+  "explainer", // a plain-language line, three icon-led points, and a picture
 ]);
 export type SceneLayout = z.infer<typeof SceneLayout>;
 

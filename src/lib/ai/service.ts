@@ -346,7 +346,9 @@ export async function buildScenesFromMap(
     }
   | { ok: false; error: string }
 > {
-  const layouts = briefs.map((brief, index) => layoutFor(brief.visualIntent, brief.role, index));
+  const layouts = briefs.map((brief, index) =>
+    layoutFor(brief.visualIntent, brief.role, index, { endsMovement: brief.endsMovement }),
+  );
 
   if (!isAiConfigured()) {
     return {
@@ -424,7 +426,14 @@ The writing has to be worth standing in front of. The bar:
 - Vary the texture. A statement scene is one sentence that earns its whole screen; a quote is a real voice, not a paraphrase; consecutive scenes must not share a rhythm. Read the deck as a sequence and break any run of three scenes shaped alike.
 - Bullets are parallel in grammar and each one is a claim, not a topic. Two strong bullets beat five thin ones.
 
-Every card carries an icon, and the icon is part of the argument rather than decoration on it. Choose the one that means what the card means — \`trending-down\` for a decline, \`shield\` for a protection, \`alert-triangle\` for a risk, \`clock\` for a delay, \`stethoscope\` for an examination. Three cards on one scene should rarely share an icon; if they do, the three ideas are probably one idea. Choose only from the list the schema gives you.
+Every card carries an icon, and the icon is part of the argument rather than decoration on it. Choose the one that means what the card means — \`trending-down\` for a decline, \`shield\` for a protection, \`alert-triangle\` for a risk, \`clock\` for a delay, \`stethoscope\` for an examination. Three cards on one scene should rarely share an icon; if they do, the three ideas are probably one idea. Choose only from the list the schema gives you. A takeaway, an action and a statement carry one icon of their own in \`icon\`, chosen the same way.
+
+Points, not pages. The room leaves with three kinds of thing and the deck is built to hand them over:
+- A take-home point (\`takeaway\`): one sentence the audience could repeat in the corridor, led by the icon that is its shape, with one line under it saying why it is true. Written as something to keep, not as a summary.
+- A call to action (\`action\`): the heading is an imperative in the second person — what to do, when, in what situation — and each card is one concrete step with its own icon. Three steps at most; one is fine.
+- A simple explanation (\`explainer\`): the heading is the whole idea in one plain sentence a newcomer would understand, and the three cards are what it is, why it happens and what follows — each a single short line. The picture beside them shows the mechanism.
+- One number (\`figure\`): \`figure.value\` is the figure exactly as a room should read it ("7.6%", "1 in 4", "90 s"), \`figure.label\` is what it measures, the heading is the claim the number proves, and the body is one sentence on what to do about it. Only from the evidence you were given — never a number you are not sure of; if there is none, write the claim and leave \`figure\` empty.
+Every scene's body text is at most two sentences. If an explanation needs more, it needs a picture or a second scene, not a paragraph.
 
 Use the whole instrument. An eyebrow situates ("Module 2 · Airway"), a headingAccent carries the clause the claim turns on, cards give a three-up its three ideas, a chart's data uses the evidence's real magnitudes. A scene that uses only heading and bullets when its layout offers more reads as a form letter.
 
@@ -441,8 +450,12 @@ Each layout draws a fixed set of fields and shows nothing else, so write into th
 - three-up — heading and exactly three cards, each with its own title, body and icon. Not bullets.
 - chart — heading, chart, caption
 - code — heading, code
+- takeaway — eyebrow, icon, heading (the point), headingAccent, body (why it holds)
+- action — eyebrow, heading (the imperative), up to three cards (the steps, each with an icon)
+- figure — heading (the claim), figure, body
+- explainer — heading (the plain-language sentence), exactly three cards (what, why, what follows), imagePrompt
 
-Pictures: every cover, split-left, split-right and media-full scene MUST carry an imagePrompt — the picture is half the scene, and an empty half is a broken scene. The imagePrompt describes the one image that would teach or land the moment — a mechanism, a scene, a before-and-after — concretely enough to photograph or sketch. Also give those scenes a photoQuery: two to five plain search words for a stock photo of the same subject.
+Pictures: every cover, split-left, split-right, explainer and media-full scene MUST carry an imagePrompt — the picture is half the scene, and an empty half is a broken scene. The imagePrompt describes the one image that would teach or land the moment — a mechanism, a scene, a before-and-after — concretely enough to photograph or sketch. Also give those scenes a photoQuery: two to five plain search words for a stock photo of the same subject.
 
 Asides: for two to four scenes in the deck — the ones hiding a definition, a worked example, or the data behind a claim — add an aside: a small detail scene the presenter opens by clicking, off the main path. Its label names what the click reveals ("See the mechanism"). Give it a real title and either bullets or a short body, and one or two sentences of speaker notes. Most scenes have no aside; use them only where depth-on-demand genuinely helps.
 
@@ -716,6 +729,8 @@ function materialise(
     attribution: scene.attribution || undefined,
     caption: scene.caption || undefined,
     cards: scene.cards.length ? scene.cards : undefined,
+    icon: scene.icon ?? undefined,
+    figure: scene.figure ?? undefined,
     chart: scene.chart ?? undefined,
     code: scene.code ?? undefined,
     // A placeholder image element, so the composition is right and the user
@@ -897,10 +912,16 @@ function toRecord<T>(result: StructuredResult<T>) {
  * A picture the model draws as ordered vector strokes, cut into stages the
  * presenter walks through with "next".
  *
- * The prompt work is all in the staging: a drawing that arrives as one
- * undifferentiated pile of paths animates fine and *teaches* nothing. Each
- * stage must add one idea, in the order a person at a whiteboard would build
- * it, because the stage boundaries become the presenter's pauses.
+ * The prompt work is in two places. The staging: a drawing that arrives as one
+ * undifferentiated pile of paths animates fine and *teaches* nothing, so each
+ * stage must add one idea in the order a person at a whiteboard would build
+ * it, because the stage boundaries become the presenter's pauses. And the
+ * construction: a language model asked for "a line drawing" returns a
+ * wireframe of small fragments at one weight, which is what the reports
+ * called weak. Told what a good picture here *is* — one subject, large,
+ * built from named primitives with exact recipes, weighted, with two or three
+ * shapes given mass and the idea of each stage in the accent — it returns
+ * something a room can read from the back.
  */
 export async function generateDrawing(
   prompt: string,
@@ -918,19 +939,36 @@ export async function generateDrawing(
       schema: GeneratedDrawing,
       toolName: "draw_picture",
       toolDescription:
-        "Return a line drawing as SVG path data, staged in the order a person would sketch it.",
+        "Return one clear explainer illustration as SVG path data, staged in the order a person would build it at a whiteboard.",
       system: `${BASE_SYSTEM}
 
-You draw single-colour line art that will be sketched stroke by stroke in front of an audience, one stage per press of "next". Rules:
+You are an explainer illustrator. You draw one clear picture as SVG path data, and it is sketched stroke by stroke in front of a room, one stage per press of "next". It sits beside the scene's text at about half the width of the screen and is read from the back of a lecture theatre.
 
-- Return only SVG path data (the d attribute) — absolute commands preferred. No markup, no colours, no fills: strokes on nothing.
-- Plan the stages first. Each stage adds exactly one idea, in the order a teacher at a whiteboard would build the picture; 2 to 4 stages, labelled. Number stages from 0; stage 0 is what appears on arrival, so 4 stages costs the presenter 3 presses. Never more than 4 — a picture that takes eight presses to finish stops being a build and becomes an obstacle between the presenter and their next point.
-- Every coordinate must be inside the viewBox you declare. Ink outside it is drawn over whatever else is on the scene.
-- Within a stage, order paths as they would be drawn by hand.
-- Aim for 20 to 120 paths total. Prefer fewer, longer, confident strokes over many fragments.
-- Never render words as paths — lettering drawn at stroke weight is illegible. Leave space for the author's own text instead, and say what goes where in the stage label.
-- Use a viewBox around 800×500 unless the subject wants otherwise, and keep the drawing clear of the very edges.
-- The alt text describes the finished picture for someone who cannot see it.`,
+What a good picture is here:
+- One subject, big. It fills about 70% of the box, centred, with at least 8% clear on every side. Never a page of small things.
+- A diagram or an icon-like illustration, not a sketch of a photograph: bold simplified shapes a person can name at a glance — an organ, a device, a person as a rounded head and shoulders, a container, an arrow, a graph with two curves. Built from clean geometric primitives.
+- Confident, closed shapes. 25 to 90 paths; each path is one complete stroke — an outline, an arrow, a curve — never a fragment. A shape's outline is one path closed with Z.
+- Weight carries hierarchy, through each path's \`weight\`: outlines of the main shapes 1.6, interior detail 1, context and guides 0.6. Never everything at one weight.
+- Mass: give the two or three most important closed shapes \`fill: true\`. Never fill more than a third of the shapes, and never fill a line or an arrow.
+- Colour marks the idea: the paths that carry what a stage adds — the arrow that shows the flow, the part that changes, the thing to look at — take \`ink: "accent"\`. Everything else is left to the default ink. At most a quarter of the strokes are accent.
+- No words. Ever. No letters and no numerals as paths — lettering drawn at stroke weight is illegible. Where a label belongs, leave clear space and say what goes there in the stage label.
+
+Staging:
+- 2 to 4 stages, numbered from 0. Stage 0 is the subject as the room first sees it: the main shapes, complete enough to recognise. Each later stage adds exactly one idea — a mechanism, a consequence, a comparison — and its paths come after the earlier stages' in the array.
+- Never more than 4. A picture that takes eight presses to finish stops being a build and becomes an obstacle between the presenter and their next point.
+- Within a stage, order paths as they would be drawn by hand: outline first, then detail, then the accent.
+
+Construction — use these recipes exactly, every coordinate absolute and inside the viewBox you declare:
+- Circle, centre (cx, cy), radius r: M cx-r cy A r r 0 1 0 cx+r cy A r r 0 1 0 cx-r cy Z
+- Ellipse, radii rx ry: M cx-rx cy A rx ry 0 1 0 cx+rx cy A rx ry 0 1 0 cx-rx cy Z
+- Rounded box at (x, y) size w×h with corner k: M x+k y H x+w-k Q x+w y x+w y+k V y+h-k Q x+w y+h x+w-k y+h H x+k Q x y+h x y+h-k V y+k Q x y x+k y Z
+- Arrow: the shaft is one path (M x1 y1 L x2 y2, or a Q curve), the head a second path of two short strokes meeting at the tip, each about an eighth of the shaft's length, angled 30° back — for a rightward arrow ending at (x2, y2): M x2-28 y2-16 L x2 y2 L x2-28 y2+16
+- Curved connector: one Q or C whose control points sit to one side of the straight line between its ends.
+- Organic shape (an organ, a cloud, a body): one closed path of 6 to 12 C segments, smooth, no zig-zags.
+- Nothing smaller than 4% of the viewBox width, and no stroke shorter than that.
+- viewBox 800×500 unless the subject is genuinely tall; then 600×600.
+
+The alt text describes the finished picture for someone who cannot see it, in one or two sentences.`,
       prompt: `Draw: ${prompt}`,
       maxTokens: 16000,
       // /api/ai/visuals/draw runs with a 120-second ceiling, and the deck

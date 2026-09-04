@@ -94,7 +94,7 @@ pixels and aspect ratio. A scene therefore renders identically on a 13" laptop
 and a 4K projector, and a pointer position broadcast from the console lands in
 the right place on the audience display.
 
-**Elements are a discriminated union.** Fourteen types today. Adding one is
+**Elements are a discriminated union.** Fifteen types today. Adding one is
 purely additive; an unknown type is _rejected_ at the boundary rather than
 silently rendered as something else.
 

@@ -461,6 +461,20 @@ function StyleControls({
               ]}
             />
           </Field>
+          <Field label="Style">
+            <Segmented
+              label="Callout style"
+              size="sm"
+              value={element.variant}
+              onChange={(v) =>
+                patch((el: typeof element) => ({ ...el, variant: v }), "Change callout style")
+              }
+              options={[
+                { value: "open", label: "Open" },
+                { value: "card", label: "Panel" },
+              ]}
+            />
+          </Field>
         </>
       )}
 

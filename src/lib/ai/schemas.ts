@@ -67,6 +67,24 @@ export const GeneratedScene = z.object({
     )
     .max(3)
     .default([]),
+  /**
+   * The icon a layout that leads with one should carry: the take-home point,
+   * the call to action, a statement. The same registry as a card's icon, for
+   * the same reason — an invented name earns a corrective retry rather than a
+   * silent circle.
+   */
+  icon: z.enum(ICON_NAMES).nullable().default(null),
+  /**
+   * One number and what it measures, for the `figure` layout.
+   *
+   * The value is a string, not a number: "7.6%", "1 in 4", "90 s" are all
+   * figures a room can read and a bare float is none of them. Capped short
+   * because it is set large enough to be the whole scene.
+   */
+  figure: z
+    .object({ value: z.string().min(1).max(14), label: z.string().max(90).default("") })
+    .nullable()
+    .default(null),
   chart: z
     .object({
       chart: z.enum(["bar", "column", "line", "donut"]),

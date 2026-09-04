@@ -233,3 +233,113 @@ export function webglAvailable(
     return false;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Depth                                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * How far behind the content each depth layer sits, in scene widths.
+ *
+ * The shader models a layer at depth `z` as the content plane seen by a camera
+ * that is `z` world units further back: its world-units-per-pixel is the
+ * camera's plus `z / viewportWidth`. That one line gives the two things a
+ * background has to do to read as three-dimensional — slide slower than the
+ * content when the camera pans, and grow less when it zooms — without a
+ * projection matrix anywhere. The nearest layer is close enough to move with
+ * the room; the farthest is far enough that, framing one scene, it drifts at
+ * about a seventh of the content's speed.
+ *
+ * Exported so the shader test can reason about the same numbers the program
+ * compiles in.
+ */
+export const DEPTH_LAYERS: readonly number[] = [0.6, 2.2, 6];
+
+export interface Motion {
+  /** 0 when the camera is still, 1 at a fast flight. */
+  amount: number;
+  /** Unit direction of travel in screen space, or zero when not panning. */
+  headingX: number;
+  headingY: number;
+}
+
+export const STILL: Motion = { amount: 0, headingX: 0, headingY: 0 };
+
+/** Viewport widths per second that count as a fast flight. */
+const FULL_PAN = 1.2;
+/** Zoom e-folds per second that count as a fast flight. */
+const FULL_ZOOM = 2;
+
+/**
+ * How fast the camera is moving, from two consecutive frames.
+ *
+ * Measured on the screen, not in the world: a flight over a wide overview
+ * crosses far more world per second than a hop between neighbours, and it is
+ * the room's sense of speed that decides how much the air should stir. Pan is
+ * in viewport widths per second, zoom in e-folds per second, and either can
+ * saturate on its own so a pure dive still reads as travel.
+ *
+ * The heading is rotated into screen space so a streak across the air lies
+ * along the direction the room sees the camera move, whatever the world's
+ * rotation under it.
+ */
+export function cameraMotion(
+  previous: Camera | null,
+  next: Camera,
+  dtSeconds: number,
+  viewport: Size,
+): Motion {
+  if (!previous || !(dtSeconds > 0) || viewport.width <= 0) return STILL;
+
+  const scale = cameraScale(next, viewport);
+  const dx = (next.x - previous.x) * scale;
+  const dy = (next.y - previous.y) * scale;
+  const radians = (-next.rotation * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const sx = dx * cos - dy * sin;
+  const sy = dx * sin + dy * cos;
+
+  const travelled = Math.hypot(sx, sy);
+  const pan = travelled / dtSeconds / viewport.width;
+  const zoom =
+    Math.abs(Math.log(Math.max(next.width, 1e-6) / Math.max(previous.width, 1e-6))) / dtSeconds;
+
+  const amount = Math.min(1, pan / FULL_PAN + zoom / FULL_ZOOM);
+  if (!Number.isFinite(amount)) return STILL;
+  return {
+    amount,
+    headingX: travelled > 0 ? sx / travelled : 0,
+    headingY: travelled > 0 ? sy / travelled : 0,
+  };
+}
+
+/** Seconds for the stirred air to settle by a factor of e once the camera lands. */
+const SETTLE_SECONDS = 0.4;
+
+/**
+ * Follows a fresh measurement instantly on the way up and settles slowly on
+ * the way down.
+ *
+ * A flight starts abruptly — the first frame of travel should already look
+ * like travel — but it ends with the camera easing in, and the air should
+ * still be moving for a beat after the content has stopped. A frame with no
+ * pan keeps the last heading, so the settling streak does not snap to a
+ * random direction on the final frame.
+ */
+export function settleMotion(current: Motion, sample: Motion, dtSeconds: number): Motion {
+  const decayed = current.amount * Math.exp(-Math.max(0, dtSeconds) / SETTLE_SECONDS);
+  const panning = sample.headingX !== 0 || sample.headingY !== 0;
+  if (sample.amount >= decayed) {
+    return {
+      amount: sample.amount,
+      headingX: panning ? sample.headingX : current.headingX,
+      headingY: panning ? sample.headingY : current.headingY,
+    };
+  }
+  return {
+    amount: decayed < 1e-3 ? 0 : decayed,
+    headingX: current.headingX,
+    headingY: current.headingY,
+  };
+}

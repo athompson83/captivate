@@ -455,16 +455,19 @@ function planSlide(
       }
       case "callout": {
         const tint = element.tone === "accent" ? theme.tokens.accent : theme.tokens.surface;
-        shapes.push({
-          kind: "shape",
-          box,
-          shape: "rectangle",
-          fill: theme.tokens.surface,
-          stroke: tint,
-          strokeWidth: 1,
-          radius: 0.1,
-          opacity,
-        });
+        // An open callout has no panel on the stage, so it gets none here.
+        if (element.variant !== "open") {
+          shapes.push({
+            kind: "shape",
+            box,
+            shape: "rectangle",
+            fill: theme.tokens.surface,
+            stroke: tint,
+            strokeWidth: 1,
+            radius: 0.1,
+            opacity,
+          });
+        }
         const label = element.title ? [{ text: element.title, bold: true }] : [];
         shapes.push({
           kind: "text",

@@ -682,29 +682,40 @@ export const ElementView = memo(function ElementView({
                 ? "#E2604F"
                 : theme.tokens.inkMuted;
 
-      return (
+      // The open variant paints nothing behind itself. An icon set large, a
+      // short rule in the tone colour, a title and a line — straight onto the
+      // surface, so three of them in a row read as three ideas on one page
+      // rather than three panels leaning against a wall.
+      //
+      // A wide, short box (the explainer's stacked points) lays the icon
+      // beside the words rather than above them; a tall one (a three-up or a
+      // call to action's steps) stacks them.
+      const open = element.variant === "open";
+      const row = open && boxWidth > boxHeight * 2;
+      const iconPx = rem * (open ? 3.2 : 1.8);
+
+      const icon = (
+        <StageIcon
+          name={element.icon}
+          strokeWidth={open ? 1.6 : undefined}
+          style={{ width: `${iconPx}px`, height: `${iconPx}px`, color: toneColor, flexShrink: 0 }}
+        />
+      );
+      const rule = open && (
         <div
+          aria-hidden
           style={{
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
-            gap: `${rem * 0.7}px`,
-            padding: `${rem * 1.4}px`,
-            background: theme.tokens.surface,
-            borderRadius: `${rem * 0.8}px`,
-            borderTop: `${rem * 0.16}px solid ${toneColor}`,
+            width: `${rem * 2.4}px`,
+            height: `${rem * 0.18}px`,
+            borderRadius: `${rem * 0.09}px`,
+            background: toneColor,
+            opacity: 0.7,
+            flexShrink: 0,
           }}
-        >
-          <StageIcon
-            name={element.icon}
-            style={{
-              width: `${rem * 1.8}px`,
-              height: `${rem * 1.8}px`,
-              color: toneColor,
-              flexShrink: 0,
-            }}
-          />
+        />
+      );
+      const words = (
+        <>
           {element.title && (
             <p
               style={{
@@ -712,7 +723,7 @@ export const ElementView = memo(function ElementView({
                 fontSize: `${scale.h3 * rem * element.style.size * 0.9}px`,
                 fontWeight: 600,
                 color: theme.tokens.ink,
-                fontFamily: theme.fonts.sans,
+                fontFamily: open ? theme.fonts.display : theme.fonts.sans,
                 lineHeight: 1.25,
               }}
             >
@@ -734,7 +745,11 @@ export const ElementView = memo(function ElementView({
                 element.style,
                 "sans",
                 undefined,
-                { width: 0.84, height: 0.46 },
+                row
+                  ? { width: 0.74, height: 0.6 }
+                  : open
+                    ? { width: 0.98, height: 0.4 }
+                    : { width: 0.84, height: 0.46 },
               )}px`,
               color: theme.tokens.inkMuted,
               fontFamily: theme.fonts.sans,
@@ -746,6 +761,67 @@ export const ElementView = memo(function ElementView({
           >
             <Runs runs={element.content} theme={theme} />
           </div>
+        </>
+      );
+
+      if (row) {
+        return (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: `${rem * 1.2}px`,
+              padding: `${rem * 0.3}px 0`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: `${rem * 0.5}px`,
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+              {rule}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: `${rem * 0.3}px`,
+                flex: 1,
+                minWidth: 0,
+                minHeight: 0,
+              }}
+            >
+              {words}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            gap: `${rem * (open ? 0.55 : 0.7)}px`,
+            padding: open ? `${rem * 0.4}px 0` : `${rem * 1.4}px`,
+            background: open ? "transparent" : theme.tokens.surface,
+            borderRadius: open ? 0 : `${rem * 0.8}px`,
+            borderTop: open ? "none" : `${rem * 0.16}px solid ${toneColor}`,
+          }}
+        >
+          {icon}
+          {rule}
+          {words}
         </div>
       );
     }

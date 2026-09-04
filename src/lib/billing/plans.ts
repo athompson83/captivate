@@ -62,8 +62,8 @@ const hour = (max: number): RateLimit => ({ windowMinutes: ONE_HOUR, max });
  * How much of each pool one complete presentation can consume.
  *
  * These are *caps*, not averages, and that is the point. Generating a
- * presentation is a map call, a scenes call and a staged drawing for every ten
- * minutes of talk — up to ten of them on a deployment with no photo provider,
+ * presentation is a map call, a scenes call and a staged drawing for every eight
+ * minutes of talk — one per four, up to ten, on a deployment with no photo provider,
  * where drawings are the only pictures there are. A plan whose drawing pool is
  * the same size as its deck pool sells N presentations and can only illustrate
  * one of them, which is what the previous shape did: sixty decks and sixty

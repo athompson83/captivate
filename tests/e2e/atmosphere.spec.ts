@@ -58,13 +58,21 @@ interface Region {
 const WARM = { canvas: toOklab("#17110E"), accent: toOklab("#E8734A") };
 const COLD = { canvas: toOklab("#101418"), accent: toOklab("#28E0A6") };
 
+/** The stirring a flight puts into the air, as the shader receives it. */
+interface Stir {
+  motion: number;
+  heading: [number, number];
+  depth?: number;
+}
+
 async function draw(
   page: Page,
   regions: Region[],
   camera: { x: number; y: number; width: number; rotation: number },
+  stir: Stir = { motion: 0, heading: [0, 0] },
 ) {
   return page.evaluate(
-    ({ vertex, fragment, max, regions, camera, W, H }) => {
+    ({ vertex, fragment, max, regions, camera, stir, W, H }) => {
       const canvas = document.createElement("canvas");
       canvas.width = W;
       canvas.height = H;
@@ -129,8 +137,11 @@ async function draw(
       gl.uniform1f(u("uInvScale"), camera.width / W);
       gl.uniform1f(u("uRotation"), (camera.rotation * Math.PI) / 180);
       gl.uniform1f(u("uTime"), 0);
-      gl.uniform1f(u("uDepth"), 0.55);
+      gl.uniform1f(u("uDepth"), stir.depth ?? 0.55);
       gl.uniform1f(u("uFalloff"), 1600 * 0.85);
+      gl.uniform1f(u("uStage"), 1600);
+      gl.uniform1f(u("uMotion"), stir.motion);
+      gl.uniform2f(u("uHeading"), stir.heading[0], stir.heading[1]);
       gl.uniform1i(u("uCount"), regions.length);
       gl.uniform2fv(u("uPositions"), positions);
       gl.uniform3fv(u("uCanvas"), canvasCols);
@@ -149,6 +160,10 @@ async function draw(
         return [px[0], px[1], px[2]] as [number, number, number];
       };
 
+      // The whole frame, for the tests that measure how much of it is stirred.
+      const all = new Uint8Array(W * H * 4);
+      gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, all);
+
       canvas.remove();
       return {
         top: read(W / 2, H - 8),
@@ -156,10 +171,22 @@ async function draw(
         left: read(8, H / 2),
         right: read(W - 8, H / 2),
         centre: read(W / 2, H / 2),
+        frame: Array.from(all),
       };
     },
-    { vertex: VERTEX, fragment: FRAGMENT, max: MAX_REGIONS, regions, camera, W, H },
+    { vertex: VERTEX, fragment: FRAGMENT, max: MAX_REGIONS, regions, camera, stir, W, H },
   );
+}
+
+/** Mean absolute difference per channel between two frames. */
+function difference(a: number[], b: number[]): number {
+  let total = 0;
+  let count = 0;
+  for (let i = 0; i < a.length; i += 4) {
+    total += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+    count += 3;
+  }
+  return total / count;
 }
 
 /** Positive is warm, negative is cold. */
@@ -238,4 +265,51 @@ test("standing on one region renders that region's own colour", async ({ page })
   for (const channel of out.centre) {
     expect(channel).toBeLessThan(40);
   }
+});
+
+test.describe("depth", () => {
+  const MIDNIGHT = { canvas: toOklab("#0F1117"), accent: toOklab("#F0B858") };
+  const regions = [{ x: 0, y: 0, ...MIDNIGHT }];
+  const camera = { x: 0, y: 0, width: 1600, rotation: 0 };
+
+  test("a flight stirs the air, and a still camera barely does", async ({ page }) => {
+    // The layer exists to move during a transition and to disappear on a
+    // scene. Flat is what the journey's depth setting at zero asks for, so
+    // that is the baseline: no motes at all.
+    const flat = await draw(page, regions, camera, { motion: 0, heading: [0, 0], depth: 0 });
+    const resting = await draw(page, regions, camera, { motion: 0, heading: [0, 0] });
+    const flying = await draw(page, regions, camera, { motion: 1, heading: [1, 0] });
+
+    const atRest = difference(resting.frame, flat.frame);
+    const inFlight = difference(flying.frame, resting.frame);
+
+    // Mean per-channel differences over the whole frame. The dust covers a
+    // small fraction of it, and this canvas is a quarter the width of a real
+    // viewport so every mote is proportionally smaller — the flight threshold
+    // is a floor on "visibly changed", not a claim about how much.
+    expect(atRest, "resting dust should be faint").toBeLessThan(1.5);
+    expect(inFlight, "a flight should visibly stir the air").toBeGreaterThan(0.3);
+  });
+
+  test("the dust is anchored to the world, not to the screen", async ({ page }) => {
+    // A pan has to move it — a layer that stayed put under a moving camera is
+    // wallpaper, and the point of depth is that the room travels through it.
+    // With the drift frozen (t = 0) and no motion, the only thing that can
+    // change between these frames is where the camera is.
+    const before = await draw(page, regions, camera, { motion: 0, heading: [0, 0] });
+    const panned = await draw(page, regions, { ...camera, x: 120 }, { motion: 0, heading: [0, 0] });
+    expect(difference(panned.frame, before.frame)).toBeGreaterThan(0.05);
+  });
+
+  test("a streak lies along the heading", async ({ page }) => {
+    // Stretched along x, a frame changes less under a small x shift than under
+    // the same y shift: the elongated discs cover the neighbouring x pixels
+    // already. Direction is the thing the room should read from a streak.
+    const along = await draw(page, regions, camera, { motion: 1, heading: [1, 0] });
+    const shiftedX = await draw(page, regions, { ...camera, x: 6 }, { motion: 1, heading: [1, 0] });
+    const shiftedY = await draw(page, regions, { ...camera, y: 6 }, { motion: 1, heading: [1, 0] });
+    expect(difference(shiftedX.frame, along.frame)).toBeLessThan(
+      difference(shiftedY.frame, along.frame),
+    );
+  });
 });

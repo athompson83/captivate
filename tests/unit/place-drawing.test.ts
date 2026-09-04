@@ -104,7 +104,7 @@ describe("drawableScenes", () => {
       scene("split-left", "three"),
       scene("split-right", "four"),
     ];
-    expect(drawableScenes(scenes, drawingCap(1200)).map((s) => s.imagePrompt)).toEqual([
+    expect(drawableScenes(scenes, drawingCap(900)).map((s) => s.imagePrompt)).toEqual([
       "one",
       "two",
     ]);
@@ -112,13 +112,13 @@ describe("drawableScenes", () => {
 });
 
 describe("drawingCap", () => {
-  it("gives one drawing per ten minutes, at least one, at most six", () => {
+  it("gives one drawing per eight minutes, at least one, at most eight", () => {
     expect(drawingCap(300)).toBe(1); // 5 min
-    expect(drawingCap(600)).toBe(1); // 10 min
+    expect(drawingCap(480)).toBe(1); // 8 min
     expect(drawingCap(900)).toBe(2); // 15 min
-    expect(drawingCap(1200)).toBe(2); // 20 min
-    expect(drawingCap(3600)).toBe(6); // 60 min
-    expect(drawingCap(14_400)).toBe(6); // capped
+    expect(drawingCap(1200)).toBe(3); // 20 min
+    expect(drawingCap(3600)).toBe(8); // 60 min
+    expect(drawingCap(14_400)).toBe(8); // capped
     expect(drawingCap(0)).toBe(1); // no target set
   });
 
@@ -126,14 +126,14 @@ describe("drawingCap", () => {
     // With no stock or image key, a drawing is the deck's whole visual
     // vocabulary. One per ten minutes gave a twenty-minute talk two pictures
     // and eighteen empty slots.
-    expect(drawingCap(1200, true)).toBe(4); // 20 min
+    expect(drawingCap(1200, true)).toBe(5); // 20 min
     expect(drawingCap(3600, true)).toBe(10); // 60 min, at the ceiling
     expect(drawingCap(14_400, true)).toBe(10); // capped
     expect(drawingCap(0, true)).toBe(1); // still one when no target is set
 
     // And the rate is unchanged where photographs are filling the rest.
-    expect(drawingCap(1200, false)).toBe(2);
-    expect(drawingCap(1200)).toBe(2);
+    expect(drawingCap(1200, false)).toBe(3);
+    expect(drawingCap(1200)).toBe(3);
     expect(drawingCap(Number.NaN)).toBe(1);
   });
 });
@@ -306,8 +306,8 @@ describe("how many drawings a deck of a given length gets", () => {
     // because photographs fill the rest. No stock provider: two drawings and
     // eighteen empty slots is the reported "one drawing for a 20 minute
     // presentation", so the rate has to rise.
-    expect(drawingCap(20 * 60, false)).toBe(2);
-    expect(drawingCap(20 * 60, true)).toBe(4);
+    expect(drawingCap(20 * 60, false)).toBe(3);
+    expect(drawingCap(20 * 60, true)).toBe(5);
   });
 
   it("is the stock provider that decides, not any image capability at all", () => {
@@ -318,7 +318,7 @@ describe("how many drawings a deck of a given length gets", () => {
     // `dressScenes` asks `isStockSearchConfigured` now; this pins the
     // arithmetic that made the difference visible.
     const fiftyMinutes = 50 * 60;
-    expect(drawingCap(fiftyMinutes, false)).toBe(5);
+    expect(drawingCap(fiftyMinutes, false)).toBe(7);
     expect(drawingCap(fiftyMinutes, true)).toBe(10);
   });
 });

@@ -37,6 +37,12 @@ export interface LayoutSlots {
   caption?: Frame;
   attribution?: Frame;
   cards?: Frame[];
+  /** A large icon carrying the scene's meaning, where the layout leads with one. */
+  icon?: Frame;
+  /** The number, on a layout built around one. */
+  figure?: Frame;
+  /** What the number is a number *of*. */
+  figureLabel?: Frame;
 }
 
 const frame = (x: number, y: number, w: number, h: number): Frame => ({
@@ -153,6 +159,50 @@ export function layoutSlots(layout: SceneLayout): LayoutSlots {
         subheading: frame(M, 82, W * 0.6, 10),
       };
 
+    case "takeaway":
+      // One thing to leave with. The icon is not decoration on the point; it
+      // is the point's shape, set as large as the heading beside it.
+      return {
+        eyebrow: frame(M, 22, W, 5),
+        icon: frame(M, 30, 18, 32),
+        heading: frame(M + 23, 29, W - 23, 30),
+        body: frame(M + 23, 62, (W - 23) * 0.9, 16),
+      };
+
+    case "action": {
+      // The imperative first, then the steps as open points across the width.
+      // No panels: three filled boxes in a row is the loudest "slides" cue a
+      // scene can send, and a call to action wants the room, not a form.
+      const gap = 5;
+      const cardW = (W - gap * 2) / 3;
+      return {
+        eyebrow: frame(M, M + 4, W, 5),
+        heading: frame(M, M + 10, W * 0.92, 18),
+        cards: [0, 1, 2].map((i) => frame(M + i * (cardW + gap), 46, cardW, 40)),
+      };
+    }
+
+    case "figure":
+      // A number big enough to be the scene, and beside it the sentence that
+      // says what it means. The claim sits above as a heading, so a room that
+      // reads only the largest thing on screen still gets the point.
+      return {
+        heading: frame(M, M + 4, W, 12),
+        figure: frame(M, 26, W * 0.5, 40),
+        figureLabel: frame(M, 66, W * 0.5, 10),
+        body: frame(M + W * 0.56, 30, W * 0.44, 44),
+      };
+
+    case "explainer":
+      // The plain-language line across the top, three icon-led points down
+      // the left, and the picture on the right. It is the split layout for a
+      // moment that needs to be understood rather than argued.
+      return {
+        heading: frame(M, M + 4, W, 12),
+        cards: [0, 1, 2].map((i) => frame(M, 30 + i * 21, W * 0.46, 19)),
+        media: frame(54, 20, 100 - 54 - M, 68),
+      };
+
     default:
       return {
         heading: frame(M, M + 4, W, 14),
@@ -200,6 +250,10 @@ export interface LayoutContent {
   code?: { code: string; language: string };
   media?: { url: string; alt: string; assetId?: string | null };
   cards?: { title: string; body: string; icon?: string | null }[];
+  /** The icon a layout that leads with one should carry. */
+  icon?: string | null;
+  /** One number and what it measures, for the layout built around it. */
+  figure?: { value: string; label: string };
   chart?: {
     chart: "bar" | "column" | "line" | "donut";
     data: { label: string; value: number }[];
@@ -222,6 +276,7 @@ function hasWords(content: LayoutContent): boolean {
     content.bullets?.length ||
     content.bulletsB?.length ||
     content.cards?.length ||
+    content.figure?.value.trim() ||
     content.code?.code.trim(),
   );
 }
@@ -321,6 +376,35 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
   };
 
   const heroFont = layout === "code" ? "sans" : "display";
+
+  // Layouts that carry their ideas as icon-led points, not panels.
+  const openCards = layout === "three-up" || layout === "action" || layout === "explainer";
+
+  if (slots.icon) {
+    // A takeaway without an icon is still a takeaway; the lightbulb is the
+    // honest default for "remember this" rather than a blank where a shape
+    // was meant to be.
+    elements.push({
+      id: elementId("icon"),
+      type: "icon",
+      frame: slots.icon,
+      name: content.icon || "lightbulb",
+      color: { kind: "token", token: "accent" },
+      strokeWidth: 1.5,
+      hidden: false,
+      locked: false,
+      opacity: 1,
+      hotspot: null,
+      animation: {
+        entrance: "scale",
+        delay: nextDelay(),
+        duration: 0.6,
+        emphasis: "none",
+        onAdvance: false,
+        exit: "none",
+      },
+    });
+  }
 
   if (content.eyebrow && slots.eyebrow) {
     elements.push({
@@ -436,7 +520,9 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
               layout === "chart" ||
               layout === "code" ||
               layout === "two-column" ||
-              layout === "three-up"
+              layout === "three-up" ||
+              layout === "figure" ||
+              layout === "explainer"
                 ? 2
                 : 1,
             frame: slots.heading,
@@ -456,7 +542,7 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
               exit: "none",
             },
             style: {
-              size: big ? 1 : 0.62,
+              size: big ? 1 : layout === "takeaway" || layout === "action" ? 0.78 : 0.62,
               weight: 600,
               align,
               valign: big ? "middle" : "top",
@@ -470,6 +556,54 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
             },
           },
     );
+  }
+
+  if (content.figure?.value.trim() && slots.figure) {
+    // The number is text, not a heading: a heading is the claim, and the
+    // claim is already on the scene above it. The `figure_` id is the
+    // contract `extractContent` reads it back by, the way a cover's veil is.
+    elements.push({
+      id: elementId("figure"),
+      type: "text",
+      frame: slots.figure,
+      content: richText(content.figure.value.trim()),
+      hidden: false,
+      locked: false,
+      opacity: 1,
+      hotspot: null,
+      animation: {
+        entrance: "scale",
+        delay: nextDelay(),
+        duration: 0.7,
+        emphasis: "none",
+        onAdvance: false,
+        exit: "none",
+      },
+      style: {
+        size: 3.6,
+        weight: 700,
+        align: "left",
+        valign: "middle",
+        italic: false,
+        underline: false,
+        uppercase: false,
+        // Not 1: a line box shorter than the glyphs' own content area counts
+        // as overflow, and the sheet test reports the number as cut off.
+        lineHeight: 1.2,
+        letterSpacing: -0.04,
+        family: "display",
+        color: { kind: "token", token: "accent" },
+      },
+    });
+    if (content.figure.label.trim() && slots.figureLabel) {
+      elements.push({
+        ...textElement(content.figure.label.trim(), slots.figureLabel, "left", nextDelay(), {
+          size: 0.62,
+          muted: true,
+        }),
+        id: elementId("figurelabel"),
+      });
+    }
   }
 
   if (content.attribution && slots.attribution && layout !== "quote") {
@@ -587,7 +721,8 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
         id: elementId("card"),
         type: "callout",
         frame: slots.cards![i],
-        tone: "neutral",
+        tone: openCards ? "accent" : "neutral",
+        variant: openCards ? "open" : "card",
         icon: card.icon ?? "circle",
         title: card.title,
         content: richText(card.body),
@@ -604,11 +739,14 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
           exit: "none",
         },
         style: {
-          // 0.66, up from 0.44. A card column is a quarter of the stage
-          // wide, which is room enough for body text; at 0.44 the three cards
-          // read as grey texture rather than as three points. The callout now
-          // fits its own body, so a longer one shrinks rather than clipping.
-          size: 0.66,
+          // 1.4 for an open point, 0.66 for a panel. The panel's 0.66 was
+          // itself up from 0.44, and it is still a body of seventeen pixels
+          // on a sixteen-hundred-pixel stage — grey texture from the back of
+          // a room. An open point has no panel to fit inside and is the
+          // scene's whole content, so it is set near the list scale. The
+          // callout fits its own body, so a longer one shrinks rather than
+          // clipping.
+          size: openCards ? 1.4 : 0.66,
           weight: 400,
           align: "left",
           valign: "top",
@@ -967,10 +1105,17 @@ export function extractContent(content: SceneContent): LayoutContent {
       }
       case "text": {
         const t = el.content.map((r) => r.text).join("");
-        if (el.style.uppercase && !out.eyebrow) out.eyebrow = t;
+        if (el.id.startsWith("figure_")) {
+          out.figure = { value: t, label: out.figure?.label ?? "" };
+        } else if (el.id.startsWith("figurelabel_")) {
+          out.figure = { value: out.figure?.value ?? "", label: t };
+        } else if (el.style.uppercase && !out.eyebrow) out.eyebrow = t;
         else texts.push(t);
         break;
       }
+      case "icon":
+        out.icon ??= el.name;
+        break;
       case "image":
         out.media ??= { url: el.url, alt: el.alt, assetId: el.assetId };
         break;
@@ -1018,5 +1163,9 @@ export const ALL_LAYOUTS: { value: SceneLayout; label: string; hint: string }[] 
   { value: "chart", label: "Data", hint: "Chart with heading" },
   { value: "code", label: "Code", hint: "Monospaced block" },
   { value: "closing", label: "Closing", hint: "Wrap up" },
+  { value: "takeaway", label: "Take-home", hint: "One point to leave with, led by an icon" },
+  { value: "action", label: "Call to action", hint: "What to do next, in up to three steps" },
+  { value: "figure", label: "One number", hint: "A figure large enough to be the scene" },
+  { value: "explainer", label: "Explainer", hint: "A plain line, three points, a picture" },
   { value: "custom", label: "Free-form", hint: "Position everything yourself" },
 ];

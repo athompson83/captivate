@@ -678,8 +678,10 @@ describe("visual intent to layout", () => {
   });
 
   it("falls back to the role where the author let Captivate choose", () => {
-    expect(layoutFor("auto", "close", 4)).toBe("closing");
-    expect(layoutFor("auto", "evidence", 2)).toBe("chart");
+    // A close is a call to action, not a list of what was said; evidence
+    // alternates one number with a chart (see point-routing.test.ts).
+    expect(layoutFor("auto", "close", 4)).toBe("action");
+    expect(layoutFor("auto", "evidence", 3)).toBe("chart");
     expect(layoutFor("auto", "transition", 2)).toBe("section");
   });
 

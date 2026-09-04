@@ -138,6 +138,36 @@ does it by taking only the nearest three regions (`NEIGHBOURS` in
 input the two agree to within a percent, and a test renders the shader to keep
 it that way.
 
+### Depth
+
+Behind the fbm sit three layers of soft motes, and they are what makes the
+room three-dimensional. Each layer is the content plane seen by a camera
+sitting further back — 0.6, 2.2 and 6 scene-widths (`DEPTH_LAYERS`) — so its
+world-units-per-pixel is the camera's plus that distance over the viewport.
+That one line is the whole projection: a pan slides a far layer slower than
+the content and a zoom grows it less, which is parallax rather than a texture
+scrolled at a made-up rate.
+
+The layer is built to be seen during a transition and not on a scene. While
+the camera stands still the motes are a faint scatter drifting over tens of
+seconds. As the camera flies they brighten, more of the field comes out, and
+each disc is stretched along the direction of travel — a streak, not a blur,
+because the thing the room should read from it is _which way_. The stirring is
+measured from consecutive cameras handed to `draw` (`cameraMotion`: pan in
+viewport-widths per second, zoom in e-folds per second, either saturating on
+its own so a pure dive still reads as travel), rises instantly, and settles by
+a factor of e every 0.4 s after landing (`settleMotion`), so the air is still
+moving for a beat after the content has stopped. A reduced-motion preference
+pins it still; the journey's `depth` at zero removes it.
+
+Cost is one hash lookup per layer per pixel: a mote is jittered within the
+middle of its cell and its radius never reaches the edge, so no neighbour can
+intrude and there is no 3×3 search. Lightness moves _away_ from the room's own
+— up in a dark theme, down on paper — so a mote is visible on every theme and
+never clips to white. The shader test renders a flat, a resting and a flying
+frame and asserts the resting dust is faint, the flight visibly stirs it, a
+pan moves it, and a streak lies along the heading.
+
 ---
 
 ## The world
@@ -158,15 +188,15 @@ authored by dragging one scene inside another on the journey map.
 `src/lib/present/arrange.ts` turns an ordered list of scenes into positions.
 Each preset is a pure function of index, section and count.
 
-| Preset          | Shape                                                         |
-| --------------- | ------------------------------------------------------------- |
-| `flow`          | **Default.** A serpentine filling a page, each row reversing. |
-| `reel`          | A straight line at one zoom — a conventional deck.            |
-| `grid`          | Sections become rows.                                         |
-| `timeline`      | A spine with scenes alternating above and below it.           |
-| `spiral`        | Winds outward; the shape reads as widening scope.             |
-| `nested`        | Each scene inside the last, surfacing every third.            |
-| `constellation` | Sections cluster in their own regions.                        |
+| Preset          | Shape                                                                             |
+| --------------- | --------------------------------------------------------------------------------- |
+| `flow`          | **Default.** A serpentine filling a page, each row reversing, each region tilted. |
+| `reel`          | A straight line at one zoom — a conventional deck.                                |
+| `grid`          | Sections become rows.                                                             |
+| `timeline`      | A spine with scenes alternating above and below it.                               |
+| `spiral`        | Winds outward; the shape reads as widening scope.                                 |
+| `nested`        | Each scene inside the last, surfacing every third.                                |
+| `constellation` | Sections cluster in their own regions.                                            |
 
 Applying an arrangement stamps a placement onto every scene, in one statement
 and one undo step. Dragging a scene afterwards overrides its placement; the rest
@@ -177,6 +207,15 @@ jumping back to where the preset would have put that index.
 Every arrangement holds one invariant, which is tested: two consecutive scenes
 are either clearly apart or one sits wholly inside the other. A partial overlap
 is just a mess.
+
+`flow` tilts every region by a degree or two (`FLOW_TILT`), never the same on
+two neighbours. A page of scenes all sitting square is a grid, and a grid is
+the one shape that tells an audience they are looking at slides; the camera
+shares a scene's rotation on arrival, so nothing the room reads is ever
+off-square — only the pulled-back composition and the turn the camera makes on
+the way. The row step reserves the footprint the tilt adds, so the no-overlap
+invariant holds by construction rather than by luck. `reel` stays square,
+because it is the conventional deck on purpose.
 
 ---
 
@@ -215,13 +254,40 @@ container before scaling.
 
 ## Layouts
 
-Fourteen named compositions in `lib/editor/layouts.ts`. A layout owns _geometry_;
+Eighteen named compositions in `lib/editor/layouts.ts`. A layout owns _geometry_;
 the caller supplies _content_.
 
 ```
-title · section · statement · bullets · split-left · split-right · media-full
-quote · two-column · three-up · chart · code · closing · custom
+title · cover · section · statement · bullets · split-left · split-right
+media-full · quote · two-column · three-up · chart · code · closing
+takeaway · action · figure · explainer · custom
 ```
+
+The last four are _points_ rather than pages, and they exist because a deck of
+headings and bullets is a deck of slides whatever the camera does. What a room
+leaves with is an icon, a number and a sentence:
+
+- **takeaway** — one take-home point, led by an icon set as large as the
+  heading beside it, with one line under it saying why it holds. A
+  movement-ending claim, evidence, example or synthesis lands here
+  (`layoutFor` reads `endsMovement`), so every movement hands over its point.
+- **action** — a call to action: the imperative as the heading, then up to
+  three steps across the width. An `application` or a `close` composes here; a
+  deck ends on what to do next, not on a list of what was said.
+- **figure** — one number large enough to be the scene, its label, the claim
+  it proves and one sentence on what to do about it. Evidence alternates this
+  with `chart`. The generator may only write a figure it was given; with none
+  it writes the claim and leaves the slot empty, and so does the fallback.
+- **explainer** — a plain-language sentence, three icon-led points (what it
+  is, why it happens, what follows) and a picture. `context` moments compose
+  here, and the media slot is one the drawing pass fills.
+
+Their points are callouts in the `open` variant: an icon, a short rule in the
+tone colour, a title and a line, painted straight onto the surface with no
+panel behind them. Three filled panels in a row is the loudest "these are
+slides" cue a scene can send, so `three-up` composes open now too; the `card`
+variant stays for authors who want one, and the inspector toggles between
+them.
 
 This is the main defence against badly composed scenes. Neither a person
 dragging boxes nor a language model has to invent coordinates — the composition
@@ -347,6 +413,28 @@ recording reproduces the motion the audience saw.
 `prefers-reduced-motion` collapses transitions to effectively instant and
 suppresses entrance animation entirely.
 
+### Drawings
+
+A drawing element is a picture that sketches itself: SVG path data in its own
+viewBox, one stage per advance, animated by `stroke-dasharray` entirely in CSS
+(`DrawnPicture`). A path carries three things beyond its geometry — `weight`,
+a multiple of the element's stroke; `ink`, an override so one stroke can take
+the accent; and `fill`, a soft wash inside a closed path in its own ink, at
+14% opacity, arriving once the stroke around it has closed. They exist because
+a picture drawn at one weight in one colour with no mass is a wireframe, and a
+wireframe is what "the drawings are weak" looks like. A generated drawing is
+placed at stroke width 3 on its 800-wide box, which is a three-pixel line on
+the stage; two disappeared on a projector.
+
+The generator is briefed as an explainer illustrator rather than asked for
+"a line drawing": one subject filling seventy percent of the box, built from
+named primitives with exact construction recipes (a circle is two arcs, a
+rounded box is four quadratics, an arrow is a shaft and a two-stroke head),
+outlines at 1.6, detail at 1, guides at 0.6, two or three shapes with mass, and
+the idea each stage adds in the accent. Never words as paths. Stages are
+capped at four and folded when a model exceeds it (`normaliseDrawing`), and
+the box is widened to hold every stroke rather than clipping one.
+
 ### Builds
 
 `buildStepCount` computes how many discrete advances a scene contains: one for
@@ -376,11 +464,11 @@ Literal hex is allowed where a user genuinely wants a specific colour.
 
 ## Elements
 
-Fourteen types, all rendered from typed data:
+Fifteen types, all rendered from typed data:
 
 **Text** — heading, text, quote, list, callout, code
 **Media** — image, video, audio, embed
-**Objects** — shape, divider, icon, chart
+**Objects** — shape, divider, icon, chart, drawing
 
 Text renders from `RichText`, an array of `{ text, bold?, italic?, href?, … }`
 runs. Never HTML. There is no `dangerouslySetInnerHTML` on the stage, so there
