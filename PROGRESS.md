@@ -10,10 +10,9 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #73 — the phone generation fix (keep-alive on the long AI
-  routes), awaiting CI, merge and production verification
-- `main`: through PR #72 (merged) — `24a287a`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #74 (merged,
+  squash `0211aa9`); this closeout on the same branch, restarted from `main`
+- `main`: through PR #74 (merged) — `0211aa9`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (this session added
   `0030`, applied before the merge so the shared viewer never served a 404)
 - Brand: Captivate is the product; Axtevi is the company it sits under
@@ -67,10 +66,29 @@ ledger shows a seventeen-moment deck within seconds of the old one; and the
 toast for a genuine network failure now says the deck may be in the dashboard
 "possibly with its scenes written", and to retry only if it is not.
 
-Not verified here: the fix on the owner's phone. What is verified is the
-stream itself (heartbeats before the body, the body parsing as JSON behind
-forty seconds of prelude, a thrown route becoming an error body, a cancelled
-reader not breaking the work) and the route coverage.
+**Reviewed and landed.** Codex is out of credit, so the review was a local
+pass over the diff, which found two things worth fixing: the image panel
+cleared its busy state when `fetch` resolved — with streamed headers that is
+at once, not when the picture lands, so a second click could start a second
+paid generation — and a route that threw behind the stream reached the
+author as a polite sentence and the operator as nothing, where before it was
+a logged 500. Both fixed and tested. PR #74 then sat with no CI run at all
+for a quarter of an hour: the branch still carried the closeout commit that
+`main` had received by squash, both sides had since touched the status
+files, and GitHub cannot build the merge ref for a conflicted pull request so
+it silently skips the `pull_request` workflow. Merging `main` in and taking
+the branch's status files resolved it; every job went green on `816a95a`,
+squash `0211aa9`, `main` green on the merge.
+
+**Production.** The smoke and accessibility suites pass 37 of 37 against
+`https://www.axtevi.com` through the proxy (two navigations timed out at
+the proxy on the first run and passed on the re-run). The five wrapped
+routes answer an unauthenticated call with the sign-in redirect in under a
+quarter of a second, as before. Not readable from here: which build the
+domain is serving — Vercel's project and deployment APIs refuse this token,
+and the landing page's chunk list is unchanged because nothing it loads was
+touched. Every previous merge has deployed within a minute; the owner's
+phone is the test that matters, and the ledger will show it either way.
 
 ### Three things the owner could not find, or see — undo, a backdrop, and drawings that are drawn
 
