@@ -11,10 +11,10 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #87 — three, two, one: a count-in over the stage before a
-  recording begins (PR #88, awaiting CI and merge); full screen by hand on
-  the shared viewer, by either API name, queued behind it
-- `main`: through PR #87 (merged); every migration through
+  `main` after PR #88 — full screen by hand on the shared viewer, by either
+  API name, awaiting CI, merge and production verification; this branch also
+  carries the MVP-021 closeout
+- `main`: through PR #88 (merged) — `f1c6c93`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -72,6 +72,12 @@ the last, stops at once when cancelled, and is already over when cancelled
 before it began; the overlay announces the number and cancels from the button
 or Escape; a source-reading test pins the order in `begin` — prepare, close
 the dialog, count, then start — so the count can never reach the file.
+
+**Landed and verified.** PR #88 squash-merged as `f1c6c93`, CI green on the
+head. The count needs a real screen-capture permission, which no probe can
+grant, so production evidence is the deployment itself: the proxied smoke
+suite 37 of 37 against `www.axtevi.com` after the deploy, and the stage route
+answering (a redirect to sign-in for an anonymous request, as designed).
 
 ### A share link on a phone
 
