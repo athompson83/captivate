@@ -179,4 +179,34 @@ describe("the shared viewer", () => {
     // Dived, and still inside: a second, bubbled advance would have surfaced.
     expect(status()).toMatch(/^Detail/);
   });
+
+  it("offers full screen by hand, and the button never advances the deck", async () => {
+    const stageProto = HTMLElement.prototype as unknown as Record<string, unknown>;
+    const docAny = document as unknown as Record<string, unknown>;
+    const hadEnabled = Object.getOwnPropertyDescriptor(document, "fullscreenEnabled");
+    Object.defineProperty(document, "fullscreenEnabled", { value: true, configurable: true });
+    const request = vi.fn(() => Promise.resolve());
+    const hadRequest = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "requestFullscreen");
+    Object.defineProperty(HTMLElement.prototype, "requestFullscreen", {
+      value: request,
+      configurable: true,
+      writable: true,
+    });
+    try {
+      mount();
+      const before = status();
+      const button = screen.getByRole("button", { name: "Full screen" });
+      await act(async () => {
+        fireEvent.click(button, { clientX: 1500, clientY: 20 });
+      });
+      expect(request).toHaveBeenCalledTimes(1);
+      // The click stopped at the button: the deck did not move.
+      expect(status()).toBe(before);
+    } finally {
+      if (hadEnabled) Object.defineProperty(document, "fullscreenEnabled", hadEnabled);
+      else delete docAny.fullscreenEnabled;
+      if (hadRequest) Object.defineProperty(HTMLElement.prototype, "requestFullscreen", hadRequest);
+      else delete stageProto.requestFullscreen;
+    }
+  });
 });

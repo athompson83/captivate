@@ -218,7 +218,11 @@ invitation says so to a coarse pointer. The recogniser is strict: a short,
 mostly horizontal journey; a scroll or a hesitation does nothing. A tap on a
 hotspot is the hotspot's alone (it used to dive and step straight back out),
 pinches stay the browser's, and a pull at the top of a deck is never a page
-refresh. The stage takes the same gesture from a presenter on a tablet.
+refresh. The stage takes the same gesture from a presenter on a tablet. Full
+screen is a button in the corner as well as the F key, because a hand has no
+F; it appears only where the browser can do it (an iPhone cannot), asks by the
+prefixed name Safari on iPad still uses, and says so when refused rather than
+doing nothing.
 
 **The frame before the stage is black.** Both audience routes await the deck
 on the server; until it arrives they show a black frame rather than the site's
