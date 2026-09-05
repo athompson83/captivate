@@ -22,6 +22,14 @@ import { logFailure } from "@/lib/observability";
  * the `error` field of the body, which every AI client already reads. The
  * checks that produce a real status (signed out, rate limited, malformed
  * input) run before this wrapper and keep theirs.
+ *
+ * The heartbeats also have to *arrive*. The first version of this wrapper
+ * sent them and the phone still reported a network failure over a map that
+ * the server finished in 58 seconds: the response is JSON, JSON is
+ * compressible, and a compressing hop between the function and the device
+ * holds a newline in its window rather than forwarding it. The response now
+ * declares its own encoding (see the headers below) so nothing recompresses
+ * it, and every byte written here reaches the phone as written.
  */
 /** Well inside the sixty seconds a phone allows between bytes. */
 export const HEARTBEAT_MS = 10_000;
@@ -75,8 +83,15 @@ export function keepAlive(work: () => Promise<Response>): Response {
     status: 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      // `no-transform` asks every hop not to buffer the body for compression;
-      // a heartbeat that sits in a gzip window is no heartbeat.
+      // The body leaves here already in its final encoding, so no hop may
+      // compress it. `no-transform` only asks; the edge compressed this JSON
+      // anyway, and a one-byte heartbeat inside a compressor's window is no
+      // heartbeat — the ledger showed a map finished in 58 seconds while the
+      // phone, having received nothing, gave up at sixty. A declared encoding
+      // is what a compressing proxy honours: it does not re-encode a body
+      // that already says how it is encoded. `identity` is the standard name
+      // for "as is", and every browser reads it as no decoding at all.
+      "Content-Encoding": "identity",
       "Cache-Control": "no-store, no-transform",
       "X-Accel-Buffering": "no",
     },

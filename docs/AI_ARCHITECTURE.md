@@ -155,6 +155,13 @@ status (signed out, rate limited, malformed input) run before the wrapper and
 keep theirs. `tests/unit/long-route-keep-alive.test.ts` reads the routes and
 fails on any `maxDuration` past sixty seconds that does not return this way.
 
+The heartbeats also have to reach the device. The wrapper's first release sent
+them and the phone still timed out over a map the server finished in 58
+seconds, because the JSON body was compressed on its way out and a newline
+sat in the compressor's window instead of being forwarded. The response now
+declares `Content-Encoding: identity`, which a compressing hop honours by
+leaving the body alone, so each heartbeat arrives when it is written.
+
 ---
 
 ## Without a model
