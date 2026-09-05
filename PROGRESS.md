@@ -10,12 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #77 — kinetic headings on arrival and the hero's
-  scroll-linked pull-back, awaiting CI, merge and production verification
-- `main`: through PR #76 (merged) — `f62aa86`; every migration through
-  `0030_shared_backdrop_asset.sql` applied to production (this session added
-  `0030`, applied before the merge so the shared viewer never served a 404)
+- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #78 (merged,
+  squash `95e671e`); this closeout on the same branch, restarted from `main`
+- `main`: through PR #78 (merged) — `95e671e`; every migration through
+  `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -57,6 +55,17 @@ Tests: a heading performed word by word, whole in the editor, held for the
 camera, and whole past fourteen words; the pull-back's shape and clamping,
 the blend's endpoints, and the canvas's passive scroll listener wired and
 released.
+
+**Landed and verified.** PR #78, squash `95e671e`, six checks green on the
+head and `main` green on the merge. Production: the landing page's live demo
+on `https://www.axtevi.com`, driven in a real browser through the proxy,
+renders the word spans — three on the cover's heading, four on scene four's
+after three real flights — with an empty console; the smoke and accessibility
+suites 37 of 37 (one navigation timed out at this container's proxy on the
+first run and passed on the re-run). Codex remains out of credit, so the
+review was the local pass over the diff; the served build could not be read
+from here, as before, and the new spans in the live demo are the proof it is
+serving this one.
 
 ### The scene performs when the camera lands
 
