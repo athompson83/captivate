@@ -10,10 +10,12 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #87 — three, two, one: a count-in over the stage before a
-  recording begins, awaiting CI, merge and production verification
-- `main`: through PR #87 (merged); every migration through
+- Branch: `claude/captivate-3d-graphics-5ypuvx`, restarted from `main` after
+  PR #88 — the room answers the hand: on the shared viewer and the live demo,
+  the backdrop and the air follow a mouse over the world while the scene stays
+  put; awaiting CI, merge and production verification
+- `main`: through PR #88 (merged; the count-in before a recording — its
+  production verification is not yet recorded here); every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -33,6 +35,42 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The room answers the hand
+
+The owner's guidance, sent again, is the practice of 3D and animation work,
+and the one thing in it not yet applied to the audience surfaces was the
+oldest trick in depth: it is believed when it answers the viewer. Everything
+behind a scene had depth — the backdrop on its plane, the motes at three
+distances — and it showed only during a flight; between flights a visitor
+with a mouse over the world was looking at a still picture. Now, on the
+shared viewer and the landing page's live demo, the room answers the hand
+(`lib/present/lean.ts`): the backdrop and the air are seen from a camera
+leaned toward where the pointer is, up to two percent of the camera's width
+at the edge, so what is behind the scene shifts the way the view through a
+window does when you lean. The scene itself does not move — a scene being
+read is never misregistered, the rule from MVP-018 kept rather than bent.
+The lean eases in its own frame loop, which runs only while the room has
+somewhere to go and never through React; a flight reads it and never steps
+it; it returns exactly level when the pointer leaves. Not for a finger, which
+is a swipe; not under reduced motion; not on the projector, whose pointer is
+nobody's hand; not in the editor.
+
+Considered and not built: a perspective tilt on the dashboard's cards. The
+guidance names tilt-on-hover, and a card there genuinely is a discrete object
+— but it is furniture on an admin surface, and every round so far has spent
+its motion on the presentation itself.
+
+Tests: where the hand is, clamped at the edges and level over a box with no
+size; the ease closes the same distance at 30 and 60 frames a second, snaps
+within rest, returns exactly level and never moves on a zero step; the
+leaned camera keeps its width and rotation, leans by a fraction of its width
+at any zoom, scales the vertical by the aspect, moves the backdrop with the
+hand, and leans as the room sees it when turned. The world: a mouse over it
+moves the backdrop and not the world, eases rather than jumps, returns
+exactly level with the loop stopped, and does nothing for a finger, without
+the prop, or under reduced motion. The three positive cases were run with the
+listener removed and failed.
 
 ### Three, two, one
 

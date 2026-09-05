@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeAll } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, beforeAll, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { FileText } from "lucide-react";
 import { World } from "@/components/stage/world";
 import { EmptyState } from "@/components/ui/misc";
@@ -10,6 +10,13 @@ import { JOURNEY_DEFAULTS, type Scene } from "@/lib/schema/presentation";
 
 const STAGE = { width: 1600, height: 900 };
 const theme = getTheme("midnight");
+
+/** The reader's motion preference, switchable per test. */
+let prefersReducedMotion = false;
+vi.mock("motion/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("motion/react")>()),
+  useReducedMotion: () => prefersReducedMotion,
+}));
 
 /**
  * jsdom gives every element a zero bounding box, so the world never measures a
@@ -221,47 +228,47 @@ describe("the world", () => {
   });
 });
 
+/**
+ * Drives requestAnimationFrame by hand so a flight can be stepped.
+ *
+ * `cancelAnimationFrame` really has to drop the callback: a mock that only
+ * pretends to cancel makes this whole file unable to see the bug below, and
+ * a regression test that cannot fail is worse than no test at all.
+ */
+function controllableFrames() {
+  const pending = new Map<number, FrameRequestCallback>();
+  let id = 0;
+  const original = {
+    raf: globalThis.requestAnimationFrame,
+    caf: globalThis.cancelAnimationFrame,
+  };
+
+  globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+    id += 1;
+    pending.set(id, cb);
+    return id;
+  }) as typeof requestAnimationFrame;
+  globalThis.cancelAnimationFrame = ((handle: number) => {
+    pending.delete(handle);
+  }) as typeof cancelAnimationFrame;
+
+  return {
+    step(now: number) {
+      const due = [...pending.entries()];
+      pending.clear();
+      for (const [, cb] of due) cb(now);
+    },
+    get scheduled() {
+      return pending.size;
+    },
+    restore() {
+      globalThis.requestAnimationFrame = original.raf;
+      globalThis.cancelAnimationFrame = original.caf;
+    },
+  };
+}
+
 describe("a flight in progress", () => {
-  /**
-   * Drives requestAnimationFrame by hand so a flight can be stepped.
-   *
-   * `cancelAnimationFrame` really has to drop the callback: a mock that only
-   * pretends to cancel makes this whole file unable to see the bug below, and
-   * a regression test that cannot fail is worse than no test at all.
-   */
-  function controllableFrames() {
-    const pending = new Map<number, FrameRequestCallback>();
-    let id = 0;
-    const original = {
-      raf: globalThis.requestAnimationFrame,
-      caf: globalThis.cancelAnimationFrame,
-    };
-
-    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
-      id += 1;
-      pending.set(id, cb);
-      return id;
-    }) as typeof requestAnimationFrame;
-    globalThis.cancelAnimationFrame = ((handle: number) => {
-      pending.delete(handle);
-    }) as typeof cancelAnimationFrame;
-
-    return {
-      step(now: number) {
-        const due = [...pending.entries()];
-        pending.clear();
-        for (const [, cb] of due) cb(now);
-      },
-      get scheduled() {
-        return pending.size;
-      },
-      restore() {
-        globalThis.requestAnimationFrame = original.raf;
-        globalThis.cancelAnimationFrame = original.caf;
-      },
-    };
-  }
-
   it("keeps flying when something else re-renders the tree", () => {
     // The bug this exists for: the flight effect re-runs on every render,
     // because its `target` is a fresh object each time. When the animation
@@ -610,6 +617,147 @@ describe("depth inside the scenes", () => {
     renderWorld(4);
     for (const region of document.querySelectorAll<HTMLElement>("[data-scene-index]")) {
       expect(region.style.getPropertyValue("--px")).toBe("");
+    }
+  });
+});
+
+/**
+ * The room answers the hand. A mouse over the world leans what is behind the
+ * scene — the backdrop here, the air where WebGL draws it — and leaves the
+ * scene exactly where it was. Never a finger, never under reduced motion, and
+ * only where the surface asked for it.
+ */
+describe("the room answers the hand", () => {
+  const backdrop = {
+    url: "/api/assets/abc/content",
+    assetId: "abc",
+    alt: "a hall",
+    distance: 0.5,
+    dim: 0.4,
+  };
+  const translateX = (transform: string) => {
+    const matches = [...transform.matchAll(/translate\(([-\d.]+)px, ([-\d.]+)px\)/g)];
+    return Number(matches[matches.length - 1][1]);
+  };
+  const pointer = (
+    node: Element,
+    type: string,
+    x: number,
+    pointerType: "mouse" | "touch" = "mouse",
+  ) =>
+    fireEvent(
+      node,
+      new PointerEvent(type, { bubbles: true, clientX: x, clientY: 450, pointerType }),
+    );
+  const settle = (frames: ReturnType<typeof controllableFrames>) => {
+    for (let t = 0; t <= 3000 && frames.scheduled > 0; t += 16) frames.step(t);
+  };
+
+  it("moves the room behind the scene toward the hand, and the scene not at all", () => {
+    const frames = controllableFrames();
+    try {
+      const { container } = renderWorld(3, { lean: true, play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const world = container.querySelector<HTMLElement>("[data-world]")!;
+      const restingRoom = room.style.transform;
+      const restingWorld = world.style.transform;
+
+      pointer(container.firstElementChild!, "pointermove", 1600);
+      expect(frames.scheduled).toBeGreaterThan(0);
+      settle(frames);
+
+      expect(translateX(room.style.transform)).toBeGreaterThan(translateX(restingRoom));
+      expect(world.style.transform).toBe(restingWorld);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("eases rather than jumps", () => {
+    const frames = controllableFrames();
+    try {
+      const { container } = renderWorld(3, { lean: true, play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const resting = translateX(room.style.transform);
+
+      pointer(container.firstElementChild!, "pointermove", 1600);
+      frames.step(0);
+      frames.step(16);
+      const partway = translateX(room.style.transform);
+      settle(frames);
+      const arrived = translateX(room.style.transform);
+
+      expect(partway).toBeGreaterThan(resting);
+      expect(partway).toBeLessThan(arrived);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("returns exactly level when the hand leaves", () => {
+    const frames = controllableFrames();
+    try {
+      const { container } = renderWorld(3, { lean: true, play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const resting = room.style.transform;
+
+      pointer(container.firstElementChild!, "pointermove", 1600);
+      settle(frames);
+      expect(room.style.transform).not.toBe(resting);
+
+      pointer(container.firstElementChild!, "pointerleave", 1600);
+      settle(frames);
+      expect(room.style.transform).toBe(resting);
+      expect(frames.scheduled).toBe(0);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("does not answer a finger — that is a swipe", () => {
+    const frames = controllableFrames();
+    try {
+      const { container } = renderWorld(3, { lean: true, play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const resting = room.style.transform;
+
+      pointer(container.firstElementChild!, "pointermove", 1600, "touch");
+      expect(frames.scheduled).toBe(0);
+      expect(room.style.transform).toBe(resting);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("is still where the surface did not ask for it", () => {
+    const frames = controllableFrames();
+    try {
+      const { container } = renderWorld(3, { play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const resting = room.style.transform;
+
+      pointer(container.firstElementChild!, "pointermove", 1600);
+      expect(frames.scheduled).toBe(0);
+      expect(room.style.transform).toBe(resting);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("is still under a reduced-motion preference", () => {
+    const frames = controllableFrames();
+    prefersReducedMotion = true;
+    try {
+      const { container } = renderWorld(3, { lean: true, play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const resting = room.style.transform;
+
+      pointer(container.firstElementChild!, "pointermove", 1600);
+      expect(frames.scheduled).toBe(0);
+      expect(room.style.transform).toBe(resting);
+    } finally {
+      prefersReducedMotion = false;
+      frames.restore();
     }
   });
 });

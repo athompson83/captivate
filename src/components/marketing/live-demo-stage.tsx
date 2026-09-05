@@ -207,6 +207,7 @@ export function LiveDemoStage() {
           travel={journey.travel}
           pace={journey.pace}
           depth={journey.depth}
+          lean
           showPath={journey.showPath && wide}
           className="absolute inset-0"
           onSceneSelect={wide ? goto : undefined}

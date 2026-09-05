@@ -30,6 +30,14 @@ import {
 import { smoothPath } from "@/lib/present/path";
 import { backdropPlane, backdropTransform } from "@/lib/present/backdrop";
 import { regionParallax } from "@/lib/present/parallax";
+import {
+  LEVEL,
+  approachLean,
+  isSettled,
+  leanCamera,
+  pointerLean,
+  type Lean,
+} from "@/lib/present/lean";
 import { measureDrawnPath } from "./drawn-picture";
 import { ambientAt, paletteOf, scenePalettes } from "@/lib/present/ambient";
 import { oklabCss } from "@/lib/utils/color";
@@ -108,6 +116,14 @@ export interface WorldProps {
    * or with an empty url, the atmosphere is the ground.
    */
   backdrop?: JourneyBackdrop;
+  /**
+   * The room answers the hand: the backdrop and the air follow a mouse over
+   * the world a little, the scene stays exactly where it is. For the audience
+   * surfaces a visitor holds a pointer over — the shared viewer, the landing
+   * page's demo — and not the projector, whose pointer is nobody's hand.
+   * Never on touch, never under reduced motion.
+   */
+  lean?: boolean;
   showPath?: boolean;
   /**
    * Viewport pixels on the left the camera must treat as occupied — the
@@ -149,6 +165,7 @@ export const World = memo(function World({
   pace,
   depth,
   backdrop,
+  lean = false,
   showPath = false,
   safeInsetLeft = 0,
   className,
@@ -221,6 +238,19 @@ export const World = memo(function World({
    */
   const frameRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * The room's lean: where it is, where the hand is asking it to be, and when
+   * it was last advanced. Eased in its own frame loop, which runs only while
+   * the two differ; the flight's own frames read it and never step it.
+   */
+  const leanRef = useRef<{ current: Lean; target: Lean; at: number }>({
+    current: LEVEL,
+    target: LEVEL,
+    at: 0,
+  });
+  const leanFrameRef = useRef(0);
+  /** The latest `apply`, for the lean loop: it closes over this render's plane and viewport. */
+  const applyRef = useRef<((camera: Camera) => void) | null>(null);
   const arriveRef = useRef(onArrive);
   // Kept current in an effect, not during render: the flight loop below must
   // not restart when only the callback identity changes.
@@ -325,6 +355,11 @@ export const World = memo(function World({
 
     const apply = (camera: Camera) => {
       cameraRef.current = camera;
+      // The room — backdrop and air — is seen from a camera leaned toward the
+      // hand; the content is not. A scene being read stays registered, and
+      // what is behind it shifts, which is what depth looks like from a
+      // viewer who moves.
+      const room = lean ? leanCamera(camera, leanRef.current.current, aspectRatio) : camera;
       // Prepending the inset shifts the frame's centre into the clear area;
       // `worldTransform` then fits and centres within what remains.
       node.style.transform =
@@ -347,7 +382,7 @@ export const World = memo(function World({
       // so the parallax is never a frame behind the content.
       if (backdropRef.current) {
         backdropRef.current.style.transform = backdropTransform(
-          camera,
+          room,
           viewport,
           plane,
           stage,
@@ -364,7 +399,7 @@ export const World = memo(function World({
       // can see, is the most expensive way to do nothing.
       const wash = atmospherePaintedRef.current ? null : ambientRef.current;
       if (wash) {
-        const ambient = ambientAt(camera, placements, palettes, stage, basePalette);
+        const ambient = ambientAt(room, placements, palettes, stage, basePalette);
         wash.style.setProperty("--world-canvas", ambient.canvas);
         wash.style.setProperty("--world-surface", ambient.surface);
         wash.style.setProperty("--world-glow", ambient.glow);
@@ -373,8 +408,9 @@ export const World = memo(function World({
       // The same colour, per pixel, where the GPU can draw it. Deliberately
       // after the wash rather than instead of it: the wash is what shows if
       // this never initialises.
-      if (atmosphereRef.current?.draw(camera)) atmospherePaintedRef.current = true;
+      if (atmosphereRef.current?.draw(room)) atmospherePaintedRef.current = true;
     };
+    applyRef.current = apply;
 
     // Re-rendering with an equal destination must not restart a flight, and
     // the memo above cannot promise referential stability across every parent.
@@ -480,7 +516,68 @@ export const World = memo(function World({
     plane,
     backdropDistance,
     play,
+    lean,
+    aspectRatio,
   ]);
+
+  /* ---------------------------------------------------------------------- */
+  /* The lean                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!lean || reduced || !node) return;
+
+    /** Writes the room for the current lean — unless a flight is, this frame. */
+    const paint = () => {
+      const camera = cameraRef.current;
+      if (camera && frameRef.current === 0 && !timerRef.current) applyRef.current?.(camera);
+    };
+
+    const tick = (now: number) => {
+      const state = leanRef.current;
+      // A first frame, or one after a long pause, steps by a frame's worth
+      // rather than by the whole gap: a lean that jumped to its target after
+      // a hidden tab is a pop.
+      const dt = state.at > 0 ? Math.min(0.1, (now - state.at) / 1000) : 1 / 60;
+      state.current = approachLean(state.current, state.target, dt);
+      state.at = now;
+      paint();
+      if (isSettled(state.current, state.target)) {
+        leanFrameRef.current = 0;
+        state.at = 0;
+        return;
+      }
+      leanFrameRef.current = requestAnimationFrame(tick);
+    };
+
+    const aim = (target: Lean) => {
+      leanRef.current.target = target;
+      if (leanFrameRef.current === 0 && !isSettled(leanRef.current.current, target)) {
+        leanFrameRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      // A finger on the stage is a swipe, not a lean.
+      if (event.pointerType === "touch") return;
+      aim(pointerLean(event.clientX, event.clientY, node.getBoundingClientRect()));
+    };
+    const onPointerLeave = () => aim(LEVEL);
+
+    node.addEventListener("pointermove", onPointerMove);
+    node.addEventListener("pointerleave", onPointerLeave);
+    return () => {
+      node.removeEventListener("pointermove", onPointerMove);
+      node.removeEventListener("pointerleave", onPointerLeave);
+      if (leanFrameRef.current) cancelAnimationFrame(leanFrameRef.current);
+      leanFrameRef.current = 0;
+      // Level again, and painted so: a preference that flipped mid-lean must
+      // not leave the room standing a little to one side.
+      leanRef.current = { current: LEVEL, target: LEVEL, at: 0 };
+      paint();
+    };
+  }, [lean, reduced]);
 
   /* ---------------------------------------------------------------------- */
   /* What to render                                                          */
