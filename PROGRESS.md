@@ -10,9 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` — the share card
-  → PR #90 (merged, squash `7e31939`); this closeout on the same branch,
-  restarted from `main`
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #90 — the MVP-023 closeout, and help under `?` (the
+  editor's shortcut list and the stage's keys one key away; an empty scene's
+  third step as a button), awaiting CI, merge and production verification
 - `main`: through PR #90 (merged) — `7e31939`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
@@ -33,6 +34,27 @@
   executable by no role at all.
 
 ## Latest Session
+
+### Help under `?`
+
+The presenter bar hides itself after 2.6 seconds and every action on it has
+a key — the right design for the room and the wrong one for a first night,
+when the affordances are gone before they have been read. The editor had a
+shortcut list behind a toolbar icon and no key to open it; the stage had no
+list at all. Now `?` opens the editor's list from anywhere (the dialog's
+state moved up to the editor root so the keymap can reach it) and puts the
+presenter's keys over the stage (`lib/present/keys.ts`,
+`presenter-help.tsx`), with a Keys button on the bar for the same; Esc or
+`?` closes it, and it never renders in audience-only mode. The list is data
+held to the stage's real key handler by a test, so a key added to one and not
+the other fails the build. Along the way the empty scene's copy promised
+three steps and offered two buttons and a key to remember; the third, "Let
+AI draft it", is a button now, and the line beneath teaches `I` and `?`.
+
+Tests: `?` opens the editor's list except while typing and is listed among
+the shortcuts it opens; every `case` in the stage's key handler is named in
+the presenter's list; the overlay renders as a dialog that closes on a click
+away; the empty scene offers its third step as a button.
 
 ### A share link that looks like something before it is opened
 

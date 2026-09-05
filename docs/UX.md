@@ -91,6 +91,13 @@ appearing as a library entry that plays nothing.
 It appears on movement and disappears after 2.6 seconds. Every action on it has
 a keyboard shortcut, so it never needs to appear at all.
 
+That is the right design for the room and the wrong one for a first night, when
+the affordances are gone before they have been read — so `?` puts the keys over
+the stage on demand, and the bar carries the same button. The list is data
+(`lib/present/keys.ts`) held to the stage's real key handler by a test, so a
+key added to one and not the other fails the build. Presenter-facing, like the
+timer; never in audience-only mode.
+
 The audience should be looking at content. In audience-only mode the bar does
 not exist.
 
@@ -129,8 +136,11 @@ section keeps it there.
 
 ## Empty states do work
 
-An empty scene offers three concrete next steps. An empty library explains what
-belongs there and offers both creation paths. An empty notes workspace explains
+An empty scene offers three concrete next steps — a heading, a layout, or AI —
+each as a button, with the keys beneath for next time (`I` for AI, `?` for the
+whole list; `?` opens the editor's shortcut list from anywhere, as it does in
+every keyboard-driven app). An empty library explains what belongs there and
+offers both creation paths. An empty notes workspace explains
 the difference between lecture notes and speaker notes.
 
 A blank rectangle with "No items" teaches nothing.
