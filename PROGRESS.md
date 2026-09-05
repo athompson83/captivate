@@ -10,10 +10,11 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` — the show opens
-  and closes on the whole of itself → PR #84 (merged, squash `298bacd`); this
-  closeout on the same branch, restarted from `main`
-- `main`: through PR #84 (merged) — `298bacd`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #85 — a share link on a phone (swipe to move, a tap on a
+  hotspot that does one thing, no rubber-banding), awaiting CI, merge and
+  production verification
+- `main`: through PR #85 (merged) — `4653393`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -33,6 +34,34 @@
   executable by no role at all.
 
 ## Latest Session
+
+### A share link on a phone
+
+A share link is opened on a phone more often than anywhere else, and a phone
+has no arrow keys: the viewer's only moves were keys and click zones, and
+nothing stopped a pull at the top of the deck from refreshing the page. Now
+the viewer, the landing page's live demo and the stage move on a swipe — left
+for on, right for back, the same two moves as the click zones, which stay
+(`lib/present/swipe.ts`). The recogniser is strict: a short, mostly horizontal
+journey; a scroll or a hesitation does nothing, so the page never moves under
+a reader who was only steadying a thumb. The click a browser synthesises
+after a touch swipe is swallowed once, and only the click of that journey —
+the flag clears when the next pointer lands, because a swipe whose click never
+came used to eat the tap that followed. Along the way a real bug: a tap on a
+hotspot bubbled to the click zone and dived _and_ stepped on, and inside the
+aside the step was the way straight back out; a click on a control is now the
+control's alone. `touch-action` keeps pinches the browser's and gives sideways
+to the viewer (and up and down to the page, on the landing demo);
+`overscroll-behavior` ends pull-to-refresh over a deck. The invitation says
+"swipe or tap" to a coarse pointer, read as an external store so the first
+client render agrees with the server.
+
+Tests: the recogniser's thresholds each way; the control guard; the hook
+reports a swipe, swallows the click that follows and not the tap after; the
+viewer and the demo move on a swipe and not on a scroll; a hotspot tap dives
+and stays; the browser suite runs the viewer as a phone (`hasTouch`,
+`isMobile`, 390×844) and swipes it through the deck, then taps the left edge
+back. `npm run verify` green; lifecycle browser suite 8 of 8.
 
 ### The show opens and closes on the whole of itself
 

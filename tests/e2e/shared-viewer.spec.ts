@@ -104,6 +104,28 @@ test.describe("shared viewer", () => {
     expect(problems).toEqual([]);
   });
 
+  test.describe("on a phone", () => {
+    test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+
+    test("swipes move through the deck, and a tap on the left goes back", async ({ page }) => {
+      const { problems } = await open(page);
+      await expect(status(page)).toContainText("Scene 1 of");
+      // The invitation speaks to a hand.
+      await expect(page.getByText("Swipe or tap to move through")).toBeVisible();
+
+      for (let i = 0; i < 12; i += 1) {
+        await page.evaluate(() => window.sharedViewerFixture.swipe(-160));
+        if (!/Scene 1 of/.test((await status(page).textContent()) ?? "")) break;
+      }
+      await expect(status(page)).toContainText("Scene 2 of");
+
+      // A real tap on the left edge is the way back.
+      await page.touchscreen.tap(30, 422);
+      await expect(status(page)).toContainText("Scene 1 of");
+      expect(problems).toEqual([]);
+    });
+  });
+
   test.describe("asides", () => {
     test("the linear walk steps over the detail scene", async ({ page }) => {
       const { problems, sceneCount } = await open(page, "mountWithAside");

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useOpening } from "@/lib/present/opening";
+import { isControl, useCoarsePointer, useSwipe } from "@/lib/present/swipe";
 import { ClosingFrame } from "@/components/present/closing-frame";
 import { AnimatePresence, motion } from "motion/react";
 import { getTheme, themeCssVars } from "@/lib/schema/theme";
@@ -160,7 +161,11 @@ export function LiveDemoStage() {
     }
   };
 
+  const swipe = useSwipe((direction) => (direction === "left" ? next() : prev()));
+  const coarse = useCoarsePointer();
+
   const advanceOnClick = (e: React.MouseEvent) => {
+    if (swipe.consume() || isControl(e.target)) return;
     // The same clicker convention as the stage: right side forward, left back.
     const rect = e.currentTarget.getBoundingClientRect();
     if ((e.clientX - rect.left) / rect.width < 0.28) prev();
@@ -182,7 +187,12 @@ export function LiveDemoStage() {
         data-opening={opening ? "" : undefined}
         onKeyDown={onKeyDown}
         onClick={advanceOnClick}
-        className="relative aspect-[16/9] w-full cursor-pointer overflow-hidden rounded-[var(--radius-xl)] bg-black outline-none focus-visible:ring-2 focus-visible:ring-[var(--sky-action)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sky-deep)]"
+        onPointerDown={swipe.onPointerDown}
+        onPointerUp={swipe.onPointerUp}
+        onPointerCancel={swipe.onPointerCancel}
+        // Sideways is the demo's; up and down stay the page's, so a visitor
+        // scrolling past it with a thumb is never caught.
+        className="relative aspect-[16/9] w-full cursor-pointer touch-pan-y touch-pinch-zoom overflow-hidden rounded-[var(--radius-xl)] bg-black outline-none focus-visible:ring-2 focus-visible:ring-[var(--sky-action)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sky-deep)]"
         style={themeCssVars(theme)}
       >
         <World
@@ -216,7 +226,9 @@ export function LiveDemoStage() {
               className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-6"
             >
               <p className="rounded-full border border-white/12 bg-black/55 px-4 py-2 text-center text-[12.5px] font-medium text-white/85 backdrop-blur-md">
-                Press → or tap the stage · O sees the whole map
+                {coarse
+                  ? "Swipe or tap the stage to move through"
+                  : "Press → or tap the stage · O sees the whole map"}
               </p>
             </motion.div>
           )}

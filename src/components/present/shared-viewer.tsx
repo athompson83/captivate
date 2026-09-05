@@ -9,6 +9,7 @@ import { getTheme, themeCssVars } from "@/lib/schema/theme";
 import { buildStepCount } from "@/lib/present/motion";
 import { useFullscreen } from "@/lib/present/fullscreen";
 import { useOpening } from "@/lib/present/opening";
+import { isControl, useCoarsePointer, useSwipe } from "@/lib/present/swipe";
 import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
 import { World, type Focus } from "@/components/stage/world";
@@ -246,7 +247,14 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  // A phone has no arrow keys: a swipe is the move a hand makes unprompted.
+  const swipe = useSwipe((direction) => (direction === "left" ? next() : prev()));
+  const coarse = useCoarsePointer();
+
   const advanceOnClick = (e: React.MouseEvent) => {
+    // The click a browser synthesises after a swipe is not a second move, and
+    // a click on a hotspot is the hotspot's.
+    if (swipe.consume() || isControl(e.target)) return;
     // The same clicker convention as the stage: right side forward, left back.
     const rect = e.currentTarget.getBoundingClientRect();
     if ((e.clientX - rect.left) / rect.width < 0.28) prev();
@@ -268,9 +276,14 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
       ref={containerRef}
       data-view={wide ? "world" : "scene"}
       data-opening={opening ? "" : undefined}
-      className="stage-safe relative h-screen w-screen overflow-hidden bg-black"
+      // Pans are the viewer's (a swipe), pinches stay the browser's, and a
+      // pull at the top of a deck never becomes a page refresh.
+      className="stage-safe relative h-screen w-screen touch-pinch-zoom overflow-hidden overscroll-none bg-black"
       style={themeCssVars(theme)}
       onClick={advanceOnClick}
+      onPointerDown={swipe.onPointerDown}
+      onPointerUp={swipe.onPointerUp}
+      onPointerCancel={swipe.onPointerCancel}
     >
       <World
         scenes={scenes}
@@ -319,7 +332,9 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
             <div className="rounded-full border border-white/12 bg-black/55 px-5 py-2.5 text-center backdrop-blur-md">
               <p className="text-[13px] font-medium text-white/90">{deck.title}</p>
               <p className="mt-0.5 text-[11.5px] text-white/55">
-                Click or press → to move through · O sees the whole map
+                {coarse
+                  ? "Swipe or tap to move through"
+                  : "Click or press → to move through · O sees the whole map"}
               </p>
             </div>
           </motion.div>
