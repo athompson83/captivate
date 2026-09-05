@@ -22,6 +22,7 @@ import {
 } from "./movement-rail";
 import { AnnotationLayer } from "./annotation-layer";
 import { ClosingFrame } from "./closing-frame";
+import { PresenterHelp } from "./presenter-help";
 import { isControl, useSwipe } from "@/lib/present/swipe";
 import { PresenterBar } from "./presenter-bar";
 import { ConnectPhone } from "./connect-phone";
@@ -155,6 +156,8 @@ export function PresentRoot({
   const [color, setColor] = useState<string>(PRESENTER_COLORS[0].value);
   const [penWidth, setPenWidth] = useState(1);
   const [barVisible, setBarVisible] = useState(!audienceOnly);
+  /** The keys, over the stage. Presenter-facing; never in audience-only mode. */
+  const [helpOpen, setHelpOpen] = useState(false);
   /** Bumped on any presenter activity to restart the auto-hide countdown. */
   const [activity, setActivity] = useState(0);
   /** When the countdown was last restarted, so pointer moves stay cheap. */
@@ -295,8 +298,17 @@ export function PresentRoot({
           e.preventDefault();
           session.clearScene();
           break;
+        case "?":
+          if (!audienceOnly) {
+            e.preventDefault();
+            setHelpOpen((open) => !open);
+          }
+          break;
         case "Escape":
-          if (session.overview) {
+          if (helpOpen) {
+            e.preventDefault();
+            setHelpOpen(false);
+          } else if (session.overview) {
             e.preventDefault();
             session.toggleOverview();
           } else if (tool !== "none") {
@@ -319,7 +331,7 @@ export function PresentRoot({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [audienceOnly, fullscreen, presentation.id, scenes.length, session, tool]);
+  }, [audienceOnly, fullscreen, helpOpen, presentation.id, scenes.length, session, tool]);
 
   // The same two moves by hand, for a presenter driving from a tablet. The
   // audience window and the annotation tools own their pointer, as for clicks.
@@ -414,6 +426,13 @@ export function PresentRoot({
           />
         )}
 
+        {/* The keys, on demand. Presenter-facing, like the timer. */}
+        <AnimatePresence>
+          {helpOpen && !audienceOnly && (
+            <PresenterHelp key="help" onClose={() => setHelpOpen(false)} />
+          )}
+        </AnimatePresence>
+
         {/* The closing image, named. Past the last scene and nowhere else. */}
         <AnimatePresence>
           {session.ended && session.overview && !session.blanked && (
@@ -477,6 +496,7 @@ export function PresentRoot({
             cameraFeed={cameraFeed}
             onCameraFeedChange={updateCameraFeed}
             fullscreen={fullscreen}
+            onHelp={() => setHelpOpen(true)}
             remote={
               <ConnectPhone
                 presentationId={presentation.id}

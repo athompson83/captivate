@@ -170,6 +170,7 @@ timeline editor is **deferred** — reliable transitions first.
 | Swipe navigation                   | Implemented | Left for on, right for back, on the viewer, the demo and the stage                 |
 | Full screen by hand                | Implemented | A corner button on the viewer, by either API name; says so if refused              |
 | Share card                         | Implemented | A share link unfurls as the deck's own card, in its theme, with its shape          |
+| Help under `?`                     | Implemented | The editor's shortcut list and the stage's keys, one key away                      |
 | Scene jumper                       | Implemented | Searches titles _and_ on-scene text                                                |
 | Blank the screen                   | Implemented | `B`; any advance restores it                                                       |
 | Wake lock                          | Implemented | Where the browser supports it                                                      |

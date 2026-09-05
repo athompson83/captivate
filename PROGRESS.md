@@ -11,11 +11,11 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/captivate-3d-graphics-5ypuvx`, restarted from `main` after
-  PR #88 and merged with `main` through PR #90 — the room answers the hand: on
+  PR #88 and merged with `main` through PR #92 — the room answers the hand: on
   the shared viewer and the live demo, the backdrop and the air follow a mouse
-  over the world while the scene stays put; awaiting CI, merge and production
-  verification (MVP-024)
-- `main`: through PR #90 (merged) — `7e31939`, the share card, awaiting its
+  over the world while the scene stays put; CI green, merging to `main` on the
+  owner's instruction; production verification to follow (MVP-025)
+- `main`: through PR #92 (merged) — `83c2969`, help under `?`, awaiting its
   production verification from the session that owns it; every migration
   through `0030_shared_backdrop_asset.sql` applied to production (no migration
   since)
@@ -53,22 +53,28 @@ at the edge, so what is behind the scene shifts the way the view through a
 window does when you lean. The scene itself does not move — a scene being
 read is never misregistered, the rule from MVP-018 kept rather than bent.
 The lean eases in its own frame loop, which runs only while the room has
-somewhere to go and never through React; a flight reads it and never steps
-it; it returns exactly level when the pointer leaves. Not for a finger, which
-is a swipe; not under reduced motion; not on the projector, whose pointer is
-nobody's hand; not in the editor.
+somewhere to go and never through React, and repaints only the room — the
+world and every region's depth are untouched by a lean; a flight reads it
+and never steps it; it returns exactly level when the pointer leaves. Not
+for a finger, which is a swipe; not under reduced motion; not on the
+projector, whose pointer is nobody's hand; not in the editor.
 
 Considered and not built: a perspective tilt on the dashboard's cards. The
 guidance names tilt-on-hover, and a card there genuinely is a discrete object
 — but it is furniture on an admin surface, and every round so far has spent
 its motion on the presentation itself.
 
-Found and fixed on the way: `docs/FEATURES.md` and `docs/UX.md` on `main`
-carried committed merge conflicts — the presenting table twice, with
-`<<<<<<< HEAD` above and a `=======` that Prettier had re-wrapped into a
-table row between, and the same markers around the share-card paragraph.
-The copies with the share-card content are kept; the markers and the
-duplicate are gone (CodeRabbit caught the second one).
+Found on the way: `docs/FEATURES.md` and `docs/UX.md` on `main` carried
+committed merge-conflict markers for a while — the presenting table twice,
+with a `=======` Prettier had re-wrapped into a table row. Repaired on this
+branch (CodeRabbit caught the second file) and, independently, on `main`
+before this merged; `main` moved four times under this branch in an hour,
+and each merge took its status files whole and re-applied this round on top.
+
+Review: CodeRabbit, triggered by hand because the repository is below its
+automatic-review threshold, found the committed markers in `UX.md` and asked
+that a lean frame not rerun the whole content pass; both are done. Codex
+remains out of credit.
 
 Tests: where the hand is, clamped at the edges and level over a box with no
 size; the ease closes the same distance at 30 and 60 frames a second, snaps
@@ -79,7 +85,28 @@ hand, and leans as the room sees it when turned. The world: a mouse over it
 moves the backdrop and not the world, eases rather than jumps, returns
 exactly level with the loop stopped, and does nothing for a finger, without
 the prop, or under reduced motion. The three positive cases were run with the
-listener removed and failed.
+listener removed and failed. CI: all five jobs green on `32a9266`.
+
+### Help under `?`
+
+The presenter bar hides itself after 2.6 seconds and every action on it has
+a key — the right design for the room and the wrong one for a first night,
+when the affordances are gone before they have been read. The editor had a
+shortcut list behind a toolbar icon and no key to open it; the stage had no
+list at all. Now `?` opens the editor's list from anywhere (the dialog's
+state moved up to the editor root so the keymap can reach it) and puts the
+presenter's keys over the stage (`lib/present/keys.ts`,
+`presenter-help.tsx`), with a Keys button on the bar for the same; Esc or
+`?` closes it, and it never renders in audience-only mode. The list is data
+held to the stage's real key handler by a test, so a key added to one and not
+the other fails the build. Along the way the empty scene's copy promised
+three steps and offered two buttons and a key to remember; the third, "Let
+AI draft it", is a button now, and the line beneath teaches `I` and `?`.
+
+Tests: `?` opens the editor's list except while typing and is listed among
+the shortcuts it opens; every `case` in the stage's key handler is named in
+the presenter's list; the overlay renders as a dialog that closes on a click
+away; the empty scene offers its third step as a button.
 
 ### A share link that looks like something before it is opened
 
@@ -100,6 +127,13 @@ Tests: the card carries the title, description, counts and the theme's
 colours; the generic card for nothing; a long title is cut on a word and one
 scene is singular; a source test pins the route to the shared resolver and
 to no presenter field.
+
+**Landed and verified.** PR #90 squash-merged as `7e31939`, CI green on the
+head. Production, after the deploy: `/v/<unknown token>/opengraph-image`
+answered 200 `image/png`, a 1200×630 card of 91,731 bytes, and the viewer
+page's `og:image` points at it. Smoke suite 35 of 37 through the proxy, the
+two misses both `net::ERR_TIMED_OUT` at the proxy on a single navigation,
+and both passed on one re-run — 37 of 37 across the two runs.
 
 ### Full screen by hand
 

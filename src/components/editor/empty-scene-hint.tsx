@@ -7,9 +7,11 @@ import { relayoutScene } from "@/lib/editor/layouts";
 
 /**
  * What an empty scene shows. Three concrete next steps rather than a blank
- * rectangle that leaves the user guessing where to click.
+ * rectangle that leaves the user guessing where to click. The copy promised
+ * three and the card offered two with a key to remember; the third is now a
+ * button too, because a new author has not learnt the key yet.
  */
-export function EmptySceneHint({ sceneId }: { sceneId: string }) {
+export function EmptySceneHint({ sceneId, onAskAi }: { sceneId: string; onAskAi?: () => void }) {
   return (
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
       <div className="border-line bg-base/85 pointer-events-auto flex flex-col items-center gap-3 rounded-[var(--radius-xl)] border border-dashed px-8 py-7 text-center backdrop-blur-sm">
@@ -36,11 +38,21 @@ export function EmptySceneHint({ sceneId }: { sceneId: string }) {
             <Layout className="size-3" aria-hidden />
             Use a layout
           </button>
+          {onAskAi && (
+            <button
+              onClick={onAskAi}
+              className="border-line text-ai-text hover:border-line-strong flex items-center gap-1.5 rounded-[var(--radius-md)] border px-3 py-1.5 text-[12px] font-medium transition-colors"
+            >
+              <Sparkles className="size-3" aria-hidden />
+              Let AI draft it
+            </button>
+          )}
         </div>
         <p className="text-ink-3 mt-1 flex items-center gap-1.5 text-[11px]">
-          <Sparkles className="text-ai size-3" aria-hidden />
-          or press{" "}
           <kbd className="border-line-subtle rounded border px-1 font-sans text-[10px]">I</kbd>
+          opens AI ·
+          <kbd className="border-line-subtle rounded border px-1 font-sans text-[10px]">?</kbd>
+          shows every key
         </p>
       </div>
     </div>

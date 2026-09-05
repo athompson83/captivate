@@ -51,7 +51,8 @@ captivate/
 │  │  │                            annotation layer, scene jumper,
 │  │  │                            movement rail (the argument's shape,
 │  │  │                            shown to the room), shared viewer,
-│  │  │                            closing frame (the end, named)
+│  │  │                            closing frame (the end, named), the keys
+│  │  │                            overlay under `?`
 │  │  ├─ marketing/                The landing page: hero (a three.js world,
 │  │  │                            a CSS one beneath it), the live demo that
 │  │  │                            runs the real engine on the worked example
@@ -79,6 +80,7 @@ captivate/
 │  │  │  └─ shortcuts.ts           Keyboard map
 │  │  ├─ present/
 │  │  │  ├─ session.ts             Session store + React binding
+│  │  │  ├─ keys.ts                The presenter's keys, as a list `?` shows
 │  │  │  ├─ opening.ts             The opening beat: hold wide, then dive
 │  │  │  ├─ swipe.ts               Moving by hand: the swipe recogniser
 │  │  │  ├─ protocol.ts            Cross-window messages, Zod-validated
