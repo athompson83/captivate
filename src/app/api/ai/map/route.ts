@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
 import { buildNarrativeMap } from "@/lib/ai/service";
 import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
@@ -36,16 +37,18 @@ export async function POST(request: Request) {
   const guarded = await guard(request, Input, "draft");
   if (!guarded.ok) return guarded.response;
 
-  const { prompt, totalSeconds, recommendedShape, ...context } = guarded.input;
-  const available = await listEvidence();
+  return keepAlive(async () => {
+    const { prompt, totalSeconds, recommendedShape, ...context } = guarded.input;
+    const available = await listEvidence();
 
-  const result = await buildNarrativeMap(prompt, {
-    ...context,
-    totalSeconds,
-    available,
-    recommendedShape,
+    const result = await buildNarrativeMap(prompt, {
+      ...context,
+      totalSeconds,
+      available,
+      recommendedShape,
+    });
+
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
+    return NextResponse.json({ ...result.data, available });
   });
-
-  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
-  return NextResponse.json({ ...result.data, available });
 }

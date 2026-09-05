@@ -29,4 +29,21 @@ describe("post() treats an unreadable response body as a network error", () => {
 
     expect(result).toEqual({ ok: false, error: NETWORK_ERROR });
   });
+
+  it("treats an `error` field on an OK response as the route's failure", async () => {
+    // A long route streams heartbeats and commits to 200 before it knows how
+    // the work ends (see lib/ai/keep-alive.ts); its failure is the body.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ error: "The model took too long to answer." }),
+      }),
+    );
+
+    const result = await requestMap({ prompt: "A talk on peptide therapeutics" });
+
+    expect(result).toEqual({ ok: false, error: "The model took too long to answer." });
+  });
 });

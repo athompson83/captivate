@@ -85,12 +85,14 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
           }),
         });
         const body: unknown = await response.json();
-        if (!response.ok) {
-          const message =
-            typeof body === "object" && body !== null && "error" in body
-              ? String((body as { error: unknown }).error)
-              : "Couldn't generate scenes.";
-          throw new Error(message);
+        // The route streams heartbeats while the model writes, so a failure
+        // can arrive on a 200 as an `error` field rather than as a status.
+        const reported =
+          typeof body === "object" && body !== null && "error" in body
+            ? String((body as { error: unknown }).error)
+            : null;
+        if (!response.ok || reported) {
+          throw new Error(reported ?? "Couldn't generate scenes.");
         }
 
         const parsed = WrittenScenes.safeParse(body);

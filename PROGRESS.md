@@ -10,9 +10,9 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/backdrop-diagrams-undo` → PR #72 (merged, squash `24a287a`);
-  this closeout on `claude/presentation-experience-redesign-r10l4q`, restarted
-  from `main`
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #73 — the phone generation fix (keep-alive on the long AI
+  routes), awaiting CI, merge and production verification
 - `main`: through PR #72 (merged) — `24a287a`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (this session added
   `0030`, applied before the merge so the shared viewer never served a 404)
@@ -34,6 +34,43 @@
   executable by no role at all.
 
 ## Latest Session
+
+### "Generation failed" on a phone, over a deck that had finished
+
+The owner generated a thirty-minute talk from their phone and got "Couldn't
+reach the server". Twice. The database said otherwise both times: two
+presentations titled "Homeostasis: The Baseline You're Actually Assessing",
+five movements, seventeen moments, every scene written, each finished about a
+hundred and ten seconds after it was created. The ledger put the scene call
+at 94 and 104 seconds and the map call at 58. Vercel's logs are closed to
+this session's token, so the diagnosis rests on those rows and on how the
+route answers: it said nothing until it was done, and iOS abandons a request
+that has received no bytes for sixty seconds and calls it a network failure.
+The toast then told the owner the deck "may already be in your dashboard
+with its structure but no scenes yet", which was wrong on the one point that
+mattered, so they generated again and had two.
+
+**The fix is bytes, not a shorter route.** `lib/ai/keep-alive.ts` wraps the
+work of every route allowed to run past a minute — `map`, `create-from-map`,
+`scenes-from-map`, `visuals/draw`, `visuals/generate`: the headers go out at
+once, a newline of JSON whitespace follows every ten seconds, and the route's
+own JSON is the last thing written. Leading whitespace is valid JSON, so the
+clients read the body exactly as before. What a streamed response cannot do
+is choose its status after the fact, so a long route's failure now travels as
+the `error` field of a 200 body, and both clients (`lib/ai/client.ts` and the
+map view's scene generation) treat that field as failure whatever the status.
+The guards that produce a real status — signed out, rate limited, malformed —
+run before the wrapper and keep theirs. A source-reading test fails on any
+route with a `maxDuration` past sixty seconds that does not return this way.
+The scenes call's own attempt budget rises from 100 to 140 seconds, since the
+ledger shows a seventeen-moment deck within seconds of the old one; and the
+toast for a genuine network failure now says the deck may be in the dashboard
+"possibly with its scenes written", and to retry only if it is not.
+
+Not verified here: the fix on the owner's phone. What is verified is the
+stream itself (heartbeats before the body, the body parsing as JSON behind
+forty seconds of prelude, a thrown route becoming an error body, a cancelled
+reader not breaking the work) and the route coverage.
 
 ### Three things the owner could not find, or see — undo, a backdrop, and drawings that are drawn
 

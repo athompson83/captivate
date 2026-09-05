@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
 import { buildScenesFromMap } from "@/lib/ai/service";
 import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
@@ -58,19 +59,21 @@ export async function POST(request: Request) {
   const guarded = await guard(request, Input, "deck");
   if (!guarded.ok) return guarded.response;
 
-  const { prompt, presentationId, briefs, depth, ...context } = guarded.input;
-  // The briefs carry the map's own time distribution; their sum is the talk's
-  // length, which decides how many staged drawings the deck earns.
-  const totalSeconds = briefs.reduce((sum, brief) => sum + brief.estimatedSeconds, 0);
-  const result = await buildScenesFromMap(
-    briefs,
-    prompt,
-    context,
-    presentationId,
-    depth,
-    totalSeconds,
-  );
+  return keepAlive(async () => {
+    const { prompt, presentationId, briefs, depth, ...context } = guarded.input;
+    // The briefs carry the map's own time distribution; their sum is the talk's
+    // length, which decides how many staged drawings the deck earns.
+    const totalSeconds = briefs.reduce((sum, brief) => sum + brief.estimatedSeconds, 0);
+    const result = await buildScenesFromMap(
+      briefs,
+      prompt,
+      context,
+      presentationId,
+      depth,
+      totalSeconds,
+    );
 
-  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
-  return NextResponse.json(result.data);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
+    return NextResponse.json(result.data);
+  });
 }

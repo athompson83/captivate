@@ -136,6 +136,25 @@ Text tools present results as _proposals_. The user picks one, and undo reverses
 it like any other edit. AI that silently rewrites your slide creates cleanup;
 AI that offers three options saves work.
 
+### The connection is a failure mode too
+
+Writing a full deck is one model call of ninety seconds or more, and a route
+that says nothing until it is done loses the phone before it is: iOS drops a
+request that has received no bytes for sixty seconds and reports a network
+failure while, on the server, the deck finishes and is saved. Every route
+allowed to run past a minute — `map`, `create-from-map`, `scenes-from-map`,
+`visuals/draw`, `visuals/generate` — therefore answers through
+`lib/ai/keep-alive.ts`: the headers go out at once, a newline of JSON
+whitespace follows every ten seconds, and the route's own JSON is the last
+thing written. The body is still one JSON value, so the client reads it with
+`response.json()` as before. What the wrapper gives up is the status code — a
+streamed response is 200 before the outcome is known — so a long route's
+failure travels as the `error` field of the body, and every AI client treats
+that field as failure whatever the status. The checks that produce a real
+status (signed out, rate limited, malformed input) run before the wrapper and
+keep theirs. `tests/unit/long-route-keep-alive.test.ts` reads the routes and
+fails on any `maxDuration` past sixty seconds that does not return this way.
+
 ---
 
 ## Without a model
