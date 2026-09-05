@@ -439,6 +439,42 @@ recording reproduces the motion the audience saw.
 `prefers-reduced-motion` collapses transitions to effectively instant and
 suppresses entrance animation entirely.
 
+### Performed on arrival
+
+A scene performs when the camera lands on it, not when the flight begins. The
+world tracks whether the camera is on its destination or on the way, and the
+stage holds every element that mounts mid-flight at the start of its entrance —
+invisible, its sketch undrawn — until landing, then releases them with their
+own delays. Before this the active scene was the destination from the first
+frame of the flight, so every choreographed entrance, every stagger and the
+first stroke of every drawing played out in the distance while the camera was
+still travelling, and the room landed on a finished scene. An element already
+on screen when the flight begins is left alone: an entrance is for what the
+audience has not seen, and a neighbour that vanished as the camera set off
+would be a pop.
+
+Two things happen only while an element is performed this way, and never in
+the editor, a thumbnail, or a scene the camera is passing:
+
+- **A figure counts up.** The one-number layout marks its number as a
+  `figure`, and on arrival it climbs from zero to its value in about a second,
+  slowing into the last few digits. Written straight to the text node from a
+  frame loop, in tabular numerals, so nothing re-renders and nothing shifts.
+  Ratios ("1 in 4") and small numbers are shown as they are: counting them
+  says nothing. `src/lib/present/count-up.ts` decides what is counted and how
+  each intermediate value is written.
+- **A chart builds.** Columns grow from their baseline, bars from their left
+  edge, donut arcs sweep round one after another, and a line draws itself with
+  the same measured-dash mechanism as a drawing. Transform and dash animations
+  only, so the compositor does the work.
+
+### Attention
+
+The scene the camera is on is lit; the ones beside it recede to sixty percent
+while presenting, and come back as the camera sets off towards them. Opacity
+only — a haze painted over a region would be a rectangle on a world that has
+none — and never in the overview, where every scene is equally the subject.
+
 ### Drawings
 
 A drawing element is a picture that sketches itself: SVG path data in its own

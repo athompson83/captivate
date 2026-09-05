@@ -1,12 +1,14 @@
 "use client";
 
-import { createElement, memo } from "react";
+import { createElement, memo, useEffect, useMemo, useRef } from "react";
+import { useReducedMotion } from "motion/react";
 import * as Icons from "lucide-react";
 import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
-import { DrawnPicture } from "./drawn-picture";
+import { DrawnPicture, measureDrawnPath } from "./drawn-picture";
 import { embedSandbox } from "@/lib/utils/embed";
 import { categoricalHues, resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
+import { COUNT_MS, figureAt, formatFigure, parseFigure } from "@/lib/present/count-up";
 import { DEFAULT_ICON, ICON_NAMES } from "@/lib/schema/icons";
 import {
   fitListSize,
@@ -32,6 +34,13 @@ interface Props {
   stageWidth: number;
   /** Stage height in px, used together with the frame to auto-fit text. */
   stageHeight?: number;
+  /**
+   * The element is being performed for a room right now: the camera has
+   * landed on its scene and it is being presented, not edited or previewed.
+   * Figures count up and charts build. Off by default — the editor, a
+   * thumbnail and a scene the camera is passing show the finished thing.
+   */
+  perform?: boolean;
 }
 
 /**
@@ -209,6 +218,60 @@ function plainOf(runs: RichText): string {
   return runs.map((r) => r.text).join("");
 }
 
+/** One run with nothing on it: the only shape a counted figure has. */
+function isPlainRun(runs: RichText): boolean {
+  if (runs.length !== 1) return false;
+  const run = runs[0];
+  return !run.bold && !run.italic && !run.underline && !run.href && !run.code && !run.color;
+}
+
+/**
+ * A figure that climbs to its value when its scene is performed.
+ *
+ * The final text is what React renders, so the auto-fit above measured the
+ * real number and the editor, a thumbnail and a paused recording all show it.
+ * The climb is written straight to the text node from a frame loop: sixty
+ * renders a second through React for one changing number is the cost this
+ * avoids. Tabular numerals, so the digits change under a still layout. A
+ * reduced-motion preference shows the number as it is.
+ */
+function FigureText({ text, perform }: { text: string; perform: boolean }) {
+  const spec = useMemo(() => parseFigure(text), [text]);
+  const ref = useRef<HTMLSpanElement>(null);
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!perform || !spec || reduced || !node) return;
+    let frame = 0;
+    let startedAt = 0;
+    node.textContent = formatFigure(spec, 0);
+    const tick = (now: number) => {
+      if (startedAt === 0) startedAt = now;
+      const t = Math.min(1, (now - startedAt) / COUNT_MS);
+      node.textContent = formatFigure(spec, figureAt(spec, t));
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      // Whatever interrupted the climb, the number left behind is the real one.
+      node.textContent = formatFigure(spec, spec.value);
+    };
+  }, [perform, spec, reduced]);
+
+  if (!spec) return <>{text}</>;
+  return (
+    <>
+      {spec.prefix}
+      <span ref={ref} style={{ fontVariantNumeric: "tabular-nums" }}>
+        {formatFigure(spec, spec.value)}
+      </span>
+      {spec.suffix}
+    </>
+  );
+}
+
 function Runs({ runs, theme }: { runs: RichText; theme: PresentationTheme }) {
   return (
     <>
@@ -260,6 +323,7 @@ export const ElementView = memo(function ElementView({
   theme,
   stageWidth,
   stageHeight,
+  perform = false,
 }: Props) {
   const rem = stageRem(stageWidth);
   const scale = theme.scale;
@@ -332,7 +396,11 @@ export const ElementView = memo(function ElementView({
           )}
         >
           <span>
-            <Runs runs={element.content} theme={theme} />
+            {element.role === "figure" && isPlainRun(element.content) ? (
+              <FigureText text={plainOf(element.content)} perform={perform} />
+            ) : (
+              <Runs runs={element.content} theme={theme} />
+            )}
           </span>
         </div>
       );
@@ -885,7 +953,7 @@ export const ElementView = memo(function ElementView({
       );
 
     case "chart":
-      return <ChartView element={element} theme={theme} rem={rem} />;
+      return <ChartView element={element} theme={theme} rem={rem} perform={perform} />;
 
     case "drawing":
       // Complete, not animated: this path serves the editor canvas, thumbnails
@@ -967,11 +1035,17 @@ function ChartView({
   element,
   theme,
   rem,
+  perform,
 }: {
   element: Extract<SceneElement, { type: "chart" }>;
   theme: PresentationTheme;
   rem: number;
+  /** Build the chart in: bars grow, arcs sweep, the line draws. */
+  perform: boolean;
 }) {
+  // One beat between series, so the eye reads them in order rather than
+  // watching a wall move. Capped: a twelve-bar chart still lands in a second.
+  const delayFor = (i: number) => `${Math.min(i, 8) * 0.09}s`;
   const data = element.data.length ? element.data : [{ label: "No data", value: 0 }];
   const max = Math.max(...data.map((d) => Math.abs(d.value)), 1);
   const labelSize = rem * 0.95;
@@ -1026,6 +1100,16 @@ function ChartView({
               strokeWidth="16"
               strokeDasharray={`${arc.dash} ${circumference - arc.dash}`}
               strokeDashoffset={-arc.offset}
+              className={perform ? "ch-sweep" : undefined}
+              style={
+                perform
+                  ? ({
+                      "--ch-dash": arc.dash,
+                      "--ch-circ": circumference,
+                      "--ch-del": delayFor(i),
+                    } as React.CSSProperties)
+                  : undefined
+              }
             />
           ))}
         </svg>
@@ -1098,6 +1182,7 @@ function ChartView({
             />
           ))}
           <polyline
+            ref={perform ? measureDrawnPath : undefined}
             points={points}
             fill="none"
             stroke={accent}
@@ -1105,6 +1190,8 @@ function ChartView({
             vectorEffect="non-scaling-stroke"
             strokeLinejoin="round"
             strokeLinecap="round"
+            className={perform ? "dp-path dp-drawn" : undefined}
+            style={perform ? ({ "--dp-dur": "1.2s" } as React.CSSProperties) : undefined}
           />
         </svg>
         <div
@@ -1167,11 +1254,13 @@ function ChartView({
               }}
             >
               <div
+                className={perform ? "ch-grow-x" : undefined}
                 style={{
                   width: `${pct}%`,
                   height: "100%",
                   background: colorAt(i),
                   borderRadius: `${rem * 0.2}px`,
+                  ...(perform ? { "--ch-del": delayFor(i) } : {}),
                 }}
               />
             </div>
@@ -1204,12 +1293,14 @@ function ChartView({
               <span style={{ fontSize: `${labelSize}px`, color: theme.tokens.ink }}>{d.value}</span>
             )}
             <div
+              className={perform ? "ch-grow-y" : undefined}
               style={{
                 width: "100%",
                 height: `${pct}%`,
                 background: colorAt(i),
                 borderRadius: `${rem * 0.25}px ${rem * 0.25}px 0 0`,
                 minHeight: "2px",
+                ...(perform ? { "--ch-del": delayFor(i) } : {}),
               }}
             />
             <span

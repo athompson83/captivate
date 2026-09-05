@@ -10,8 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #74 (merged,
-  squash `0211aa9`); this closeout on the same branch, restarted from `main`
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #75 — a scene performs on landing (entrances, sketches,
+  figures counting up, charts building; neighbours recede), awaiting CI, merge
+  and production verification
 - `main`: through PR #74 (merged) — `0211aa9`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (this session added
   `0030`, applied before the merge so the shared viewer never served a 404)
@@ -33,6 +35,55 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The scene performs when the camera lands
+
+The owner asked for the most captivating experience the engine can give,
+using what 3D, animation and engineering practice know. The first thing that
+practice says is that a reveal is only a reveal if the audience is looking at
+it — and reading the world showed that nobody was. `onArrive` was fired at
+the end of every flight and nothing listened. The scene under the camera was
+"playing" from the moment it became active, which is the moment the flight
+_began_: every choreographed entrance the layouts already stagger, every
+build, the first stroke of every drawn picture, played out in the distance
+while the camera was still travelling, and the room landed on a finished
+scene. The choreography existed. It was never seen.
+
+**Performed on arrival.** The world now remembers the camera it last landed
+on and derives, during render, whether the current target is that camera —
+during render, because the destination mounts in the very render that
+changes the target, and an element decides at mount whether it is held; a
+flag flipped in an effect arrives one render too late. `Stage` takes
+`arrived`; an element that mounts while it is false is held at the start of
+its entrance, invisible, its sketch undrawn, and performs with its own delay
+when it turns true. An element already on screen when the flight begins is
+left alone: an entrance is for what the audience has not seen, and a
+neighbour that vanished as the camera set off would be a pop. An establishing
+shot over a section and the overview are landings too, and count for nothing
+here — a scene performed at either altitude would perform in the distance
+again.
+
+**Two things that only happen when performed.** The one-number layout marks
+its number as a `figure`, and on arrival it climbs from zero to itself in
+about a second, slowing into the last digits, written to the text node from a
+frame loop in tabular numerals so nothing re-renders and nothing shifts;
+ratios and small numbers are shown as they are. A chart builds: columns from
+their baseline, bars from their left edge, donut arcs sweeping round in turn,
+the line drawing itself with the same measured-dash mechanism as a drawing —
+transforms and dashes only, so the compositor does the work. Neither happens
+in the editor, a thumbnail, or a scene the camera is passing.
+
+**Attention.** The scene the camera is on is lit; the ones beside it recede
+to sixty percent and come back as the camera sets off towards them. Opacity
+only — no haze painted over a region, which would be a rectangle on a world
+that has none — and never in the overview.
+
+Tests: the stage holds, performs, leaves a pre-flight element alone and never
+holds in the editor; the count-up's parsing, formatting and easing; charts
+building only when performed; the world holding a far destination through a
+flight, arriving at once on a cut, holding through a section's establishing
+shot, and dimming neighbours while presenting but not in the overview or the
+editor.
 
 ### "Generation failed" on a phone, over a deck that had finished
 

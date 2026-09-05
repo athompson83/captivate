@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import type { AspectRatio, SceneContent, SceneElement } from "@/lib/schema/presentation";
 import {
@@ -67,6 +67,18 @@ export interface StageProps {
    * would announce "button" to a screen reader and nothing else.
    */
   hotspotName?: (targetSceneId: string) => string;
+  /**
+   * Whether the camera has landed on this scene.
+   *
+   * While false, an element that mounts is held at the start of its entrance
+   * — invisible, its sketch undrawn — and performs the moment this turns
+   * true, with its own delay, so a scene's choreography happens in front of
+   * the room rather than in the distance while the camera is still on its
+   * way. An element already visible when the flight began is left alone: an
+   * entrance is for what the audience has not seen. Defaults to true, which
+   * is right everywhere a stage is simply shown.
+   */
+  arrived?: boolean;
 }
 
 export const Stage = memo(function Stage({
@@ -83,6 +95,7 @@ export const Stage = memo(function Stage({
   surface = "card",
   onHotspot,
   hotspotName,
+  arrived = true,
 }: StageProps) {
   const size = stageSize(aspect);
   const reduced = useReducedMotion();
@@ -192,6 +205,7 @@ export const Stage = memo(function Stage({
             stageHeight={size.height}
             play={play && !reduced}
             step={step}
+            arrived={arrived}
             index={index}
             elements={content.elements}
             onHotspot={onHotspot}
@@ -250,6 +264,7 @@ function ElementLayer({
   stageHeight,
   play,
   step,
+  arrived,
   index,
   elements,
   onHotspot,
@@ -261,11 +276,20 @@ function ElementLayer({
   stageHeight: number;
   play: boolean;
   step: number;
+  arrived: boolean;
   index: number;
   elements: SceneElement[];
   onHotspot?: (targetSceneId: string) => void;
   hotspotName?: (targetSceneId: string) => string;
 }) {
+  // Decided once, at mount, which is the whole point: an element that was
+  // on screen before the flight began must not vanish when the camera sets
+  // off, and one that mounted mid-flight must not perform until it lands.
+  // State that is never set again rather than a ref, because the compiler
+  // forbids reading a ref during render.
+  const [heldAtMount] = useState(play && !arrived);
+  const held = play && heldAtMount && !arrived;
+
   if (element.hidden) return null;
 
   // Elements marked `onAdvance` appear in document order as the presenter
@@ -311,15 +335,22 @@ function ElementLayer({
         }[element.animation.emphasis]
       : undefined;
 
+  // Held: the entrance's starting pose, until the camera lands and the target
+  // below changes under it, which is what makes the element perform.
+  const start = { ...from, opacity: (from.opacity ?? 1) * element.opacity };
+
   return (
     <motion.div
+      data-held={held || undefined}
       style={{ ...style, pointerEvents: dismissed ? "none" : undefined }}
-      initial={play ? { ...from, opacity: (from.opacity ?? 1) * element.opacity } : false}
+      initial={play ? start : false}
       animate={
         play
           ? dismissed
             ? { ...entranceTo("fade"), ...exitTo(element.animation.exit) }
-            : { ...to, opacity: element.opacity, ...(emphasis ?? {}) }
+            : held
+              ? start
+              : { ...to, opacity: element.opacity, ...(emphasis ?? {}) }
           : { opacity: element.opacity }
       }
       transition={{
@@ -336,6 +367,7 @@ function ElementLayer({
           stageHeight={stageHeight}
           step={step}
           play={play}
+          perform={play && !held}
         />
       </HotspotTarget>
     </motion.div>
@@ -394,6 +426,7 @@ function StaggeredElement({
   stageHeight,
   step,
   play,
+  perform,
 }: {
   element: SceneElement;
   theme: PresentationTheme;
@@ -401,12 +434,16 @@ function StaggeredElement({
   stageHeight: number;
   step: number;
   play: boolean;
+  /** Playing and landed: the room is watching this element right now. */
+  perform: boolean;
 }) {
   // A drawing while presenting is performed, not shown: paths whose stage has
   // been reached are sketched, the rest wait for the next advance. Everywhere
-  // else (editor, thumbnails) ElementView renders it complete.
+  // else (editor, thumbnails) ElementView renders it complete. Held for the
+  // camera, no stage has been reached yet — the first stroke is drawn in
+  // front of the room, not in the distance.
   if (element.type === "drawing" && play) {
-    return <DrawnPicture element={element} step={step} />;
+    return <DrawnPicture element={element} step={perform ? step : -1} />;
   }
   if (element.type === "list" && element.staggered && play) {
     const visible = Math.max(1, Math.min(element.items.length, step + 1));
@@ -416,6 +453,7 @@ function StaggeredElement({
         theme={theme}
         stageWidth={stageWidth}
         stageHeight={stageHeight}
+        perform={perform}
       />
     );
   }
@@ -425,6 +463,7 @@ function StaggeredElement({
       theme={theme}
       stageWidth={stageWidth}
       stageHeight={stageHeight}
+      perform={perform}
     />
   );
 }

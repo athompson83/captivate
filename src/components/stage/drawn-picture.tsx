@@ -40,7 +40,7 @@ const INK: Record<DrawingElement["ink"], string> = {
   muted: "var(--stage-ink-muted)",
 };
 
-export function measureDrawnPath(el: SVGPathElement | null): void {
+export function measureDrawnPath(el: SVGGeometryElement | null): void {
   if (!el || el.style.getPropertyValue("--dp-len")) return;
   try {
     el.style.setProperty("--dp-len", String(el.getTotalLength()));

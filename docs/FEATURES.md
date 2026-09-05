@@ -126,8 +126,10 @@ already drives the region's atmosphere, but no UI exposes it yet.
 
 Nine entrance presets, four emphasis options, per-element
 delay and duration, build-on-advance, and staggered lists. All respect
-`prefers-reduced-motion`. A full timeline editor is **deferred** — reliable
-transitions first.
+`prefers-reduced-motion`. A scene performs when the camera lands on it, not
+when the flight begins; on arrival a one-number scene counts its figure up and
+a chart builds in, and the scenes beside the current one recede. A full
+timeline editor is **deferred** — reliable transitions first.
 
 ---
 

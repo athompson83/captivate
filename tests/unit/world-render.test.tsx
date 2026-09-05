@@ -453,3 +453,115 @@ describe("the backdrop", () => {
     expect(container.querySelector("[data-backdrop]")).toBeNull();
   });
 });
+
+/**
+ * The camera lands, and only then does the scene under it perform. The
+ * world owns that fact — it is the one thing that knows a flight is still
+ * in progress — and hands it to the stage as `arrived`.
+ */
+describe("performing on arrival", () => {
+  it("holds the destination's performance while the camera is on its way", () => {
+    const scenes = makeScenes(50);
+    const placements = arrange("reel", scenes, STAGE);
+    const props = {
+      scenes,
+      placements,
+      theme,
+      aspect: "16:9" as const,
+      step: 0,
+      travel: "fly" as const,
+      pace: 1,
+      depth: 0,
+      play: true,
+    };
+    const { rerender } = render(
+      <World {...props} focus={{ kind: "scene", index: 0 }} activeIndex={0} />,
+    );
+    // First paint arrives at once: the opening scene performs immediately.
+    expect(document.querySelectorAll('[data-scene-index="0"] [data-held]')).toHaveLength(0);
+
+    // A flight to a scene far enough away that it was not on screen. It
+    // mounts held; nothing on it performs until the camera lands.
+    rerender(<World {...props} focus={{ kind: "scene", index: 40 }} activeIndex={40} />);
+    const held = document.querySelectorAll('[data-scene-index="40"] [data-held]');
+    expect(held.length).toBeGreaterThan(0);
+  });
+
+  it("does not count an establishing shot over a section as arriving", () => {
+    // Crossing into a movement, the camera first lands pulled back over the
+    // whole section, then dives. The first scene of the section is held
+    // through that beat; it performs when the camera lands on *it*.
+    const scenes = makeScenes(6).map((scene, i) => ({
+      ...scene,
+      sectionId: i < 3 ? "sec-a" : "sec-b",
+    }));
+    const placements = arrange("reel", scenes, STAGE);
+    const props = {
+      scenes,
+      placements,
+      theme,
+      aspect: "16:9" as const,
+      step: 0,
+      travel: "cut" as const,
+      pace: 1,
+      depth: 0,
+      play: true,
+    };
+    const { rerender } = render(
+      <World {...props} focus={{ kind: "scene", index: 0 }} activeIndex={0} />,
+    );
+    rerender(<World {...props} focus={{ kind: "section", sectionId: "sec-b" }} activeIndex={3} />);
+    // The cut landed on the section framing at once — and the scene is still held.
+    expect(document.querySelectorAll('[data-scene-index="3"] [data-held]').length).toBeGreaterThan(
+      0,
+    );
+
+    rerender(<World {...props} focus={{ kind: "scene", index: 3 }} activeIndex={3} />);
+    expect(document.querySelectorAll('[data-scene-index="3"] [data-held]')).toHaveLength(0);
+  });
+
+  it("lets a cut arrive at once, so the new scene performs immediately", () => {
+    const scenes = makeScenes(50);
+    const placements = arrange("reel", scenes, STAGE);
+    const props = {
+      scenes,
+      placements,
+      theme,
+      aspect: "16:9" as const,
+      step: 0,
+      travel: "cut" as const,
+      pace: 1,
+      depth: 0,
+      play: true,
+    };
+    const { rerender } = render(
+      <World {...props} focus={{ kind: "scene", index: 0 }} activeIndex={0} />,
+    );
+    rerender(<World {...props} focus={{ kind: "scene", index: 40 }} activeIndex={40} />);
+    expect(document.querySelectorAll('[data-scene-index="40"] [data-held]')).toHaveLength(0);
+  });
+
+  it("lets the scenes beside the current one recede while presenting", () => {
+    renderWorld(4, { play: true });
+    const active = document.querySelector<HTMLElement>('[data-scene-index="0"]');
+    expect(active!.style.opacity).toBe("1");
+    const neighbours = [...document.querySelectorAll<HTMLElement>("[data-scene-index]")].filter(
+      (region) => region.dataset.sceneIndex !== "0" && region.querySelector("[data-stage]"),
+    );
+    expect(neighbours.length).toBeGreaterThan(0);
+    for (const region of neighbours) expect(region.style.opacity).toBe("0.6");
+  });
+
+  it("treats every scene as the subject in the overview, and in the editor", () => {
+    const overview = renderWorld(4, { play: true, focus: { kind: "world" } });
+    for (const region of document.querySelectorAll<HTMLElement>("[data-scene-index]")) {
+      expect(region.style.opacity).toBe("1");
+    }
+    overview.unmount();
+
+    renderWorld(4);
+    for (const region of document.querySelectorAll<HTMLElement>("[data-scene-index]")) {
+      expect(region.style.opacity).toBe("1");
+    }
+  });
+});

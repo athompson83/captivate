@@ -569,6 +569,7 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
     elements.push({
       id: elementId("figure"),
       type: "text",
+      role: "figure",
       frame: slots.figure,
       content: richText(content.figure.value.trim()),
       hidden: false,

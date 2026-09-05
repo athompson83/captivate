@@ -224,6 +224,23 @@ export const World = memo(function World({
   const [viewport, setViewport] = useState<Size>({ width: 0, height: 0 });
   /** Where the current flight began; used only to decide what to render. */
   const [origin, setOrigin] = useState<Camera | null>(null);
+  /**
+   * Whether the camera is on its destination rather than on the way to it.
+   *
+   * The scene under the camera performs — entrances, staggers, the first
+   * stroke of a drawing — only once this is true. Before, it performed the
+   * moment it became active, which is the moment the flight *began*: every
+   * choreographed entrance played out in the distance while the camera was
+   * still travelling, and the room landed on a finished scene. `onArrive`
+   * was fired and nothing listened; this is what it was for.
+   *
+   * Derived from the camera last landed on rather than flipped by the flight
+   * effect: the destination mounts in the very render that changes the
+   * target, and an element decides at mount whether it is held. A flag set
+   * in an effect arrives one render too late, and that render is the one
+   * that matters.
+   */
+  const [landedOn, setLandedOn] = useState<Camera | null>(null);
 
   const measureRef = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
@@ -255,6 +272,14 @@ export const World = memo(function World({
     () => cameraFor(focus, scenes, placements, stage, aspectRatio),
     [focus, scenes, placements, stage, aspectRatio],
   );
+  const landed = landedOn !== null && camerasEqual(landedOn, target);
+  /**
+   * Landed on a *scene*, which is the only landing a scene performs for. The
+   * establishing shot over a new section and the overview are landings too,
+   * and a scene that performed during either would do so in the distance —
+   * the same defect this exists to remove, at a different altitude.
+   */
+  const onScene = landed && focus.kind === "scene" ? focus.index : -1;
 
   const hasBackdrop = Boolean(backdrop?.url);
   const backdropDistance = backdrop?.distance ?? 0.5;
@@ -362,6 +387,7 @@ export const World = memo(function World({
      */
     const arrive = () => {
       setOrigin(target);
+      setLandedOn(target);
       arriveRef.current?.();
     };
 
@@ -702,6 +728,15 @@ export const World = memo(function World({
                 // click on a neighbouring region would land on the wrong scene.
                 pointerEvents: onSceneSelect || hotspotsLive ? "auto" : "none",
                 cursor: onSceneSelect ? "pointer" : undefined,
+                // The scene the camera is on is lit; the ones beside it
+                // recede. Opacity only — no haze painted over a region, which
+                // would be a rectangle on a world that has none — and only
+                // while presenting, never in the overview, where every scene
+                // is equally the subject. The transition runs as a flight
+                // begins, so leaving a scene dims it and arriving lifts the
+                // next: the light moves with the camera.
+                opacity: play && detailed && !isActive && focus.kind !== "world" ? 0.6 : 1,
+                transition: "opacity 600ms ease",
               }}
             >
               {detailed ? (
@@ -717,9 +752,10 @@ export const World = memo(function World({
                   surface="bare"
                   play={play && isActive}
                   // Scenes the presenter is not on show every build step, so a
-                  // scene the camera is flying towards is not half-empty when
-                  // it arrives.
+                  // scene the camera is flying past is not half-empty. The one
+                  // it is flying towards holds its performance until landing.
                   step={isActive ? step : Number.MAX_SAFE_INTEGER}
+                  arrived={onScene === index}
                   onHotspot={hotspotsLive ? onHotspot : undefined}
                   hotspotName={hotspotName}
                 />
