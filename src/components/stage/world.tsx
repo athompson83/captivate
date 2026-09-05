@@ -3,7 +3,12 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useReducedMotion } from "motion/react";
-import type { AspectRatio, Scene, ScenePlacement } from "@/lib/schema/presentation";
+import type {
+  AspectRatio,
+  JourneyBackdrop,
+  Scene,
+  ScenePlacement,
+} from "@/lib/schema/presentation";
 import { stageBackgroundCss, themeCssVars, type PresentationTheme } from "@/lib/schema/theme";
 import { stageSize } from "@/lib/present/stage";
 import {
@@ -23,6 +28,7 @@ import {
   type Size,
 } from "@/lib/present/camera";
 import { smoothPath } from "@/lib/present/path";
+import { backdropPlane, backdropTransform } from "@/lib/present/backdrop";
 import { measureDrawnPath } from "./drawn-picture";
 import { ambientAt, paletteOf, scenePalettes } from "@/lib/present/ambient";
 import { oklabCss } from "@/lib/utils/color";
@@ -95,6 +101,12 @@ export interface WorldProps {
   travel: "fly" | "cut" | "dissolve";
   pace: number;
   depth: number;
+  /**
+   * A picture behind the whole show, on a plane some scene-widths back so it
+   * moves with parallax under a flight and stands still on a scene. Absent
+   * or with an empty url, the atmosphere is the ground.
+   */
+  backdrop?: JourneyBackdrop;
   showPath?: boolean;
   /**
    * Viewport pixels on the left the camera must treat as occupied — the
@@ -135,6 +147,7 @@ export const World = memo(function World({
   travel,
   pace,
   depth,
+  backdrop,
   showPath = false,
   safeInsetLeft = 0,
   className,
@@ -158,6 +171,8 @@ export const World = memo(function World({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
+  /** The picture behind the show, moved from the same loop as the world. */
+  const backdropRef = useRef<HTMLDivElement>(null);
   /** The full-viewport wash whose colour tracks where the camera is. */
   const ambientRef = useRef<HTMLDivElement>(null);
   /** The per-pixel field drawn over that wash, where WebGL is available. */
@@ -241,6 +256,22 @@ export const World = memo(function World({
     [focus, scenes, placements, stage, aspectRatio],
   );
 
+  const hasBackdrop = Boolean(backdrop?.url);
+  const backdropDistance = backdrop?.distance ?? 0.5;
+  const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
+  // The viewport's own aspect, not the inset one: the picture covers the
+  // whole screen, rail included.
+  const plane = useMemo(
+    () =>
+      backdropPlane(
+        worldBounds,
+        stage,
+        viewport.height > 0 ? viewport.width / viewport.height : stage.width / stage.height,
+        backdropDistance,
+      ),
+    [worldBounds, stage, viewport.width, viewport.height, backdropDistance],
+  );
+
   /* ---------------------------------------------------------------------- */
   /* The flight                                                              */
   /* ---------------------------------------------------------------------- */
@@ -266,6 +297,18 @@ export const World = memo(function World({
       // `worldTransform` then fits and centres within what remains.
       node.style.transform =
         (inset > 0 ? `translate(${inset}px, 0px) ` : "") + worldTransform(camera, effective);
+
+      // The picture behind the show, at its distance. Same loop, same frame,
+      // so the parallax is never a frame behind the content.
+      if (backdropRef.current) {
+        backdropRef.current.style.transform = backdropTransform(
+          camera,
+          viewport,
+          plane,
+          stage,
+          backdropDistance,
+        );
+      }
 
       // The room's colour follows the camera. Written as custom properties on
       // one element rather than through React: this runs sixty times a second.
@@ -388,6 +431,8 @@ export const World = memo(function World({
     palettes,
     stage,
     basePalette,
+    plane,
+    backdropDistance,
   ]);
 
   /* ---------------------------------------------------------------------- */
@@ -440,8 +485,6 @@ export const World = memo(function World({
         Boolean(entry),
       );
   }, [placements, origin, target, viewport, effective, aspectRatio, stage, activeIndex]);
-
-  const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
 
   /**
    * Pools of colour, one per region, painted into the surface itself.
@@ -525,6 +568,40 @@ export const World = memo(function World({
           depth={depth}
           still={Boolean(reduced)}
         />
+      )}
+
+      {/*
+        The picture behind the show. Above the air, below the content, on a
+        plane some scene-widths back — so a flight slides it slower than the
+        scenes and a zoom grows it less, and on a scene it is perfectly still.
+        Dimmed toward the theme's canvas so the scenes' text stays legible.
+      */}
+      {hasBackdrop && backdrop && (
+        <div
+          ref={backdropRef}
+          aria-hidden
+          data-backdrop
+          className="pointer-events-none absolute top-0 left-0 origin-top-left"
+          style={{ width: plane.width, height: plane.height, willChange: "transform" }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- a signed private asset in a transformed layer; see element-view */}
+          <img
+            src={backdrop.url}
+            alt=""
+            draggable={false}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+          {backdrop.dim > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: theme.tokens.canvas,
+                opacity: backdrop.dim,
+              }}
+            />
+          )}
+        </div>
       )}
 
       <div

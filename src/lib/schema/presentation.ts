@@ -626,6 +626,27 @@ export type ArrangePreset = z.infer<typeof ArrangePreset>;
  * `travel: "cut"` reproduces a conventional slideshow exactly — it is the
  * degenerate case of the same engine, not a separate one.
  */
+/**
+ * A picture behind the whole presentation.
+ *
+ * One for the show, not one per scene: a scene's own background is a region's
+ * atmosphere, and this is the room the regions are in. It sits on a plane
+ * some scene-widths behind the content (`distance`) so a flight slides it
+ * slower than the scenes and a zoom grows it less — depth, from a still
+ * image — and it is dimmed toward the theme's canvas so text stays legible
+ * over it. An empty `url` means there is none.
+ */
+export const JourneyBackdrop = z.object({
+  url: MediaSource.default(""),
+  assetId: z.string().max(64).nullable().default(null),
+  alt: z.string().max(600).default(""),
+  /** 0 sits just behind the scenes and moves almost with them; 1 is far away. */
+  distance: z.number().min(0).max(1).default(0.5),
+  /** How much of the theme's canvas colour is laid over the picture. */
+  dim: z.number().min(0).max(1).default(0.35),
+});
+export type JourneyBackdrop = z.infer<typeof JourneyBackdrop>;
+
 export const JourneyConfig = z.object({
   /**
    * `flow` rather than `reel` by default.
@@ -668,6 +689,8 @@ export const JourneyConfig = z.object({
   signpostNext: z.boolean().default(true),
   /** Backdrop parallax, 0 = flat. */
   depth: z.number().min(0).max(1).default(0.55),
+  /** A picture behind the whole show. See `JourneyBackdrop`. */
+  backdrop: JourneyBackdrop.prefault({}),
 });
 export type JourneyConfig = z.infer<typeof JourneyConfig>;
 

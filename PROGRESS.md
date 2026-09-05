@@ -33,6 +33,52 @@
 
 ## Latest Session
 
+### Three things the owner could not find, or see — undo, a backdrop, and drawings that are drawn
+
+The owner's second report after using the shipped build: the drawings are
+still rough, there is no option for a 3D image background for the whole
+show, and the editor needs an undo button.
+
+**Undo.** It existed. The header's undo and redo buttons faded to thirty
+percent opacity whenever the history was empty and folded into the "More"
+menu on a narrow window, which is how the two most-used controls on the page
+came to be reported as missing. They are now a bordered, labelled group that
+stays in the header at every width.
+
+**A backdrop with depth.** The atmosphere's depth layer is automatic and
+subtle; the owner wanted a picture. `JourneyConfig.backdrop` is one image
+behind the whole show, chosen in the journey panel from the same asset
+picker as any image (upload, library, URL, and stock or generation where
+configured), with a distance and a dim. It sits on a plane some scene-widths
+behind the content, so a flight slides it slower than the scenes and a zoom
+grows it less — the same projection as the depth layer, with a photograph on
+it — and it is perfectly still on a scene. `lib/present/backdrop.ts` is pure
+and tested: the plane covers the viewport at the widest framing, a pan moves
+it less than the content and less again the further away it is, a dive grows
+it less than the content, and a still camera leaves it still. Stored decks
+that predate the field parse with no backdrop.
+
+**Drawings that are drawn.** The illustrator brief with construction recipes
+was tried on the real provider and the owner's verdict was "still rough" —
+a model can reason about what goes where and cannot draw a curve, however it
+is briefed. So it no longer draws. It composes a diagram (`lib/drawing/
+diagram.ts`): shapes and symbols in boxes on an 800×500 canvas, arrows
+between them, each with a stage; and `compileDiagram` turns that into strokes
+with recipes designed once — circles from arcs, boxes from quadratics, clouds
+as smooth curves through bumps, arrows clipped to the edges of what they
+join with heads sized to their shafts. Symbols are the Lucide icon set read
+as path data (about a hundred curated names) and scaled into their boxes at
+the weight each icon was designed for. The compiler's path transformer
+found two grammar corners the old bounds parser also had: a path's opening
+relative move is absolute, and an arc's two flags are single digits that may
+run straight into the next value (`a6 6 0 01-8.943 0`) — the face that lost
+its mouth. Both parsers now share one arc-aware tokenizer. The output is the
+same `DrawnPath[]` as before, so staging, weights, accent, fills, the editor,
+the export and the audience boundary are untouched; only the pictures
+changed. Rendered samples at projector size — a heart, a vessel and tissue;
+a person, an ambulance and a hospital; two faces exchanging — look designed
+rather than sketched.
+
 ### The presentation experience: depth, points, and drawings that hold up
 
 The owner's brief: a background with genuine depth that moves during a

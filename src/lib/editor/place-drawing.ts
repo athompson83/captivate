@@ -1,5 +1,6 @@
 import type { DrawnPath, SceneContent, SceneElement, SceneLayout } from "@/lib/schema/presentation";
 import { elementId, layoutSlots } from "./layouts";
+import { tokenizePath } from "@/lib/drawing/path-tokens";
 
 /**
  * Re-exported rather than defined here: `settleCover` moved to `layouts.ts`,
@@ -34,9 +35,6 @@ const ARITY: Record<string, number> = {
   a: 7, // rx ry rotation large-arc sweep x y
   z: 0,
 };
-
-/** A command letter, or a number. Path data is nothing else. */
-const TOKEN = /([MmLlHhVvCcSsQqTtAaZz])|(-?\d*\.?\d+(?:[eE][-+]?\d+)?)/g;
 
 /**
  * Every extreme of the ellipse an arc actually turns through.
@@ -242,12 +240,12 @@ function inkBounds(paths: readonly { d: string }[]): {
       args = [];
     };
 
-    for (const match of path.d.matchAll(TOKEN)) {
-      if (match[1]) {
+    for (const token of tokenizePath(path.d)) {
+      if ("command" in token) {
         flush();
-        command = match[1];
+        command = token.command;
       } else {
-        args.push(Number(match[2]));
+        args.push(token.number);
       }
     }
     flush();

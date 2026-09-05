@@ -33,6 +33,7 @@ import {
 import { deriveTitle, fallbackRewrite, fallbackScene, subjectOf } from "./fallback";
 import { fallbackMap } from "./narrative-fallback";
 import { layoutFor, type AvailableEvidence, type MomentBrief } from "@/lib/narrative/generate";
+import { GeneratedDiagram, compileDiagram } from "@/lib/drawing/diagram";
 
 /**
  * Application-level AI operations.
@@ -914,19 +915,16 @@ function toRecord<T>(result: StructuredResult<T>) {
 }
 
 /**
- * A picture the model draws as ordered vector strokes, cut into stages the
- * presenter walks through with "next".
+ * A picture, composed by the model and drawn by the application.
  *
- * The prompt work is in two places. The staging: a drawing that arrives as one
- * undifferentiated pile of paths animates fine and *teaches* nothing, so each
- * stage must add one idea in the order a person at a whiteboard would build
- * it, because the stage boundaries become the presenter's pauses. And the
- * construction: a language model asked for "a line drawing" returns a
- * wireframe of small fragments at one weight, which is what the reports
- * called weak. Told what a good picture here *is* — one subject, large,
- * built from named primitives with exact recipes, weighted, with two or three
- * shapes given mass and the idea of each stage in the accent — it returns
- * something a room can read from the back.
+ * The model is not asked for path data any more. Briefed as an illustrator
+ * and handed construction recipes it still returned wobbly fragments at one
+ * weight — it can reason about what goes where and cannot draw a curve. So it
+ * composes a *diagram*: shapes and symbols in boxes, connected by arrows,
+ * cut into stages the presenter walks through with "next". `compileDiagram`
+ * turns that into strokes with recipes designed once, so every picture is
+ * clean by construction and the staging — each press adds one idea — is the
+ * part the model is actually good at.
  */
 export async function generateDrawing(
   prompt: string,
@@ -941,49 +939,49 @@ export async function generateDrawing(
 
   const result = await spend("drawing", prompt, presentationId, "drawing", () =>
     generateStructured({
-      schema: GeneratedDrawing,
-      toolName: "draw_picture",
+      schema: GeneratedDiagram,
+      toolName: "compose_diagram",
       toolDescription:
-        "Return one clear explainer illustration as SVG path data, staged in the order a person would build it at a whiteboard.",
+        "Compose one explainer diagram from shapes, symbols and arrows, staged in the order a person would build it at a whiteboard.",
       system: `${BASE_SYSTEM}
 
-You are an explainer illustrator. You draw one clear picture as SVG path data, and it is sketched stroke by stroke in front of a room, one stage per press of "next". It sits beside the scene's text at about half the width of the screen and is read from the back of a lecture theatre.
+You compose one clear explainer diagram. It is drawn by the application from your composition and sketched stroke by stroke in front of a room, one stage per press of "next". It sits beside the scene's text at about half the width of the screen and is read from the back of a lecture theatre.
 
-What a good picture is here:
-- One subject, big. It fills about 70% of the box, centred, with at least 8% clear on every side. Never a page of small things.
-- A diagram or an icon-like illustration, not a sketch of a photograph: bold simplified shapes a person can name at a glance — an organ, a device, a person as a rounded head and shoulders, a container, an arrow, a graph with two curves. Built from clean geometric primitives.
-- Confident, closed shapes. 25 to 90 paths; each path is one complete stroke — an outline, an arrow, a curve — never a fragment. A shape's outline is one path closed with Z.
-- Weight carries hierarchy, through each path's \`weight\`: outlines of the main shapes 1.6, interior detail 1, context and guides 0.6. Never everything at one weight.
-- Mass: give the two or three most important closed shapes \`fill: true\`. Never fill more than a third of the shapes, and never fill a line or an arrow.
-- Colour marks the idea: the paths that carry what a stage adds — the arrow that shows the flow, the part that changes, the thing to look at — take \`ink: "accent"\`. Everything else is left to the default ink. At most a quarter of the strokes are accent.
-- No words. Ever. No letters and no numerals as paths — lettering drawn at stroke weight is illegible. Where a label belongs, leave clear space and say what goes there in the stage label.
+The canvas is 800 wide and 500 tall. Positions are centres. Keep everything at least 40 from the edges.
+
+What you place:
+- Nodes. A node is a shape (circle, ellipse, box, pill, cloud) or a symbol — a named pictogram from the list the schema gives you (a heart, a brain, a person, a syringe, a building, a cloud, a clock ...). Use a symbol for a thing with a name; use a shape for a container, a state, a stage, a group or an abstract quantity. A cloud is for something diffuse — an environment, a population, an idea.
+- Edges. An arrow says "leads to" or "causes"; a line says "is connected to"; a curve is an arrow that bends, for a return path or a loop; both is an exchange. Edges are drawn from the edge of one node to the edge of the next, so nodes should not overlap.
+
+Composition:
+- One subject, big. The main node or nodes fill most of the canvas: a lone subject is around 300 to 380 wide, a row of three is about 180 each. Never a scatter of small things. At most 8 nodes and 8 edges.
+- Read left to right or top to bottom, the way the room reads. A flow is a row; a hierarchy is a column; a cycle is a ring of three or four with curves.
+- Weight carries meaning: mark at most two shapes with fill (the thing the picture is about — never a symbol) and mark the idea a stage adds with accent (the arrow that shows the flow, the part that changes). At most a quarter of the elements are accent.
+- No words. There is no text in a diagram; say what a label would be in the stage label.
 
 Staging:
-- 2 to 4 stages, numbered from 0. Stage 0 is the subject as the room first sees it: the main shapes, complete enough to recognise. Each later stage adds exactly one idea — a mechanism, a consequence, a comparison — and its paths come after the earlier stages' in the array.
-- Never more than 4. A picture that takes eight presses to finish stops being a build and becomes an obstacle between the presenter and their next point.
-- Within a stage, order paths as they would be drawn by hand: outline first, then detail, then the accent.
-
-Construction — use these recipes exactly, every coordinate absolute and inside the viewBox you declare:
-- Circle, centre (cx, cy), radius r: M cx-r cy A r r 0 1 0 cx+r cy A r r 0 1 0 cx-r cy Z
-- Ellipse, radii rx ry: M cx-rx cy A rx ry 0 1 0 cx+rx cy A rx ry 0 1 0 cx-rx cy Z
-- Rounded box at (x, y) size w×h with corner k: M x+k y H x+w-k Q x+w y x+w y+k V y+h-k Q x+w y+h x+w-k y+h H x+k Q x y+h x y+h-k V y+k Q x y x+k y Z
-- Arrow: the shaft is one path (M x1 y1 L x2 y2, or a Q curve), the head a second path of two short strokes meeting at the tip, each about an eighth of the shaft's length, angled 30° back — for a rightward arrow ending at (x2, y2): M x2-28 y2-16 L x2 y2 L x2-28 y2+16
-- Curved connector: one Q or C whose control points sit to one side of the straight line between its ends.
-- Organic shape (an organ, a cloud, a body): one closed path of 6 to 12 C segments, smooth, no zig-zags.
-- Nothing smaller than 4% of the viewBox width, and no stroke shorter than that.
-- viewBox 800×500 unless the subject is genuinely tall; then 600×600.
-
-The alt text describes the finished picture for someone who cannot see it, in one or two sentences.`,
-      prompt: `Draw: ${prompt}`,
-      maxTokens: 16000,
+- 2 to 4 stages, numbered from 0. Stage 0 is the subject as the room first sees it — complete enough to recognise. Each later stage adds exactly one idea: a mechanism, a consequence, a comparison. Give every node and edge the stage it first appears in.
+- The stage labels name what each stage adds, in a few words each.
+- The alt text describes the finished picture for someone who cannot see it, in one or two sentences.`,
+      prompt: `Compose a diagram that explains: ${prompt}`,
+      maxTokens: 6000,
       // /api/ai/visuals/draw runs with a 120-second ceiling, and the deck
-      // pass runs several of these against its own 55-second race.
-      attemptTimeoutMs: 50_000,
+      // pass runs several of these against its own 55-second race. A
+      // composition is a few hundred tokens, where path data was thousands.
+      attemptTimeoutMs: 40_000,
     }),
   );
 
   if (!result.ok) return { ok: false, error: result.error };
-  return { ok: true, drawing: result.data };
+  const drawing = GeneratedDrawing.safeParse(compileDiagram(result.data));
+  if (!drawing.success) {
+    logFailure(
+      "ai.generate.drawing",
+      `compiled diagram failed the drawing schema: ${drawing.error.message}`,
+    );
+    return { ok: false, error: "The diagram couldn't be drawn. Nothing was changed." };
+  }
+  return { ok: true, drawing: drawing.data };
 }
 
 export { isAiConfigured };

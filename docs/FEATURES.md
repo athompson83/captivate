@@ -51,23 +51,25 @@ Sign-in errors are deliberately generic: distinguishing "no such user" from
 
 ## Editor
 
-| Feature                                | Status      | Notes                                                          |
-| -------------------------------------- | ----------- | -------------------------------------------------------------- |
-| Add, delete, duplicate, reorder scenes | Implemented | Drag to reorder                                                |
-| Insert between scenes                  | Implemented | Hover affordance in the gap, plus a scene menu                 |
-| Sections                               | Implemented | Add, rename, delete, reorder; deleting keeps the scenes        |
-| Undo and redo                          | Implemented | Typing coalesces into one entry per burst                      |
-| Copy, cut, paste, duplicate            | Implemented | In-memory clipboard, no permission prompt                      |
-| Multi-select                           | Implemented | Shift-click and marquee                                        |
-| Drag and resize                        | Implemented | Eight handles; shift preserves aspect                          |
-| Snapping and guides                    | Implemented | Safe area, stage centre, other elements' edges; Alt suspends   |
-| Align and distribute                   | Implemented | A single selection aligns to the safe area                     |
-| Z-order, lock, hide                    | Implemented |                                                                |
-| Inline text editing                    | Implemented | Plain-text only, so pasted markup cannot enter the document    |
-| Contextual inspector                   | Implemented | Appears only with a selection                                  |
-| Layout picker                          | Implemented | Re-flows content into a designed composition, keeping the text |
-| Keyboard shortcuts                     | Implemented | Listed in Settings and in the editor                           |
-| Real-time collaboration                | Deferred    | The schema does not preclude it                                |
+| Feature                                | Status      | Notes                                                                                            |
+| -------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| Add, delete, duplicate, reorder scenes | Implemented | Drag to reorder                                                                                  |
+| Insert between scenes                  | Implemented | Hover affordance in the gap, plus a scene menu                                                   |
+| Sections                               | Implemented | Add, rename, delete, reorder; deleting keeps the scenes                                          |
+| Undo and redo                          | Implemented | Typing coalesces into one entry per burst                                                        |
+| Copy, cut, paste, duplicate            | Implemented | In-memory clipboard, no permission prompt                                                        |
+| Multi-select                           | Implemented | Shift-click and marquee                                                                          |
+| Drag and resize                        | Implemented | Eight handles; shift preserves aspect                                                            |
+| Snapping and guides                    | Implemented | Safe area, stage centre, other elements' edges; Alt suspends                                     |
+| Align and distribute                   | Implemented | A single selection aligns to the safe area                                                       |
+| Z-order, lock, hide                    | Implemented |                                                                                                  |
+| Inline text editing                    | Implemented | Plain-text only, so pasted markup cannot enter the document                                      |
+| Contextual inspector                   | Implemented | Appears only with a selection                                                                    |
+| Layout picker                          | Implemented | Re-flows content into a designed composition, keeping the text                                   |
+| Undo and redo                          | Implemented | Coalesced history; a labelled group in the header at every width                                 |
+| Show-wide backdrop                     | Implemented | One picture behind the whole show, on a plane at a chosen distance so flights move it with depth |
+| Keyboard shortcuts                     | Implemented | Listed in Settings and in the editor                                                             |
+| Real-time collaboration                | Deferred    | The schema does not preclude it                                                                  |
 
 ### Elements
 

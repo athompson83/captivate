@@ -418,3 +418,38 @@ function findWorld(container: HTMLElement): HTMLElement | null {
     ) ?? null
   );
 }
+
+describe("the backdrop", () => {
+  it("is absent until the author sets a picture", () => {
+    const { container } = renderWorld(3);
+    expect(container.querySelector("[data-backdrop]")).toBeNull();
+  });
+
+  it("paints the picture on its own layer behind the world, dimmed toward the canvas", () => {
+    const { container } = renderWorld(3, {
+      backdrop: {
+        url: "/api/assets/abc/content",
+        assetId: "abc",
+        alt: "a hall",
+        distance: 0.5,
+        dim: 0.4,
+      },
+    });
+    const layer = container.querySelector("[data-backdrop]");
+    expect(layer).not.toBeNull();
+    expect(layer!.querySelector("img")?.getAttribute("src")).toBe("/api/assets/abc/content");
+    // Decorative: the alt is the author's note, not something read to the room.
+    expect(layer!.querySelector("img")?.getAttribute("alt")).toBe("");
+    expect(layer!.getAttribute("aria-hidden")).toBe("true");
+    // Below the content in document order, so the scenes paint over it.
+    const world = container.querySelector("[data-world]")!;
+    expect(layer!.compareDocumentPosition(world) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("paints nothing when the picture was removed", () => {
+    const { container } = renderWorld(3, {
+      backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35 },
+    });
+    expect(container.querySelector("[data-backdrop]")).toBeNull();
+  });
+});

@@ -98,24 +98,36 @@ export function EditorTopBar({
     />
   );
 
+  // Undo and redo stay in the header at every width, and they look like
+  // controls whether or not there is anything to undo. They were fading to
+  // thirty percent when the stack was empty and folding into the overflow
+  // menu on a narrow window, which is how the editor came to be reported as
+  // having no undo button: the two most-used controls on the page were the
+  // two easiest to miss.
   const history = (
-    <div className="flex items-center gap-0.5">
+    <div
+      className="border-line flex items-center rounded-[var(--radius-md)] border"
+      role="group"
+      aria-label="History"
+    >
       <Tooltip label="Undo" shortcut="⌘Z" side="bottom">
         <button
           onClick={undo}
           disabled={!canUndo}
           aria-label="Undo"
-          className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-30"
+          className="text-ink-2 hover:text-ink flex h-8 items-center gap-1.5 rounded-l-[var(--radius-md)] px-2 text-[12.5px] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-45"
         >
           <Undo2 className="size-4" aria-hidden />
+          {!narrow && <span>Undo</span>}
         </button>
       </Tooltip>
+      <span aria-hidden className="bg-line h-5 w-px" />
       <Tooltip label="Redo" shortcut="⇧⌘Z" side="bottom">
         <button
           onClick={redo}
           disabled={!canRedo}
           aria-label="Redo"
-          className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-30"
+          className="text-ink-2 hover:text-ink flex h-8 items-center justify-center rounded-r-[var(--radius-md)] px-2 transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-45"
         >
           <Redo2 className="size-4" aria-hidden />
         </button>
@@ -212,6 +224,7 @@ export function EditorTopBar({
 
         <div className="flex-1" />
 
+        {narrow && history}
         {narrow ? (
           <div className="relative shrink-0">
             <Tooltip label="More" side="bottom">
@@ -236,8 +249,6 @@ export function EditorTopBar({
               className="max-h-[70vh] w-[264px] overflow-y-auto"
             >
               <div role="group" aria-label="More editor controls">
-                <div className="flex items-center gap-1 px-1 pb-1">{history}</div>
-                <div className="border-line-subtle my-1 border-t" />
                 <div className="flex items-center gap-1 px-1 pb-1">{panelToggles}</div>
                 <div className="border-line-subtle my-1 border-t" />
                 <ThemeMenu
