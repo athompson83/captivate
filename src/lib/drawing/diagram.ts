@@ -54,12 +54,47 @@ export const DiagramEdge = z.object({
 });
 export type DiagramEdge = z.infer<typeof DiagramEdge>;
 
-export const GeneratedDiagram = z.object({
-  nodes: z.array(DiagramNode).min(1).max(16),
-  edges: z.array(DiagramEdge).max(24).default([]),
-  stageLabels: z.array(z.string().max(120)).max(4).default([]),
-  alt: z.string().max(600).default(""),
-});
+export const GeneratedDiagram = z
+  .object({
+    nodes: z.array(DiagramNode).min(1).max(16),
+    edges: z.array(DiagramEdge).max(24).default([]),
+    stageLabels: z.array(z.string().max(120)).max(4).default([]),
+    alt: z.string().max(600).default(""),
+  })
+  // Cross-field: every edge joins two distinct nodes that exist. Checked at
+  // the model boundary so a misspelt id earns the corrective retry, rather
+  // than the compiler quietly dropping the arrow that was the whole point.
+  .superRefine((diagram, ctx) => {
+    const ids = new Set<string>();
+    diagram.nodes.forEach((node, index) => {
+      if (ids.has(node.id)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["nodes", index, "id"],
+          message: `Node id "${node.id}" is used more than once`,
+        });
+      }
+      ids.add(node.id);
+    });
+    diagram.edges.forEach((edge, index) => {
+      for (const end of ["from", "to"] as const) {
+        if (!ids.has(edge[end])) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["edges", index, end],
+            message: `Edge ${end} "${edge[end]}" is not a node id`,
+          });
+        }
+      }
+      if (edge.from === edge.to) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["edges", index, "to"],
+          message: "An edge must join two different nodes",
+        });
+      }
+    });
+  });
 export type GeneratedDiagram = z.infer<typeof GeneratedDiagram>;
 
 export interface CompiledDrawing {
@@ -318,8 +353,10 @@ export function boundaryPoint(node: DiagramNode, box: Box, towards: { x: number;
     const ty = uy !== 0 ? box.h / 2 / Math.abs(uy) : Infinity;
     t = Math.min(tx, ty);
   } else {
-    const rx = box.w / 2;
-    const ry = box.h / 2;
+    // A circle is drawn at the smaller of its two sides; clipping to the box's
+    // ellipse would leave an arrow hanging in air along the longer one.
+    const rx = node.kind === "circle" ? Math.min(box.w, box.h) / 2 : box.w / 2;
+    const ry = node.kind === "circle" ? rx : box.h / 2;
     t = 1 / Math.sqrt((ux * ux) / (rx * rx) + (uy * uy) / (ry * ry));
   }
   t += GAP;

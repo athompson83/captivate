@@ -66,6 +66,36 @@ describe("the symbol set", () => {
   });
 });
 
+describe("what the schema refuses", () => {
+  const base = {
+    nodes: [
+      { id: "a", kind: "circle", x: 200, y: 250, w: 100, h: 100 },
+      { id: "b", kind: "box", x: 600, y: 250, w: 100, h: 100 },
+    ],
+  };
+
+  it("an edge to a node that does not exist, so the model retries rather than losing the arrow", () => {
+    expect(GeneratedDiagram.safeParse({ ...base, edges: [{ from: "a", to: "zz" }] }).success).toBe(
+      false,
+    );
+    expect(GeneratedDiagram.safeParse({ ...base, edges: [{ from: "a", to: "b" }] }).success).toBe(
+      true,
+    );
+  });
+
+  it("a node id used twice", () => {
+    expect(
+      GeneratedDiagram.safeParse({ nodes: [base.nodes[0], { ...base.nodes[1], id: "a" }] }).success,
+    ).toBe(false);
+  });
+
+  it("an edge from a node to itself", () => {
+    expect(GeneratedDiagram.safeParse({ ...base, edges: [{ from: "a", to: "a" }] }).success).toBe(
+      false,
+    );
+  });
+});
+
 describe("recipes", () => {
   it("close every shape, so a fill has something to fill", () => {
     expect(circlePath(100, 100, 40).trim().endsWith("Z")).toBe(true);
@@ -154,6 +184,15 @@ describe("arrows", () => {
     expect(start.x).toBeLessThan(150 + 80 + 12);
     expect(end.x).toBeLessThan(650 - 100);
     expect(end.x).toBeGreaterThan(650 - 100 - 12);
+  });
+
+  it("clips to the circle actually drawn when its box is not square", () => {
+    // A 200×100 box draws a circle of radius 50; the ellipse of the box would
+    // put the arrow's end 50 units out in the air along the wide axis.
+    const wide = node({ id: "w", kind: "circle", x: 400, y: 250, w: 200, h: 100 });
+    const end = boundaryPoint(wide, { x: 300, y: 200, w: 200, h: 100 }, { x: 800, y: 250 });
+    expect(end.x).toBeGreaterThan(450);
+    expect(end.x).toBeLessThan(462);
   });
 
   it("draws a shaft and a two-stroke head, and a head at each end for an exchange", () => {
