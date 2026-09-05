@@ -211,6 +211,15 @@ decorate. The two timed beats, opening and establishing, are the second half
 of a move the room did ask for. `prefers-reduced-motion` turns every flight
 into a cut, and the opening hold with it.
 
+**A phone is a hand, not a keyboard.** A share link is opened on a phone more
+often than anywhere else, so the viewer moves on a swipe — left for on, right
+for back, the same two moves as the click zones, which stay — and the
+invitation says so to a coarse pointer. The recogniser is strict: a short,
+mostly horizontal journey; a scroll or a hesitation does nothing. A tap on a
+hotspot is the hotspot's alone (it used to dive and step straight back out),
+pinches stay the browser's, and a pull at the top of a deck is never a page
+refresh. The stage takes the same gesture from a presenter on a tablet.
+
 **The frame before the stage is black.** Both audience routes await the deck
 on the server; until it arrives they show a black frame rather than the site's
 light body, so a projector never flashes white before the first scene.

@@ -136,4 +136,31 @@ describe("the live demo", () => {
       undefined,
     );
   });
+
+  it("moves on a swipe, and only sideways", () => {
+    mount();
+    const stage = screen.getByRole("region", { name: /live demo/i });
+    const at = (type: string, x: number, y: number, t: number) => {
+      const event = new PointerEvent(type, {
+        bubbles: true,
+        clientX: x,
+        clientY: y,
+        pointerId: 1,
+        pointerType: "touch",
+        isPrimary: true,
+      });
+      Object.defineProperty(event, "timeStamp", { value: t });
+      fireEvent(stage, event);
+    };
+    // A vertical journey is the page's scroll, not a move.
+    at("pointerdown", 600, 200, 0);
+    at("pointerup", 610, 600, 200);
+    expect(screen.getByText(/^Scene 1 of/)).toBeInTheDocument();
+
+    for (let i = 0; i < 12 && screen.queryByText(/^Scene 1 of/); i += 1) {
+      at("pointerdown", 600, 300, 1000 + i * 500);
+      at("pointerup", 420, 305, 1180 + i * 500);
+    }
+    expect(screen.getByText(/^Scene 2 of/)).toBeInTheDocument();
+  });
 });

@@ -114,6 +114,12 @@ declare global {
        * null if `cap` presses never got there.
        */
       walk: (key: string, cap: number) => Promise<number | null>;
+      /**
+       * A touch swipe across the stage, dispatched in-page as pointer events.
+       * Playwright's touchscreen can tap but not travel, and the recogniser
+       * under test listens to pointer events, so this is the same path.
+       */
+      swipe: (dx: number) => Promise<void>;
     };
   }
 }
@@ -123,6 +129,29 @@ window.sharedViewerFixture = {
   mount: () => mount(exampleDeck()),
   mountWithAside: () => mount(deckWithAside()),
   firstView: () => firstView,
+
+  async swipe(dx: number) {
+    const el = document.querySelector("[data-view]");
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const at = (type: string, cx: number) =>
+      el.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          clientX: cx,
+          clientY: y,
+          pointerId: 7,
+          pointerType: "touch",
+          isPrimary: true,
+        }),
+      );
+    at("pointerdown", x);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    at("pointerup", x + dx);
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+  },
 
   async walk(key: string, cap: number) {
     for (let i = 0; i < cap; i += 1) {

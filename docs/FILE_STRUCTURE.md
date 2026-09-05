@@ -78,6 +78,7 @@ captivate/
 │  │  ├─ present/
 │  │  │  ├─ session.ts             Session store + React binding
 │  │  │  ├─ opening.ts             The opening beat: hold wide, then dive
+│  │  │  ├─ swipe.ts               Moving by hand: the swipe recogniser
 │  │  │  ├─ protocol.ts            Cross-window messages, Zod-validated
 │  │  │  ├─ motion.ts              Entrance and emphasis presets
 │  │  │  ├─ camera.ts              Optimal zoom-and-pan flight (Van Wijk & Nuij)

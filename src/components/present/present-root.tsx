@@ -22,6 +22,7 @@ import {
 } from "./movement-rail";
 import { AnnotationLayer } from "./annotation-layer";
 import { ClosingFrame } from "./closing-frame";
+import { isControl, useSwipe } from "@/lib/present/swipe";
 import { PresenterBar } from "./presenter-bar";
 import { ConnectPhone } from "./connect-phone";
 import { useRemoteBridge } from "@/lib/present/use-remote-bridge";
@@ -320,8 +321,17 @@ export function PresentRoot({
     return () => window.removeEventListener("keydown", onKey);
   }, [audienceOnly, fullscreen, presentation.id, scenes.length, session, tool]);
 
+  // The same two moves by hand, for a presenter driving from a tablet. The
+  // audience window and the annotation tools own their pointer, as for clicks.
+  const swipe = useSwipe((direction) => {
+    if (tool !== "none" || audienceOnly) return;
+    if (direction === "left") session.next();
+    else session.prev();
+  });
+
   const advanceOnClick = (e: React.MouseEvent) => {
     if (tool !== "none" || audienceOnly) return;
+    if (swipe.consume() || isControl(e.target)) return;
     // Click on the right two-thirds advances, left third goes back — the same
     // convention as a clicker, so it needs no explanation.
     const rect = e.currentTarget.getBoundingClientRect();
@@ -332,7 +342,7 @@ export function PresentRoot({
   return (
     <div
       ref={containerRef}
-      className="stage-safe relative h-screen w-screen overflow-hidden bg-black"
+      className="stage-safe relative h-screen w-screen touch-pinch-zoom overflow-hidden overscroll-none bg-black"
       // The stage tokens are defined here, not only inside the world, because
       // the movement rail and the signpost are presented *over* the world and
       // would otherwise resolve `--stage-ink` to nothing and inherit whatever
@@ -340,6 +350,9 @@ export function PresentRoot({
       style={themeCssVars(theme)}
       onPointerMove={showBar}
       onClick={advanceOnClick}
+      onPointerDown={swipe.onPointerDown}
+      onPointerUp={swipe.onPointerUp}
+      onPointerCancel={swipe.onPointerCancel}
     >
       {/* The show: everything the room sees, and exactly what a recording
           restricted by Element Capture contains. Presenter chrome stays
