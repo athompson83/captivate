@@ -23,6 +23,12 @@ test.describe("public surface", () => {
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: /A camera, not a clicker/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Record the real thing/i })).toBeVisible();
+
+    // The live demo: the real engine on the page, offered from the hero and
+    // present as a section. Its stage loads when scrolled near, so what the
+    // landing render promises is the section and the way to it.
+    await expect(page.getByRole("link", { name: /see it move/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "See it move" })).toBeAttached();
   });
 
   test("sign-in page has a labelled, usable form", async ({ page }) => {

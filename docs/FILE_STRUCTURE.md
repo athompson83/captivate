@@ -48,6 +48,9 @@ captivate/
 │  │  │                            annotation layer, scene jumper,
 │  │  │                            movement rail (the argument's shape,
 │  │  │                            shown to the room), shared viewer
+│  │  ├─ marketing/                The landing page: hero (a three.js world,
+│  │  │                            a CSS one beneath it), the live demo that
+│  │  │                            runs the real engine on the worked example
 │  │  ├─ handout/                  The paper version of a deck
 │  │  ├─ record/                   Recording controller and setup dialog
 │  │  ├─ dashboard/                Cards, library, galleries, settings
@@ -108,6 +111,9 @@ captivate/
 │  │  │  ├─ upload-limits.ts       Shared constants (not a server module)
 │  │  │  └─ use-debounced-save.ts  Durable debounced save for notes
 │  │  ├─ supabase/                 client, server, admin, config, types
+│  │  ├─ marketing/                The hero's world and flight path; the
+│  │  │                            worked example as a deck the landing
+│  │  │                            page's live demo (and a browser test) walks
 │  │  ├─ templates/registry.ts     Six curated templates
 │  │  └─ utils/                    cn, formatting, OKLab/WCAG colour, embed
 │  │                               sandboxing

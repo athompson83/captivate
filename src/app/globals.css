@@ -744,6 +744,34 @@ body {
   }
 }
 
+/* Landing: things that rise into view                                        */
+/* Scroll-driven, in CSS, with no library and no scroll listener: the browser */
+/* runs the animation on the compositor against the element's own progress   */
+/* into the viewport. Browsers without view timelines show the page still,   */
+/* which is a complete page; reduced motion asks for exactly that.           */
+/* ------------------------------------------------------------------------- */
+
+@layer base {
+  @supports (animation-timeline: view()) {
+    .rise-in {
+      animation: rise-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+    @keyframes rise-in {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rise-in {
+        animation: none;
+      }
+    }
+  }
+}
+
 /* Landing: the miniature world                                               */
 /* The hero shows the product's thesis instead of describing it: scenes       */
 /* placed on one canvas, a camera travelling between them. Pure CSS — the     */

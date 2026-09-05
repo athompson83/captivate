@@ -201,3 +201,15 @@ the thing is worth more than showing its content.
 **Nothing moves that the room did not ask for.** The camera only moves on an
 advance, a jump, or an explicit pull-back — never on a timer, and never to
 decorate. `prefers-reduced-motion` turns every flight into a cut.
+
+## The landing page runs the product
+
+The hero shows the idea: scenes in one space, a camera flying between them.
+Below it, "See it move" mounts the real engine on the worked example — the
+first deck a new account opens — and hands the visitor the keys. Nothing
+advances on its own: a page that moves while it is being read is not being
+read. Keys work while the stage has focus, so scrolling with Space is never
+hijacked; Back, Whole map and Next beside the stage do the same for anyone
+who would rather click, and a line between them says where the reader is.
+The engine is fetched only as the section nears view, into a box already the
+right shape, so nothing below it moves when it arrives.

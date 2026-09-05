@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #75 — a scene performs on landing (entrances, sketches,
-  figures counting up, charts building; neighbours recede), awaiting CI, merge
-  and production verification
+  `main` after PR #75 — PR #76 (a scene performs on landing) awaiting CI and
+  merge; the landing page's live demo and scroll reveals following on the
+  same branch
 - `main`: through PR #74 (merged) — `0211aa9`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (this session added
   `0030`, applied before the merge so the shared viewer never served a 404)
@@ -84,6 +84,44 @@ building only when performed; the world holding a far destination through a
 flight, arriving at once on a cut, holding through a section's establishing
 shot, and dimming neighbours while presenting but not in the overview or the
 editor.
+
+### The landing page runs the product
+
+The owner's brief for the landing page was the most captivating on the
+internet, with the practices of 3D and animation. The hero already was one:
+six scenes in one three.js space, a camera flying between them with pointer
+lean and dust for depth, a CSS world beneath it for browsers without WebGL.
+What the page did not do was let a visitor _touch_ the thing. Now it does.
+
+**The live demo.** Below the three steps, a section titled "See it move"
+mounts the real `World` on the worked example — the deck every new account
+opens first, built through the same template machinery creation uses
+(`lib/marketing/example-deck.ts`, which the share-link viewer's browser
+fixture now imports rather than carrying its own copy). Press → or tap the
+stage and the camera flies; the scene performs on landing; the last press
+pulls back over the whole argument. Deliberately not the share-link viewer,
+which is a whole page that listens on `window` for every arrow, Space and
+Backspace — on a marketing page that would hijack scrolling — and carries
+chrome pointing back to where the visitor already is. The demo's keys work
+while the stage has focus, and Back, Whole map and Next beside it do the
+same for anyone who would rather click, with a line saying where they are.
+The engine is fetched only when the section comes within half a screen, into
+a box already the right shape, so nothing below it moves. The hero offers
+"Or see it move ↓".
+
+**Things that rise into view.** The step cards, the feature cards and the
+pricing card rise as they enter the viewport — scroll-driven animation in
+CSS with no library and no scroll listener, gated behind `@supports` so a
+browser without view timelines shows a still page, which is a complete page,
+and reduced motion asks for exactly that.
+
+Tests: the example deck's rows are stable and every scene's section exists;
+the demo is a labelled, focusable region that walks the deck from the
+keyboard and the buttons, pulls back after the last scene, and comes back
+in; a lifecycle spec mounts it in a real browser inside a scrolled page,
+proves a key on the page does not move it and a key on the focused stage
+does, and that the camera loop raises no error; the production smoke suite
+checks the section and the hero's way to it.
 
 ### "Generation failed" on a phone, over a deck that had finished
 

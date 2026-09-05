@@ -2,8 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { SharedViewer } from "@/components/present/shared-viewer";
 import type { SharedDeck } from "@/lib/data/shared-payload";
-import { JOURNEY_DEFAULTS, type Scene, type Section } from "@/lib/schema/presentation";
-import { buildTemplateScenes, getTemplate, templateMovements } from "@/lib/templates/registry";
+import type { Scene } from "@/lib/schema/presentation";
+import { exampleDeck, exampleId } from "@/lib/marketing/example-deck";
 
 /**
  * Mounts the share-link viewer on the worked-example deck.
@@ -22,67 +22,13 @@ import { buildTemplateScenes, getTemplate, templateMovements } from "@/lib/templ
  * keystroke advancing straight back out of it.
  */
 
-const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-
-function exampleDeck(): SharedDeck {
-  const template = getTemplate("example");
-  if (!template) throw new Error("worked example template missing");
-
-  const built = buildTemplateScenes(template, "Hold the room");
-  const movements = templateMovements(built);
-
-  const sections: Section[] = movements.map((movement, i) => ({
-    id: uuid(100 + i),
-    presentationId: uuid(1),
-    title: movement.label,
-    label: movement.label,
-    purpose: "",
-    position: i,
-    createdAt: "",
-    updatedAt: "",
-  }));
-
-  const sectionForScene = (index: number) =>
-    movements.findIndex((m) => index >= m.start && index < m.end);
-
-  const scenes: Scene[] = built.map((scene, i) => {
-    const section = sectionForScene(i);
-    return {
-      id: uuid(200 + i),
-      presentationId: uuid(1),
-      sectionId: section >= 0 ? sections[section].id : null,
-      position: i,
-      title: scene.title,
-      content: scene.content,
-      placement: null,
-      flowRole: "main",
-      momentId: null,
-      speakerNotes: "",
-      durationSeconds: null,
-      createdAt: "",
-      updatedAt: "",
-    };
-  });
-
-  return {
-    id: uuid(1),
-    title: "Hold the room",
-    description: "The worked example, shared.",
-    themeId: template.themeId,
-    aspectRatio: "16:9",
-    journey: JOURNEY_DEFAULTS,
-    scenes,
-    sections,
-  };
-}
-
 /**
  * The same deck with an aside: one detail scene, reached by a hotspot on the
  * heading of the first scene and reachable no other way.
  */
 function deckWithAside(): SharedDeck {
   const deck = exampleDeck();
-  const detailId = uuid(900);
+  const detailId = exampleId(900);
   const [first, ...rest] = deck.scenes;
 
   const detail: Scene = {
