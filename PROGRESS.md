@@ -10,11 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #83 — the show opens and closes on the whole of itself (an
-  opening beat, a closing frame, black load frames), awaiting CI, merge and
-  production verification
-- `main`: through PR #83 (merged) — `ebf6a4d`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q` — the show opens
+  and closes on the whole of itself → PR #84 (merged, squash `298bacd`); this
+  closeout on the same branch, restarted from `main`
+- `main`: through PR #84 (merged) — `298bacd`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -63,6 +62,14 @@ in jsdom and in a real browser, where the fixtures record the first view
 in-page because the beat is shorter than a couple of round trips; the closing
 frame names the deck and passes clicks through; both load frames are black.
 `npm run verify` green; lifecycle browser suite 7 of 7.
+
+**Landed and verified.** PR #84 squash-merged as `298bacd`, CI green on the
+head. Probed `www.axtevi.com` through a real browser after the deploy: the
+live demo's first view, recorded in-page from the moment it mounted, was the
+opening hold; it dove on its own to "Scene 1 of 11: Title"; past the last
+scene the closing frame read "Hold the room" at opacity 1; one press back
+returned to a scene with the frame gone; empty console. Smoke suite 37 of 37
+through the proxy.
 
 ### Depth inside the scene
 
