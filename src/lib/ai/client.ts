@@ -45,6 +45,12 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promi
         error: data?.error ?? `That didn't work (${response.status}). Nothing was changed.`,
       };
     }
+    // A long route streams heartbeats and commits to 200 before it knows the
+    // outcome (see `lib/ai/keep-alive.ts`), so its failure arrives as an
+    // `error` field on an OK response. Nothing successful carries one.
+    if (typeof data?.error === "string" && data.error.length > 0) {
+      return { ok: false, error: data.error };
+    }
     // A response with an OK status but an unreadable body means the connection
     // dropped after the route committed its work (see NETWORK_ERROR above) —
     // that's the same partial-write risk, not a clean "nothing to report".

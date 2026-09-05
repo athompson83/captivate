@@ -96,6 +96,7 @@ captivate/
 │  │  │  ├─ fallback.ts            Deterministic generator
 │  │  │  ├─ rate-limit.ts          Database-backed limiter
 │  │  │  ├─ route-helpers.ts       Auth + limit + validate guard
+│  │  │  ├─ keep-alive.ts          Heartbeats while a long route works
 │  │  │  └─ client.ts              Browser callers
 │  │  ├─ data/
 │  │  │  ├─ actions.ts             Presentation, scene, section, folder writes

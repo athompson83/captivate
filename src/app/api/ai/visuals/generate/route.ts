@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { generateImage, isImageGenerationConfigured } from "@/lib/ai/visual-sourcing";
@@ -34,7 +35,9 @@ export async function POST(request: Request) {
   if (!parsed.success)
     return NextResponse.json({ error: "Describe the image you want." }, { status: 400 });
 
-  const result = await generateImage(parsed.data.prompt, parsed.data.presentationId ?? null);
-  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
-  return NextResponse.json({ image: result.data });
+  return keepAlive(async () => {
+    const result = await generateImage(parsed.data.prompt, parsed.data.presentationId ?? null);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
+    return NextResponse.json({ image: result.data });
+  });
 }

@@ -479,8 +479,12 @@ ${plan}
 ${referenceBlock(context.reference ?? null)}`,
       maxTokens: 14000,
       // Both scene routes run at the 300-second platform ceiling, and this
-      // call is followed by the drawing and photo pass.
-      attemptTimeoutMs: 100_000,
+      // call is followed by the drawing and photo pass. 140, up from 100: a
+      // seventeen-moment deck at full depth measured 94 and 104 seconds on
+      // the production ledger — seconds from the old budget cutting off a
+      // deck that was about to finish. Not more, because a schema near-miss
+      // is answered a second time and both attempts have to fit the route.
+      attemptTimeoutMs: 140_000,
     }),
   );
 

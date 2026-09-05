@@ -300,14 +300,16 @@ function AiPath({ folderId }: { folderId: string | null }) {
       setStep("map");
       // This route creates the presentation, its movements and its moments
       // before it ever starts writing scenes — a network-level failure (as
-      // opposed to one the route reported itself) can arrive after that, on a
-      // full-depth deck slow enough to outlast the connection. "Nothing
-      // changed" would be a guess this call cannot back up, so the recovery
-      // path is named instead of implied: check the dashboard for a deck with
-      // this title before generating another one from the same map.
+      // opposed to one the route reported itself) can arrive after that, and
+      // the route keeps working after the connection is gone, so the deck may
+      // be complete by the time the author reads this. "Nothing changed" would
+      // be a guess this call cannot back up, so the recovery path is named
+      // instead of implied: check the dashboard for a deck with this title
+      // before generating another one from the same map. The owner did not,
+      // and had two.
       const description =
         result.error === NETWORK_ERROR
-          ? `Couldn't reach the server. If this deck was slow to write, a presentation titled "${map.title}" may already be in your dashboard with its structure but no scenes yet — open it there instead of generating again, or retry here if it isn't.`
+          ? `Couldn't reach the server. A presentation titled "${map.title}" may already be in your dashboard, possibly with its scenes written — open it there instead of generating again, and retry here only if it isn't.`
           : result.error;
       toast({ tone: "error", title: "Generation failed", description });
       return;

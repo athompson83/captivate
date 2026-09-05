@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { generateDrawing, isAiConfigured } from "@/lib/ai/service";
@@ -32,7 +33,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Describe the drawing you want." }, { status: 400 });
   }
 
-  const result = await generateDrawing(parsed.data.prompt, parsed.data.presentationId ?? null);
-  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
-  return NextResponse.json({ drawing: result.drawing });
+  return keepAlive(async () => {
+    const result = await generateDrawing(parsed.data.prompt, parsed.data.presentationId ?? null);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
+    return NextResponse.json({ drawing: result.drawing });
+  });
 }
