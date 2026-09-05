@@ -6,7 +6,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { PresentationCard } from "@/components/dashboard/presentation-card";
 import { EmptyState } from "@/components/ui/misc";
 import { relativeTime, formatDuration } from "@/lib/utils/format";
-import { TEMPLATES } from "@/lib/templates/registry";
+import { STRUCTURE_COUNT } from "@/lib/templates/registry";
 
 export const metadata: Metadata = { title: "Home" };
 export const dynamic = "force-dynamic";
@@ -86,7 +86,7 @@ export default async function HomePage() {
           <Plus className="text-accent size-4" aria-hidden />
           <h2 className="text-ink mt-3 text-[14px] font-semibold">New presentation</h2>
           <p className="text-ink-3 mt-1 text-[12.5px] leading-relaxed">
-            Start from a clear stage, or from one of {TEMPLATES.length - 2} structures.
+            Start from a clear stage, or from one of {STRUCTURE_COUNT} structures.
           </p>
           <span className="text-accent-text mt-3 inline-flex items-center gap-1 text-[12px] font-medium">
             Create{" "}
@@ -133,6 +133,21 @@ export default async function HomePage() {
           </Link>
         )}
       </div>
+
+      {/* The worked example is offered in the empty state and then, until now,
+          never again. A second deck should not hide the one finished talk. */}
+      {recent.length > 0 && (
+        <p className="text-ink-3 -mt-6 mb-10 text-[12.5px]">
+          New here?{" "}
+          <Link
+            href="/new?template=example"
+            className="text-accent-text font-medium underline-offset-2 hover:underline"
+          >
+            Open the worked example
+          </Link>
+          , a finished talk to walk through, present, or pull apart.
+        </p>
+      )}
 
       <section aria-labelledby="recent-heading">
         <div className="mb-3.5 flex items-baseline justify-between">

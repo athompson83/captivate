@@ -10,9 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` — help under `?`
-  → PR #92 (merged, squash `83c2969`); this closeout on the same branch,
-  restarted from `main`
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #92 — the MVP-024 closeout, and the worked example never
+  hidden (first in the creation grid, a line away on home, the structures
+  counted honestly), awaiting CI, merge and production verification
 - `main`: through PR #92 (merged) — `83c2969`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
@@ -33,6 +34,25 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The worked example is never hidden
+
+The one finished talk — "Hold the room" — was offered in the empty state and
+then never again: a second deck buried it. In the creation grid it sat
+undifferentiated among twelve structures, and the home page counted "one of
+{TEMPLATES.length - 2} structures", a subtraction that only made sense to
+someone who knew two entries were not structures. The registry now names
+what each entry is (`templateKind`: the finished talk, a structure, the
+clear stage), counts the structures for the home page (`STRUCTURE_COUNT`),
+and orders the grid (`orderedTemplates`): the finished talk first and the
+clear stage last, each with an eyebrow saying what it is. The home page keeps
+a line to the worked example once decks exist, and a link that arrives with a
+template chosen scrolls to it — an optional call, because jsdom has no
+`scrollIntoView` and a test that renders the flow is not a test of scrolling.
+
+Tests: the kinds tell the three apart and there is exactly one of each end;
+the structure count is what the home page says and the old subtraction is
+gone from its source; the grid's order and its labels.
 
 ### Help under `?`
 

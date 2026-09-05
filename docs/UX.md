@@ -145,6 +145,13 @@ the difference between lecture notes and speaker notes.
 
 A blank rectangle with "No items" teaches nothing.
 
+**The worked example is never hidden.** It is the first offer in the empty
+state and stays a line away once a deck exists, because a second deck should
+not bury the one finished talk. In the creation grid it comes first and says
+what it is — a finished talk, not a structure — and the clear stage comes last
+and says so too; the home page counts the structures between them, not the
+entries. A link that arrives with it chosen lands on it.
+
 ---
 
 ## Destructive actions are recoverable
