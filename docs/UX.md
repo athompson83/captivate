@@ -223,6 +223,18 @@ screen is a button in the corner as well as the F key, because a hand has no
 F; it appears only where the browser can do it (an iPhone cannot), asks by the
 prefixed name Safari on iPad still uses, and says so when refused rather than
 doing nothing.
+<<<<<<< HEAD
+
+**A share link looks like something before it is opened.** A link pasted into
+a chat is unfurled by the chat, and every deck used to unfurl as the site's
+own card — the product's name where the presentation's should be. Now the
+viewer route serves the deck's card: its title in its own theme, the shape of
+the thing beneath (scenes and movements), resolved through the same function
+the viewer uses, so a revoked link unfurls as the generic card and a card can
+never show what a link-holder would not see.
+=======
+
+> > > > > > > origin/claude/presentation-experience-redesign-r10l4q
 
 **A mouse is a hand too.** On the shared viewer and the landing page's demo,
 moving the pointer over the world leans what is behind the scene — the

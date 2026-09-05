@@ -19,7 +19,8 @@ captivate/
 │  │  │  │                         loading frame before it
 │  │  │  └─ console/               The presenter console
 │  │  ├─ v/[token]/                Public share-link viewer — no account;
-│  │  │                            the same black frame before it
+│  │  │                            the same black frame before it, and the
+│  │  │                            deck's own Open Graph card
 │  │  ├─ handout/[id]/             Print/PDF export, owner only
 │  │  ├─ api/
 │  │  │  ├─ ai/                    map, create-from-map, scenes-from-map,
@@ -123,7 +124,8 @@ captivate/
 │  │  ├─ supabase/                 client, server, admin, config, types
 │  │  ├─ marketing/                The hero's world and flight path; the
 │  │  │                            worked example as a deck the landing
-│  │  │                            page's live demo (and a browser test) walks
+│  │  │                            page's live demo (and a browser test) walks;
+│  │  │                            the share card a link unfurls as
 │  │  ├─ templates/registry.ts     Six curated templates
 │  │  └─ utils/                    cn, formatting, OKLab/WCAG colour, embed
 │  │                               sandboxing

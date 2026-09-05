@@ -11,12 +11,12 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/captivate-3d-graphics-5ypuvx`, restarted from `main` after
-  PR #88 and merged with `main` after PR #89 — the room answers the hand: on
+  PR #88 and merged with `main` through PR #90 — the room answers the hand: on
   the shared viewer and the live demo, the backdrop and the air follow a mouse
   over the world while the scene stays put; awaiting CI, merge and production
-  verification (MVP-023)
-- `main`: through PR #89 (merged) — `75b089e`, full screen by hand, awaiting
-  its production verification from the session that owns it; every migration
+  verification (MVP-024)
+- `main`: through PR #90 (merged) — `7e31939`, the share card, awaiting its
+  production verification from the session that owns it; every migration
   through `0030_shared_backdrop_asset.sql` applied to production (no migration
   since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
@@ -63,6 +63,11 @@ guidance names tilt-on-hover, and a card there genuinely is a discrete object
 — but it is furniture on an admin surface, and every round so far has spent
 its motion on the presentation itself.
 
+Found and fixed on the way: `docs/FEATURES.md` on `main` carried a committed
+merge conflict — the presenting table twice, with `<<<<<<< HEAD` above and
+a `=======` that Prettier had re-wrapped into a table row between. The copy
+with the share-card row is kept; the markers and the duplicate are gone.
+
 Tests: where the hand is, clamped at the edges and level over a box with no
 size; the ease closes the same distance at 30 and 60 frames a second, snaps
 within rest, returns exactly level and never moves on a zero step; the
@@ -73,6 +78,26 @@ moves the backdrop and not the world, eases rather than jumps, returns
 exactly level with the loop stopped, and does nothing for a finger, without
 the prop, or under reduced motion. The three positive cases were run with the
 listener removed and failed.
+
+### A share link that looks like something before it is opened
+
+A link pasted into a chat is unfurled by the chat, and every deck unfurled
+as the site's own card: the product's name where the presentation's should
+be. The viewer route now serves the deck's card
+(`app/v/[token]/opengraph-image.tsx`, built by
+`lib/marketing/share-card.tsx` and rasterised by `next/og`): its title in its
+own theme, the description beneath, and the shape of the thing along the
+bottom — scenes and movements. It is resolved through the same SECURITY
+DEFINER function the viewer uses, so a revoked or mistyped link unfurls as
+the generic card and a card can never show what a link-holder would not see;
+the read is request-time, so nothing is cached past the moment the owner
+turns the link off. Theme tokens are hex, which is what the rasteriser
+understands. The built server rendered the fallback card as a 1200×630 PNG.
+
+Tests: the card carries the title, description, counts and the theme's
+colours; the generic card for nothing; a long title is cut on a word and one
+scene is singular; a source test pins the route to the shared resolver and
+to no presenter field.
 
 ### Full screen by hand
 
@@ -92,6 +117,13 @@ to the prefixed name and refuses when neither exists; support comes from the
 prefixed flag; a phone with neither is unsupported; a prefixed change event
 is followed and a refusal is reported; the viewer's button asks for full
 screen and never advances the deck.
+
+**Landed and verified.** PR #89 squash-merged as `75b089e`, CI green on the
+head. No presentation in production carries a share link, so the corner
+itself could not be probed live without creating owner data; the evidence is
+the deployment — the proxied smoke suite 37 of 37 against `www.axtevi.com`
+after the deploy and the viewer route answering for an unknown token — and
+the lifecycle browser suite, 7 of 7, on the same code.
 
 ### Three, two, one
 
