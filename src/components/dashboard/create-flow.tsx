@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
@@ -14,7 +14,7 @@ import {
   Sparkles,
   Wand2,
 } from "lucide-react";
-import { TEMPLATES } from "@/lib/templates/registry";
+import { TEMPLATES, orderedTemplates, templateKind } from "@/lib/templates/registry";
 import { THEMES, getTheme } from "@/lib/schema/theme";
 import type { ProposedMap } from "@/lib/ai/schemas";
 import { ROLE_META, ROLE_ORDER } from "@/lib/schema/narrative";
@@ -132,6 +132,16 @@ function TemplatePath({
 
   const template = TEMPLATES.find((t) => t.id === templateId);
 
+  // A link that arrives with a template chosen ("See a finished example")
+  // should land on it, not on a grid where the choice has been made out of
+  // view. Once, on arrival: the author's own scrolling is their own after.
+  const preselected = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    // Optional call: jsdom has no scrollIntoView, and a test that renders the
+    // flow with a template chosen is not a test of scrolling.
+    if (initialTemplateId) preselected.current?.scrollIntoView?.({ block: "center" });
+  }, [initialTemplateId]);
+
   const create = () =>
     start(async () => {
       const result = await createPresentation({
@@ -154,9 +164,10 @@ function TemplatePath({
           Structure
         </legend>
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-          {TEMPLATES.map((t) => (
+          {orderedTemplates().map((t) => (
             <button
               key={t.id}
+              ref={t.id === startingId ? preselected : undefined}
               onClick={() => {
                 setTemplateId(t.id);
                 setThemeId(t.themeId);
@@ -169,6 +180,13 @@ function TemplatePath({
                   : "border-line-subtle bg-raised hover:border-line",
               )}
             >
+              {/* The one finished talk and the clear stage are not structures,
+                  and say so, rather than sitting undifferentiated among them. */}
+              {templateKind(t) !== "structure" && (
+                <p className="text-accent-text mb-1.5 text-[10px] font-medium tracking-wider uppercase">
+                  {templateKind(t) === "example" ? "A finished talk" : "A clear stage"}
+                </p>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-ink text-[13.5px] font-semibold">{t.name}</span>
                 {templateId === t.id && <Check className="text-accent-text size-3.5" aria-hidden />}
