@@ -249,8 +249,10 @@ export const World = memo(function World({
     at: 0,
   });
   const leanFrameRef = useRef(0);
-  /** The latest `apply`, for the lean loop: it closes over this render's plane and viewport. */
+  /** The latest `apply`, so a late-arriving atmosphere or a lean can paint with this render's plane and viewport. */
   const applyRef = useRef<((camera: Camera) => void) | null>(null);
+  /** The room half of `apply` alone — what a lean frame repaints. */
+  const roomRef = useRef<((camera: Camera) => void) | null>(null);
   const arriveRef = useRef(onArrive);
   // Kept current in an effect, not during render: the flight loop below must
   // not restart when only the callback identity changes.
@@ -353,30 +355,17 @@ export const World = memo(function World({
     const node = worldRef.current;
     if (!node || viewport.width === 0) return;
 
-    const apply = (camera: Camera) => {
-      cameraRef.current = camera;
-      // The room — backdrop and air — is seen from a camera leaned toward the
-      // hand; the content is not. A scene being read stays registered, and
-      // what is behind it shifts, which is what depth looks like from a
-      // viewer who moves.
+    /**
+     * The room — backdrop, wash and air — seen from a camera leaned toward
+     * the hand; the content is not. A scene being read stays registered, and
+     * what is behind it shifts, which is what depth looks like from a viewer
+     * who moves. Its own function because a lean frame repaints only this:
+     * the world and every region's depth are unchanged by a lean, and
+     * rewriting them sixty times a second for no visible change is the most
+     * expensive way to do nothing.
+     */
+    const paintRoom = (camera: Camera) => {
       const room = lean ? leanCamera(camera, leanRef.current.current, aspectRatio) : camera;
-      // Prepending the inset shifts the frame's centre into the clear area;
-      // `worldTransform` then fits and centres within what remains.
-      node.style.transform =
-        (inset > 0 ? `translate(${inset}px, 0px) ` : "") + worldTransform(camera, effective);
-
-      // Depth inside each scene: two custom properties per region, read by
-      // every element's wrapper in CSS. Exactly zero on the scene the camera
-      // is centred on, so a scene being read is never misregistered.
-      if (play) {
-        for (const [index, region] of regionNodes.current) {
-          const placement = placements[index];
-          if (!placement) continue;
-          const offset = regionParallax(camera, placement, stage);
-          region.style.setProperty("--px", `${offset.x.toFixed(2)}px`);
-          region.style.setProperty("--py", `${offset.y.toFixed(2)}px`);
-        }
-      }
 
       // The picture behind the show, at its distance. Same loop, same frame,
       // so the parallax is never a frame behind the content.
@@ -410,7 +399,31 @@ export const World = memo(function World({
       // this never initialises.
       if (atmosphereRef.current?.draw(room)) atmospherePaintedRef.current = true;
     };
+
+    const apply = (camera: Camera) => {
+      cameraRef.current = camera;
+      // Prepending the inset shifts the frame's centre into the clear area;
+      // `worldTransform` then fits and centres within what remains.
+      node.style.transform =
+        (inset > 0 ? `translate(${inset}px, 0px) ` : "") + worldTransform(camera, effective);
+
+      // Depth inside each scene: two custom properties per region, read by
+      // every element's wrapper in CSS. Exactly zero on the scene the camera
+      // is centred on, so a scene being read is never misregistered.
+      if (play) {
+        for (const [index, region] of regionNodes.current) {
+          const placement = placements[index];
+          if (!placement) continue;
+          const offset = regionParallax(camera, placement, stage);
+          region.style.setProperty("--px", `${offset.x.toFixed(2)}px`);
+          region.style.setProperty("--py", `${offset.y.toFixed(2)}px`);
+        }
+      }
+
+      paintRoom(camera);
+    };
     applyRef.current = apply;
+    roomRef.current = paintRoom;
 
     // Re-rendering with an equal destination must not restart a flight, and
     // the memo above cannot promise referential stability across every parent.
@@ -528,10 +541,10 @@ export const World = memo(function World({
     const node = containerRef.current;
     if (!lean || reduced || !node) return;
 
-    /** Writes the room for the current lean — unless a flight is, this frame. */
+    /** Paints the room for the current lean — unless a flight is, this frame. */
     const paint = () => {
       const camera = cameraRef.current;
-      if (camera && frameRef.current === 0 && !timerRef.current) applyRef.current?.(camera);
+      if (camera && frameRef.current === 0 && !timerRef.current) roomRef.current?.(camera);
     };
 
     const tick = (now: number) => {
@@ -561,6 +574,9 @@ export const World = memo(function World({
     const onPointerMove = (event: PointerEvent) => {
       // A finger on the stage is a swipe, not a lean.
       if (event.pointerType === "touch") return;
+      // Read, not cached: the box moves when the page scrolls, which no
+      // ResizeObserver sees, and every write here happens in a frame callback,
+      // so at pointer time layout is clean and this forces nothing.
       aim(pointerLean(event.clientX, event.clientY, node.getBoundingClientRect()));
     };
     const onPointerLeave = () => aim(LEVEL);

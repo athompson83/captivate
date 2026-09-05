@@ -63,10 +63,12 @@ guidance names tilt-on-hover, and a card there genuinely is a discrete object
 — but it is furniture on an admin surface, and every round so far has spent
 its motion on the presentation itself.
 
-Found and fixed on the way: `docs/FEATURES.md` on `main` carried a committed
-merge conflict — the presenting table twice, with `<<<<<<< HEAD` above and
-a `=======` that Prettier had re-wrapped into a table row between. The copy
-with the share-card row is kept; the markers and the duplicate are gone.
+Found and fixed on the way: `docs/FEATURES.md` and `docs/UX.md` on `main`
+carried committed merge conflicts — the presenting table twice, with
+`<<<<<<< HEAD` above and a `=======` that Prettier had re-wrapped into a
+table row between, and the same markers around the share-card paragraph.
+The copies with the share-card content are kept; the markers and the
+duplicate are gone (CodeRabbit caught the second one).
 
 Tests: where the hand is, clamped at the edges and level over a box with no
 size; the ease closes the same distance at 30 and 60 frames a second, snaps

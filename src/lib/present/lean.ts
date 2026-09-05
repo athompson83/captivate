@@ -52,6 +52,7 @@ export function pointerLean(
   return { x: clamp(x), y: clamp(y) };
 }
 
+/** A lean never goes past the edge of the viewport. */
 function clamp(value: number): number {
   return Math.max(-1, Math.min(1, value));
 }
