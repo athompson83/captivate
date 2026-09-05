@@ -10,11 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #89 — the MVP-022 closeout, and a share link that looks like
-  something before it is opened (the deck's own Open Graph card), awaiting
-  CI, merge and production verification
-- `main`: through PR #89 (merged) — `75b089e`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q` — the share card
+  → PR #90 (merged, squash `7e31939`); this closeout on the same branch,
+  restarted from `main`
+- `main`: through PR #90 (merged) — `7e31939`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -54,6 +53,13 @@ Tests: the card carries the title, description, counts and the theme's
 colours; the generic card for nothing; a long title is cut on a word and one
 scene is singular; a source test pins the route to the shared resolver and
 to no presenter field.
+
+**Landed and verified.** PR #90 squash-merged as `7e31939`, CI green on the
+head. Production, after the deploy: `/v/<unknown token>/opengraph-image`
+answered 200 `image/png`, a 1200×630 card of 91,731 bytes, and the viewer
+page's `og:image` points at it. Smoke suite 35 of 37 through the proxy, the
+two misses both `net::ERR_TIMED_OUT` at the proxy on a single navigation,
+and both passed on one re-run — 37 of 37 across the two runs.
 
 ### Full screen by hand
 
