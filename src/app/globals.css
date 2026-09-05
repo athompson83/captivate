@@ -420,6 +420,17 @@
     }
   }
 
+  /* Depth inside a scene (see lib/present/parallax.ts): the region carries
+     --px/--py from the camera loop; each element's layer multiplies them by
+     its own depth. Transform only, so the compositor moves the layers. */
+  .pxl {
+    height: 100%;
+    transform: translate(
+      calc(var(--px, 0px) * var(--depth, 0)),
+      calc(var(--py, 0px) * var(--depth, 0))
+    );
+  }
+
   /* A heading performed a word at a time (see KineticWords). */
   .kt-word {
     display: inline-block;

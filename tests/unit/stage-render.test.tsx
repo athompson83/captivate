@@ -581,3 +581,30 @@ describe("kinetic headings", () => {
     expect(container.querySelectorAll(".kt-word")).toHaveLength(0);
   });
 });
+
+/**
+ * Each element's depth layer, present only while presenting: in the editor
+ * an element sits exactly where it was put.
+ */
+describe("depth layers", () => {
+  const content = composeScene("split-left", {
+    heading: "A claim",
+    bullets: ["one"],
+    media: { url: "https://example.com/x.jpg", alt: "A picture" },
+  });
+
+  it("gives words and pictures their depth while presenting, and none in the editor", () => {
+    const live = render(
+      <Stage content={content} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    const layers = [...live.container.querySelectorAll<HTMLElement>(".pxl")];
+    expect(layers.length).toBeGreaterThan(1);
+    const depths = layers.map((layer) => Number(layer.style.getPropertyValue("--depth")));
+    expect(depths.some((d) => d < 0)).toBe(true);
+    expect(depths.some((d) => d > 0)).toBe(true);
+    live.unmount();
+
+    const still = renderStage(content);
+    expect(still.container.querySelectorAll(".pxl")).toHaveLength(0);
+  });
+});

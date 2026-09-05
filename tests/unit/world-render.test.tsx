@@ -587,3 +587,29 @@ describe("performing on arrival", () => {
     }
   });
 });
+
+/**
+ * Depth inside each scene is written by the camera loop as two custom
+ * properties on the region — never through React — and only while presenting.
+ */
+describe("depth inside the scenes", () => {
+  it("hands the scene under the camera a zero offset and its neighbours a real one", () => {
+    renderWorld(4, { play: true });
+    const active = document.querySelector<HTMLElement>('[data-scene-index="0"]');
+    expect(active!.style.getPropertyValue("--px")).toBe("0.00px");
+    expect(active!.style.getPropertyValue("--py")).toBe("0.00px");
+    const neighbour = [...document.querySelectorAll<HTMLElement>("[data-scene-index]")].find(
+      (region) => region.dataset.sceneIndex !== "0",
+    );
+    expect(neighbour).toBeDefined();
+    expect(neighbour!.style.getPropertyValue("--px")).not.toBe("");
+    expect(neighbour!.style.getPropertyValue("--px")).not.toBe("0.00px");
+  });
+
+  it("writes nothing in the editor", () => {
+    renderWorld(4);
+    for (const region of document.querySelectorAll<HTMLElement>("[data-scene-index]")) {
+      expect(region.style.getPropertyValue("--px")).toBe("");
+    }
+  });
+});
