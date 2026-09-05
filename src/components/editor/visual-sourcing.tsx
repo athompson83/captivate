@@ -203,12 +203,15 @@ export function ImageGeneration({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, presentationId }),
     }).catch(() => null);
-    setBusy(false);
-
+    // Busy until the body, not the headers: the route streams heartbeats
+    // while the image is made, so `fetch` resolves at once and the picture
+    // arrives tens of seconds later. Re-enabling the button here let a second
+    // click start a second paid generation.
     const data = (await response?.json().catch(() => null)) as {
       image?: Generated;
       error?: string;
     } | null;
+    setBusy(false);
     if (!response?.ok || !data?.image) {
       setNotice(data?.error ?? "Couldn't generate an image.");
       return;

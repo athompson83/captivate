@@ -91,15 +91,21 @@ describe("keepAlive", () => {
     });
   });
 
-  it("turns a thrown route into an error body rather than a severed connection", async () => {
+  it("turns a thrown route into an error body, and logs the cause for the operator", async () => {
+    const stderr = vi.spyOn(console, "error").mockImplementation(() => {});
     const response = keepAlive(async () => {
       throw new Error("supabase fell over");
     });
     await vi.advanceTimersByTimeAsync(0);
     const body = (await response.json()) as { error: string };
     expect(body.error).toMatch(/dashboard/);
-    // The route's exception text is an operator's concern, not the author's.
+    // The route's exception text is an operator's concern, not the author's —
+    // before the wrapper it surfaced as a logged 500, and a polite 200 with
+    // no trace would be strictly harder to diagnose.
     expect(body.error).not.toContain("supabase");
+    expect(stderr).toHaveBeenCalledTimes(1);
+    expect(String(stderr.mock.calls[0][0])).toContain("supabase fell over");
+    stderr.mockRestore();
   });
 
   it("stops the heartbeat once the body is written", async () => {

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { logFailure } from "@/lib/observability";
+
 /**
  * A response that keeps the connection warm while a long route works.
  *
@@ -49,7 +51,11 @@ export function keepAlive(work: () => Promise<Response>): Response {
         const response = await work();
         const body = await response.text();
         write(body.length > 0 ? body : JSON.stringify({ error: SILENT_ROUTE }));
-      } catch {
+      } catch (error) {
+        // The author gets a sentence; the operator gets the cause. Before the
+        // wrapper an exception here surfaced as a logged 500, and a 200 with
+        // a polite body and no trace would be strictly harder to diagnose.
+        logFailure("keep-alive: route threw after headers were sent", error);
         write(JSON.stringify({ error: FAILED_ROUTE }));
       } finally {
         if (heartbeat) clearInterval(heartbeat);
