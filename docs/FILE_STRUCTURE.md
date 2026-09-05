@@ -55,7 +55,8 @@ captivate/
 │  │  │                            a CSS one beneath it), the live demo that
 │  │  │                            runs the real engine on the worked example
 │  │  ├─ handout/                  The paper version of a deck
-│  │  ├─ record/                   Recording controller and setup dialog
+│  │  ├─ record/                   Recording controller, setup dialog and
+│  │  │                            the count-in before capture
 │  │  ├─ dashboard/                Cards, library, galleries, settings
 │  │  ├─ notes/                    Notes workspace
 │  │  ├─ auth/                     Auth forms
@@ -97,6 +98,7 @@ captivate/
 │  │  │  ├─ stage.ts               Stage geometry helpers
 │  │  │  └─ fullscreen.ts          Fullscreen and wake lock
 │  │  ├─ record/recorder.ts        MediaRecorder state machine, compositing
+│  │  ├─ record/countdown.ts       Three, two, one: the count before capture
 │  │  ├─ ai/
 │  │  │  ├─ schemas.ts             Output schemas — the wall
 │  │  │  ├─ provider.ts            The only door to a model

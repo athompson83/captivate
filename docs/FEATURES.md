@@ -202,20 +202,21 @@ window to the projector — one instruction, no experimental API.
 
 ## Recording
 
-| Feature                          | Status      | Notes                                                           |
-| -------------------------------- | ----------- | --------------------------------------------------------------- |
-| Screen capture                   | Implemented | `getDisplayMedia`; the user picks the tab                       |
-| Microphone with device selection | Implemented | Echo cancellation and noise suppression on                      |
-| Camera picture-in-picture        | Implemented | Composited onto a canvas, so it is _in_ the file                |
-| Camera corner, size, shape       | Implemented | Four corners, three sizes, circle or rounded                    |
-| Pause and resume                 | Implemented | Where `MediaRecorder.pause` exists                              |
-| Scene timeline                   | Implemented | Becomes chapter markers in playback                             |
-| Local download                   | Implemented | Offered the instant recording stops, before any upload          |
-| Upload to library                | Implemented | Private bucket; playback through a signed URL                   |
-| Honest failure                   | Implemented | A failed upload is marked `local_only` and says so              |
-| Format                           | Implemented | Negotiated against the browser: MP4 on Safari, WebM on Chromium |
-| Server-side transcoding          | Deferred    | Would need a paid worker; the download is the practical path    |
-| Trimming and editing             | Deferred    |                                                                 |
+| Feature                          | Status      | Notes                                                             |
+| -------------------------------- | ----------- | ----------------------------------------------------------------- |
+| Screen capture                   | Implemented | `getDisplayMedia`; the user picks the tab                         |
+| Microphone with device selection | Implemented | Echo cancellation and noise suppression on                        |
+| Camera picture-in-picture        | Implemented | Composited onto a canvas, so it is _in_ the file                  |
+| Camera corner, size, shape       | Implemented | Four corners, three sizes, circle or rounded                      |
+| Pause and resume                 | Implemented | Where `MediaRecorder.pause` exists                                |
+| Count-in                         | Implemented | Three, two, one over the stage before capture begins; Esc cancels |
+| Scene timeline                   | Implemented | Becomes chapter markers in playback                               |
+| Local download                   | Implemented | Offered the instant recording stops, before any upload            |
+| Upload to library                | Implemented | Private bucket; playback through a signed URL                     |
+| Honest failure                   | Implemented | A failed upload is marked `local_only` and says so                |
+| Format                           | Implemented | Negotiated against the browser: MP4 on Safari, WebM on Chromium   |
+| Server-side transcoding          | Deferred    | Would need a paid worker; the download is the practical path      |
+| Trimming and editing             | Deferred    |                                                                   |
 
 Annotations, camera flights and video all appear in the recording, because the
 capture is of the rendered tab.
