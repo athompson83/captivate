@@ -233,7 +233,8 @@ the thing beneath (scenes and movements), resolved through the same function
 the viewer uses, so a revoked link unfurls as the generic card and a card can
 never show what a link-holder would not see.
 =======
->>>>>>> origin/claude/presentation-experience-redesign-r10l4q
+
+> > > > > > > origin/claude/presentation-experience-redesign-r10l4q
 
 **The frame before the stage is black.** Both audience routes await the deck
 on the server; until it arrives they show a black frame rather than the site's
