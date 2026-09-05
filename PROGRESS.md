@@ -10,11 +10,9 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #75 — PR #76 (a scene performs on landing) awaiting CI and
-  merge; the landing page's live demo and scroll reveals following on the
-  same branch
-- `main`: through PR #74 (merged) — `0211aa9`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #76 (merged,
+  squash `f62aa86`); this closeout on the same branch, restarted from `main`
+- `main`: through PR #76 (merged) — `f62aa86`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (this session added
   `0030`, applied before the merge so the shared viewer never served a 404)
 - Brand: Captivate is the product; Axtevi is the company it sits under
@@ -122,6 +120,33 @@ in; a lifecycle spec mounts it in a real browser inside a scrolled page,
 proves a key on the page does not move it and a key on the focused stage
 does, and that the camera loop raises no error; the production smoke suite
 checks the section and the hero's way to it.
+
+**Reviewed and landed.** Codex is still out of credit, so the review was a
+local pass over both commits. It found five real things, all fixed with a
+test each: a scene that mounted mid-flight went blank when the presenter
+pulled back to the overview, because the hold re-engaged whenever `arrived`
+went false — it now releases at the first landing and never returns;
+figures counted and charts built the moment a pre-mounted neighbour became
+the destination, mid-flight — both now key on the landing itself; the line
+chart's dash draw-in read its length in user units and its dash in screen
+pixels under `non-scaling-stroke`, so it rendered as a dash pattern — it is
+now a left-to-right clip reveal, which is what a line chart should do; the
+figure parser swallowed a trailing comma and rewrote "007" — it groups
+strictly and shows as written anything it would change; and the count-up's
+text write detached React's text node, so the span is keyed on its text. A
+section's establishing shot also dimmed every scene but one; dimming now
+applies only when the camera is on a scene. CI's axe scan then found the
+demo placeholder's title at 3.65:1 on the mobile viewport, raised to 65%
+white and reproduced locally at every viewport before the push. Six jobs
+green on `83399da`, squash `f62aa86`.
+
+**Production.** The landing page redeployed within two minutes of the merge
+(its chunk list changed, and the HTML carries "See it move"). Driven
+through the proxy in a real browser, the demo loaded, took four presses
+from the title to scene 5 of 11 with the camera flying between them, and
+raised no console error. The smoke and accessibility suites pass 37 of 37 through the proxy on the new build.
+Not verified here: the performance-on-arrival change on a physical GPU in a
+real room — the owner's next presentation is that test.
 
 ### "Generation failed" on a phone, over a deck that had finished
 
