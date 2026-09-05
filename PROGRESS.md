@@ -11,9 +11,10 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #87 — three, two, one: a count-in over the stage before a
-  recording begins, awaiting CI, merge and production verification
-- `main`: through PR #87 (merged); every migration through
+  `main` after PR #88 — full screen by hand on the shared viewer, by either
+  API name, awaiting CI, merge and production verification; this branch also
+  carries the MVP-021 closeout
+- `main`: through PR #88 (merged) — `f1c6c93`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -34,6 +35,25 @@
 
 ## Latest Session
 
+### Full screen by hand
+
+The viewer's full screen was reachable only by the F key, and a phone has no
+F. It is now a button in the corner beside the attribution, shown only where
+the browser can do it — an iPhone cannot — and a refusal (inside a frame, on
+a managed device) is said aloud as the stage already says it, rather than a
+button that silently does nothing. Underneath, the hook now speaks both
+names: Safari on iPad still exposes only the `webkit` fullscreen API, and a
+hook that read the standard names alone reported a fullscreen deck as
+windowed and never asked for one (`lib/present/fullscreen.ts`). Support is
+read with `||` rather than `??`, because a browser whose standard flag is
+false and prefixed flag true is asking to be used by the prefixed name.
+
+Tests: the element is found under the prefixed name; the request falls back
+to the prefixed name and refuses when neither exists; support comes from the
+prefixed flag; a phone with neither is unsupported; a prefixed change event
+is followed and a refusal is reported; the viewer's button asks for full
+screen and never advances the deck.
+
 ### Three, two, one
 
 Pressing Start in the recording dialog acquired the streams and began the
@@ -52,6 +72,12 @@ the last, stops at once when cancelled, and is already over when cancelled
 before it began; the overlay announces the number and cancels from the button
 or Escape; a source-reading test pins the order in `begin` — prepare, close
 the dialog, count, then start — so the count can never reach the file.
+
+**Landed and verified.** PR #88 squash-merged as `f1c6c93`, CI green on the
+head. The count needs a real screen-capture permission, which no probe can
+grant, so production evidence is the deployment itself: the proxied smoke
+suite 37 of 37 against `www.axtevi.com` after the deploy, and the stage route
+answering (a redirect to sign-in for an anonymous request, as designed).
 
 ### A share link on a phone
 
