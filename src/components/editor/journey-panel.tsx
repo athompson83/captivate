@@ -13,6 +13,8 @@ import {
   useEditor,
 } from "@/lib/editor/store";
 import { Field, Segmented, Slider, Toggle } from "@/components/ui/misc";
+import { Button } from "@/components/ui/button";
+import { AssetPicker } from "./asset-picker";
 import { HealthPanel } from "./health-panel";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils/cn";
@@ -33,6 +35,10 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
   const journey = presentation.journey;
   const [pending, start] = useTransition();
   const [applied, setApplied] = useState<ArrangePreset | null>(null);
+  // The picker probes the deployment for stock and generation the moment it
+  // mounts. Opened on request rather than with the panel, so opening the
+  // journey view costs no network call and no half-height picker.
+  const [choosingBackdrop, setChoosingBackdrop] = useState(false);
 
   const applyArrangement = (preset: ArrangePreset) => {
     const stage = stageSize(presentation.aspectRatio);
@@ -152,6 +158,99 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
             })}
           </section>
         )}
+
+        <section className="border-line-subtle space-y-3 border-t pt-4">
+          <h3 className="text-ink-3 text-[11px] font-medium tracking-wide uppercase">Backdrop</h3>
+          <p className="text-ink-3 text-[11.5px] leading-snug">
+            One picture behind the whole show. It sits some way behind the scenes, so a flight moves
+            it with depth and it holds still while you speak.
+          </p>
+          {journey.backdrop.url ? (
+            <div className="space-y-3">
+              <div className="border-line-subtle relative overflow-hidden rounded-[var(--radius-md)] border">
+                {/* eslint-disable-next-line @next/next/no-img-element -- a signed private asset */}
+                <img
+                  src={journey.backdrop.url}
+                  alt={journey.backdrop.alt}
+                  className="block aspect-video w-full object-cover"
+                />
+              </div>
+              <Slider
+                label="Distance"
+                value={journey.backdrop.distance}
+                min={0}
+                max={1}
+                step={0.05}
+                format={(v) => (v < 0.2 ? "Close" : v > 0.8 ? "Far" : v.toFixed(2))}
+                onChange={(v) =>
+                  updatePresentationMeta(
+                    { journey: { ...journey, backdrop: { ...journey.backdrop, distance: v } } },
+                    { label: "Change backdrop distance", coalesceKey: "backdrop-distance" },
+                  )
+                }
+              />
+              <Slider
+                label="Dim"
+                value={journey.backdrop.dim}
+                min={0}
+                max={0.9}
+                step={0.05}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(v) =>
+                  updatePresentationMeta(
+                    { journey: { ...journey, backdrop: { ...journey.backdrop, dim: v } } },
+                    { label: "Change backdrop dim", coalesceKey: "backdrop-dim" },
+                  )
+                }
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  updatePresentationMeta(
+                    {
+                      journey: {
+                        ...journey,
+                        backdrop: { ...journey.backdrop, url: "", assetId: null, alt: "" },
+                      },
+                    },
+                    { label: "Remove backdrop" },
+                  )
+                }
+              >
+                Remove backdrop
+              </Button>
+            </div>
+          ) : choosingBackdrop ? (
+            <AssetPicker
+              kind="image"
+              currentUrl=""
+              presentationId={presentationId}
+              prompt={`A wide, quiet backdrop for a presentation titled ${presentation.title}`}
+              onSelect={(asset) => {
+                setChoosingBackdrop(false);
+                updatePresentationMeta(
+                  {
+                    journey: {
+                      ...journey,
+                      backdrop: {
+                        ...journey.backdrop,
+                        url: asset.url,
+                        assetId: asset.id,
+                        alt: asset.alt,
+                      },
+                    },
+                  },
+                  { label: "Set backdrop" },
+                );
+              }}
+            />
+          ) : (
+            <Button variant="secondary" size="sm" onClick={() => setChoosingBackdrop(true)}>
+              Choose a picture
+            </Button>
+          )}
+        </section>
 
         <section className="border-line-subtle space-y-3 border-t pt-4">
           <h3 className="text-ink-3 text-[11px] font-medium tracking-wide uppercase">Camera</h3>

@@ -180,6 +180,22 @@ frame and asserts the resting dust is faint (by the frame's mean), the flight
 visibly stirs it (by the share of pixels that moved — the right measure for a
 sparse field), a pan moves it, and a streak lies along the heading.
 
+### Backdrop
+
+An author can put one picture behind the whole show (`JourneyConfig.backdrop`,
+chosen in the journey panel from the same asset picker as any image). It is
+the depth layer's idea with a photograph on it: a plane `backdropDepth`
+scene-widths behind the content — the author's `distance`, from just behind
+the scenes to far away — so a flight slides it slower than the scenes and a
+zoom grows it less, and on a scene it is perfectly still. The plane is sized
+once per document to cover the viewport at the widest framing the camera can
+take (`backdropPlane`), anchored on the world's centre, and moved from the
+same loop as the world (`backdropTransform`, which is `worldTransform` with
+the depth added to the camera's width). It is dimmed toward the theme's canvas
+so the scenes' text stays legible over it. One for the show, not one per
+scene: a scene's own background is a region's atmosphere, and this is the room
+the regions are in.
+
 ---
 
 ## The world
@@ -436,14 +452,35 @@ wireframe is what "the drawings are weak" looks like. A generated drawing is
 placed at stroke width 3 on its 800-wide box, which is a three-pixel line on
 the stage; two disappeared on a projector.
 
-The generator is briefed as an explainer illustrator rather than asked for
-"a line drawing": one subject filling seventy percent of the box, built from
-named primitives with exact construction recipes (a circle is two arcs, a
-rounded box is four quadratics, an arrow is a shaft and a two-stroke head),
-outlines at 1.6, detail at 1, guides at 0.6, two or three shapes with mass, and
-the idea each stage adds in the accent. Never words as paths. Stages are
-capped at four and folded when a model exceeds it (`normaliseDrawing`), and
-the box is widened to hold every stroke rather than clipping one.
+The generator does not draw. Briefed as an illustrator and handed exact
+construction recipes it still returned wobbly fragments at one weight — a
+language model can reason about what goes where and cannot draw a curve. So
+it _composes_ instead, in a small diagram language (`lib/drawing/diagram.ts`):
+nodes that are shapes (circle, ellipse, box, pill, cloud) or symbols, in boxes
+on an 800×500 canvas, and edges between them (arrow, line, curve, both), each
+with a stage and an accent flag, shapes with a fill flag. `compileDiagram`
+turns that into strokes with recipes designed once — a circle is two arcs, a
+box is four quadratics, a cloud is a smooth closed curve through bumps on an
+ellipse, an arrow starts and ends at the _edges_ of the things it joins with a
+little air, its head sized to its shaft.
+
+Symbols are the Lucide icon set read as path data rather than rendered as
+components (`lib/drawing/symbols.ts`, about a hundred names the model can
+reason about: a heart, a brain, a person, a syringe, a hospital, a clock).
+Each is scaled into its box at the weight the icon was designed for — a
+2-unit stroke on a 24-unit grid, so a large symbol is bold and a small one
+fine — through a path transformer that keeps every command's meaning: an
+opening relative move is absolute, an arc's radii scale but its flags do not,
+and the flags are single digits that may run into the next value, which is
+how a face first lost its mouth. A test asserts every symbol name resolves to
+real primitives, so a renamed icon fails at build time rather than drawing a
+blank.
+
+The output is the same `DrawnPath[]` the stage sketches, so staging, weights,
+accent, fills, the editor, the export and the audience boundary are all
+untouched. Stages are capped at four and folded when a model exceeds it
+(`normaliseDrawing`), and the box is widened to hold every stroke rather than
+clipping one.
 
 ### Builds
 

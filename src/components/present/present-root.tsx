@@ -357,6 +357,7 @@ export function PresentRoot({
           travel={journey.travel}
           pace={journey.pace}
           depth={journey.depth}
+          backdrop={journey.backdrop}
           showPath={journey.showPath && session.overview}
           safeInsetLeft={railShown ? MOVEMENT_RAIL_WIDTH : 0}
           className="absolute inset-0"

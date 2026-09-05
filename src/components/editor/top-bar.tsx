@@ -98,24 +98,36 @@ export function EditorTopBar({
     />
   );
 
+  // Undo and redo stay in the header at every width, and they look like
+  // controls whether or not there is anything to undo. They were fading to
+  // thirty percent when the stack was empty and folding into the overflow
+  // menu on a narrow window, which is how the editor came to be reported as
+  // having no undo button: the two most-used controls on the page were the
+  // two easiest to miss.
   const history = (
-    <div className="flex items-center gap-0.5">
+    <div
+      className="border-line flex items-center rounded-[var(--radius-md)] border"
+      role="group"
+      aria-label="History"
+    >
       <Tooltip label="Undo" shortcut="⌘Z" side="bottom">
         <button
           onClick={undo}
           disabled={!canUndo}
           aria-label="Undo"
-          className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-30"
+          className="text-ink-2 hover:text-ink flex h-8 items-center gap-1.5 rounded-l-[var(--radius-md)] px-2 text-[12.5px] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-45"
         >
           <Undo2 className="size-4" aria-hidden />
+          {!narrow && <span>Undo</span>}
         </button>
       </Tooltip>
+      <span aria-hidden className="bg-line h-5 w-px" />
       <Tooltip label="Redo" shortcut="⇧⌘Z" side="bottom">
         <button
           onClick={redo}
           disabled={!canRedo}
           aria-label="Redo"
-          className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-30"
+          className="text-ink-2 hover:text-ink flex h-8 items-center justify-center rounded-r-[var(--radius-md)] px-2 transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-45"
         >
           <Redo2 className="size-4" aria-hidden />
         </button>
@@ -236,8 +248,6 @@ export function EditorTopBar({
               className="max-h-[70vh] w-[264px] overflow-y-auto"
             >
               <div role="group" aria-label="More editor controls">
-                <div className="flex items-center gap-1 px-1 pb-1">{history}</div>
-                <div className="border-line-subtle my-1 border-t" />
                 <div className="flex items-center gap-1 px-1 pb-1">{panelToggles}</div>
                 <div className="border-line-subtle my-1 border-t" />
                 <ThemeMenu
@@ -307,7 +317,14 @@ export function EditorTopBar({
       {/* The view switcher is the editor's primary navigation, so on a phone it
           gets its own row and the full width rather than being the first thing
           squeezed off the end of the header. */}
-      {narrow && <div className="px-3 pb-2">{viewSwitcher(true)}</div>}
+      {/* Undo and redo ride with it: two controls that must stay reachable,
+          on the one row a phone-width header has room for them. */}
+      {narrow && (
+        <div className="flex items-center gap-2 px-3 pb-2">
+          {history}
+          <div className="min-w-0 flex-1">{viewSwitcher(true)}</div>
+        </div>
+      )}
     </div>
   );
 }

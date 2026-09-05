@@ -752,6 +752,20 @@ update public.scenes
        'url', '/api/assets/dddddddd-0000-0000-0000-000000000001/content')))
  where id = 'aaaaaaaa-0000-0000-0000-00000000000b';
 
+-- A backdrop is referenced by the presentation's journey, not by any scene.
+-- 0016 could not see it, so a picture behind a shared show rendered for its
+-- owner and 404ed for everyone who followed the link; 0030 looks there too.
+insert into public.assets (id, storage_path, kind, mime_type, byte_size) values
+  ('dddddddd-0000-0000-0000-000000000003',
+   '11111111-1111-1111-1111-111111111111/backdrop.png', 'image', 'image/png', 1024);
+insert into storage.objects (bucket_id, name, owner) values
+  ('assets', '11111111-1111-1111-1111-111111111111/backdrop.png', '11111111-1111-1111-1111-111111111111');
+update public.presentations
+   set journey = journey || jsonb_build_object('backdrop', jsonb_build_object(
+     'url', '/api/assets/dddddddd-0000-0000-0000-000000000003/content',
+     'assetId', 'dddddddd-0000-0000-0000-000000000003'))
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+
 reset role;
 
 set role authenticated;
@@ -831,6 +845,15 @@ insert into public.assets (id, storage_path, kind, mime_type, byte_size) values
    '22222222-2222-2222-2222-222222222222/asset2.png', 'image', 'image/png', 1024);
 insert into storage.objects (bucket_id, name, owner) values
   ('assets', '22222222-2222-2222-2222-222222222222/asset2.png', '22222222-2222-2222-2222-222222222222');
+-- And a backdrop on Bob's unshared deck, which must resolve for nobody.
+insert into public.assets (id, storage_path, kind, mime_type, byte_size) values
+  ('dddddddd-0000-0000-0000-000000000004',
+   '22222222-2222-2222-2222-222222222222/backdrop2.png', 'image', 'image/png', 1024);
+update public.presentations
+   set journey = journey || jsonb_build_object('backdrop', jsonb_build_object(
+     'url', '/api/assets/dddddddd-0000-0000-0000-000000000004/content',
+     'assetId', 'dddddddd-0000-0000-0000-000000000004'))
+ where id = 'bbbbbbbb-0000-0000-0000-000000000001';
 reset role;
 
 -- Alice's rows survived all of it.
@@ -851,6 +874,21 @@ select 'shared_asset_resolves' as check,
 select 'shared_asset_storage_readable' as check,
   (count(*) = 1)::int as n from storage.objects
   where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/asset1.png';
+
+-- The backdrop, referenced only by the shared deck's journey, resolves too.
+select 'shared_asset_backdrop_resolves' as check,
+  (exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000003')
+      where storage_path = '11111111-1111-1111-1111-111111111111/backdrop.png'
+  ))::int as n;
+select 'shared_asset_backdrop_storage_readable' as check,
+  (count(*) = 1)::int as n from storage.objects
+  where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/backdrop.png';
+-- A backdrop on an unshared deck is nobody's.
+select 'shared_asset_backdrop_unshared_dead' as check,
+  (not exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000004')
+  ))::int as n;
 
 -- …and Bob's deck is not shared at all, so his asset resolves nowhere and its
 -- object is not readable — a link-holder for one deck gains nothing on another.
