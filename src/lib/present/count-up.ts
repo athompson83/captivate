@@ -32,13 +32,16 @@ export const COUNT_MS = 1100;
  */
 const MIN_COUNTED = 5;
 
-const NUMBER = /-?\d[\d,]*(?:\.\d+)?/g;
+/** A plain number, or one grouped in threes. A comma anywhere else is punctuation. */
+const NUMBER = /-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?/g;
 
 /**
  * The one number in a figure, or nothing.
  *
  * Exactly one: "1 in 4" and "3 of 10" are ratios whose parts are not
- * independent quantities, and counting either half misreads them.
+ * independent quantities, and counting either half misreads them. And only a
+ * number this can write back exactly as the author did — "007" would land
+ * on "7", and a figure is the author's, not the formatter's.
  */
 export function parseFigure(text: string): FigureSpec | null {
   const matches = [...text.matchAll(NUMBER)];
@@ -48,13 +51,14 @@ export function parseFigure(text: string): FigureSpec | null {
   const value = Number(raw.replace(/,/g, ""));
   if (!Number.isFinite(value) || Math.abs(value) < MIN_COUNTED) return null;
   const start = match.index ?? 0;
-  return {
+  const spec: FigureSpec = {
     prefix: text.slice(0, start),
     suffix: text.slice(start + raw.length),
     value,
     decimals: raw.includes(".") ? raw.split(".")[1].length : 0,
     grouped: raw.includes(","),
   };
+  return formatFigure(spec, value) === raw ? spec : null;
 }
 
 /** The number as the author would have written it, at any intermediate value. */

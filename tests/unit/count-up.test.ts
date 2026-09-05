@@ -38,6 +38,18 @@ describe("parseFigure", () => {
   it("has nothing to count in words", () => {
     expect(parseFigure("Ninety seconds")).toBeNull();
   });
+
+  it("shows a figure as written when counting would rewrite it", () => {
+    // A comma that is punctuation is not a thousands separator, and a number
+    // the formatter would write differently belongs to the author as it is.
+    expect(parseFigure("5,000, and counting")).toMatchObject({
+      value: 5000,
+      suffix: ", and counting",
+    });
+    expect(parseFigure("007")).toBeNull();
+    expect(parseFigure("1,0000")).toBeNull();
+    expect(parseFigure("5,000 and counting")).toMatchObject({ value: 5000, grouped: true });
+  });
 });
 
 describe("formatFigure", () => {

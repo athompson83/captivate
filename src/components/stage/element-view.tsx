@@ -4,7 +4,7 @@ import { createElement, memo, useEffect, useMemo, useRef } from "react";
 import { useReducedMotion } from "motion/react";
 import * as Icons from "lucide-react";
 import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
-import { DrawnPicture, measureDrawnPath } from "./drawn-picture";
+import { DrawnPicture } from "./drawn-picture";
 import { embedSandbox } from "@/lib/utils/embed";
 import { categoricalHues, resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
@@ -264,7 +264,10 @@ function FigureText({ text, perform }: { text: string; perform: boolean }) {
   return (
     <>
       {spec.prefix}
-      <span ref={ref} style={{ fontVariantNumeric: "tabular-nums" }}>
+      {/* Keyed on the text: the climb writes the span's text node directly,
+          which detaches the one React rendered, so a changed figure must get
+          a fresh span rather than an update to a node nobody can see. */}
+      <span key={text} ref={ref} style={{ fontVariantNumeric: "tabular-nums" }}>
         {formatFigure(spec, spec.value)}
       </span>
       {spec.suffix}
@@ -1181,8 +1184,12 @@ function ChartView({
               vectorEffect="non-scaling-stroke"
             />
           ))}
+          {/* Revealed left to right by a clip, not by a dash: under
+              `non-scaling-stroke` a dash length is read in screen pixels while
+              `getTotalLength` answers in user units, and the line rendered as
+              a dash pattern rather than drawing itself. A wipe is also what a
+              line chart should do — time runs left to right. */}
           <polyline
-            ref={perform ? measureDrawnPath : undefined}
             points={points}
             fill="none"
             stroke={accent}
@@ -1190,8 +1197,7 @@ function ChartView({
             vectorEffect="non-scaling-stroke"
             strokeLinejoin="round"
             strokeLinecap="round"
-            className={perform ? "dp-path dp-drawn" : undefined}
-            style={perform ? ({ "--dp-dur": "1.2s" } as React.CSSProperties) : undefined}
+            className={perform ? "ch-wipe" : undefined}
           />
         </svg>
         <div

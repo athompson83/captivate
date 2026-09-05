@@ -388,6 +388,17 @@
       transform: scaleX(0);
     }
   }
+  .ch-wipe {
+    animation: ch-wipe 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes ch-wipe {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
   .ch-sweep {
     animation: ch-sweep 1s cubic-bezier(0.22, 1, 0.36, 1) var(--ch-del, 0s) both;
   }
@@ -403,6 +414,7 @@
   @media (prefers-reduced-motion: reduce) {
     .ch-grow-y,
     .ch-grow-x,
+    .ch-wipe,
     .ch-sweep {
       animation-delay: 0s;
     }

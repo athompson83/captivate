@@ -282,13 +282,21 @@ function ElementLayer({
   onHotspot?: (targetSceneId: string) => void;
   hotspotName?: (targetSceneId: string) => string;
 }) {
-  // Decided once, at mount, which is the whole point: an element that was
-  // on screen before the flight began must not vanish when the camera sets
-  // off, and one that mounted mid-flight must not perform until it lands.
-  // State that is never set again rather than a ref, because the compiler
-  // forbids reading a ref during render.
-  const [heldAtMount] = useState(play && !arrived);
-  const held = play && heldAtMount && !arrived;
+  // Decided at mount and released by the first landing, never taken up
+  // again: an element that was on screen before the flight began must not
+  // vanish when the camera sets off, one that mounted mid-flight must not
+  // perform until it lands, and one that has performed must not blank out
+  // when the presenter pulls back to the overview and `arrived` goes false
+  // again. Adjusted during render, the documented way to keep a fact about
+  // an earlier render, rather than in an effect that would land a frame late.
+  const [held, setHeld] = useState(play && !arrived);
+  if (held && arrived) setHeld(false);
+  const holding = play && held;
+  // What only happens in front of the room: a figure counting, a chart
+  // building. Keyed on the landing itself, not on the hold — a scene that was
+  // on screen before the flight is never held, and must still not build in
+  // the distance while the camera is on its way.
+  const perform = play && arrived;
 
   if (element.hidden) return null;
 
@@ -341,14 +349,14 @@ function ElementLayer({
 
   return (
     <motion.div
-      data-held={held || undefined}
+      data-held={holding || undefined}
       style={{ ...style, pointerEvents: dismissed ? "none" : undefined }}
       initial={play ? start : false}
       animate={
         play
           ? dismissed
             ? { ...entranceTo("fade"), ...exitTo(element.animation.exit) }
-            : held
+            : holding
               ? start
               : { ...to, opacity: element.opacity, ...(emphasis ?? {}) }
           : { opacity: element.opacity }
@@ -367,7 +375,8 @@ function ElementLayer({
           stageHeight={stageHeight}
           step={step}
           play={play}
-          perform={play && !held}
+          held={holding}
+          perform={perform}
         />
       </HotspotTarget>
     </motion.div>
@@ -426,6 +435,7 @@ function StaggeredElement({
   stageHeight,
   step,
   play,
+  held,
   perform,
 }: {
   element: SceneElement;
@@ -434,6 +444,8 @@ function StaggeredElement({
   stageHeight: number;
   step: number;
   play: boolean;
+  /** Mounted mid-flight and the camera has not yet landed. */
+  held: boolean;
   /** Playing and landed: the room is watching this element right now. */
   perform: boolean;
 }) {
@@ -443,7 +455,7 @@ function StaggeredElement({
   // camera, no stage has been reached yet — the first stroke is drawn in
   // front of the room, not in the distance.
   if (element.type === "drawing" && play) {
-    return <DrawnPicture element={element} step={perform ? step : -1} />;
+    return <DrawnPicture element={element} step={held ? -1 : step} />;
   }
   if (element.type === "list" && element.staggered && play) {
     const visible = Math.max(1, Math.min(element.items.length, step + 1));

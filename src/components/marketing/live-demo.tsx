@@ -24,7 +24,9 @@ function StagePlaceholder() {
       className="grid aspect-[16/9] w-full place-items-center rounded-[var(--radius-xl)] bg-black"
       aria-hidden
     >
-      <p className="text-[13px] text-white/40">{EXAMPLE_TITLE}</p>
+      {/* Legible, not decorative: the axe scan reads this before the stage
+          loads, and 40% white on black is 3.65:1. */}
+      <p className="text-[13px] text-white/65">{EXAMPLE_TITLE}</p>
     </div>
   );
 }

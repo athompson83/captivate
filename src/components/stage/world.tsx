@@ -731,11 +731,12 @@ export const World = memo(function World({
                 // The scene the camera is on is lit; the ones beside it
                 // recede. Opacity only — no haze painted over a region, which
                 // would be a rectangle on a world that has none — and only
-                // while presenting, never in the overview, where every scene
-                // is equally the subject. The transition runs as a flight
-                // begins, so leaving a scene dims it and arriving lifts the
-                // next: the light moves with the camera.
-                opacity: play && detailed && !isActive && focus.kind !== "world" ? 0.6 : 1,
+                // while the camera is on a scene: pulled back over the world
+                // or a section, every scene is equally the subject. The
+                // transition runs as a flight begins, so leaving a scene dims
+                // it and arriving lifts the next: the light moves with the
+                // camera.
+                opacity: play && detailed && !isActive && focus.kind === "scene" ? 0.6 : 1,
                 transition: "opacity 600ms ease",
               }}
             >

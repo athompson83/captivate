@@ -448,7 +448,77 @@ describe("performing a scene on arrival", () => {
     const drawnLine = render(
       <Stage content={line} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
     );
-    expect(drawnLine.container.querySelector("polyline.dp-drawn")).not.toBeNull();
+    expect(drawnLine.container.querySelector("polyline.ch-wipe")).not.toBeNull();
     drawnLine.unmount();
+  });
+
+  it("keeps a performed scene on screen when the camera pulls back", () => {
+    // A scene that mounted mid-flight performed on landing. Pressing O then
+    // makes the world the target and `arrived` false again — and the scene
+    // must not blank out in the overview or replay itself on return.
+    const { container, rerender } = render(
+      <Stage
+        content={drawn}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        play
+        step={0}
+        arrived={false}
+      />,
+    );
+    rerender(
+      <Stage content={drawn} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    rerender(
+      <Stage
+        content={drawn}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        play
+        step={0}
+        arrived={false}
+      />,
+    );
+    expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+    expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
+  });
+
+  it("builds nothing in the distance, even on a scene that was on screen before the flight", () => {
+    // A neighbour visible at the edge is mounted quietly (not playing). When
+    // it becomes the destination it is never held — but its chart must still
+    // wait for the landing rather than build while the camera is on its way.
+    const column = composeScene("chart", {
+      heading: "Growth",
+      chart: {
+        chart: "column",
+        data: [
+          { label: "Q1", value: 10 },
+          { label: "Q2", value: 20 },
+        ],
+        summary: "Doubled.",
+      },
+    });
+    const { container, rerender } = render(
+      <Stage content={column} theme={theme} aspect="16:9" fixedScale={1} />,
+    );
+    rerender(
+      <Stage
+        content={column}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        play
+        step={0}
+        arrived={false}
+      />,
+    );
+    expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+    expect(container.querySelectorAll(".ch-grow-y")).toHaveLength(0);
+    rerender(
+      <Stage content={column} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    expect(container.querySelectorAll(".ch-grow-y")).toHaveLength(2);
   });
 });

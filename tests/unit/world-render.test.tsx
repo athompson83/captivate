@@ -552,6 +552,28 @@ describe("performing on arrival", () => {
     for (const region of neighbours) expect(region.style.opacity).toBe("0.6");
   });
 
+  it("lights every scene in a section's establishing shot", () => {
+    const scenes = makeScenes(4).map((scene) => ({ ...scene, sectionId: "sec-a" }));
+    render(
+      <World
+        scenes={scenes}
+        placements={arrange("reel", scenes, STAGE)}
+        theme={theme}
+        aspect="16:9"
+        focus={{ kind: "section", sectionId: "sec-a" }}
+        activeIndex={0}
+        step={0}
+        travel="cut"
+        pace={1}
+        depth={0}
+        play
+      />,
+    );
+    for (const region of document.querySelectorAll<HTMLElement>("[data-scene-index]")) {
+      expect(region.style.opacity).toBe("1");
+    }
+  });
+
   it("treats every scene as the subject in the overview, and in the editor", () => {
     const overview = renderWorld(4, { play: true, focus: { kind: "world" } });
     for (const region of document.querySelectorAll<HTMLElement>("[data-scene-index]")) {
