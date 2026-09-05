@@ -35,6 +35,10 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
   const journey = presentation.journey;
   const [pending, start] = useTransition();
   const [applied, setApplied] = useState<ArrangePreset | null>(null);
+  // The picker probes the deployment for stock and generation the moment it
+  // mounts. Opened on request rather than with the panel, so opening the
+  // journey view costs no network call and no half-height picker.
+  const [choosingBackdrop, setChoosingBackdrop] = useState(false);
 
   const applyArrangement = (preset: ArrangePreset) => {
     const stage = stageSize(presentation.aspectRatio);
@@ -217,13 +221,14 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
                 Remove backdrop
               </Button>
             </div>
-          ) : (
+          ) : choosingBackdrop ? (
             <AssetPicker
               kind="image"
               currentUrl=""
               presentationId={presentationId}
               prompt={`A wide, quiet backdrop for a presentation titled ${presentation.title}`}
-              onSelect={(asset) =>
+              onSelect={(asset) => {
+                setChoosingBackdrop(false);
                 updatePresentationMeta(
                   {
                     journey: {
@@ -237,9 +242,13 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
                     },
                   },
                   { label: "Set backdrop" },
-                )
-              }
+                );
+              }}
             />
+          ) : (
+            <Button variant="secondary" size="sm" onClick={() => setChoosingBackdrop(true)}>
+              Choose a picture
+            </Button>
           )}
         </section>
 

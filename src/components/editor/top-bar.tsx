@@ -224,7 +224,6 @@ export function EditorTopBar({
 
         <div className="flex-1" />
 
-        {narrow && history}
         {narrow ? (
           <div className="relative shrink-0">
             <Tooltip label="More" side="bottom">
@@ -318,7 +317,14 @@ export function EditorTopBar({
       {/* The view switcher is the editor's primary navigation, so on a phone it
           gets its own row and the full width rather than being the first thing
           squeezed off the end of the header. */}
-      {narrow && <div className="px-3 pb-2">{viewSwitcher(true)}</div>}
+      {/* Undo and redo ride with it: two controls that must stay reachable,
+          on the one row a phone-width header has room for them. */}
+      {narrow && (
+        <div className="flex items-center gap-2 px-3 pb-2">
+          {history}
+          <div className="min-w-0 flex-1">{viewSwitcher(true)}</div>
+        </div>
+      )}
     </div>
   );
 }
