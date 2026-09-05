@@ -10,11 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #88 — full screen by hand on the shared viewer, by either
-  API name, awaiting CI, merge and production verification; this branch also
-  carries the MVP-021 closeout
-- `main`: through PR #88 (merged) — `f1c6c93`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q` — full screen by
+  hand → PR #89 (merged, squash `75b089e`); this closeout on the same branch,
+  restarted from `main`
+- `main`: through PR #89 (merged) — `75b089e`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -53,6 +52,13 @@ to the prefixed name and refuses when neither exists; support comes from the
 prefixed flag; a phone with neither is unsupported; a prefixed change event
 is followed and a refusal is reported; the viewer's button asks for full
 screen and never advances the deck.
+
+**Landed and verified.** PR #89 squash-merged as `75b089e`, CI green on the
+head. No presentation in production carries a share link, so the corner
+itself could not be probed live without creating owner data; the evidence is
+the deployment — the proxied smoke suite 37 of 37 against `www.axtevi.com`
+after the deploy and the viewer route answering for an unknown token — and
+the lifecycle browser suite, 7 of 7, on the same code.
 
 ### Three, two, one
 
