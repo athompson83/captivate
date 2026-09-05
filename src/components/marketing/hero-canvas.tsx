@@ -6,8 +6,10 @@ import { webglAvailable } from "@/lib/present/atmosphere";
 import {
   HERO_SCENES,
   LOOP_MS,
+  blendCamera,
   cameraAt,
   flightPath,
+  pullBack,
   wideShot,
   type HeroScene,
   type HeroSceneKind,
@@ -380,6 +382,15 @@ export function HeroCanvas() {
       pointer.y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
     };
 
+    // Scroll parallax of a different kind: as the visitor scrolls the hero
+    // away, the camera pulls back to the whole world. A number, not state,
+    // read in the frame loop like the pointer.
+    let scrolled = 0;
+    const onScroll = () => {
+      const rect = mount.getBoundingClientRect();
+      scrolled = rect.height > 0 ? Math.min(1, Math.max(0, -rect.top / rect.height)) : 0;
+    };
+
     let width = 1;
     let height = 1;
     const resize = () => {
@@ -395,7 +406,10 @@ export function HeroCanvas() {
     let start = performance.now();
     const draw = (now: number) => {
       const aspect = width / height;
-      const target = reduced.matches ? wideShot(aspect, FOV) : cameraAt(now - start, aspect, FOV);
+      const wide = wideShot(aspect, FOV);
+      const target = reduced.matches
+        ? wide
+        : blendCamera(cameraAt(now - start, aspect, FOV), wide, pullBack(scrolled));
       // Parallax is a nudge, not a control: the camera is flying its own path
       // and the pointer only leans it.
       camera.position.set(target.x + pointer.x * 0.45, target.y - pointer.y * 0.3, target.z);
@@ -450,6 +464,8 @@ export function HeroCanvas() {
     document.addEventListener("visibilitychange", settle);
     reduced.addEventListener("change", settle);
     mount.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
 
     resize();
     settle();
@@ -461,6 +477,7 @@ export function HeroCanvas() {
       document.removeEventListener("visibilitychange", settle);
       reduced.removeEventListener("change", settle);
       mount.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("scroll", onScroll);
       for (const item of disposables) item.dispose();
       renderer.dispose();
       renderer.forceContextLoss();

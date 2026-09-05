@@ -176,6 +176,25 @@ export function wideShot(aspect: number, fovDegrees: number): HeroCamera {
   return { x: bounds.x, y: bounds.y, z: framingDistance(bounds, aspect, fovDegrees, 1.08) };
 }
 
+/**
+ * How far the camera has pulled back for a visitor scrolling away.
+ *
+ * `progress` is how much of the hero has left the top of the viewport, 0 to
+ * 1. Smoothstepped so the pull-back starts gently rather than lurching on
+ * the first pixel of scroll, and arrives at the wide shot as the hero
+ * leaves — the last thing seen of it is the whole argument, which is what
+ * the flight was circling all along.
+ */
+export function pullBack(progress: number): number {
+  const t = Math.min(1, Math.max(0, progress));
+  return t * t * (3 - 2 * t);
+}
+
+/** Between two framings, at `t` in [0, 1]. */
+export function blendCamera(a: HeroCamera, b: HeroCamera, t: number): HeroCamera {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
+}
+
 /** The dotted line drawn through the scenes, in visiting order. */
 export function flightPath(): HeroCamera[] {
   return HERO_FLIGHT.map((id) => {

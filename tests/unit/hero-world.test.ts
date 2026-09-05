@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   FRAME_MARGIN,
   HERO_FLIGHT,
+  blendCamera,
+  pullBack,
   HERO_SCENES,
   HOLD_MS,
   LOOP_MS,
@@ -201,5 +203,44 @@ describe("the hero canvas palette", () => {
   it("has no raw hex outside the palette", () => {
     const painters = painterSource();
     expect([...painters.matchAll(/#[0-9a-fA-F]{6}\b/g)].map((match) => match[0])).toEqual([]);
+  });
+});
+
+/**
+ * Scrolling the hero away pulls the camera back to the whole world: the
+ * last thing seen of it is the wide shot the flight was circling.
+ */
+describe("the scroll-linked pull-back", () => {
+  it("starts gently, ends at the wide shot, and is clamped", () => {
+    expect(pullBack(0)).toBe(0);
+    expect(pullBack(1)).toBe(1);
+    expect(pullBack(-3)).toBe(0);
+    expect(pullBack(7)).toBe(1);
+    // Smoothstep: below the line early, above it late, flat at both ends.
+    expect(pullBack(0.1)).toBeLessThan(0.1);
+    expect(pullBack(0.9)).toBeGreaterThan(0.9);
+    expect(pullBack(0.5)).toBeCloseTo(0.5, 6);
+  });
+
+  it("blends the flight toward the wide shot by that amount", () => {
+    const aspect = 16 / 10.5;
+    const flying = cameraAt(HOLD_MS + TRAVEL_MS / 2, aspect, 40);
+    const wide = wideShot(aspect, 40);
+    expect(blendCamera(flying, wide, 0)).toEqual(flying);
+    expect(blendCamera(flying, wide, 1)).toEqual(wide);
+    const half = blendCamera(flying, wide, 0.5);
+    expect(half.z).toBeCloseTo((flying.z + wide.z) / 2, 6);
+    // Pulling back means further from the scenes, never closer.
+    expect(wide.z).toBeGreaterThan(flying.z);
+  });
+
+  it("is wired to the scroll position in the canvas, passively, and released", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/components/marketing/hero-canvas.tsx"),
+      "utf8",
+    );
+    expect(source).toContain('addEventListener("scroll", onScroll, { passive: true })');
+    expect(source).toContain('removeEventListener("scroll", onScroll)');
+    expect(source).toContain("pullBack(scrolled)");
   });
 });

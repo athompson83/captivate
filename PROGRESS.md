@@ -10,11 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #76 (merged,
-  squash `f62aa86`); this closeout on the same branch, restarted from `main`
-- `main`: through PR #76 (merged) — `f62aa86`; every migration through
-  `0030_shared_backdrop_asset.sql` applied to production (this session added
-  `0030`, applied before the merge so the shared viewer never served a 404)
+- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #78 (merged,
+  squash `95e671e`); this closeout on the same branch, restarted from `main`
+- `main`: through PR #78 (merged) — `95e671e`; every migration through
+  `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -58,6 +57,40 @@ phone — this environment cannot hold a signed-in session against
 `https://www.axtevi.com` and cannot read Vercel's logs. The owner's phone is
 the check, as before, and the ledger will show a single `map` row per
 attempt when it holds.
+
+### Words that arrive, and a camera that answers the scroll
+
+The owner's guidance for this round was the practice of 3D and animation
+work — Three.js, GSAP's scroll-driven pages, Framer Motion — and the two
+things in it not yet applied were both about attention. **A heading now
+arrives a word at a time** when its scene is performed: each word rises into
+place a beat after the one before, so a claim is read in the order it was
+written, the typographic equivalent of a sentence being said. Inline-block
+spans, so lines still break at the spaces and the auto-fit that measured the
+plain text still holds; a CSS stagger, no script; plain headings of up to
+fourteen words, everything else whole; the editor, a thumbnail and a scene
+the camera is passing show the sentence entire. **The hero's camera answers
+the scroll** as well as the clock: as a visitor scrolls the hero away it
+pulls back to the whole world, smoothstepped so the first pixel of scroll
+does not lurch, so the last thing seen of it is the wide shot the flight was
+circling all along. A number read in the frame loop, like the pointer lean;
+never state, never a re-render; released with the other listeners.
+
+Tests: a heading performed word by word, whole in the editor, held for the
+camera, and whole past fourteen words; the pull-back's shape and clamping,
+the blend's endpoints, and the canvas's passive scroll listener wired and
+released.
+
+**Landed and verified.** PR #78, squash `95e671e`, six checks green on the
+head and `main` green on the merge. Production: the landing page's live demo
+on `https://www.axtevi.com`, driven in a real browser through the proxy,
+renders the word spans — three on the cover's heading, four on scene four's
+after three real flights — with an empty console; the smoke and accessibility
+suites 37 of 37 (one navigation timed out at this container's proxy on the
+first run and passed on the re-run). Codex remains out of credit, so the
+review was the local pass over the diff; the served build could not be read
+from here, as before, and the new spans in the live demo are the proof it is
+serving this one.
 
 ### The scene performs when the camera lands
 
