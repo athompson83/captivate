@@ -12,6 +12,7 @@ import type {
 import { stageBackgroundCss, themeCssVars, type PresentationTheme } from "@/lib/schema/theme";
 import { stageSize } from "@/lib/present/stage";
 import {
+  FRAME_PADDING,
   boundsOf,
   camerasEqual,
   cameraScale,
@@ -766,12 +767,113 @@ export const World = memo(function World({
             </div>
           );
         })}
+
+        {/*
+          The spotlight. When the camera lands on a scene, the world beyond
+          that region goes dark — see `Spotlight` for why, and for why this
+          is the one dark shape the world is allowed. Last in the layer, so
+          it lies over the neighbouring regions it exists to put out; it
+          never overlaps the lit region itself.
+        */}
+        {play && focus.kind === "scene" && placements[focus.index] && (
+          <Spotlight
+            placement={placements[focus.index]}
+            stage={stage}
+            lit={onScene === focus.index}
+            reduced={Boolean(reduced)}
+          />
+        )}
       </div>
 
       {chrome}
     </div>
   );
 });
+
+/**
+ * Darkness beyond the lit region.
+ *
+ * The camera frames one scene, but a viewport is rarely the scene's shape. A
+ * phone held upright shows the scene as a strip across the middle and the
+ * world above and below it; a 16:10 laptop letterboxes a little; the movement
+ * rail's column sits beside the frame on every screen. In all of those the
+ * neighbouring regions showed through — the next scene's bullets under the
+ * title on a phone, a chart's axis label peeking in beside the rail — and the
+ * room was reading two scenes at once.
+ *
+ * The metaphor already had the answer: a darkened stage lit by a spotlight.
+ * When the camera lands, the light comes down around the region and the rest
+ * of the world falls into the dark. It lifts as a flight begins, so travel
+ * still shows the whole map moving past, and it does not exist at all over
+ * the overview or a section, where every scene is equally the subject.
+ *
+ * This is deliberately not a box around the scene. The dark begins outside
+ * the frame's own padding — on a screen the scene's shape, nothing changes —
+ * and feathers in over a tenth of the scene's width, so there is never an
+ * edge. It lives in world space, inside the transformed layer, which is why
+ * it costs nothing per frame: the camera moves it with everything else.
+ */
+function Spotlight({
+  placement,
+  stage,
+  lit,
+  reduced,
+}: {
+  placement: ScenePlacement;
+  stage: Size;
+  lit: boolean;
+  reduced: boolean;
+}) {
+  // Sized in the scene's own units and carried on the scene's own transform,
+  // so a rotated region gets a spotlight that sits square with it — the
+  // camera tilts to the scene, and so must the dark around it.
+  const pad = (stage.width * FRAME_PADDING) / 2;
+  const feather = stage.width * 0.1;
+  const reach = stage.width * 40;
+  const band = (side: "top" | "bottom" | "left" | "right"): React.CSSProperties => {
+    const toward = { top: "to top", bottom: "to bottom", left: "to left", right: "to right" }[side];
+    const base: React.CSSProperties = {
+      position: "absolute",
+      // Dark, not merely dim: the theme's canvas at nine-tenths still let
+      // white text read through it. Mixed toward black so the tone stays
+      // continuous with the air around the region rather than a hole in it.
+      background: `linear-gradient(${toward}, transparent 0px, color-mix(in oklab, var(--stage-canvas) 30%, black) ${feather}px)`,
+    };
+    if (side === "top")
+      return { ...base, left: -reach, right: -reach, bottom: stage.height + pad, height: reach };
+    if (side === "bottom")
+      return { ...base, left: -reach, right: -reach, top: stage.height + pad, height: reach };
+    if (side === "left")
+      return { ...base, top: -reach, bottom: -reach, right: stage.width + pad, width: reach };
+    return { ...base, top: -reach, bottom: -reach, left: stage.width + pad, width: reach };
+  };
+
+  return (
+    <div
+      aria-hidden
+      data-spotlight={lit ? "lit" : "off"}
+      style={{
+        position: "absolute",
+        left: placement.x - stage.width / 2,
+        top: placement.y - stage.height / 2,
+        width: stage.width,
+        height: stage.height,
+        transform: `rotate(${placement.rotation}deg) scale(${placement.scale})`,
+        transformOrigin: "center center",
+        pointerEvents: "none",
+        opacity: lit ? 0.96 : 0,
+        // Fades up once the camera has settled, and drops the moment it
+        // leaves — the same beat as the scenes beside it dimming and lifting.
+        transition: reduced ? "none" : `opacity ${lit ? 700 : 250}ms ease`,
+      }}
+    >
+      <div style={band("top")} />
+      <div style={band("bottom")} />
+      <div style={band("left")} />
+      <div style={band("right")} />
+    </div>
+  );
+}
 
 /**
  * A region too small to read.

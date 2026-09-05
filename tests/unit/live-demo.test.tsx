@@ -79,6 +79,57 @@ describe("the live demo", () => {
     expect(stage).toHaveAttribute("data-view", "scene");
   });
 
+  it("keeps the invitation out from under a phone-sized stage", () => {
+    render(<LiveDemoStage />);
+    // The pill over the stage is for screens where the stage is big enough
+    // to carry it; below that width it hides and the status line invites
+    // instead, so nothing sits over a scene that is a strip of a few hundred
+    // pixels.
+    const pill = screen.getByText(/Press → or tap the stage/).parentElement;
+    expect(pill?.className).toMatch(/\bhidden\b/);
+    expect(pill?.className).toMatch(/\bsm:flex\b/);
+    const line = screen.getByText(/Swipe or tap the stage to move/);
+    expect(line.className).toMatch(/\bsm:hidden\b/);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.queryByText(/Swipe or tap the stage to move/)).toBeNull();
+  });
+
+  it("moves on a touch swipe and leaves a vertical drag to the page", () => {
+    render(<LiveDemoStage />);
+    const stage = screen.getByRole("region", { name: /live demo/i });
+    fireEvent.pointerDown(stage, {
+      pointerType: "touch",
+      pointerId: 1,
+      clientX: 300,
+      clientY: 100,
+    });
+    fireEvent.pointerUp(stage, { pointerType: "touch", pointerId: 1, clientX: 300, clientY: 400 });
+    expect(screen.getByText(/^Scene 1 of/)).toBeInTheDocument();
+    fireEvent.pointerDown(stage, {
+      pointerType: "touch",
+      pointerId: 2,
+      clientX: 300,
+      clientY: 100,
+    });
+    fireEvent.pointerUp(stage, { pointerType: "touch", pointerId: 2, clientX: 100, clientY: 110 });
+    // Enough swipes to be past scene one's own builds, whatever they are.
+    for (let i = 0; i < 12; i += 1) {
+      fireEvent.pointerDown(stage, {
+        pointerType: "touch",
+        pointerId: 3 + i,
+        clientX: 300,
+        clientY: 100,
+      });
+      fireEvent.pointerUp(stage, {
+        pointerType: "touch",
+        pointerId: 3 + i,
+        clientX: 100,
+        clientY: 100,
+      });
+    }
+    expect(screen.queryByText(/^Scene 1 of/)).toBeNull();
+  });
+
   it("takes the invitation down on the first move", () => {
     render(<LiveDemoStage />);
     expect(screen.getByText(/Press → or tap the stage/)).toBeInTheDocument();

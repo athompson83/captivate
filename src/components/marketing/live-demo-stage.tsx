@@ -6,6 +6,7 @@ import { getTheme, themeCssVars } from "@/lib/schema/theme";
 import { buildStepCount } from "@/lib/present/motion";
 import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
+import { useSwipe } from "@/lib/present/swipe";
 import { World, type Focus } from "@/components/stage/world";
 import { exampleDeck } from "@/lib/marketing/example-deck";
 
@@ -136,7 +137,12 @@ export function LiveDemoStage() {
     }
   };
 
+  // On a phone the stage is a strip the width of the screen; a swipe across
+  // it is the natural move, and a vertical drag still scrolls the page.
+  const swipe = useSwipe((direction) => (direction === "forward" ? next() : prev()));
+
   const advanceOnClick = (e: React.MouseEvent) => {
+    if (swipe.consumeSwipe()) return;
     // The same clicker convention as the stage: right side forward, left back.
     const rect = e.currentTarget.getBoundingClientRect();
     if ((e.clientX - rect.left) / rect.width < 0.28) prev();
@@ -157,7 +163,10 @@ export function LiveDemoStage() {
         data-view={overview ? "world" : "scene"}
         onKeyDown={onKeyDown}
         onClick={advanceOnClick}
-        className="relative aspect-[16/9] w-full cursor-pointer overflow-hidden rounded-[var(--radius-xl)] bg-black outline-none focus-visible:ring-2 focus-visible:ring-[var(--sky-action)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sky-deep)]"
+        onPointerDown={swipe.onPointerDown}
+        onPointerUp={swipe.onPointerUp}
+        onPointerCancel={swipe.onPointerCancel}
+        className="relative aspect-[16/9] w-full cursor-pointer touch-pan-y overflow-hidden rounded-[var(--radius-xl)] bg-black outline-none focus-visible:ring-2 focus-visible:ring-[var(--sky-action)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sky-deep)]"
         style={themeCssVars(theme)}
       >
         <World
@@ -177,14 +186,17 @@ export function LiveDemoStage() {
           onSceneSelect={overview ? goto : undefined}
         />
 
-        {/* The invitation. Gone on the first move. */}
+        {/* The invitation. Gone on the first move. On a phone the stage is
+            under two hundred pixels tall and a pill over it covered the
+            scene it was inviting the reader to look at, so there the
+            invitation moves out from under the stage into the line below. */}
         <AnimatePresence>
           {!started && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, transition: { duration: 0.4 } }}
-              className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-6"
+              className="pointer-events-none absolute inset-x-0 bottom-6 z-20 hidden justify-center px-6 sm:flex"
             >
               <p className="rounded-full border border-white/12 bg-black/55 px-4 py-2 text-center text-[12.5px] font-medium text-white/85 backdrop-blur-md">
                 Press → or tap the stage · O sees the whole map
@@ -208,6 +220,12 @@ export function LiveDemoStage() {
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-[13px] text-[var(--sky-ink-3)]" aria-live="polite">
           {where}
+          {!started && (
+            <span className="sm:hidden" data-invitation>
+              {" "}
+              · Swipe or tap the stage to move
+            </span>
+          )}
         </p>
         <div className="flex items-center gap-2">
           <DemoButton onClick={prev} disabled={!overview && sceneIndex === 0 && step === 0}>

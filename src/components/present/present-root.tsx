@@ -8,6 +8,7 @@ import { usePresentSession } from "@/lib/present/session";
 import { useFullscreen, useWakeLock } from "@/lib/present/fullscreen";
 import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
+import { useSwipe } from "@/lib/present/swipe";
 import { PRESENTER_COLORS, type PresenterTool } from "@/lib/present/protocol";
 import { World, type Focus } from "@/components/stage/world";
 import { setCaptureSurface } from "@/lib/record/capture-surface";
@@ -318,7 +319,17 @@ export function PresentRoot({
     return () => window.removeEventListener("keydown", onKey);
   }, [audienceOnly, fullscreen, presentation.id, scenes.length, session, tool]);
 
+  // Presenting from a phone or a tablet on one screen: a swipe moves the
+  // deck the way a tap on the right two-thirds does. Suppressed while a
+  // drawing tool is live, because then a finger on the stage is ink.
+  const swipe = useSwipe((direction) => {
+    if (tool !== "none" || audienceOnly) return;
+    if (direction === "forward") session.next();
+    else session.prev();
+  });
+
   const advanceOnClick = (e: React.MouseEvent) => {
+    if (swipe.consumeSwipe()) return;
     if (tool !== "none" || audienceOnly) return;
     // Click on the right two-thirds advances, left third goes back — the same
     // convention as a clicker, so it needs no explanation.
@@ -337,6 +348,9 @@ export function PresentRoot({
       // the page happened to be using.
       style={themeCssVars(theme)}
       onPointerMove={showBar}
+      onPointerDown={swipe.onPointerDown}
+      onPointerUp={swipe.onPointerUp}
+      onPointerCancel={swipe.onPointerCancel}
       onClick={advanceOnClick}
     >
       {/* The show: everything the room sees, and exactly what a recording

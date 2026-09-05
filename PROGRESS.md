@@ -10,7 +10,8 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #78 (merged,
+- Branch: `claude/presentation-spotlight-swipe` → spotlight, swipe and phone hints;
+  previous: `claude/presentation-experience-redesign-r10l4q` → PR #78 (merged,
   squash `95e671e`); this closeout on the same branch, restarted from `main`
 - `main`: through PR #78 (merged) — `95e671e`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
@@ -32,6 +33,47 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The room saw two scenes at once, and a phone had no way to swipe
+
+Screenshots of the share-link viewer through the fixture harness — the real
+`SharedViewer` on the worked example, styled, at 1440×900 and at a phone's
+390×844 — showed what the docs did not say. On the phone the framed scene is
+a strip across the middle and the next scene's bullets sat right under the
+title; on the laptop a chart's "40" axis label peeked in beside the movement
+rail on a scene that had nothing to do with it. The landing page's demo,
+captured properly (it mounts only once scrolled near, and the dev server
+refuses its chunk from `127.0.0.1`), put its invitation pill over most of a
+192-pixel-tall stage on a phone. And nothing on any stage answered a swipe.
+
+Three changes, all in the audience's hands:
+
+- **Spotlight.** `World` now renders four feathered bands of darkness around
+  the scene the camera has landed on, in world space inside the transformed
+  layer, so they ride the camera for free. They fade up 700 ms after
+  arrival, drop as a flight begins, and do not exist over the overview or a
+  section. The dark starts outside the frame's own padding and feathers over
+  a tenth of the scene's width — on a 16:9 screen nothing changes, and there
+  is never an edge. It is mixed toward black rather than the theme canvas
+  because the canvas at nine-tenths still let white text read through, which
+  the first screenshot of the change proved. `world-render.test.tsx` pins
+  its presence on a landed scene, its absence over the world and in the
+  editor, and that every band is a gradient starting transparent.
+- **Swipe.** `lib/present/swipe.ts` classifies a completed touch — at least
+  48 px, more horizontal than vertical by half again — and a hook wires it
+  to the shared viewer, the stage and the demo, each keeping `touch-action:
+pan-y` so a vertical drag still scrolls. A swipe the browser also reports
+  as a click is consumed so the deck moves once. Mouse drags are ignored;
+  they are the presenter's ink. `swipe.test.tsx` covers the classifier and
+  the hook.
+- **Phone hints.** The demo's pill hides below the `sm` breakpoint and the
+  status line invites instead; the viewer's copy says "Tap, swipe or press
+  →". `live-demo.test.tsx` pins both and a swipe through the deck.
+
+Verified: `npm run verify` green; fixture screenshots before and after at
+both sizes are in the pull request. Not verified here: a real thumb on a
+real phone, and the spotlight's fade on a physical GPU — the owner's phone
+and BETA-002 remain the checks.
 
 ### Words that arrive, and a camera that answers the scroll
 

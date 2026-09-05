@@ -10,6 +10,7 @@ import { buildStepCount } from "@/lib/present/motion";
 import { useFullscreen } from "@/lib/present/fullscreen";
 import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
+import { useSwipe } from "@/lib/present/swipe";
 import { World, type Focus } from "@/components/stage/world";
 import {
   MovementRail,
@@ -220,7 +221,12 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  // A swipe on a phone is the move a thumb reaches for first; the tap
+  // convention below still works for everyone else.
+  const swipe = useSwipe((direction) => (direction === "forward" ? next() : prev()));
+
   const advanceOnClick = (e: React.MouseEvent) => {
+    if (swipe.consumeSwipe()) return;
     // The same clicker convention as the stage: right side forward, left back.
     const rect = e.currentTarget.getBoundingClientRect();
     if ((e.clientX - rect.left) / rect.width < 0.28) prev();
@@ -241,9 +247,12 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     <div
       ref={containerRef}
       data-view={overview ? "world" : "scene"}
-      className="stage-safe relative h-screen w-screen overflow-hidden bg-black"
+      className="stage-safe relative h-screen w-screen touch-pan-y overflow-hidden bg-black"
       style={themeCssVars(theme)}
       onClick={advanceOnClick}
+      onPointerDown={swipe.onPointerDown}
+      onPointerUp={swipe.onPointerUp}
+      onPointerCancel={swipe.onPointerCancel}
     >
       <World
         scenes={scenes}
@@ -287,7 +296,7 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
             <div className="rounded-full border border-white/12 bg-black/55 px-5 py-2.5 text-center backdrop-blur-md">
               <p className="text-[13px] font-medium text-white/90">{deck.title}</p>
               <p className="mt-0.5 text-[11.5px] text-white/55">
-                Click or press → to move through · O sees the whole map
+                Tap, swipe or press → to move through · O sees the whole map
               </p>
             </div>
           </motion.div>
