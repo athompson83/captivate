@@ -10,10 +10,12 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #70 (merged,
-  squash `bc63d2f`); this closeout on `claude/presentation-experience-closeout`
-- `main`: through PR #70 (merged) — `bc63d2f`; every migration through
-  `0029_gateway_from_model.sql` applied to production (this session added none)
+- Branch: `claude/backdrop-diagrams-undo` → PR #72 (merged, squash `24a287a`);
+  this closeout on `claude/presentation-experience-redesign-r10l4q`, restarted
+  from `main`
+- `main`: through PR #72 (merged) — `24a287a`; every migration through
+  `0030_shared_backdrop_asset.sql` applied to production (this session added
+  `0030`, applied before the merge so the shared viewer never served a 404)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -42,8 +44,10 @@ show, and the editor needs an undo button.
 **Undo.** It existed. The header's undo and redo buttons faded to thirty
 percent opacity whenever the history was empty and folded into the "More"
 menu on a narrow window, which is how the two most-used controls on the page
-came to be reported as missing. They are now a bordered, labelled group that
-stays in the header at every width.
+came to be reported as missing. They are now a bordered, labelled group: in the
+header on a wide window, and on the view-switcher row on a narrow one, where
+the narrow editor spec caught the first version pushing Present off the
+header at 320px.
 
 **A backdrop with depth.** The atmosphere's depth layer is automatic and
 subtle; the owner wanted a picture. `JourneyConfig.backdrop` is one image
@@ -78,6 +82,29 @@ the export and the audience boundary are untouched; only the pictures
 changed. Rendered samples at projector size — a heart, a vessel and tissue;
 a person, an ambulance and a hospital; two faces exchanging — look designed
 rather than sketched.
+
+**Review, release, evidence.** Codex found three things: a P1 — a backdrop
+stored as an asset is referenced from `presentations.journey`, and the
+shared-asset resolver only read `scenes.content`, so every logged-out viewer
+of a shared deck would have got a 404 for the picture — and two P2s, edges
+naming a node that does not exist were silently dropped rather than refused,
+and an arrow into a circle drawn narrower than its box was clipped to the
+box. Migration `0030_shared_backdrop_asset.sql` teaches both resolvers the
+backdrop reference and the RLS suite proves it for a shared deck and denies
+it for an unshared one; the diagram schema refuses duplicate ids, dangling
+edges and self-edges at the model boundary; `boundaryPoint` clips a circle
+to the radius the recipe draws. `0030` was applied to production before the
+merge. PR #72 merged as `24a287a` on a green head; production rebuilt (the
+static asset fingerprint changed within a minute of the merge), the
+resolvers in `qnbwyymwhvqprjtyfdmb` read back as honouring
+`journey.backdrop.assetId`, `SECURITY DEFINER` with a pinned `search_path`
+and executable by anon and authenticated, and the proxied `smoke` and
+`accessibility` suites passed 37 of 37 against `https://www.axtevi.com`.
+Not verified here: a real provider composing under the new brief (BETA-003)
+and the backdrop on a physical GPU (BETA-002). The merged branch could not
+be deleted from this environment — its git proxy refuses a delete refspec,
+as recorded earlier — so `claude/backdrop-diagrams-undo` is still on the
+remote and is safe to delete.
 
 ### The presentation experience: depth, points, and drawings that hold up
 
