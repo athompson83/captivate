@@ -196,6 +196,27 @@ in CSS: sixty elements cost two style writes, and the compositor moves the
 layers. Only while presenting; in the editor an element sits exactly where it
 was put.
 
+### The room answers the hand
+
+Between flights, a visitor with a mouse over the world was looking at a still
+picture. Now, on the surfaces a visitor holds a pointer over — the shared
+viewer and the landing page's live demo — the room answers it
+(`src/lib/present/lean.ts`): the backdrop and the air are seen from a camera
+leaned a little toward where the hand is, up to two percent of the camera's
+width at the edge of the viewport, so what is behind the scene shifts the way
+the view through a window does when you lean. The scene itself does not move
+at all — the content plane is the window frame, and a scene being read is
+never misregistered — so this keeps the rule above rather than bending it:
+depth shows in what is behind.
+
+The lean eases toward the hand by a factor of e every 0.18 s in its own frame
+loop, which runs only while the room has somewhere to go and never through
+React, and returns exactly level when the pointer leaves. A flight in progress
+reads the current lean and never steps it. Off for a finger, which is a swipe;
+off under reduced motion; off on the projector, whose pointer is nobody's
+hand, and in the editor. Where there is neither a backdrop nor WebGL there is
+nothing behind the scene to answer, and nothing does.
+
 ### Backdrop
 
 An author can put one picture behind the whole show (`JourneyConfig.backdrop`,

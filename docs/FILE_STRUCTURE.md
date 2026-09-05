@@ -90,6 +90,9 @@ captivate/
 │  │  │  ├─ path.ts                The smoothed route drawn between waypoints
 │  │  │  ├─ ambient.ts             Atmosphere: the colour of the air per position
 │  │  │  ├─ atmosphere.ts          The same, per pixel: uniforms for the shader
+│  │  │  ├─ parallax.ts            Depth inside a scene: words nearer, pictures farther
+│  │  │  ├─ backdrop.ts            One picture behind the show, on a plane at a distance
+│  │  │  ├─ lean.ts                The room answers the hand: backdrop and air follow a mouse
 │  │  │  └─ audience.ts            What the projector window is allowed to load
 │  │  ├─ narrative/
 │  │  │  ├─ map.ts                 Assemble, derive, reorder, diff the map

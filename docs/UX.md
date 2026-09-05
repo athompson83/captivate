@@ -242,6 +242,14 @@ the thing beneath (scenes and movements), resolved through the same function
 the viewer uses, so a revoked link unfurls as the generic card and a card can
 never show what a link-holder would not see.
 
+**A mouse is a hand too.** On the shared viewer and the landing page's demo,
+moving the pointer over the world leans what is behind the scene — the
+backdrop, the air — a little toward it, and the scene stays exactly where it
+is. This is not the camera moving and it is not decoration: nothing happens
+until the visitor moves, it follows their hand, and it is level again the
+moment the hand leaves. The projector never does it — whoever's pointer
+crosses a stage window, it is not the room's.
+
 **The frame before the stage is black.** Both audience routes await the deck
 on the server; until it arrives they show a black frame rather than the site's
 light body, so a projector never flashes white before the first scene.
