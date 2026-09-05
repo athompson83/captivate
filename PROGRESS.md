@@ -10,11 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #85 — a share link on a phone (swipe to move, a tap on a
-  hotspot that does one thing, no rubber-banding), awaiting CI, merge and
-  production verification
-- `main`: through PR #85 (merged) — `4653393`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q` — a share link on
+  a phone → PR #86 (merged, squash `6bdbfa7`); this closeout on the same
+  branch, restarted from `main`
+- `main`: through PR #86 (merged) — `6bdbfa7`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -62,6 +61,14 @@ viewer and the demo move on a swipe and not on a scroll; a hotspot tap dives
 and stays; the browser suite runs the viewer as a phone (`hasTouch`,
 `isMobile`, 390×844) and swipes it through the deck, then taps the left edge
 back. `npm run verify` green; lifecycle browser suite 8 of 8.
+
+**Landed and verified.** PR #86 squash-merged as `6bdbfa7`, CI green on the
+head. Probed `www.axtevi.com` as a phone (Pixel 7 emulation, coarse pointer)
+after the deploy: the live demo's invitation read "Swipe or tap the stage to
+move through"; a vertical journey left it on "Scene 1 of 11"; swipes to the
+left walked it to "Scene 2 of 11: The room leaves early" and one swipe to the
+right returned it to scene 1; the stage's `touch-action` resolved to
+`pan-y pinch-zoom`; empty console. Smoke suite 37 of 37 through the proxy.
 
 ### The show opens and closes on the whole of itself
 
