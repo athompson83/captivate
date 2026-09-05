@@ -224,6 +224,14 @@ F; it appears only where the browser can do it (an iPhone cannot), asks by the
 prefixed name Safari on iPad still uses, and says so when refused rather than
 doing nothing.
 
+**A share link looks like something before it is opened.** A link pasted into
+a chat is unfurled by the chat, and every deck used to unfurl as the site's
+own card — the product's name where the presentation's should be. Now the
+viewer route serves the deck's card: its title in its own theme, the shape of
+the thing beneath (scenes and movements), resolved through the same function
+the viewer uses, so a revoked link unfurls as the generic card and a card can
+never show what a link-holder would not see.
+
 **The frame before the stage is black.** Both audience routes await the deck
 on the server; until it arrives they show a black frame rather than the site's
 light body, so a projector never flashes white before the first scene.
