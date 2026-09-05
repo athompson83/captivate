@@ -14,6 +14,7 @@ import {
 import { getCurrentUser } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { Hero } from "@/components/marketing/hero";
+import { LiveDemo } from "@/components/marketing/live-demo";
 import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
 import { FREE_ALLOWANCE_COPY, PRICING } from "@/lib/billing/plans";
 
@@ -86,6 +87,12 @@ export default async function LandingPage() {
               >
                 See pricing
               </Link>
+              <a
+                href="#demo"
+                className="px-2 py-3.5 text-[15px] font-medium text-[var(--sky-ink-3)] transition-colors hover:text-[var(--sky-ink)]"
+              >
+                Or see it move ↓
+              </a>
             </div>
             <p className="mt-7 text-[13px] leading-relaxed text-[var(--sky-ink-3)]">
               {FREE_ALLOWANCE_COPY} on the free plan. Your words stay yours — AI drafts, you decide.
@@ -117,7 +124,7 @@ export default async function LandingPage() {
                 ],
               ] as const
             ).map(([step, title, body]) => (
-              <div key={step}>
+              <div key={step} className="rise-in">
                 <span
                   className="text-[44px] leading-none font-semibold text-[var(--sky-action-text)]/70"
                   style={{ fontFamily: "var(--font-display)" }}
@@ -131,6 +138,8 @@ export default async function LandingPage() {
             ))}
           </div>
         </section>
+
+        <LiveDemo />
 
         <section className="shell py-20">
           <h2 className="text-[13px] font-medium tracking-[0.16em] text-[var(--sky-ink-3)] uppercase">
@@ -181,7 +190,7 @@ export default async function LandingPage() {
                 ],
               ] as const
             ).map(([Icon, title, body]) => (
-              <div key={title} className="lit-card p-6">
+              <div key={title} className="lit-card rise-in p-6">
                 <Icon className="size-4 text-[var(--sky-action-text)]" aria-hidden />
                 <h3 className="mt-4 text-[14.5px] font-semibold text-[var(--sky-ink)]">{title}</h3>
                 <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--sky-ink-3)]">{body}</p>
@@ -191,7 +200,7 @@ export default async function LandingPage() {
         </section>
 
         <section className="shell pb-24">
-          <div className="lit-card flex flex-col items-start gap-8 p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
+          <div className="lit-card rise-in flex flex-col items-start gap-8 p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl">
               <h2
                 className="text-[clamp(1.7rem,2.6vw,2.6rem)] leading-tight font-semibold text-[var(--sky-ink)]"

@@ -362,6 +362,63 @@
       opacity: 0;
     }
   }
+
+  /* ------------------------------------------------------------------ */
+  /* Charts performed on arrival (see ChartView in element-view.tsx).    */
+  /* Columns grow from their baseline, bars from their left edge, donut  */
+  /* arcs sweep round, one after another; the line draws itself with the */
+  /* dp-path mechanism above. Transform and dash animations only, so the */
+  /* compositor does the work and nothing lays out mid-build.            */
+  /* ------------------------------------------------------------------ */
+  .ch-grow-y {
+    transform-origin: 50% 100%;
+    animation: ch-grow-y 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--ch-del, 0s) both;
+  }
+  @keyframes ch-grow-y {
+    from {
+      transform: scaleY(0);
+    }
+  }
+  .ch-grow-x {
+    transform-origin: 0 50%;
+    animation: ch-grow-x 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--ch-del, 0s) both;
+  }
+  @keyframes ch-grow-x {
+    from {
+      transform: scaleX(0);
+    }
+  }
+  .ch-wipe {
+    animation: ch-wipe 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes ch-wipe {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+  .ch-sweep {
+    animation: ch-sweep 1s cubic-bezier(0.22, 1, 0.36, 1) var(--ch-del, 0s) both;
+  }
+  @keyframes ch-sweep {
+    from {
+      stroke-dasharray: 0 var(--ch-circ);
+    }
+    to {
+      stroke-dasharray: var(--ch-dash) calc(var(--ch-circ) - var(--ch-dash));
+    }
+  }
+  /* As for drawings: the global reduce rule zeroes durations, not delays. */
+  @media (prefers-reduced-motion: reduce) {
+    .ch-grow-y,
+    .ch-grow-x,
+    .ch-wipe,
+    .ch-sweep {
+      animation-delay: 0s;
+    }
+  }
 }
 
 html,
@@ -696,6 +753,34 @@ body {
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+}
+
+/* Landing: things that rise into view                                        */
+/* Scroll-driven, in CSS, with no library and no scroll listener: the browser */
+/* runs the animation on the compositor against the element's own progress   */
+/* into the viewport. Browsers without view timelines show the page still,   */
+/* which is a complete page; reduced motion asks for exactly that.           */
+/* ------------------------------------------------------------------------- */
+
+@layer base {
+  @supports (animation-timeline: view()) {
+    .rise-in {
+      animation: rise-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+    @keyframes rise-in {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rise-in {
+        animation: none;
+      }
+    }
   }
 }
 

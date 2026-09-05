@@ -250,6 +250,12 @@ export const TextElement = z.object({
   type: z.literal("text"),
   content: RichText,
   style: TextStyle.prefault({}),
+  /**
+   * What the text is, where that changes how it is performed. A `figure` is
+   * one number the scene is built around: on arrival it counts up to itself.
+   * Absent means ordinary text.
+   */
+  role: z.enum(["text", "figure"]).optional(),
 });
 
 export const QuoteElement = z.object({

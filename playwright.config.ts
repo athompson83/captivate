@@ -107,7 +107,7 @@ export default defineConfig({
       // store write. Neither needs a server or an account.
       name: "lifecycle",
       testMatch:
-        /(atmosphere-lifecycle|inline-editing|shared-viewer|presenter-camera|recording-quality|deck-export|reference-read|composition|camera-flight|editor|editor-narrow|dialog-focus)\.spec\.ts/,
+        /(atmosphere-lifecycle|inline-editing|shared-viewer|live-demo|presenter-camera|recording-quality|deck-export|reference-read|composition|camera-flight|editor|editor-narrow|dialog-focus)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         launchOptions: {

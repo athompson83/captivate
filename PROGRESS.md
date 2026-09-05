@@ -10,8 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #74 (merged,
-  squash `0211aa9`); this closeout on the same branch, restarted from `main`
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #75 — PR #76 (a scene performs on landing) awaiting CI and
+  merge; the landing page's live demo and scroll reveals following on the
+  same branch
 - `main`: through PR #74 (merged) — `0211aa9`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (this session added
   `0030`, applied before the merge so the shared viewer never served a 404)
@@ -33,6 +35,93 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The scene performs when the camera lands
+
+The owner asked for the most captivating experience the engine can give,
+using what 3D, animation and engineering practice know. The first thing that
+practice says is that a reveal is only a reveal if the audience is looking at
+it — and reading the world showed that nobody was. `onArrive` was fired at
+the end of every flight and nothing listened. The scene under the camera was
+"playing" from the moment it became active, which is the moment the flight
+_began_: every choreographed entrance the layouts already stagger, every
+build, the first stroke of every drawn picture, played out in the distance
+while the camera was still travelling, and the room landed on a finished
+scene. The choreography existed. It was never seen.
+
+**Performed on arrival.** The world now remembers the camera it last landed
+on and derives, during render, whether the current target is that camera —
+during render, because the destination mounts in the very render that
+changes the target, and an element decides at mount whether it is held; a
+flag flipped in an effect arrives one render too late. `Stage` takes
+`arrived`; an element that mounts while it is false is held at the start of
+its entrance, invisible, its sketch undrawn, and performs with its own delay
+when it turns true. An element already on screen when the flight begins is
+left alone: an entrance is for what the audience has not seen, and a
+neighbour that vanished as the camera set off would be a pop. An establishing
+shot over a section and the overview are landings too, and count for nothing
+here — a scene performed at either altitude would perform in the distance
+again.
+
+**Two things that only happen when performed.** The one-number layout marks
+its number as a `figure`, and on arrival it climbs from zero to itself in
+about a second, slowing into the last digits, written to the text node from a
+frame loop in tabular numerals so nothing re-renders and nothing shifts;
+ratios and small numbers are shown as they are. A chart builds: columns from
+their baseline, bars from their left edge, donut arcs sweeping round in turn,
+the line drawing itself with the same measured-dash mechanism as a drawing —
+transforms and dashes only, so the compositor does the work. Neither happens
+in the editor, a thumbnail, or a scene the camera is passing.
+
+**Attention.** The scene the camera is on is lit; the ones beside it recede
+to sixty percent and come back as the camera sets off towards them. Opacity
+only — no haze painted over a region, which would be a rectangle on a world
+that has none — and never in the overview.
+
+Tests: the stage holds, performs, leaves a pre-flight element alone and never
+holds in the editor; the count-up's parsing, formatting and easing; charts
+building only when performed; the world holding a far destination through a
+flight, arriving at once on a cut, holding through a section's establishing
+shot, and dimming neighbours while presenting but not in the overview or the
+editor.
+
+### The landing page runs the product
+
+The owner's brief for the landing page was the most captivating on the
+internet, with the practices of 3D and animation. The hero already was one:
+six scenes in one three.js space, a camera flying between them with pointer
+lean and dust for depth, a CSS world beneath it for browsers without WebGL.
+What the page did not do was let a visitor _touch_ the thing. Now it does.
+
+**The live demo.** Below the three steps, a section titled "See it move"
+mounts the real `World` on the worked example — the deck every new account
+opens first, built through the same template machinery creation uses
+(`lib/marketing/example-deck.ts`, which the share-link viewer's browser
+fixture now imports rather than carrying its own copy). Press → or tap the
+stage and the camera flies; the scene performs on landing; the last press
+pulls back over the whole argument. Deliberately not the share-link viewer,
+which is a whole page that listens on `window` for every arrow, Space and
+Backspace — on a marketing page that would hijack scrolling — and carries
+chrome pointing back to where the visitor already is. The demo's keys work
+while the stage has focus, and Back, Whole map and Next beside it do the
+same for anyone who would rather click, with a line saying where they are.
+The engine is fetched only when the section comes within half a screen, into
+a box already the right shape, so nothing below it moves. The hero offers
+"Or see it move ↓".
+
+**Things that rise into view.** The step cards, the feature cards and the
+pricing card rise as they enter the viewport — scroll-driven animation in
+CSS with no library and no scroll listener, gated behind `@supports` so a
+browser without view timelines shows a still page, which is a complete page,
+and reduced motion asks for exactly that.
+
+Tests: the example deck's rows are stable and every scene's section exists;
+the demo is a labelled, focusable region that walks the deck from the
+keyboard and the buttons, pulls back after the last scene, and comes back
+in; a lifecycle spec mounts it in a real browser inside a scrolled page,
+proves a key on the page does not move it and a key on the focused stage
+does, and that the camera loop raises no error; the production smoke suite
+checks the section and the hero's way to it.
 
 ### "Generation failed" on a phone, over a deck that had finished
 

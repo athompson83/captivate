@@ -281,3 +281,244 @@ describe("an image with no image", () => {
     expect(scrims).toHaveLength(0);
   });
 });
+
+/**
+ * A scene performs when the camera lands, not when the flight begins.
+ *
+ * `arrived` is the world's word for whether the camera is on its destination.
+ * An element that mounts while it is false is held at the start of its
+ * entrance and released when it turns true; one that was already on screen
+ * is left alone. Nothing here is about the editor, where `play` is off and
+ * the finished composition is what an author needs to see.
+ */
+describe("performing a scene on arrival", () => {
+  const drawn = SceneContent.parse({
+    elements: [
+      {
+        id: "claim",
+        type: "text",
+        frame: { x: 0, y: 0, w: 40, h: 10 },
+        content: [{ text: "The claim" }],
+      },
+      {
+        id: "sketch",
+        type: "drawing",
+        frame: { x: 0, y: 20, w: 40, h: 40 },
+        viewBox: { width: 100, height: 100 },
+        paths: [
+          { d: "M10 10 L90 10", stage: 0 },
+          { d: "M10 50 L90 50", stage: 1 },
+        ],
+      },
+    ],
+  });
+
+  it("holds what mounts before the camera lands, then performs it", () => {
+    const { container, rerender } = render(
+      <Stage
+        content={drawn}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        play
+        step={0}
+        arrived={false}
+      />,
+    );
+    // Both elements are held at their entrance's start, and the drawing has
+    // not begun its first stroke: that stroke is for the room to watch.
+    expect(container.querySelectorAll("[data-held]")).toHaveLength(2);
+    expect(container.querySelectorAll(".dp-drawn")).toHaveLength(0);
+
+    rerender(
+      <Stage content={drawn} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+    // Stage 0 sketches on landing; stage 1 still waits for the presenter.
+    expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
+  });
+
+  it("leaves alone an element that was on screen when the flight began", () => {
+    // A neighbour visible at the edge of the previous scene must not vanish
+    // when the camera sets off towards it. An entrance is for what the
+    // audience has not seen.
+    const { container, rerender } = render(
+      <Stage content={drawn} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+
+    rerender(
+      <Stage
+        content={drawn}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        play
+        step={0}
+        arrived={false}
+      />,
+    );
+    expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+    expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
+  });
+
+  it("never holds anything in the editor", () => {
+    const { container } = render(
+      <Stage content={drawn} theme={theme} aspect="16:9" fixedScale={1} arrived={false} />,
+    );
+    expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+    expect(screen.getByText("The claim")).toBeInTheDocument();
+  });
+
+  it("counts a figure up only while it is performed", () => {
+    const content = composeScene("figure", {
+      heading: "Most calls are not emergencies",
+      figure: { value: "7.6%", label: "of calls" },
+    });
+
+    // The editor and a thumbnail show the number as written.
+    const still = render(<Stage content={content} theme={theme} aspect="16:9" fixedScale={1} />);
+    expect(still.container.textContent).toContain("7.6%");
+    still.unmount();
+
+    // Performed, the climb starts from nothing — written to the text node,
+    // so the number React rendered (and auto-fit measured) is the real one.
+    const live = render(
+      <Stage content={content} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    const digits = live.container.querySelector<HTMLElement>('span[style*="tabular-nums"]');
+    expect(digits).not.toBeNull();
+    expect(digits!.textContent).toBe("0.0");
+    expect(live.container.textContent).toContain("%");
+    live.unmount();
+  });
+
+  it("builds a chart in only while it is performed", () => {
+    const column = composeScene("chart", {
+      heading: "Growth",
+      chart: {
+        chart: "column",
+        data: [
+          { label: "Q1", value: 10 },
+          { label: "Q2", value: 20 },
+        ],
+        summary: "Doubled.",
+      },
+    });
+
+    const still = renderStage(column);
+    expect(still.container.querySelectorAll(".ch-grow-y")).toHaveLength(0);
+    still.unmount();
+
+    const live = render(
+      <Stage content={column} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    expect(live.container.querySelectorAll(".ch-grow-y")).toHaveLength(2);
+    // Held for the camera, the chart waits too.
+    live.rerender(
+      <Stage content={column} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    live.unmount();
+
+    const held = render(
+      <Stage
+        content={column}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        play
+        step={0}
+        arrived={false}
+      />,
+    );
+    expect(held.container.querySelectorAll(".ch-grow-y")).toHaveLength(0);
+    held.unmount();
+
+    const line = composeScene("chart", {
+      heading: "Trend",
+      chart: {
+        chart: "line",
+        data: [
+          { label: "Q1", value: 10 },
+          { label: "Q2", value: 20 },
+        ],
+        summary: "Up.",
+      },
+    });
+    const drawnLine = render(
+      <Stage content={line} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    expect(drawnLine.container.querySelector("polyline.ch-wipe")).not.toBeNull();
+    drawnLine.unmount();
+  });
+
+  it("keeps a performed scene on screen when the camera pulls back", () => {
+    // A scene that mounted mid-flight performed on landing. Pressing O then
+    // makes the world the target and `arrived` false again — and the scene
+    // must not blank out in the overview or replay itself on return.
+    const { container, rerender } = render(
+      <Stage
+        content={drawn}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        play
+        step={0}
+        arrived={false}
+      />,
+    );
+    rerender(
+      <Stage content={drawn} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    rerender(
+      <Stage
+        content={drawn}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        play
+        step={0}
+        arrived={false}
+      />,
+    );
+    expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+    expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
+  });
+
+  it("builds nothing in the distance, even on a scene that was on screen before the flight", () => {
+    // A neighbour visible at the edge is mounted quietly (not playing). When
+    // it becomes the destination it is never held — but its chart must still
+    // wait for the landing rather than build while the camera is on its way.
+    const column = composeScene("chart", {
+      heading: "Growth",
+      chart: {
+        chart: "column",
+        data: [
+          { label: "Q1", value: 10 },
+          { label: "Q2", value: 20 },
+        ],
+        summary: "Doubled.",
+      },
+    });
+    const { container, rerender } = render(
+      <Stage content={column} theme={theme} aspect="16:9" fixedScale={1} />,
+    );
+    rerender(
+      <Stage
+        content={column}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        play
+        step={0}
+        arrived={false}
+      />,
+    );
+    expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+    expect(container.querySelectorAll(".ch-grow-y")).toHaveLength(0);
+    rerender(
+      <Stage content={column} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    expect(container.querySelectorAll(".ch-grow-y")).toHaveLength(2);
+  });
+});
