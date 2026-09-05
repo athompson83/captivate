@@ -11,10 +11,10 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #88 — full screen by hand on the shared viewer, by either
-  API name, awaiting CI, merge and production verification; this branch also
-  carries the MVP-021 closeout
-- `main`: through PR #88 (merged) — `f1c6c93`; every migration through
+  `main` after PR #89 — the MVP-022 closeout, and a share link that looks like
+  something before it is opened (the deck's own Open Graph card), awaiting
+  CI, merge and production verification
+- `main`: through PR #89 (merged) — `75b089e`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -35,6 +35,26 @@
 
 ## Latest Session
 
+### A share link that looks like something before it is opened
+
+A link pasted into a chat is unfurled by the chat, and every deck unfurled
+as the site's own card: the product's name where the presentation's should
+be. The viewer route now serves the deck's card
+(`app/v/[token]/opengraph-image.tsx`, built by
+`lib/marketing/share-card.tsx` and rasterised by `next/og`): its title in its
+own theme, the description beneath, and the shape of the thing along the
+bottom — scenes and movements. It is resolved through the same SECURITY
+DEFINER function the viewer uses, so a revoked or mistyped link unfurls as
+the generic card and a card can never show what a link-holder would not see;
+the read is request-time, so nothing is cached past the moment the owner
+turns the link off. Theme tokens are hex, which is what the rasteriser
+understands. The built server rendered the fallback card as a 1200×630 PNG.
+
+Tests: the card carries the title, description, counts and the theme's
+colours; the generic card for nothing; a long title is cut on a word and one
+scene is singular; a source test pins the route to the shared resolver and
+to no presenter field.
+
 ### Full screen by hand
 
 The viewer's full screen was reachable only by the F key, and a phone has no
@@ -53,6 +73,13 @@ to the prefixed name and refuses when neither exists; support comes from the
 prefixed flag; a phone with neither is unsupported; a prefixed change event
 is followed and a refusal is reported; the viewer's button asks for full
 screen and never advances the deck.
+
+**Landed and verified.** PR #89 squash-merged as `75b089e`, CI green on the
+head. No presentation in production carries a share link, so the corner
+itself could not be probed live without creating owner data; the evidence is
+the deployment — the proxied smoke suite 37 of 37 against `www.axtevi.com`
+after the deploy and the viewer route answering for an unknown token — and
+the lifecycle browser suite, 7 of 7, on the same code.
 
 ### Three, two, one
 
