@@ -10,11 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #90 — the MVP-023 closeout, and help under `?` (the
-  editor's shortcut list and the stage's keys one key away; an empty scene's
-  third step as a button), awaiting CI, merge and production verification
-- `main`: through PR #90 (merged) — `7e31939`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q` — help under `?`
+  → PR #92 (merged, squash `83c2969`); this closeout on the same branch,
+  restarted from `main`
+- `main`: through PR #92 (merged) — `83c2969`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -55,6 +54,15 @@ Tests: `?` opens the editor's list except while typing and is listed among
 the shortcuts it opens; every `case` in the stage's key handler is named in
 the presenter's list; the overlay renders as a dialog that closes on a click
 away; the empty scene offers its third step as a button.
+
+**Landed and verified.** PR #92 squash-merged as `83c2969`, CI green on the
+head. `?` lives behind sign-in on both surfaces, which no probe holds, so the
+production evidence is the deployment: the proxied smoke suite 37 of 37
+against `www.axtevi.com` after the deploy, and the editor route answering (a
+redirect to sign-in for an anonymous request, as designed). The same PR
+rebuilt `docs/FEATURES.md` and `docs/UX.md`, which `main` had been carrying
+with conflict markers since a reconciliation before PR #90; `main` is clean
+of markers now.
 
 ### A share link that looks like something before it is opened
 
