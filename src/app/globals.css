@@ -419,6 +419,23 @@
       animation-delay: 0s;
     }
   }
+
+  /* A heading performed a word at a time (see KineticWords). */
+  .kt-word {
+    display: inline-block;
+    animation: kt-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--kt-i, 0) * 55ms) both;
+  }
+  @keyframes kt-rise {
+    from {
+      opacity: 0;
+      transform: translateY(0.35em);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kt-word {
+      animation-delay: 0s;
+    }
+  }
 }
 
 html,

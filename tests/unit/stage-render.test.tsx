@@ -522,3 +522,62 @@ describe("performing a scene on arrival", () => {
     expect(container.querySelectorAll(".ch-grow-y")).toHaveLength(2);
   });
 });
+
+/**
+ * A heading performed a word at a time. Only while performed — the editor
+ * and a thumbnail show the sentence whole — and only for plain headings a
+ * room can take in as a rhythm rather than a paragraph.
+ */
+describe("kinetic headings", () => {
+  const claim = composeScene("statement", { heading: "Ninety seconds without oxygen" });
+
+  it("arrives word by word while performed, and whole everywhere else", () => {
+    const live = render(
+      <Stage content={claim} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    const words = live.container.querySelectorAll(".kt-word");
+    expect(words).toHaveLength(4);
+    expect([...words].map((w) => w.textContent)).toEqual([
+      "Ninety",
+      "seconds",
+      "without",
+      "oxygen",
+    ]);
+    // Each word waits its turn; the stagger is the point.
+    expect((words[3] as HTMLElement).style.getPropertyValue("--kt-i")).toBe("3");
+    expect(live.container.querySelector("h1, h2, h3")?.textContent).toBe(
+      "Ninety seconds without oxygen",
+    );
+    live.unmount();
+
+    const still = renderStage(claim);
+    expect(still.container.querySelectorAll(".kt-word")).toHaveLength(0);
+    expect(screen.getByText("Ninety seconds without oxygen")).toBeInTheDocument();
+    still.unmount();
+
+    const held = render(
+      <Stage
+        content={claim}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        play
+        step={0}
+        arrived={false}
+      />,
+    );
+    expect(held.container.querySelectorAll(".kt-word")).toHaveLength(0);
+    held.unmount();
+  });
+
+  it("leaves a long heading whole", () => {
+    const essay = composeScene("statement", {
+      heading:
+        "One two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen",
+    });
+    const { container } = render(
+      <Stage content={essay} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    expect(container.querySelectorAll(".kt-word")).toHaveLength(0);
+  });
+});
