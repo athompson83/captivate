@@ -10,11 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #80 — depth inside a scene (words nearer, pictures farther,
-  sliding against each other as the camera moves), awaiting CI, merge and
-  production verification
-- `main`: through PR #78 (merged) — `95e671e`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q` — depth inside a
+  scene → PR #82 (merged, squash `918109a`); this closeout on the same branch,
+  restarted from `main`
+- `main`: through PR #82 (merged) — `918109a`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -58,6 +57,15 @@ the region's own pixels, is capped, turns with a turned region; words are in
 front and pictures behind; the world hands the active region a zero offset
 and a neighbour a real one, and writes nothing in the editor; the stage
 gives elements their depth layers only while presenting.
+
+**Landed and verified.** PR #82 squash-merged as `918109a`, CI green on the
+head and on `main`. Production, through a real browser against
+`www.axtevi.com`: the live demo renders `.pxl` depth layers; on arrival the
+active scene's region reads `--px: 0.00px; --py: 0.00px` and its neighbours
+read the cap (`±48.00px` — three percent of the 1600-unit stage); mid-flight
+the scene being left and the one being approached both read `33.02px`, and
+after landing the new scene reads zero again with the cap redistributed
+around it. Empty console. Smoke suite 37 of 37 through the proxy.
 
 ### Words that arrive, and a camera that answers the scroll
 
