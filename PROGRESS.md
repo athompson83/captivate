@@ -10,10 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` — a share link on
-  a phone → PR #86 (merged, squash `6bdbfa7`); this closeout on the same
-  branch, restarted from `main`
-- `main`: through PR #86 (merged) — `6bdbfa7`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #87 — three, two, one: a count-in over the stage before a
+  recording begins, awaiting CI, merge and production verification
+- `main`: through PR #87 (merged); every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -33,6 +33,25 @@
   executable by no role at all.
 
 ## Latest Session
+
+### Three, two, one
+
+Pressing Start in the recording dialog acquired the streams and began the
+file on the same tick, so the first second of every recording was the
+presenter closing a dialog. Now the streams are acquired, the dialog closes,
+a count runs over the stage — one number a second, from three
+(`lib/record/countdown.ts`, `recording-countdown.tsx`) — and `MediaRecorder`
+starts on zero. The count is never in the file, because nothing is being
+captured until it ends. Escape or the button cancels, which releases the
+streams exactly as an error would, without the toast; unmounting mid-count
+aborts it too. The number is announced assertively for a presenter who cannot
+see the stage, and under reduced motion it changes without the settle.
+
+Tests: the count shows each number a second apart and resolves a step after
+the last, stops at once when cancelled, and is already over when cancelled
+before it began; the overlay announces the number and cancels from the button
+or Escape; a source-reading test pins the order in `begin` — prepare, close
+the dialog, count, then start — so the count can never reach the file.
 
 ### A share link on a phone
 

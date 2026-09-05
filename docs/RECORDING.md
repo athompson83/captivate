@@ -51,6 +51,15 @@ getDisplayMedia ──┐
 getUserMedia ─────┘   only when captions are burnt in
 ```
 
+**Three, two, one.** The streams are acquired while the presenter is still
+looking at the setup dialog, and the file does not begin while they are still
+looking at it: the dialog closes, a count runs over the stage — one number a
+second, from three — and `MediaRecorder` starts on zero, so the first second
+of the film is the presenter and not the click. The count is never in the
+file, because nothing is being captured until it ends. Escape or the button
+cancels, which releases the streams exactly as an error would, without the
+toast (`src/lib/record/countdown.ts`, `recording-countdown.tsx`).
+
 **The recorder does not open a camera.** It takes the display and the
 microphone, and nothing else. The presenter's camera is already on the stage —
 `PresenterCameraFeed` in `src/components/present/presenter-camera.tsx` — and
