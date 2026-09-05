@@ -168,6 +168,7 @@ timeline editor is **deferred** — reliable transitions first.
 | Overview                           | Implemented | `O` pulls back over the whole world and draws the route                            |
 | Opening and closing                | Implemented | Opens wide over the whole argument and dives; ends on it, named                    |
 | Swipe navigation                   | Implemented | Left for on, right for back, on the viewer, the demo and the stage                 |
+| Full screen by hand                | Implemented | A corner button on the viewer, by either API name; says so if refused              |
 | Scene jumper                       | Implemented | Searches titles _and_ on-scene text                                                |
 | Blank the screen                   | Implemented | `B`; any advance restores it                                                       |
 | Wake lock                          | Implemented | Where the browser supports it                                                      |

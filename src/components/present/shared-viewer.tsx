@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { Sparkles } from "lucide-react";
+import { Maximize2, Minimize2, Sparkles } from "lucide-react";
 import type { SharedDeck } from "@/lib/data/shared-payload";
 import { getTheme, themeCssVars } from "@/lib/schema/theme";
 import { buildStepCount } from "@/lib/present/motion";
@@ -353,15 +353,49 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
         />
       </div>
 
-      {/* Quiet attribution; also the way out for a reader who wants their own. */}
-      <Link
-        href="/"
-        onClick={(e) => e.stopPropagation()}
-        className="absolute top-4 right-4 z-20 flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[11px] font-medium text-white/55 backdrop-blur-md transition-colors hover:text-white/90"
-      >
-        <Sparkles className="size-3" aria-hidden />
-        Made with Captivate
-      </Link>
+      {/* The corner: full screen by hand (F has no key on a phone), and a
+          quiet attribution that is also the way out for a reader who wants
+          their own. Both stop the click reaching the click zone. */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+        {fullscreen.supported && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              void fullscreen.toggle();
+            }}
+            aria-label={fullscreen.active ? "Leave full screen" : "Full screen"}
+            aria-pressed={fullscreen.active}
+            className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white/65 backdrop-blur-md transition-colors hover:text-white"
+          >
+            {fullscreen.active ? (
+              <Minimize2 className="size-3.5" aria-hidden />
+            ) : (
+              <Maximize2 className="size-3.5" aria-hidden />
+            )}
+          </button>
+        )}
+        <Link
+          href="/"
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[11px] font-medium text-white/55 backdrop-blur-md transition-colors hover:text-white/90"
+        >
+          <Sparkles className="size-3" aria-hidden />
+          Made with Captivate
+        </Link>
+      </div>
+
+      {/* Refused — inside a frame, on a managed device — and said so, as the
+          stage does, rather than a button that silently does nothing. */}
+      {fullscreen.denied && (
+        <div
+          role="status"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-5 left-1/2 z-30 -translate-x-1/2 rounded-full border border-white/12 bg-black/75 px-3.5 py-1.5 text-[12px] text-white/85 backdrop-blur-md"
+        >
+          This browser wouldn&apos;t go full screen. The deck still fills the window.
+        </div>
+      )}
 
       <p className="sr-only" aria-live="polite">
         {isDetail[sceneIndex]
