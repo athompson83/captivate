@@ -198,6 +198,24 @@ scene flies there.
 dives to its first scene. One beat, at the one moment where showing the shape of
 the thing is worth more than showing its content.
 
+**The light comes down on the scene the camera landed on.** A viewport is
+rarely the scene's shape — a phone held upright shows the scene as a strip
+across the middle, a laptop letterboxes a little, the movement rail's column
+sits beside the frame — and in every one of those the neighbouring regions
+used to show through: the next scene's bullets under the title, a chart's axis
+label beside the rail. The room was reading two scenes at once. Now, once the
+camera has landed, the world beyond the framed region goes dark. It lifts as a
+flight begins, so travel still shows the map moving past, and it does not exist
+over the overview or a section, where every scene is equally the subject. It is
+feathered and begins outside the frame's own padding, so on a screen the scene's
+shape nothing changes and there is never an edge to read as a card.
+
+**A phone swipes.** The share link is read on phones more than anywhere, and a
+thumb's first move is a swipe. Swiping left goes on and right goes back; a
+vertical drag is a scroll and is left alone; tapping the right two-thirds still
+advances for everyone who learnt that first. A mouse drag is never a swipe —
+that is the presenter's laser or ink.
+
 **Nothing moves that the room did not ask for.** The camera only moves on an
 advance, a jump, or an explicit pull-back — never on a timer, and never to
 decorate. `prefers-reduced-motion` turns every flight into a cut.

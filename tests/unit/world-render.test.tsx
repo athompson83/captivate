@@ -221,6 +221,37 @@ describe("the world", () => {
   });
 });
 
+describe("the spotlight", () => {
+  it("darkens the world beyond the scene once the camera has landed on it", () => {
+    const { container } = renderWorld(3, { play: true, travel: "cut" });
+    const spotlight = container.querySelector("[data-spotlight]") as HTMLElement | null;
+    expect(spotlight).not.toBeNull();
+    // A cut lands at once, so the light is already down around the region.
+    expect(spotlight?.dataset.spotlight).toBe("lit");
+    expect(Number(spotlight?.style.opacity)).toBeGreaterThan(0);
+    // Four feathered bands, none of them a box: each is a gradient that
+    // starts transparent at the frame's own padding.
+    const bands = Array.from(spotlight?.children ?? []) as HTMLElement[];
+    expect(bands).toHaveLength(4);
+    for (const band of bands)
+      expect(band.style.background).toMatch(
+        /linear-gradient\(to (top|bottom|left|right), transparent 0px/,
+      );
+    // It is presentation furniture, never read out.
+    expect(spotlight?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("does not exist over the whole world, where every scene is the subject", () => {
+    const { container } = renderWorld(3, { play: true, travel: "cut", focus: { kind: "world" } });
+    expect(container.querySelector("[data-spotlight]")).toBeNull();
+  });
+
+  it("is absent from the editor canvas, which is not a performance", () => {
+    const { container } = renderWorld(3, { travel: "cut" });
+    expect(container.querySelector("[data-spotlight]")).toBeNull();
+  });
+});
+
 describe("a flight in progress", () => {
   /**
    * Drives requestAnimationFrame by hand so a flight can be stepped.
