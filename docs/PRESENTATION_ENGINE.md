@@ -467,6 +467,12 @@ the editor, a thumbnail, or a scene the camera is passing:
   edge, donut arcs sweep round one after another, and a line draws itself with
   the same measured-dash mechanism as a drawing. Transform and dash animations
   only, so the compositor does the work.
+- **A heading arrives a word at a time.** Each word rises into place a beat
+  after the one before, so a claim is read in the order it was written — the
+  typographic equivalent of a sentence being said. Inline-block spans, so
+  lines still break at the spaces and the auto-fit, which measured the plain
+  text, still holds. Only plain headings of up to fourteen words; a longer one,
+  or any run with styling, arrives whole. A CSS stagger, no script.
 
 ### Attention
 

@@ -213,3 +213,8 @@ hijacked; Back, Whole map and Next beside the stage do the same for anyone
 who would rather click, and a line between them says where the reader is.
 The engine is fetched only as the section nears view, into a box already the
 right shape, so nothing below it moves when it arrives.
+
+Above it, the hero's camera answers the scroll as well as the clock: as the
+visitor scrolls the hero away, it pulls back to the whole world, so the last
+thing seen of it is the wide shot the flight was circling all along. A number
+read in the frame loop, like the pointer; never state, never a re-render.

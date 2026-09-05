@@ -218,6 +218,44 @@ function plainOf(runs: RichText): string {
   return runs.map((r) => r.text).join("");
 }
 
+/**
+ * Past this many words a heading is a paragraph, and a paragraph arriving a
+ * word at a time is read as a delay rather than as emphasis.
+ */
+const KINETIC_WORDS_MAX = 14;
+
+/**
+ * A heading that arrives a word at a time.
+ *
+ * Each word rises into place a beat after the one before, so a claim is
+ * read in the order it was written rather than taken in as a block — the
+ * typographic equivalent of a sentence being said. Inline-block spans, so
+ * lines still break at the spaces and the auto-fit above, which measured
+ * the plain text, still holds. The rise is small and the stagger short: a
+ * ten-word heading is complete in under a second. Long headings, and any
+ * run with styling, arrive whole. Under reduced motion the words are simply
+ * there.
+ */
+function KineticWords({ text }: { text: string }) {
+  const words = text.split(/(\s+)/);
+  const count = words.filter((w) => w.trim().length > 0).length;
+  if (count === 0 || count > KINETIC_WORDS_MAX) return <>{text}</>;
+  let index = 0;
+  return (
+    <>
+      {words.map((word, i) => {
+        if (word.trim().length === 0) return word;
+        const style = { "--kt-i": index++ } as React.CSSProperties;
+        return (
+          <span key={i} className="kt-word" style={style}>
+            {word}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 /** One run with nothing on it: the only shape a counted figure has. */
 function isPlainRun(runs: RichText): boolean {
   if (runs.length !== 1) return false;
@@ -376,7 +414,11 @@ export const ElementView = memo(function ElementView({
       return (
         <Tag style={textCss(element.style, theme, base, "display", fitted)}>
           <span>
-            <Runs runs={element.content} theme={theme} />
+            {perform && isPlainRun(element.content) ? (
+              <KineticWords text={plainOf(element.content)} />
+            ) : (
+              <Runs runs={element.content} theme={theme} />
+            )}
           </span>
         </Tag>
       );
