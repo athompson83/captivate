@@ -42,7 +42,10 @@ test.describe("the live demo", () => {
   }) => {
     const problems = await open(page);
     const where = page.locator('[aria-live="polite"]');
+    // It opens wide, as the stage does, then dives to scene one on its own.
+    expect(await page.evaluate(() => window.liveDemoFixture.firstView())).toBe("opening");
     await expect(where).toContainText("Scene 1 of");
+    await expect(page.locator("[data-view]")).not.toHaveAttribute("data-opening", "");
 
     // A key on the page, with nothing focused: the demo must not move.
     await page.keyboard.press("ArrowRight");

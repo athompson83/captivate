@@ -165,6 +165,7 @@ timeline editor is **deferred** — reliable transitions first.
 | Atmosphere                         | Implemented | Per-pixel colour field in WebGL, blended from the regions around it |
 | Journey map                        | Implemented | Drag scenes in world space; drop one inside another to nest it      |
 | Overview                           | Implemented | `O` pulls back over the whole world and draws the route             |
+| Opening and closing                | Implemented | Opens wide over the whole argument and dives; ends on it, named     |
 | Scene jumper                       | Implemented | Searches titles _and_ on-scene text                                 |
 | Blank the screen                   | Implemented | `B`; any advance restores it                                        |
 | Wake lock                          | Implemented | Where the browser supports it                                       |

@@ -21,6 +21,7 @@ import {
   movementRailVisible,
 } from "./movement-rail";
 import { AnnotationLayer } from "./annotation-layer";
+import { ClosingFrame } from "./closing-frame";
 import { PresenterBar } from "./presenter-bar";
 import { ConnectPhone } from "./connect-phone";
 import { useRemoteBridge } from "@/lib/present/use-remote-bridge";
@@ -80,10 +81,11 @@ export function PresentRoot({
 
   // rail renders, and whether the camera reserves the strip it stands in.
 
+  // The camera is over the whole argument: pulled back by hand, or holding
+  // there for the opening beat. Both hide the rail and draw the route.
+  const wide = session.overview || session.opening;
   const railShown =
-    journey.showMovements &&
-    !session.overview &&
-    movementRailVisible(movements, session.totalScenes);
+    journey.showMovements && !wide && movementRailVisible(movements, session.totalScenes);
   const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
   const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
 
@@ -166,12 +168,12 @@ export function PresentRoot({
    */
   const focus: Focus = useMemo(
     () =>
-      session.overview
+      wide
         ? { kind: "world" }
         : session.establishing
           ? { kind: "section", sectionId: session.establishing }
           : { kind: "scene", index: session.sceneIndex },
-    [session.overview, session.establishing, session.sceneIndex],
+    [wide, session.establishing, session.sceneIndex],
   );
 
   /**
@@ -358,10 +360,10 @@ export function PresentRoot({
           pace={journey.pace}
           depth={journey.depth}
           backdrop={journey.backdrop}
-          showPath={journey.showPath && session.overview}
+          showPath={journey.showPath && wide}
           safeInsetLeft={railShown ? MOVEMENT_RAIL_WIDTH : 0}
           className="absolute inset-0"
-          onSceneSelect={session.overview && !audienceOnly ? session.goto : undefined}
+          onSceneSelect={wide && !audienceOnly ? session.goto : undefined}
           // The audience window is a projector, not a control surface: a hotspot
           // there would let anyone who reaches the machine drive the talk.
           onHotspot={audienceOnly ? undefined : session.dive}
@@ -382,7 +384,7 @@ export function PresentRoot({
           />
         )}
 
-        {signpost && !session.overview && !session.blanked && !session.establishing && (
+        {signpost && !wide && !session.blanked && !session.establishing && (
           <MovementSignpost
             movement={signpost}
             index={signpostIndex}
@@ -390,7 +392,7 @@ export function PresentRoot({
           />
         )}
 
-        {establishingMovement && !session.overview && !session.blanked && (
+        {establishingMovement && !wide && !session.blanked && (
           <MovementSignpost
             movement={establishingMovement}
             index={establishingIndex}
@@ -398,6 +400,13 @@ export function PresentRoot({
             kind="entering"
           />
         )}
+
+        {/* The closing image, named. Past the last scene and nowhere else. */}
+        <AnimatePresence>
+          {session.ended && session.overview && !session.blanked && (
+            <ClosingFrame key="closing" title={presentation.title} />
+          )}
+        </AnimatePresence>
 
         {/* The presenter, placed over the world. Hidden while blanked so a
           black screen is genuinely black. */}

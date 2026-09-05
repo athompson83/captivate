@@ -198,9 +198,22 @@ scene flies there.
 dives to its first scene. One beat, at the one moment where showing the shape of
 the thing is worth more than showing its content.
 
+**The show opens and closes on the whole of itself.** On load the camera holds
+over the whole argument with the route drawn, then dives to the first scene;
+the first press ends the hold early. Past the last scene the camera pulls back
+to the same place and the title is set over it — the closing image, named. A
+presentation that begins and ends with its own shape is easier to hold in the
+mind than one that begins on a title card and ends on a black screen.
+
 **Nothing moves that the room did not ask for.** The camera only moves on an
 advance, a jump, or an explicit pull-back — never on a timer, and never to
-decorate. `prefers-reduced-motion` turns every flight into a cut.
+decorate. The two timed beats, opening and establishing, are the second half
+of a move the room did ask for. `prefers-reduced-motion` turns every flight
+into a cut, and the opening hold with it.
+
+**The frame before the stage is black.** Both audience routes await the deck
+on the server; until it arrives they show a black frame rather than the site's
+light body, so a projector never flashes white before the first scene.
 
 ## The landing page runs the product
 
