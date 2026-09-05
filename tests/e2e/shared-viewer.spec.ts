@@ -23,6 +23,7 @@ function fixtureUrl(): Promise<string> {
 async function open(
   page: Page,
   variant: "mount" | "mountWithAside" = "mount",
+  settled = true,
 ): Promise<{ problems: string[]; sceneCount: number }> {
   const problems: string[] = [];
   page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
@@ -33,6 +34,8 @@ async function open(
   await page.goto(await fixtureUrl());
   const sceneCount = await page.evaluate((which) => window.sharedViewerFixture[which](), variant);
   await page.waitForSelector("[data-view]");
+  // Every deck opens wide for a beat; most of these start once it has landed.
+  if (settled) await page.waitForSelector("[data-view]:not([data-opening])");
   return { problems, sceneCount };
 }
 
@@ -45,11 +48,20 @@ test.describe("shared viewer", () => {
     await fixtureUrl();
   });
 
-  test("mounts the worked example without errors and starts on scene one", async ({ page }) => {
-    const { problems, sceneCount } = await open(page);
+  test("mounts the worked example without errors, opens wide, and lands on scene one", async ({
+    page,
+  }) => {
+    const { problems, sceneCount } = await open(page, "mount", false);
     expect(sceneCount).toBeGreaterThanOrEqual(10);
+
+    // The opening beat: the whole argument first, then the dive. Read from
+    // inside the page, because the beat is shorter than our round trips.
+    expect(await page.evaluate(() => window.sharedViewerFixture.firstView())).toBe("opening");
+    const stage = page.locator("[data-view]");
+    await expect(stage).toHaveAttribute("data-view", "scene");
+    await expect(stage).not.toHaveAttribute("data-opening", "");
+
     await expect(status(page)).toContainText(`Scene 1 of ${sceneCount}`);
-    expect(await view(page)).toBe("scene");
     expect(problems).toEqual([]);
   });
 
@@ -69,10 +81,13 @@ test.describe("shared viewer", () => {
 
     expect(await view(page)).toBe("world");
     await expect(status(page)).toContainText(`Scene ${sceneCount} of ${sceneCount}`);
+    // The closing image is named after the deck.
+    await expect(page.locator("[data-closing]")).toBeVisible();
 
     // Back from the closing image returns to the final scene, not past it.
     await page.keyboard.press("ArrowLeft");
     expect(await view(page)).toBe("scene");
+    await expect(page.locator("[data-closing]")).toHaveCount(0);
     await expect(status(page)).toContainText(`Scene ${sceneCount} of ${sceneCount}`);
 
     expect(problems).toEqual([]);

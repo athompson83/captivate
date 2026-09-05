@@ -425,6 +425,21 @@ There is no per-scene transition picker. In a spatial presentation the camera
 move is the transition, and choosing a different wipe for scene seven is the
 habit this tool exists to replace.
 
+### Opening
+
+A show opens on the whole of itself. On load the camera sits over the whole
+argument with the route drawn, holds for a beat, and dives to the first scene —
+the second half of the one move the room did ask for, starting the show, and
+what establishing does for a section done once for the whole presentation. The
+first press ends the beat early and lands on the first scene rather than
+stepping past it, so a presenter who starts talking is never held. It is
+session state (`opening`), independent of the overview so that a presenter who
+pulls back during the beat stays there when the timer runs out; the shared
+viewer and the landing page's live demo open the same way through
+`lib/present/opening.ts`. Reduced motion makes it a cut: a hold followed by a
+cut is a flash, not a beat. A single-scene deck has nothing wide to show and
+does not open.
+
 ### Establishing a section
 
 Crossing into a new section, the camera first pulls back far enough to show the
@@ -439,6 +454,16 @@ timed transition of session state that the console needs to know about too.
 between waypoints; clicking a scene flies to it. It is a camera position, not a
 mode: the presentation is still live, the current scene is still current, and
 advancing from there flies back down to it.
+
+### Closing
+
+Past the last scene the same pull-back is the closing image, and the session
+marks it as one (`ended`) so the stage can dress it: after the flight lands, the
+lights come down a little around the centre and the presentation's title is set
+over the whole of it (`components/present/closing-frame.tsx`). It is the last
+thing the room sees and, because a recording captures the stage as shown, the
+outro of the film. Pulling back by hand on the last scene is not the end; any
+move clears it, and `prev` returns to the final scene as before.
 
 ---
 

@@ -15,9 +15,11 @@ captivate/
 │  │  │  ├─ settings/              Profile, theme, shortcuts
 │  │  │  └─ new/                   Creation flow (template and AI paths)
 │  │  ├─ edit/[id]/                Editor — its own chrome, outside the shell
-│  │  ├─ present/[id]/             The stage (audience view)
+│  │  ├─ present/[id]/             The stage (audience view); a black
+│  │  │  │                         loading frame before it
 │  │  │  └─ console/               The presenter console
-│  │  ├─ v/[token]/                Public share-link viewer — no account
+│  │  ├─ v/[token]/                Public share-link viewer — no account;
+│  │  │                            the same black frame before it
 │  │  ├─ handout/[id]/             Print/PDF export, owner only
 │  │  ├─ api/
 │  │  │  ├─ ai/                    map, create-from-map, scenes-from-map,
@@ -47,7 +49,8 @@ captivate/
 │  │  ├─ present/                  Stage root, presenter bar, console,
 │  │  │                            annotation layer, scene jumper,
 │  │  │                            movement rail (the argument's shape,
-│  │  │                            shown to the room), shared viewer
+│  │  │                            shown to the room), shared viewer,
+│  │  │                            closing frame (the end, named)
 │  │  ├─ marketing/                The landing page: hero (a three.js world,
 │  │  │                            a CSS one beneath it), the live demo that
 │  │  │                            runs the real engine on the worked example
@@ -74,6 +77,7 @@ captivate/
 │  │  │  └─ shortcuts.ts           Keyboard map
 │  │  ├─ present/
 │  │  │  ├─ session.ts             Session store + React binding
+│  │  │  ├─ opening.ts             The opening beat: hold wide, then dive
 │  │  │  ├─ protocol.ts            Cross-window messages, Zod-validated
 │  │  │  ├─ motion.ts              Entrance and emphasis presets
 │  │  │  ├─ camera.ts              Optimal zoom-and-pan flight (Van Wijk & Nuij)

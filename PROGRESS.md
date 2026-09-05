@@ -10,10 +10,11 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` — depth inside a
-  scene → PR #82 (merged, squash `918109a`); this closeout on the same branch,
-  restarted from `main`
-- `main`: through PR #82 (merged) — `918109a`; every migration through
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #83 — the show opens and closes on the whole of itself (an
+  opening beat, a closing frame, black load frames), awaiting CI, merge and
+  production verification
+- `main`: through PR #83 (merged) — `ebf6a4d`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -33,6 +34,35 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The show opens and closes on the whole of itself
+
+Both audience surfaces cut straight onto scene one with the camera already
+landed, and past the last scene they flipped to the overview and stopped: no
+first impression, no last one, and a white flash from the site's light body
+before either arrived on a projector. Now a show opens wide — the camera over
+the whole argument with the route drawn, a beat, then the dive to the first
+scene (`lib/present/opening.ts`, session state `opening`). It is the second
+half of the one move the room asked for, starting the show, and it does for
+the whole presentation what establishing does for a section. The first press
+ends the beat and lands rather than steps; a presenter who pulls back during
+it stays there; reduced motion makes it a cut; a one-scene deck does not open.
+Past the last scene the same pull-back is marked as the end (`ended`) and
+dressed: after the flight lands the lights come down around the centre and the
+title is set over the whole of it (`closing-frame.tsx`) — the last thing the
+room sees and, since a recording captures the stage as shown, the film's
+outro. The shared viewer and the landing page's live demo open and close the
+same way. `loading.tsx` under `/present/[id]` and `/v/[token]` paints a black
+frame while the deck is awaited, so a projector never flashes white.
+
+Tests: the session holds, dives, lands on the first press, keeps a hand-pulled
+overview, cuts under reduced motion, tears its timer down with the session,
+and marks the end only past the last scene; the hook does the same for the
+self-driven viewers; the shared viewer and the live demo open wide and settle
+in jsdom and in a real browser, where the fixtures record the first view
+in-page because the beat is shorter than a couple of round trips; the closing
+frame names the deck and passes clicks through; both load frames are black.
+`npm run verify` green; lifecycle browser suite 7 of 7.
 
 ### Depth inside the scene
 

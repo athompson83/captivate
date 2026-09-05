@@ -52,7 +52,37 @@ function deckWithAside(): SharedDeck {
   return { ...deck, scenes: [withHotspot, ...rest, detail] };
 }
 
+/**
+ * What the stage showed first, recorded in-page from the moment of mounting.
+ *
+ * The opening beat lasts under two seconds and a round trip from the test
+ * runner can take most of one, so a spec that read the view after mounting
+ * sometimes saw the dive already landed. Watching from inside the page is
+ * timing-independent: "opening" while the beat holds, else the view.
+ */
+let firstView: Promise<string | null> = Promise.resolve(null);
+
+function watchFirstView() {
+  firstView = new Promise((resolve) => {
+    let tries = 0;
+    const look = () => {
+      const el = document.querySelector("[data-view]");
+      if (el) {
+        resolve(el.hasAttribute("data-opening") ? "opening" : el.getAttribute("data-view"));
+        return;
+      }
+      if ((tries += 1) > 600) {
+        resolve(null);
+        return;
+      }
+      requestAnimationFrame(look);
+    };
+    look();
+  });
+}
+
 function mount(deck: SharedDeck): number {
+  watchFirstView();
   const host = document.createElement("div");
   document.body.appendChild(host);
   createRoot(host).render(
@@ -68,6 +98,8 @@ declare global {
     sharedViewerFixture: {
       mount: () => number;
       mountWithAside: () => number;
+      /** Resolves with what the stage showed first: "opening", or a view. */
+      firstView: () => Promise<string | null>;
       /**
        * Walks the deck with the same keydown the browser delivers, in-page.
        *
@@ -90,6 +122,7 @@ window.sharedViewerFixture = {
   /** Renders the viewer; returns the number of scenes in the running order. */
   mount: () => mount(exampleDeck()),
   mountWithAside: () => mount(deckWithAside()),
+  firstView: () => firstView,
 
   async walk(key: string, cap: number) {
     for (let i = 0; i < cap; i += 1) {

@@ -8,6 +8,7 @@ import type { SharedDeck } from "@/lib/data/shared-payload";
 import { getTheme, themeCssVars } from "@/lib/schema/theme";
 import { buildStepCount } from "@/lib/present/motion";
 import { useFullscreen } from "@/lib/present/fullscreen";
+import { useOpening } from "@/lib/present/opening";
 import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
 import { World, type Focus } from "@/components/stage/world";
@@ -17,6 +18,7 @@ import {
   MOVEMENT_RAIL_WIDTH,
   movementRailVisible,
 } from "./movement-rail";
+import { ClosingFrame } from "./closing-frame";
 
 /**
  * A shared deck, self-driven.
@@ -57,6 +59,7 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
   const [sceneIndex, setSceneIndex] = useState(0);
   const [step, setStep] = useState(0);
   const [overview, setOverview] = useState(false);
+  const [ended, setEnded] = useState(false);
   const [started, setStarted] = useState(false);
   /** Scene indices dived through to get here; the way back out, innermost last. */
   const [divePath, setDivePath] = useState<number[]>([]);
@@ -67,8 +70,12 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     () => scenes.map((_, i) => i).filter((i) => !isDetail[i]),
     [scenes, isDetail],
   );
+  // The show opens wide, as the stage does: the whole argument for a beat,
+  // then the dive. The first press ends it early.
+  const { opening, settle } = useOpening(running.length);
+  const wide = opening || overview;
   const railShown =
-    journey.showMovements && !overview && movementRailVisible(movements, running.length);
+    journey.showMovements && !wide && movementRailVisible(movements, running.length);
   const nextMain = (from: number) => running.find((i) => i > from) ?? null;
   const prevMain = (from: number) => {
     const earlier = running.filter((i) => i < from);
@@ -77,9 +84,11 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
 
   /** Lands on a scene, fully built when returning to it, at step 0 going on. */
   const land = (index: number, built: boolean) => {
+    settle();
     setSceneIndex(index);
     setStep(built ? (stepCounts[index] ?? 1) - 1 : 0);
     setOverview(false);
+    setEnded(false);
   };
 
   /** The way back out of an aside, shared by `next` and `prev`. */
@@ -115,8 +124,14 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
 
   const next = () => {
     setStarted(true);
+    // During the opening beat the first press is the dive itself.
+    if (opening) {
+      settle();
+      return;
+    }
     if (overview) {
       setOverview(false);
+      setEnded(false);
       return;
     }
     const steps = stepCounts[sceneIndex] ?? 1;
@@ -133,15 +148,22 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     }
     const target = nextMain(sceneIndex);
     // Past the final scene of the running order, the camera pulls back: the
-    // whole argument at once is the last thing a reader sees.
-    if (target === null) setOverview(true);
-    else land(target, false);
+    // whole argument at once is the last thing a reader sees, named as the end.
+    if (target === null) {
+      setOverview(true);
+      setEnded(true);
+    } else land(target, false);
   };
 
   const prev = () => {
     setStarted(true);
+    if (opening) {
+      settle();
+      return;
+    }
     if (overview) {
       setOverview(false);
+      setEnded(false);
       return;
     }
     if (step > 0) {
@@ -201,7 +223,9 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
         case "O":
           e.preventDefault();
           setStarted(true);
+          settle();
           setOverview((value) => !value);
+          setEnded(false);
           break;
         case "f":
         case "F":
@@ -209,9 +233,11 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
           void fullscreen.toggle();
           break;
         case "Escape":
-          if (overview) {
+          if (wide) {
             e.preventDefault();
+            settle();
             setOverview(false);
+            setEnded(false);
           }
           break;
       }
@@ -227,7 +253,7 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     else next();
   };
 
-  const focus: Focus = overview ? { kind: "world" } : { kind: "scene", index: sceneIndex };
+  const focus: Focus = wide ? { kind: "world" } : { kind: "scene", index: sceneIndex };
 
   if (scenes.length === 0) {
     return (
@@ -240,7 +266,8 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
   return (
     <div
       ref={containerRef}
-      data-view={overview ? "world" : "scene"}
+      data-view={wide ? "world" : "scene"}
+      data-opening={opening ? "" : undefined}
       className="stage-safe relative h-screen w-screen overflow-hidden bg-black"
       style={themeCssVars(theme)}
       onClick={advanceOnClick}
@@ -258,10 +285,10 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
         pace={journey.pace}
         depth={journey.depth}
         backdrop={journey.backdrop}
-        showPath={journey.showPath && overview}
+        showPath={journey.showPath && wide}
         safeInsetLeft={railShown ? MOVEMENT_RAIL_WIDTH : 0}
         className="absolute inset-0"
-        onSceneSelect={overview ? goto : undefined}
+        onSceneSelect={wide ? goto : undefined}
         onHotspot={dive}
         hotspotName={hotspotName}
       />
@@ -274,6 +301,11 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
           mainOrdinal={mainOrdinal}
         />
       )}
+
+      {/* The closing image, named. */}
+      <AnimatePresence>
+        {ended && overview && <ClosingFrame key="closing" title={deck.title} />}
+      </AnimatePresence>
 
       {/* The invitation. One card, gone on the first advance. */}
       <AnimatePresence>

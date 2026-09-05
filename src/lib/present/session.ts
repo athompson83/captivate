@@ -11,6 +11,7 @@ import {
   type PresenterTool,
   type SceneAnnotations,
 } from "./protocol";
+import { OPENING_MS, opensWide, reducedMotion } from "./opening";
 import { runningOrderLength } from "@/lib/present/running-order";
 
 /**
@@ -82,6 +83,17 @@ export interface SessionState {
    * between "here is the next slide" and "here is where we are going next".
    */
   establishing: string | null;
+  /**
+   * The opening beat: the camera holds over the whole argument before diving
+   * to the first scene. Independent of `overview` so that a presenter who
+   * pulls back during the beat stays there when the timer runs out.
+   */
+  opening: boolean;
+  /**
+   * Past the last scene. The pulled-back world is the closing image, and this
+   * is what lets the stage dress it as one; any move clears it.
+   */
+  ended: boolean;
 
   annotationsByScene: Record<number, SceneAnnotations>;
   pointer: { x: number; y: number } | null;
@@ -106,7 +118,7 @@ export type SessionCommand =
   | "blank"
   | "overview";
 
-function initialState(scenes: Scene[], stepCounts: number[]): SessionState {
+function initialState(scenes: Scene[], stepCounts: number[], openWide: boolean): SessionState {
   const firstMain = scenes.findIndex((scene) => scene.flowRole !== "detail");
   const start = firstMain === -1 ? 0 : firstMain;
   return {
@@ -122,6 +134,8 @@ function initialState(scenes: Scene[], stepCounts: number[]): SessionState {
     blanked: false,
     overview: false,
     establishing: null,
+    opening: openWide && opensWide(runningOrderLength(scenes)),
+    ended: false,
     annotationsByScene: {},
     pointer: null,
     pointerColor: "#F0B858",
@@ -156,14 +170,17 @@ export function createSession({
   scenes,
   role,
   establishSections = true,
+  openWide = true,
 }: {
   presentationId: string;
   scenes: Scene[];
   role: SessionRole;
   establishSections?: boolean;
+  /** Whether the show opens over the whole argument before its first scene. */
+  openWide?: boolean;
 }): SessionApi {
   const stepCounts = scenes.map((s) => buildStepCount(s.content.elements));
-  const store = createStore<SessionState>(() => initialState(scenes, stepCounts));
+  const store = createStore<SessionState>(() => initialState(scenes, stepCounts, openWide));
   const channel = new PresentChannel(presentationId);
 
   const isFullscreen = () => typeof document !== "undefined" && Boolean(document.fullscreenElement);
@@ -243,6 +260,8 @@ export function createSession({
         sceneEnteredAt: clamped === current.sceneIndex ? current.sceneEnteredAt : clock(current),
         blanked: false,
         overview: false,
+        opening: false,
+        ended: false,
       };
     });
 
@@ -274,6 +293,8 @@ export function createSession({
     startedAt: current.startedAt ?? clock(current),
     blanked: false,
     overview: false,
+    opening: false,
+    ended: false,
   });
 
   const next = () =>
@@ -282,7 +303,10 @@ export function createSession({
       // advance means "resume where I was", exactly as `prev` does and as the
       // shared viewer behaves. Without this, an advance from overview also
       // moved a scene, and at the end it silently did nothing at all.
-      if (current.overview) return { blanked: false, overview: false };
+      // During the opening beat the first press is the dive itself: it lands
+      // on the first scene at its first step rather than walking past it.
+      if (current.opening) return { opening: false };
+      if (current.overview) return { blanked: false, overview: false, ended: false };
       const steps = stepCounts[current.sceneIndex] ?? 1;
       // Walk the builds within a scene before moving on to the next scene.
       if (current.step < steps - 1) {
@@ -309,7 +333,7 @@ export function createSession({
       // than comparing against `scenes.length`, because detail scenes share the
       // array — the last scene of the running order is rarely the last row.
       const target = nextMain(current.sceneIndex);
-      if (target === null) return { blanked: false, overview: true };
+      if (target === null) return { blanked: false, overview: true, ended: true };
       return land(target, current, false);
     });
 
@@ -317,7 +341,8 @@ export function createSession({
     update((current) => {
       // From the pulled-back view, "back" means return to where you were —
       // not skip a scene behind the map's back.
-      if (current.overview) return { blanked: false, overview: false };
+      if (current.opening) return { opening: false };
+      if (current.overview) return { blanked: false, overview: false, ended: false };
       if (current.step > 0) return { step: current.step - 1, blanked: false, overview: false };
 
       // Same return trip as `next`, and it takes precedence over the linear
@@ -353,6 +378,7 @@ export function createSession({
     });
 
   let establishTimer: ReturnType<typeof setTimeout> | null = null;
+  let openingTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Hold on a section when the presentation crosses into it.
@@ -436,7 +462,12 @@ export function createSession({
           clearTimeout(establishTimer);
           establishTimer = null;
         }
-        update((c) => ({ overview: !c.overview, establishing: null }));
+        update((c) => ({
+          overview: !c.overview,
+          establishing: null,
+          opening: false,
+          ended: false,
+        }));
         break;
       default:
         break;
@@ -561,6 +592,19 @@ export function createSession({
     const sayGoodbye = () => channel.post({ type: "bye", role });
     window.addEventListener("pagehide", sayGoodbye);
 
+    // The opening beat is scheduled here rather than in `initialState` so it
+    // runs in a browser, once, and is torn down with everything else. It only
+    // ever ends the beat: a presenter who pulled back during it stays there.
+    if (store.getState().opening) {
+      openingTimer = setTimeout(
+        () => {
+          openingTimer = null;
+          update((c) => (c.opening ? { opening: false } : {}));
+        },
+        reducedMotion() ? 0 : OPENING_MS,
+      );
+    }
+
     // One second is enough resolution for a presenter clock and costs nothing.
     const interval = setInterval(() => {
       if (!store.getState().paused) store.setState({ nowMs: Date.now() });
@@ -571,6 +615,7 @@ export function createSession({
       window.removeEventListener("pagehide", sayGoodbye);
       clearInterval(interval);
       if (establishTimer) clearTimeout(establishTimer);
+      if (openingTimer) clearTimeout(openingTimer);
       unsubscribe();
       channel.close();
     };
@@ -659,6 +704,8 @@ export function usePresentSession({
       blanked: state.blanked,
       overview: state.overview,
       establishing: state.establishing,
+      opening: state.opening,
+      ended: state.ended,
       pointer: state.pointer,
       pointerColor: state.pointerColor,
       peerConnected: state.peerConnected,

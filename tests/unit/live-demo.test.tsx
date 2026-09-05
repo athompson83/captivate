@@ -1,6 +1,7 @@
-import { beforeAll, describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { LiveDemoStage } from "@/components/marketing/live-demo-stage";
+import { OPENING_MS } from "@/lib/present/opening";
 
 /**
  * The live demo on the landing page: the real world, driven by the visitor.
@@ -25,17 +26,63 @@ beforeAll(() => {
   };
 });
 
+/** Renders the demo and lets the opening beat run out. */
+function mount() {
+  render(<LiveDemoStage />);
+  act(() => {
+    vi.advanceTimersByTime(OPENING_MS);
+  });
+}
+
 describe("the live demo", () => {
-  it("is a labelled, focusable region that starts on scene one", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("is a labelled, focusable region that opens wide, then settles on scene one", () => {
     render(<LiveDemoStage />);
     const stage = screen.getByRole("region", { name: /live demo/i });
     expect(stage).toHaveAttribute("tabindex", "0");
+    // The opening beat: the whole argument first, as on the stage.
+    expect(stage).toHaveAttribute("data-view", "world");
+    expect(stage).toHaveAttribute("data-opening");
+    expect(screen.getByText("The whole argument")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(OPENING_MS);
+    });
+    expect(stage).toHaveAttribute("data-view", "scene");
+    expect(stage).not.toHaveAttribute("data-opening");
+    expect(screen.getByText(/^Scene 1 of \d+/)).toBeInTheDocument();
+  });
+
+  it("lets the first press end the opening early, landing rather than stepping", () => {
+    render(<LiveDemoStage />);
+    const stage = screen.getByRole("region", { name: /live demo/i });
+    fireEvent.keyDown(stage, { key: "ArrowRight" });
     expect(stage).toHaveAttribute("data-view", "scene");
     expect(screen.getByText(/^Scene 1 of \d+/)).toBeInTheDocument();
   });
 
+  it("names the end past the last scene, and leaves it on the way back", () => {
+    mount();
+    const stage = screen.getByRole("region", { name: /live demo/i });
+    fireEvent.keyDown(stage, { key: "End" });
+    for (let i = 0; i < 12 && stage.getAttribute("data-view") !== "world"; i += 1) {
+      fireEvent.keyDown(stage, { key: "ArrowRight" });
+    }
+    expect(stage).toHaveAttribute("data-view", "world");
+    expect(screen.getByRole("status", { name: /^The end: / })).toBeInTheDocument();
+
+    fireEvent.keyDown(stage, { key: "ArrowLeft" });
+    expect(stage).toHaveAttribute("data-view", "scene");
+  });
+
   it("moves through the deck from the keyboard while the stage has focus", () => {
-    render(<LiveDemoStage />);
+    mount();
     const stage = screen.getByRole("region", { name: /live demo/i });
     // Enough presses to get past scene one's own builds, whatever they are.
     for (let i = 0; i < 12; i += 1) fireEvent.keyDown(stage, { key: "ArrowRight" });
@@ -52,7 +99,7 @@ describe("the live demo", () => {
   });
 
   it("offers the same moves as buttons, and knows when there is no way back", () => {
-    render(<LiveDemoStage />);
+    mount();
     const back = screen.getByRole("button", { name: "Back" });
     expect(back).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));

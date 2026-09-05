@@ -205,3 +205,7 @@ software.
 Server-side transcoding to MP4 (needs a paid worker), trimming and editing,
 automatic captioning, separate audio export, and streaming to a live audience.
 Each is a real feature; none is needed to record a lecture and get a file.
+
+There is no separate title card or outro: the recording captures the stage as
+shown, so a show that opens wide and ends on its closing image (see
+`PRESENTATION_ENGINE.md`) has both in the film already.
