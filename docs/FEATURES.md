@@ -171,39 +171,40 @@ timeline editor is **deferred** — reliable transitions first.
 | Swipe navigation                   | Implemented | Left for on, right for back, on the viewer, the demo and the stage        |
 | Full screen by hand                | Implemented | A corner button on the viewer, by either API name; says so if refused     |
 | Share card                         | Implemented | A share link unfurls as the deck's own card, in its theme, with its shape |
-<<<<<<< HEAD
+| <<<<<<< HEAD                       |
 | Help under `?`                     | Implemented | The editor's shortcut list and the stage's keys, one key away             |
-=======
->>>>>>> origin/claude/presentation-experience-redesign-r10l4q
-| Scene jumper                       | Implemented | Searches titles _and_ on-scene text                                       |
-| Blank the screen                   | Implemented | `B`; any advance restores it                                              |
-| Wake lock                          | Implemented | Where the browser supports it                                             |
-| Progress indicator                 | Implemented | A hairline the audience reads as pacing                                   |
 | =======                            |
-| Feature                            | Status      | Notes                                                                     |
-| ---------------------------------- | ----------- | ---------------------------------------------------------------------     |
-| Full-screen stage                  | Implemented | Fullscreen API, with an honest message when refused                       |
-| No editor chrome                   | Implemented | A separate route, asserted by a test                                      |
-| Keyboard and click navigation      | Implemented | Arrows, space, page keys, digits; click right/left thirds                 |
-| Element builds and staggered lists | Implemented | Advance walks builds before changing scene                                |
-| Camera travel                      | Implemented | Fly, dissolve or cut — set once for the whole presentation                |
-| Spatial arrangements               | Implemented | Flow (default), reel, grid, timeline, spiral, dive, constellation         |
-| Continuous surface                 | Implemented | Scenes are regions with no edge, not cards                                |
-| Movements                          | Implemented | Named stretches of the argument, shown to the audience on a rail          |
-| Next-movement signpost             | Implemented | Names what follows as a movement ends                                     |
-| Presentation health                | Implemented | Six checks over the real document, with the fix for each                  |
-| Pacing strip                       | Implemented | Time per movement, estimated from content where untimed                   |
-| Accented claim                     | Implemented | The clause a heading turns on carries the theme accent                    |
-| Atmosphere                         | Implemented | Per-pixel colour field in WebGL, blended from the regions around it       |
-| Journey map                        | Implemented | Drag scenes in world space; drop one inside another to nest it            |
-| Overview                           | Implemented | `O` pulls back over the whole world and draws the route                   |
-| Opening and closing                | Implemented | Opens wide over the whole argument and dives; ends on it, named           |
-| Swipe navigation                   | Implemented | Left for on, right for back, on the viewer, the demo and the stage        |
-| Full screen by hand                | Implemented | A corner button on the viewer, by either API name; says so if refused     |
-| Scene jumper                       | Implemented | Searches titles _and_ on-scene text                                       |
-| Blank the screen                   | Implemented | `B`; any advance restores it                                              |
-| Wake lock                          | Implemented | Where the browser supports it                                             |
-| Progress indicator                 | Implemented | A hairline the audience reads as pacing                                   |
+
+> > > > > > > origin/claude/presentation-experience-redesign-r10l4q
+> > > > > > > | Scene jumper | Implemented | Searches titles _and_ on-scene text |
+> > > > > > > | Blank the screen | Implemented | `B`; any advance restores it |
+> > > > > > > | Wake lock | Implemented | Where the browser supports it |
+> > > > > > > | Progress indicator | Implemented | A hairline the audience reads as pacing |
+> > > > > > > | ======= |
+> > > > > > > | Feature | Status | Notes |
+> > > > > > > | ---------------------------------- | ----------- | --------------------------------------------------------------------- |
+> > > > > > > | Full-screen stage | Implemented | Fullscreen API, with an honest message when refused |
+> > > > > > > | No editor chrome | Implemented | A separate route, asserted by a test |
+> > > > > > > | Keyboard and click navigation | Implemented | Arrows, space, page keys, digits; click right/left thirds |
+> > > > > > > | Element builds and staggered lists | Implemented | Advance walks builds before changing scene |
+> > > > > > > | Camera travel | Implemented | Fly, dissolve or cut — set once for the whole presentation |
+> > > > > > > | Spatial arrangements | Implemented | Flow (default), reel, grid, timeline, spiral, dive, constellation |
+> > > > > > > | Continuous surface | Implemented | Scenes are regions with no edge, not cards |
+> > > > > > > | Movements | Implemented | Named stretches of the argument, shown to the audience on a rail |
+> > > > > > > | Next-movement signpost | Implemented | Names what follows as a movement ends |
+> > > > > > > | Presentation health | Implemented | Six checks over the real document, with the fix for each |
+> > > > > > > | Pacing strip | Implemented | Time per movement, estimated from content where untimed |
+> > > > > > > | Accented claim | Implemented | The clause a heading turns on carries the theme accent |
+> > > > > > > | Atmosphere | Implemented | Per-pixel colour field in WebGL, blended from the regions around it |
+> > > > > > > | Journey map | Implemented | Drag scenes in world space; drop one inside another to nest it |
+> > > > > > > | Overview | Implemented | `O` pulls back over the whole world and draws the route |
+> > > > > > > | Opening and closing | Implemented | Opens wide over the whole argument and dives; ends on it, named |
+> > > > > > > | Swipe navigation | Implemented | Left for on, right for back, on the viewer, the demo and the stage |
+> > > > > > > | Full screen by hand | Implemented | A corner button on the viewer, by either API name; says so if refused |
+> > > > > > > | Scene jumper | Implemented | Searches titles _and_ on-scene text |
+> > > > > > > | Blank the screen | Implemented | `B`; any advance restores it |
+> > > > > > > | Wake lock | Implemented | Where the browser supports it |
+> > > > > > > | Progress indicator | Implemented | A hairline the audience reads as pacing |
 
 > > > > > > > origin/claude/presentation-experience-redesign-r10l4q
 
