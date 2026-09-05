@@ -11,10 +11,10 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #89 — the MVP-022 closeout, and a share link that looks like
-  something before it is opened (the deck's own Open Graph card), awaiting
-  CI, merge and production verification
-- `main`: through PR #89 (merged) — `75b089e`; every migration through
+  `main` after PR #90 — the MVP-023 closeout, and help under `?` (the
+  editor's shortcut list and the stage's keys one key away; an empty scene's
+  third step as a button), awaiting CI, merge and production verification
+- `main`: through PR #90 (merged) — `7e31939`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
@@ -35,6 +35,27 @@
 
 ## Latest Session
 
+### Help under `?`
+
+The presenter bar hides itself after 2.6 seconds and every action on it has
+a key — the right design for the room and the wrong one for a first night,
+when the affordances are gone before they have been read. The editor had a
+shortcut list behind a toolbar icon and no key to open it; the stage had no
+list at all. Now `?` opens the editor's list from anywhere (the dialog's
+state moved up to the editor root so the keymap can reach it) and puts the
+presenter's keys over the stage (`lib/present/keys.ts`,
+`presenter-help.tsx`), with a Keys button on the bar for the same; Esc or
+`?` closes it, and it never renders in audience-only mode. The list is data
+held to the stage's real key handler by a test, so a key added to one and not
+the other fails the build. Along the way the empty scene's copy promised
+three steps and offered two buttons and a key to remember; the third, "Let
+AI draft it", is a button now, and the line beneath teaches `I` and `?`.
+
+Tests: `?` opens the editor's list except while typing and is listed among
+the shortcuts it opens; every `case` in the stage's key handler is named in
+the presenter's list; the overlay renders as a dialog that closes on a click
+away; the empty scene offers its third step as a button.
+
 ### A share link that looks like something before it is opened
 
 A link pasted into a chat is unfurled by the chat, and every deck unfurled
@@ -54,6 +75,13 @@ Tests: the card carries the title, description, counts and the theme's
 colours; the generic card for nothing; a long title is cut on a word and one
 scene is singular; a source test pins the route to the shared resolver and
 to no presenter field.
+
+**Landed and verified.** PR #90 squash-merged as `7e31939`, CI green on the
+head. Production, after the deploy: `/v/<unknown token>/opengraph-image`
+answered 200 `image/png`, a 1200×630 card of 91,731 bytes, and the viewer
+page's `og:image` points at it. Smoke suite 35 of 37 through the proxy, the
+two misses both `net::ERR_TIMED_OUT` at the proxy on a single navigation,
+and both passed on one re-run — 37 of 37 across the two runs.
 
 ### Full screen by hand
 

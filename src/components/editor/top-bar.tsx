@@ -49,6 +49,8 @@ export function EditorTopBar({
   onToggleNotes,
   aiOpen,
   onToggleAi,
+  helpOpen,
+  onHelpChange,
   onSave,
   view,
   onViewChange,
@@ -60,6 +62,9 @@ export function EditorTopBar({
   onToggleNotes: () => void;
   aiOpen: boolean;
   onToggleAi: () => void;
+  /** The shortcuts list, owned above so `?` can open it from anywhere. */
+  helpOpen: boolean;
+  onHelpChange: (open: boolean) => void;
   onSave: () => void;
   view: EditorView;
   onViewChange: (view: EditorView) => void;
@@ -73,7 +78,6 @@ export function EditorTopBar({
   const redo = useEditor((s) => s.redo);
 
   const [themeOpen, setThemeOpen] = useState(false);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
 
@@ -167,7 +171,7 @@ export function EditorTopBar({
 
       <Tooltip label="Keyboard shortcuts" side="bottom">
         <button
-          onClick={() => setShortcutsOpen(true)}
+          onClick={() => onHelpChange(true)}
           aria-label="Keyboard shortcuts"
           className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors"
         >
@@ -306,7 +310,7 @@ export function EditorTopBar({
           </Button>
         </Link>
 
-        <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+        <ShortcutsDialog open={helpOpen} onClose={() => onHelpChange(false)} />
         <ShareDialog
           presentationId={presentationId}
           open={shareOpen}

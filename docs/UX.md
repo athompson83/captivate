@@ -91,6 +91,13 @@ appearing as a library entry that plays nothing.
 It appears on movement and disappears after 2.6 seconds. Every action on it has
 a keyboard shortcut, so it never needs to appear at all.
 
+That is the right design for the room and the wrong one for a first night, when
+the affordances are gone before they have been read — so `?` puts the keys over
+the stage on demand, and the bar carries the same button. The list is data
+(`lib/present/keys.ts`) held to the stage's real key handler by a test, so a
+key added to one and not the other fails the build. Presenter-facing, like the
+timer; never in audience-only mode.
+
 The audience should be looking at content. In audience-only mode the bar does
 not exist.
 
@@ -129,8 +136,11 @@ section keeps it there.
 
 ## Empty states do work
 
-An empty scene offers three concrete next steps. An empty library explains what
-belongs there and offers both creation paths. An empty notes workspace explains
+An empty scene offers three concrete next steps — a heading, a layout, or AI —
+each as a button, with the keys beneath for next time (`I` for AI, `?` for the
+whole list; `?` opens the editor's shortcut list from anywhere, as it does in
+every keyboard-driven app). An empty library explains what belongs there and
+offers both creation paths. An empty notes workspace explains
 the difference between lecture notes and speaker notes.
 
 A blank rectangle with "No items" teaches nothing.
@@ -223,7 +233,6 @@ screen is a button in the corner as well as the F key, because a hand has no
 F; it appears only where the browser can do it (an iPhone cannot), asks by the
 prefixed name Safari on iPad still uses, and says so when refused rather than
 doing nothing.
-<<<<<<< HEAD
 
 **A share link looks like something before it is opened.** A link pasted into
 a chat is unfurled by the chat, and every deck used to unfurl as the site's
@@ -232,9 +241,6 @@ viewer route serves the deck's card: its title in its own theme, the shape of
 the thing beneath (scenes and movements), resolved through the same function
 the viewer uses, so a revoked link unfurls as the generic card and a card can
 never show what a link-holder would not see.
-=======
-
-> > > > > > > origin/claude/presentation-experience-redesign-r10l4q
 
 **The frame before the stage is black.** Both audience routes await the deck
 on the server; until it arrives they show a black frame rather than the site's
