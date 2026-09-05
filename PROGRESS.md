@@ -10,8 +10,10 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #78 (merged,
-  squash `95e671e`); this closeout on the same branch, restarted from `main`
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #80 — depth inside a scene (words nearer, pictures farther,
+  sliding against each other as the camera moves), awaiting CI, merge and
+  production verification
 - `main`: through PR #78 (merged) — `95e671e`; every migration through
   `0030_shared_backdrop_asset.sql` applied to production (no migration since)
 - Brand: Captivate is the product; Axtevi is the company it sits under
@@ -32,6 +34,30 @@
   executable by no role at all.
 
 ## Latest Session
+
+### Depth inside the scene
+
+The owner's guidance, sent a third time, lists depth without WebGL among its
+practices — CSS layers at different distances. Everything behind a scene
+already had depth: the backdrop on its plane, the atmosphere's motes at
+three distances. The scene itself was the one flat thing on the canvas: a
+picture and the words over it moved as one sheet. Now the words sit a little
+nearer than the surface and the pictures a little farther
+(`lib/present/parallax.ts`), and as the camera departs or arrives they slide
+against each other by an amount proportional to the camera's offset from the
+scene's centre, capped at three percent of the stage so a far scene never
+scatters. On a scene the offset is exactly zero, so nothing is ever
+misregistered while it is being read — the depth shows only in the motion.
+The camera loop writes two custom properties per region once a frame and
+each element's layer multiplies them by its depth in CSS, so sixty elements
+cost two style writes and the compositor moves the layers. Only while
+presenting; in the editor an element sits exactly where it was put.
+
+Tests: the offset is zero on the scene, grows with the camera's offset in
+the region's own pixels, is capped, turns with a turned region; words are in
+front and pictures behind; the world hands the active region a zero offset
+and a neighbour a real one, and writes nothing in the editor; the stage
+gives elements their depth layers only while presenting.
 
 ### Words that arrive, and a camera that answers the scroll
 

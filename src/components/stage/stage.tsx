@@ -11,6 +11,7 @@ import {
 } from "@/lib/schema/theme";
 import { STAGE_BASE_WIDTH, fitScale, stageSize } from "@/lib/present/stage";
 import { STAGE_EASE, entranceFrom, entranceTo, exitTo } from "@/lib/present/motion";
+import { elementDepth } from "@/lib/present/parallax";
 import { DrawnPicture } from "./drawn-picture";
 import { ElementView } from "./element-view";
 import { cn } from "@/lib/utils/cn";
@@ -367,18 +368,28 @@ function ElementLayer({
         ease: STAGE_EASE,
       }}
     >
-      <HotspotTarget element={element} onHotspot={onHotspot} hotspotName={hotspotName}>
-        <StaggeredElement
-          element={element}
-          theme={theme}
-          stageWidth={stageWidth}
-          stageHeight={stageHeight}
-          step={step}
-          play={play}
-          held={holding}
-          perform={perform}
-        />
-      </HotspotTarget>
+      {/* Depth: the world writes --px/--py on the region once a frame; this
+          layer multiplies them by the element's depth in CSS. Only while
+          presenting — in the editor an element sits exactly where it was put. */}
+      <div
+        className={play ? "pxl" : undefined}
+        style={
+          play ? ({ "--depth": elementDepth(element.type) } as React.CSSProperties) : undefined
+        }
+      >
+        <HotspotTarget element={element} onHotspot={onHotspot} hotspotName={hotspotName}>
+          <StaggeredElement
+            element={element}
+            theme={theme}
+            stageWidth={stageWidth}
+            stageHeight={stageHeight}
+            step={step}
+            play={play}
+            held={holding}
+            perform={perform}
+          />
+        </HotspotTarget>
+      </div>
     </motion.div>
   );
 }

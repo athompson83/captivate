@@ -29,6 +29,7 @@ import {
 } from "@/lib/present/camera";
 import { smoothPath } from "@/lib/present/path";
 import { backdropPlane, backdropTransform } from "@/lib/present/backdrop";
+import { regionParallax } from "@/lib/present/parallax";
 import { measureDrawnPath } from "./drawn-picture";
 import { ambientAt, paletteOf, scenePalettes } from "@/lib/present/ambient";
 import { oklabCss } from "@/lib/utils/color";
@@ -175,6 +176,12 @@ export const World = memo(function World({
   const backdropRef = useRef<HTMLDivElement>(null);
   /** The full-viewport wash whose colour tracks where the camera is. */
   const ambientRef = useRef<HTMLDivElement>(null);
+  /**
+   * Each rendered region's node, so the frame loop can hand it its depth
+   * offset without React. Kept by scene index; a node leaving takes its
+   * entry with it.
+   */
+  const regionNodes = useRef(new Map<number, HTMLDivElement>());
   /** The per-pixel field drawn over that wash, where WebGL is available. */
   const atmosphereRef = useRef<AtmosphereHandle | null>(null);
   /**
@@ -323,6 +330,19 @@ export const World = memo(function World({
       node.style.transform =
         (inset > 0 ? `translate(${inset}px, 0px) ` : "") + worldTransform(camera, effective);
 
+      // Depth inside each scene: two custom properties per region, read by
+      // every element's wrapper in CSS. Exactly zero on the scene the camera
+      // is centred on, so a scene being read is never misregistered.
+      if (play) {
+        for (const [index, region] of regionNodes.current) {
+          const placement = placements[index];
+          if (!placement) continue;
+          const offset = regionParallax(camera, placement, stage);
+          region.style.setProperty("--px", `${offset.x.toFixed(2)}px`);
+          region.style.setProperty("--py", `${offset.y.toFixed(2)}px`);
+        }
+      }
+
       // The picture behind the show, at its distance. Same loop, same frame,
       // so the parallax is never a frame behind the content.
       if (backdropRef.current) {
@@ -459,6 +479,7 @@ export const World = memo(function World({
     basePalette,
     plane,
     backdropDistance,
+    play,
   ]);
 
   /* ---------------------------------------------------------------------- */
@@ -712,6 +733,10 @@ export const World = memo(function World({
           return (
             <div
               key={scene.id}
+              ref={(node) => {
+                if (node) regionNodes.current.set(index, node);
+                else regionNodes.current.delete(index);
+              }}
               data-scene-index={index}
               onClick={onSceneSelect ? () => onSceneSelect(index) : undefined}
               style={{

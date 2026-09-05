@@ -180,6 +180,22 @@ frame and asserts the resting dust is faint (by the frame's mean), the flight
 visibly stirs it (by the share of pixels that moved — the right measure for a
 sparse field), a pan moves it, and a streak lies along the heading.
 
+### Depth inside a scene
+
+Everything behind a scene had depth — the backdrop on its plane, the motes at
+three distances — and the scene itself was flat: a picture and the words over
+it moved as one sheet. Now the words sit a little nearer than the surface and
+the pictures a little farther (`src/lib/present/parallax.ts`), and as the
+camera departs or arrives they slide against each other by an amount
+proportional to the camera's offset from the scene's centre, capped at three
+percent of the stage so a far scene never scatters. On a scene the offset is
+exactly zero, so nothing is ever misregistered while it is being read; the
+depth shows only in the motion. The camera loop writes two custom properties
+per region once a frame and each element's layer multiplies them by its depth
+in CSS: sixty elements cost two style writes, and the compositor moves the
+layers. Only while presenting; in the editor an element sits exactly where it
+was put.
+
 ### Backdrop
 
 An author can put one picture behind the whole show (`JourneyConfig.backdrop`,
