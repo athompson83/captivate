@@ -197,6 +197,36 @@ describe("the world", () => {
     expect(screen.getByText("Heading number 1")).toBeInTheDocument();
   });
 
+  describe("the spotlight", () => {
+    // A viewport is rarely the scene's shape, so the regions either side of
+    // the framed one used to show through — the next scene's bullets under a
+    // title on an upright phone, an axis label beside the movement rail.
+    const lit = () => document.querySelector('[data-spotlight="lit"]');
+
+    it("darkens the world around the scene the camera has landed on", () => {
+      renderWorld(4, { play: true, travel: "cut" });
+      const spotlight = lit();
+      expect(spotlight).not.toBeNull();
+      // Four bands, each fading from clear at the frame's edge outward, which
+      // is what keeps this feathered darkness rather than a box on a world
+      // that has no rectangles.
+      const bands = Array.from(spotlight!.children) as HTMLElement[];
+      expect(bands).toHaveLength(4);
+      for (const band of bands) expect(band.style.background).toContain("transparent 0px");
+      expect(spotlight!.getAttribute("aria-hidden")).not.toBeNull();
+    });
+
+    it("does not exist over the whole world, where every scene is the subject", () => {
+      renderWorld(4, { play: true, travel: "cut", focus: { kind: "world" } });
+      expect(document.querySelector("[data-spotlight]")).toBeNull();
+    });
+
+    it("does not exist in the editor, which is not a room", () => {
+      renderWorld(4, { travel: "cut" });
+      expect(document.querySelector("[data-spotlight]")).toBeNull();
+    });
+  });
+
   it("shows the route only when asked", () => {
     const { unmount } = renderWorld(4, { focus: { kind: "world" }, showPath: true });
     expect(document.querySelector("svg path")).not.toBeNull();

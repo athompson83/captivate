@@ -167,6 +167,10 @@ renderer.
 - **Competing sidebars.** One navigator on the left, one inspector on the right,
   and the inspector only exists when something is selected.
 - **Cards inside cards.** Elevation is used once per surface.
+- **A box around the scene on stage.** The spotlight that darkens the world
+  beyond a landed scene is feathered darkness that starts outside the frame's
+  padding, never a border or a filled rectangle; on a screen the scene's shape
+  it is invisible.
 - **Decorative gradients.** Two exist: the stage vignette, which is the
   metaphor, and a soft accent glow on the AI card, which reinforces the semantic
   colour.

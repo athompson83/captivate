@@ -169,6 +169,8 @@ timeline editor is **deferred** — reliable transitions first.
 | Overview                           | Implemented | `O` pulls back over the whole world and draws the route                            |
 | Opening and closing                | Implemented | Opens wide over the whole argument and dives; ends on it, named                    |
 | Swipe navigation                   | Implemented | Left for on, right for back, on the viewer, the demo and the stage                 |
+| Spotlight                          | Implemented | Beyond the landed scene the world goes dark, so no screen shows two scenes at once |
+| Turn-your-phone cue                | Implemented | An upright phone is told the scene doubles turned; on the opening card only        |
 | Full screen by hand                | Implemented | A corner button on the viewer, by either API name; says so if refused              |
 | Share card                         | Implemented | A share link unfurls as the deck's own card, in its theme, with its shape          |
 | Help under `?`                     | Implemented | The editor's shortcut list and the stage's keys, one key away                      |
