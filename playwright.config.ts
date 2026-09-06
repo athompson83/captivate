@@ -126,7 +126,7 @@ export default defineConfig({
     },
     {
       name: "authenticated",
-      testMatch: /journey\.spec\.ts/,
+      testMatch: /(journey|generation-writes)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         launchOptions: {
