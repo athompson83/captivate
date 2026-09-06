@@ -17,10 +17,16 @@ import { expect, test, type Page } from "@playwright/test";
  * route writes *those*. Every line of the write path runs; only the words in
  * the scenes are placeholders, and this makes no claim about the words.
  *
- * The second run is the important one. Matching is by moment, so a repeat has
- * to rewrite the same rows rather than add a second copy beside them — which
- * is what makes retrying a half-finished generation safe, and is precisely
- * what the browser-side loop could not promise.
+ * What it asserts is that generating never *grows* the deck. That is the whole
+ * contract: a moment's scene is rewritten in place, so a run — or a repeat of
+ * one after a phone locked — leaves the same rows rather than a second copy of
+ * the argument beside the first.
+ *
+ * The first version of this test asserted a scene count equal to the moment
+ * count, and CI was right to reject it: a template deck's map is *derived from
+ * its scenes*, each moment carrying the id of the scene it was read from, so
+ * eleven scenes and eight moments became nineteen. That was a real defect in
+ * the matching, not a bad selector, and it is fixed in `planSceneWrites`.
  */
 
 const WORKED_EXAMPLE = "Hold the room";
@@ -70,6 +76,7 @@ async function openMap(page: Page) {
 test.describe("generating scenes writes them server-side", () => {
   let deck = "";
   let moments = 0;
+  let scenesBefore = 0;
 
   test("a template deck's map has moments to generate from", async ({ page }) => {
     await signIn(page);
@@ -85,6 +92,9 @@ test.describe("generating scenes writes them server-side", () => {
     deck = page.url();
 
     await page.waitForSelector("[data-stage]");
+    scenesBefore = await sceneCount(page);
+    expect(scenesBefore, "the template should arrive with scenes").toBeGreaterThan(1);
+
     await openMap(page);
     moments = await page.getByRole("textbox", { name: "Moment title" }).count();
     expect(moments, "the template should arrive with an argument").toBeGreaterThan(1);
@@ -107,9 +117,12 @@ test.describe("generating scenes writes them server-side", () => {
     // No model is configured in CI, so these are structural scenes — which is
     // the point: every line of the write path ran, and this asserts what it
     // put in the database, not what any words say.
+    //
+    // The deck does not grow. Its map was derived from these very scenes, so
+    // every moment names one of them and every write is a rewrite.
     await expect
       .poll(() => sceneCount(page), { timeout: 30_000, message: "scenes written server-side" })
-      .toBe(moments);
+      .toBe(scenesBefore);
   });
 
   test("running it again rewrites the same scenes rather than adding more", async ({ page }) => {

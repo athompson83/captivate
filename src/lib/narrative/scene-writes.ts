@@ -23,7 +23,13 @@
  *    appended, so a map that grew since the last generation fills in;
  *  - **matching is by moment, so running twice writes the same rows twice**
  *    rather than making a second copy. Idempotence here is what makes a
- *    resumable retry safe.
+ *    resumable retry safe;
+ *  - **a map derived from the scenes rewrites those scenes.** A deck made from
+ *    a template has scenes and no moments, and `assembleMap` derives a map
+ *    from them in which each moment's id *is* the scene's id. Matching on
+ *    `moment_id` alone missed that entirely and appended a second copy of the
+ *    whole deck beside the first — caught by the end-to-end test in CI, where
+ *    a template's eleven scenes became nineteen.
  */
 
 export interface ExistingScene {
@@ -85,6 +91,9 @@ export function planSceneWrites(
     if (scene.momentId && !sceneByMoment.has(scene.momentId))
       sceneByMoment.set(scene.momentId, scene);
   }
+  // The second way a moment can name a scene: a map derived from the deck
+  // gives each moment the id of the scene it was read from.
+  const sceneById = new Map(existing.map((scene) => [scene.id, scene]));
   const movementByMoment = new Map(moments.map((moment) => [moment.id, moment.movementId]));
 
   // New scenes go after everything that exists, in the order they were
@@ -98,7 +107,7 @@ export function planSceneWrites(
   let unplaceable = 0;
 
   for (const scene of written) {
-    const match = sceneByMoment.get(scene.momentId);
+    const match = sceneByMoment.get(scene.momentId) ?? sceneById.get(scene.momentId);
     if (match) {
       writes.push({
         kind: "update",

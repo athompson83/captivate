@@ -123,6 +123,53 @@ describe("what a regeneration must not touch", () => {
   });
 });
 
+describe("a map derived from the deck's own scenes", () => {
+  /**
+   * A deck made from a template has scenes and no moments, and `assembleMap`
+   * derives a map from them in which each moment's id *is* the scene's id.
+   * Matching on `moment_id` alone missed that and appended a second copy of
+   * the whole deck beside the first — a template's eleven scenes became
+   * nineteen in CI, which is how this was found.
+   */
+  it("rewrites the scene a moment was derived from", () => {
+    const plan = planSceneWrites(
+      [scene("s1", null, 0)],
+      [wrote("s1", "Rewritten")],
+      [{ id: "s1", movementId: null }],
+    );
+    expect(plan.writes).toEqual([
+      {
+        kind: "update",
+        id: "s1",
+        title: "Rewritten",
+        content: { layout: "statement" },
+        speakerNotes: "",
+      },
+    ]);
+    expect(plan.creating).toBe(0);
+  });
+
+  it("does not double a whole deck generated from its own derived map", () => {
+    const existing = [scene("s1", null, 0), scene("s2", null, 1), scene("s3", null, 2)];
+    const derived = ["s1", "s2", "s3"];
+    const plan = planSceneWrites(
+      existing,
+      derived.map((id) => wrote(id)),
+      derived.map((id) => ({ id, movementId: null })),
+    );
+    expect(plan.creating).toBe(0);
+    expect(plan.replacing).toBe(3);
+  });
+
+  it("still prefers a real moment link where a scene has one", () => {
+    // A scene owned by moment "m1" is rewritten for m1, not for a moment that
+    // happens to carry the scene's own id.
+    const plan = planSceneWrites([scene("s1", "m1", 0)], [wrote("m1")], moments("m1"));
+    expect(plan.writes[0]).toMatchObject({ kind: "update", id: "s1" });
+    expect(plan.replacing).toBe(1);
+  });
+});
+
 describe("a mixed deck, which is the ordinary case", () => {
   it("rewrites what exists, adds what does not, and counts both", () => {
     const plan = planSceneWrites(
