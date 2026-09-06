@@ -8,7 +8,7 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted runtime
 - Current release target: First public production release
 - Detailed roadmap and evidence: [`docs/MVP_STATUS.md`](docs/MVP_STATUS.md), [`docs/FEATURES.md`](docs/FEATURES.md)
-- Last updated: 2026-09-06 (MVP-026 closed — PR #94 merged and serving in production: four defects reported after using the build: pictures, drawings, a designed backdrop, and the crash; MVP-025 opened — the room answers the hand; MVP-024 opened — help under `?`; PR #90 merged and verified in production — MVP-023 closed: the share card; PR #89 merged and verified in production — MVP-022 closed: full screen by hand; PR #88 merged and verified in production — MVP-021 closed: a count-in before a recording; PR #86 merged and verified in production — MVP-020 closed: a share link on a phone; PR #84 merged and verified in production — MVP-019 closed: the show opens and closes on the whole of itself; PR #82 merged and verified in production — MVP-018 closed: depth inside the scene; PR #78 merged — MVP-017 closed: headings arrive a word at a time and the hero's camera answers the scroll; PR #76 merged and verified in production — MVP-015 and MVP-016 closed: a scene performs when the camera lands, and the landing page runs the product; PR #74 merged — MVP-014 closed: the long AI routes stream heartbeats so a phone no longer reports a network failure over a deck that is still being written; PR #72 merged and verified in production — MVP-013 closed: a visible undo and redo group in the editor, a show-wide backdrop with depth from the journey panel, and drawings compiled from a diagram language; migration `0030_shared_backdrop_asset.sql` applied to production — see MVP-013 and PROGRESS.md)
+- Last updated: 2026-09-06 (generation reliability: a deck records what its own generation is doing, the scenes are written server-side, and generating no longer grows the deck — two distinct causes of a doubled deck fixed, migrations `0032` and `0033` applied to production; the presenting crash measured rather than guessed at, and `?plain=1` made reachable; MVP-026 closed — PR #94 merged and serving in production: four defects reported after using the build: pictures, drawings, a designed backdrop, and the crash; MVP-025 opened — the room answers the hand; MVP-024 opened — help under `?`; PR #90 merged and verified in production — MVP-023 closed: the share card; PR #89 merged and verified in production — MVP-022 closed: full screen by hand; PR #88 merged and verified in production — MVP-021 closed: a count-in before a recording; PR #86 merged and verified in production — MVP-020 closed: a share link on a phone; PR #84 merged and verified in production — MVP-019 closed: the show opens and closes on the whole of itself; PR #82 merged and verified in production — MVP-018 closed: depth inside the scene; PR #78 merged — MVP-017 closed: headings arrive a word at a time and the hero's camera answers the scroll; PR #76 merged and verified in production — MVP-015 and MVP-016 closed: a scene performs when the camera lands, and the landing page runs the product; PR #74 merged — MVP-014 closed: the long AI routes stream heartbeats so a phone no longer reports a network failure over a deck that is still being written; PR #72 merged and verified in production — MVP-013 closed: a visible undo and redo group in the editor, a show-wide backdrop with depth from the journey panel, and drawings compiled from a diagram language; migration `0030_shared_backdrop_asset.sql` applied to production — see MVP-013 and PROGRESS.md)
 
 Status values are limited to `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `DEFERRED`, and `SUPERSEDED`.
 
@@ -110,6 +110,25 @@ None of these blocks current engineering.
 
 - [x] **`create-from-map`'s client-visible failure message is honest.** PRs #63 and #64 fixed the symptom a user actually saw: a toast claiming "Your work is unaffected" after a connection dropped mid-generation, when the route had already written the presentation's structure. Fixed for both ways the connection can drop — `fetch` itself rejecting, and a resolved OK response whose body fails to parse. See BETA-006 above for what neither PR touched.
 - **Fluid Compute is `DEFERRED`, not the fix.** Raising `maxDuration` beyond 300s would reduce how often `create-from-map` outlasts the connection, but a request could still fail from a dropped connection, a runtime kill, a provider interruption, browser abandonment, or one scene's own failure — none of which a longer ceiling closes. It stays a separate performance/operating-cost decision, to be evaluated on its own terms later, not purchased to patch this correctness gap.
+
+- [x] **A generation that is walked away from finishes, and says so.** Vercel's request
+      cancellation is opt-in and this project does not enable it, so the function completes
+      whether or not a phone stayed awake — what did not survive was the author's ability to
+      find out. Two identical decks a minute apart in production, each sixteen moments and
+      sixteen placeholder scenes, is what "I could not tell what happened, so I pressed it
+      again" looks like in a table. `presentations.generation_status` (`0032`) records
+      `generating` before the model is called and `ready` / `partial` / `failed` after; a claim
+      older than the route could still be running reads as stalled rather than as a spinner
+      that never resolves.
+- [x] **The scenes are written by the server, not by a loop in the page.** `scenes-from-map`
+      used to hand every scene back for the browser to save one at a time, which put a
+      five-minute job behind a lock screen. `planSceneWrites` decides the whole write before
+      anything is written, and the route executes it.
+- [x] **Generating never grows the deck.** Two separate defects made it do exactly that, and
+      both are fixed: a map derived from a deck's own scenes names each moment by the scene's
+      id, and a template's declared shape wrote moments that named nothing at all. A template
+      deck's eleven scenes became nineteen in CI, twice, which is how each was found.
+      `0033` repairs the decks created before the fix.
 
 ## Review coverage
 

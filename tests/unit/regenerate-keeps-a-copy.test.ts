@@ -54,3 +54,59 @@ describe("regenerating a deck that already has scenes", () => {
     expect(view).toMatch(/useState\(true\)/);
   });
 });
+
+describe("a regeneration the author walks away from", () => {
+  /**
+   * This route hands its scenes back for the browser to save one at a time,
+   * so a phone that locks between the answer arriving and the last save leaves
+   * a half-written deck that looks finished. The deck now says otherwise.
+   */
+  const route = readFileSync(join(root, "src/app/api/ai/scenes-from-map/route.ts"), "utf8");
+
+  it("is claimed by the route, before the model is asked", () => {
+    const claim = route.indexOf('generation_status: "generating"');
+    const model = route.indexOf("await buildScenesFromMap(");
+    expect(claim, "the route should mark the deck as being written").toBeGreaterThan(-1);
+    // Claimed after the answer would be claiming it once it no longer matters.
+    expect(claim).toBeLessThan(model);
+  });
+
+  it("records when the claim started, because that is what lets it expire", () => {
+    expect(route).toMatch(/generation_started_at: new Date\(\)\.toISOString\(\)/);
+  });
+
+  it("writes the scenes itself instead of handing them to the browser", () => {
+    // The loop that used to do this lived in the page, which is what put a
+    // five-minute job behind a phone staying awake. There is no window to be
+    // interrupted in once the route writes before it responds.
+    expect(route).toMatch(/planSceneWrites\(/);
+    expect(route).toMatch(/from\("scenes"\)[\s\S]{0,80}\.update\(/);
+    expect(route).toMatch(/from\("scenes"\)\.insert\(/);
+    expect(hook, "the page should no longer save scenes one at a time").not.toMatch(
+      /await saveScene\(/,
+    );
+    expect(hook).not.toMatch(/await addScene\(/);
+  });
+
+  it("calls the deck finished only when every write landed", () => {
+    // A partial run leaves the claim standing, so it expires into "never
+    // finished writing" and offers to finish rather than looking done.
+    const ready = route.indexOf("failures.length === 0");
+    expect(ready, "the ready mark should be guarded by the failures").toBeGreaterThan(-1);
+    expect(route.slice(ready, ready + 400)).toMatch(/generation_status:/);
+  });
+
+  it("never lets a browser set a deck's generation state at all", () => {
+    // The route knows when writing began and so can time out its own claim; a
+    // browser cannot, and one that could say "generating" would leave a deck
+    // spinning with nothing able to disprove it. Now that the route does the
+    // writing there is no reason for a client to touch this at all, and the
+    // safest version of a field nothing needs is one that does not exist.
+    const actions = readFileSync(join(root, "src/lib/data/actions.ts"), "utf8");
+    const input = actions.slice(
+      actions.indexOf("const UpdateInput"),
+      actions.indexOf("export async function updatePresentation"),
+    );
+    expect(input).not.toMatch(/generationStatus/);
+  });
+});

@@ -278,6 +278,22 @@ so the scenes' text stays legible over it. One for the show, not one per
 scene: a scene's own background is a region's atmosphere, and this is the room
 the regions are in.
 
+### Presenting without it
+
+`/present/<id>?plain=1` mounts no WebGL context at all — not paused, not
+hidden, absent, because a context that exists still costs. Everything else is
+unchanged: the deck, the camera, the pictures, the CSS wash that reads as light
+underneath. The presenter's help panel (`?`) offers it and offers the way back.
+
+It exists because a browser dying mid-presentation was reported repeatedly from
+a phone and survived every fix aimed at it. What the world costs has since been
+measured in a real browser at 393x852 — three live photographs, 28.3 MB of
+decoded bitmap and a 1.3 MB canvas, flat across four, twelve and twenty-four
+scene decks (`tests/e2e/picture-weight.spec.ts`) — and **none of it explains a
+terminated content process**. So this is not documented as a fix. It removes
+the single most expensive object on the page, in one tap, from inside the
+presentation that is failing, and the cause is still open.
+
 ---
 
 ## The world

@@ -52,6 +52,73 @@
 
 ## Latest Session
 
+### A generation you can walk away from, and a deck that stops doubling
+
+**In flight.** PR #99, branch `claude/captivate-3d-graphics-5ypuvx`. Migrations
+`0032_presentation_generation_status.sql` and
+`0033_link_template_scenes_to_moments.sql` applied to production.
+
+The owner reported two things: generations that had to be watched, and a
+presentation that said "provided with limits". Both were read out of the
+database before anything was changed.
+
+**"Provided with limits"** was a contract disagreement, not a model failure.
+The scene schema required a `title` the prompt never asked for, so the model's
+answer was rejected field by field and what survived was reported as a partial
+generation. `title` has a default and the prompt asks for one.
+
+**Walking away.** Vercel's request cancellation is opt-in and this project does
+not enable it, so a generation finishes whether or not the phone stayed awake.
+The work was never the thing at risk — the author's ability to find out was.
+Production held two decks both called "How to Build a Side Hustle With AI",
+created a minute apart, each with sixteen moments and sixteen placeholder
+scenes: that is what "I could not tell what happened, so I pressed it again"
+looks like in a table. `presentations.generation_status` records `generating`
+before the model is called and `ready`, `partial` or `failed` after, and a
+claim older than the route could possibly still be running reads as stalled
+rather than as a spinner that never resolves. `scenes-from-map` also writes the
+scenes itself now, rather than handing them back for a loop in the page to save
+one at a time — which had put a five-minute job behind a lock screen.
+
+**A deck that doubled, twice.** The end-to-end test written for that write path
+failed in CI with a template's eleven scenes becoming nineteen, and it was
+right both times.
+
+- A map _derived_ from a deck's own scenes gives each moment the id of the
+  scene it was read from. Matching on `moment_id` alone found no owners and
+  appended a second copy of the deck.
+- Fixing that did not fix the test, because the failing case was a different
+  one: a template that declares a `shape` inserted its moments with fresh ids
+  and created its scenes with `moment_id` null. Two ordered lists describing
+  the same talk, grouped by the same movement labels, with nothing connecting
+  them. So the narrative map described an argument attached to no deck —
+  editing a moment changed no scene at all — and generating from it wrote a
+  second parallel deck beside the first.
+
+`pairTemplateMoments` pairs them under the only rule available: within a
+movement, the nth scene is the nth beat. `0033` repairs the decks created
+before it, and one production deck was affected — "Lecture", seven scenes, all
+seven now naming their beat.
+
+**The presenting crash, measured.** The owner has reported a browser dying
+mid-presentation five times, most recently through `axtevi.com`, which rules
+out the hostname. Rather than ship a sixth guess, the world was measured in a
+real browser at a real phone viewport (393x852): **three live photographs,
+28.3 MB of decoded bitmap and a 1.3 MB WebGL canvas — flat across four, twelve
+and twenty-four scene decks.** Culling holds it, and neither number explains a
+terminated content process. `tests/e2e/picture-weight.spec.ts` asserts the
+flatness, so a change that made it linear would be caught.
+
+Stated plainly: **the crash is not explained by anything measurable from here.**
+Chromium is not WebKit and this container has no phone. What did come of the
+measurement is real but small — scene backgrounds and the world backdrop now
+decode off the main thread, where they were decoding synchronously during a
+flight — and the `?plain=1` escape hatch, which drops the GL context entirely,
+is now reachable from the presenter's help panel. It existed for a release and
+could only be found by typing it, which for the author who needed it was the
+same as not existing. It is offered as what it is: the page's most expensive
+object, removed, not a fix for a cause nobody has found.
+
 ### The generated deck's composition, measured rather than judged
 
 **Landed.** PR #97 squash-merged as `284e37f`, all six CI jobs green on the head

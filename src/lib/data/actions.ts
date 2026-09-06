@@ -17,6 +17,7 @@ import { Moment } from "@/lib/schema/narrative";
 import { applyShape } from "@/lib/narrative/map";
 import { DEFAULT_THEME_ID, THEMES } from "@/lib/schema/theme";
 import { buildTemplateScenes, templateMovements, TEMPLATES } from "@/lib/templates/registry";
+import { pairTemplateMoments } from "@/lib/narrative/pair-template";
 import type {
   FolderRow,
   MomentRow,
@@ -120,6 +121,8 @@ export async function createPresentation(input: unknown): Promise<Result<{ id: s
   const movements = template ? templateMovements(seedScenes) : [];
   const sectionIdByScene = new Map<number, string>();
   const createdSections: { id: string; label: string }[] = [];
+  /** The beat each seed scene is, where the template declared an argument. */
+  let momentIdByScene = new Map<number, string>();
 
   if (movements.length > 1) {
     const { data: sectionRows } = await supabase
@@ -212,13 +215,35 @@ export async function createPresentation(input: unknown): Promise<Result<{ id: s
 
     // A map is a nicety on top of a working deck: a failure here must not fail
     // the creation, and the author can still generate one from the map view.
-    if (momentRows.length) await supabase.from("moments").insert(momentRows);
+    //
+    // The ids come back so the scenes can be filed under the beats they are.
+    // Without that the map is an argument about a deck it is not attached to:
+    // editing a moment changes nothing, and generating from the map appends a
+    // second parallel deck rather than rewriting the one on screen.
+    if (momentRows.length) {
+      const { data: created } = await supabase
+        .from("moments")
+        .insert(momentRows)
+        .select("id, movement_id, position");
+
+      // Paired on `(movement_id, position)` rather than on the order rows come
+      // back in, which nothing promises.
+      momentIdByScene = pairTemplateMoments(
+        seedScenes.map((_, i) => ({ index: i, sectionId: sectionIdByScene.get(i) ?? null })),
+        (created ?? []).map((row) => ({
+          id: row.id,
+          movementId: row.movement_id,
+          position: row.position,
+        })),
+      );
+    }
   }
 
   const { error: sceneError } = await supabase.from("scenes").insert(
     seedScenes.map((s, i) => ({
       presentation_id: data.id,
       section_id: sectionIdByScene.get(i) ?? null,
+      moment_id: momentIdByScene.get(i) ?? null,
       position: i,
       title: s.title,
       content: s.content as never,
@@ -269,7 +294,6 @@ export async function updatePresentation(input: unknown): Promise<Result<void>> 
   if (rest.journey !== undefined)
     patch.journey = rest.journey as unknown as PresentationRow["journey"];
   if (rest.targetSeconds !== undefined) patch.target_seconds = rest.targetSeconds;
-
   if (Object.keys(patch).length === 0) return ok(undefined);
 
   const supabase = await client();

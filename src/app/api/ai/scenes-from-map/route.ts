@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
 import { buildScenesFromMap } from "@/lib/ai/service";
+import { supabaseServer } from "@/lib/supabase/server";
+import { planSceneWrites } from "@/lib/narrative/scene-writes";
 import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
 import { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 
@@ -65,6 +67,27 @@ export async function POST(request: Request) {
     // The briefs carry the map's own time distribution; their sum is the talk's
     // length, which decides how many staged drawings the deck earns.
     const totalSeconds = briefs.reduce((sum, brief) => sum + brief.estimatedSeconds, 0);
+
+    // Claimed here rather than in the browser, and that distinction is the
+    // point: only the thing doing the writing knows when the writing started,
+    // which is what lets the claim expire instead of spinning for ever.
+    //
+    // This route hands its scenes back for the client to save one at a time,
+    // so a phone that locks between the answer arriving and the last save
+    // leaves a half-written deck. Marking it here means the deck says
+    // "never finished writing" when the author returns, and offers to finish,
+    // rather than looking done and being half a deck.
+    if (presentationId) {
+      const supabase = await supabaseServer();
+      await supabase
+        .from("presentations")
+        .update({
+          generation_status: "generating",
+          generation_started_at: new Date().toISOString(),
+        })
+        .eq("id", presentationId);
+    }
+
     const result = await buildScenesFromMap(
       briefs,
       prompt,
@@ -74,7 +97,95 @@ export async function POST(request: Request) {
       totalSeconds,
     );
 
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
-    return NextResponse.json(result.data);
+    if (!result.ok) {
+      if (presentationId) {
+        const supabase = await supabaseServer();
+        await supabase
+          .from("presentations")
+          .update({ generation_status: "failed", generation_started_at: null })
+          .eq("id", presentationId);
+      }
+      return NextResponse.json({ error: result.error }, { status: 502 });
+    }
+
+    // Written here rather than handed back for the browser to save.
+    //
+    // The loop that did this used to live in the page, which put a five-minute
+    // job behind a phone staying awake: a lock screen between the answer
+    // arriving and the last save left a deck half rewritten and looking
+    // finished. There is no window to be interrupted in now.
+    //
+    // Without a presentation there is nothing to write to — the caller is
+    // previewing — so the scenes go back as they always did.
+    if (!presentationId) return NextResponse.json(result.data);
+
+    const supabase = await supabaseServer();
+    const [{ data: sceneRows }, { data: momentRows }] = await Promise.all([
+      supabase
+        .from("scenes")
+        .select("id, moment_id, position")
+        .eq("presentation_id", presentationId),
+      supabase.from("moments").select("id, movement_id").eq("presentation_id", presentationId),
+    ]);
+
+    // The moments are read from the database rather than taken from the
+    // request: which movement a moment belongs to is the server's fact, and a
+    // brief could name one that has since moved or gone.
+    const plan = planSceneWrites(
+      (sceneRows ?? []).map((row) => ({
+        id: row.id,
+        momentId: row.moment_id,
+        position: row.position,
+      })),
+      result.data.scenes,
+      (momentRows ?? []).map((row) => ({ id: row.id, movementId: row.movement_id })),
+    );
+
+    const failures: string[] = [];
+    for (const write of plan.writes) {
+      const { error } =
+        write.kind === "update"
+          ? await supabase
+              .from("scenes")
+              .update({
+                title: write.title,
+                content: write.content as never,
+                speaker_notes: write.speakerNotes,
+              })
+              .eq("id", write.id)
+          : await supabase.from("scenes").insert({
+              presentation_id: presentationId,
+              section_id: write.sectionId,
+              moment_id: write.momentId,
+              position: write.position,
+              title: write.title,
+              content: write.content as never,
+              speaker_notes: write.speakerNotes,
+            } as never);
+      if (error) failures.push(error.message);
+    }
+
+    // Only a run that wrote everything it meant to may call the deck finished.
+    // A partial one leaves the claim standing, so it expires into "never
+    // finished writing" and offers to finish rather than looking done.
+    if (failures.length === 0) {
+      await supabase
+        .from("presentations")
+        .update({
+          generation_status: result.data.source === "model" ? "ready" : "partial",
+          generation_started_at: null,
+        })
+        .eq("id", presentationId);
+    }
+
+    return NextResponse.json({
+      saved: plan.writes.length - failures.length,
+      replaced: plan.replacing,
+      created: plan.creating,
+      unplaceable: plan.unplaceable,
+      source: result.data.source,
+      notice: result.data.notice,
+      error: failures[0],
+    });
   });
 }

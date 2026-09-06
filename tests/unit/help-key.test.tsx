@@ -61,12 +61,30 @@ describe("the presenter's keys", () => {
 
   it("render as a dialog the presenter can close by clicking away", () => {
     const onClose = vi.fn();
-    render(<PresenterHelp onClose={onClose} />);
+    render(<PresenterHelp onClose={onClose} plain={false} />);
     const dialog = screen.getByRole("dialog", { name: "Presenter keys" });
     expect(dialog).toHaveTextContent("Laser pointer");
     expect(dialog).toHaveTextContent("Pull back over the whole argument");
     fireEvent.click(dialog);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The escape hatch has to be reachable from inside the presentation that is
+   * failing. `?plain=1` existed for a release and was reachable only by typing
+   * it, which is the same as not existing — the author who needed it had
+   * reported the crash five times and never once been told about it.
+   */
+  it("offer the way out of a struggling device, from inside the presentation", () => {
+    render(<PresenterHelp onClose={vi.fn()} plain={false} />);
+    const link = screen.getByRole("link", { name: /without the atmospheric field/i });
+    expect(link).toHaveAttribute("href", "?plain=1");
+  });
+
+  it("offer the way back once it is off, so it is a choice rather than a trap", () => {
+    render(<PresenterHelp onClose={vi.fn()} plain />);
+    expect(screen.queryByRole("link", { name: /without the atmospheric field/i })).toBeNull();
+    expect(screen.getByRole("link", { name: /back on/i })).toHaveAttribute("href", "?");
   });
 });
 
