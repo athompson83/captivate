@@ -171,6 +171,7 @@ export async function flushEditor(
           estimatedSeconds: moment.estimatedSeconds,
           evidence: moment.evidence,
           visualIntent: moment.visualIntent,
+          intentAuthored: moment.intentAuthored,
           instructions: moment.instructions,
           locked: moment.locked,
           position: moment.position,

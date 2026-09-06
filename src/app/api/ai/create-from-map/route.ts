@@ -117,6 +117,7 @@ export async function POST(request: Request) {
         estimated_seconds: moment.estimatedSeconds,
         evidence: moment.evidence as unknown as MomentRow["evidence"],
         visual_intent: moment.visualIntent,
+        intent_authored: moment.intentAuthored,
         instructions: moment.instructions,
         locked: false,
       })),
@@ -132,6 +133,16 @@ export async function POST(request: Request) {
       );
     }
 
+    // Said before the long part starts, so a deck the author leaves has an
+    // answer when they come back. The route keeps running when a phone locks —
+    // Vercel's request cancellation is opt-in and this project does not enable
+    // it — so what was missing was never the work, only the deck's ability to
+    // say where the work had got to.
+    await supabase
+      .from("presentations")
+      .update({ generation_status: "generating", generation_started_at: new Date().toISOString() })
+      .eq("id", presentationId);
+
     const built = await buildScenesFromMap(
       briefsFor(draft.movements, draft.moments),
       prompt,
@@ -144,6 +155,10 @@ export async function POST(request: Request) {
     // The map survives a failed generation: the author lands in the map view
     // with their argument and generates the scenes when the model is available.
     if (!built.ok) {
+      await supabase
+        .from("presentations")
+        .update({ generation_status: "failed" })
+        .eq("id", presentationId);
       return NextResponse.json({
         id: presentationId,
         sceneCount: 0,
@@ -212,6 +227,10 @@ export async function POST(request: Request) {
       .upsert(rows as never, { count: "exact" });
 
     if (sceneError) {
+      await supabase
+        .from("presentations")
+        .update({ generation_status: "failed" })
+        .eq("id", presentationId);
       return NextResponse.json({
         id: presentationId,
         sceneCount: 0,
@@ -221,6 +240,18 @@ export async function POST(request: Request) {
           "Your narrative map was saved, but the scenes couldn't be written. Open the map and generate them again.",
       });
     }
+
+    // `fallback` means no model wrote these scenes: the deck exists and is
+    // structurally right, and every word in it is a placeholder. That is a
+    // different thing to tell someone than "finished", and it is what two
+    // decks in production were on 2026-09-06 with nothing saying so.
+    await supabase
+      .from("presentations")
+      .update({
+        generation_status: built.data.source === "model" ? "ready" : "partial",
+        generation_started_at: null,
+      })
+      .eq("id", presentationId);
 
     return NextResponse.json({
       id: presentationId,

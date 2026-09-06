@@ -51,25 +51,26 @@ Sign-in errors are deliberately generic: distinguishing "no such user" from
 
 ## Editor
 
-| Feature                                | Status      | Notes                                                                                            |
-| -------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
-| Add, delete, duplicate, reorder scenes | Implemented | Drag to reorder                                                                                  |
-| Insert between scenes                  | Implemented | Hover affordance in the gap, plus a scene menu                                                   |
-| Sections                               | Implemented | Add, rename, delete, reorder; deleting keeps the scenes                                          |
-| Undo and redo                          | Implemented | Typing coalesces into one entry per burst                                                        |
-| Copy, cut, paste, duplicate            | Implemented | In-memory clipboard, no permission prompt                                                        |
-| Multi-select                           | Implemented | Shift-click and marquee                                                                          |
-| Drag and resize                        | Implemented | Eight handles; shift preserves aspect                                                            |
-| Snapping and guides                    | Implemented | Safe area, stage centre, other elements' edges; Alt suspends                                     |
-| Align and distribute                   | Implemented | A single selection aligns to the safe area                                                       |
-| Z-order, lock, hide                    | Implemented |                                                                                                  |
-| Inline text editing                    | Implemented | Plain-text only, so pasted markup cannot enter the document                                      |
-| Contextual inspector                   | Implemented | Appears only with a selection                                                                    |
-| Layout picker                          | Implemented | Re-flows content into a designed composition, keeping the text                                   |
-| Undo and redo                          | Implemented | Coalesced history; a labelled group in the header at every width                                 |
-| Show-wide backdrop                     | Implemented | One picture behind the whole show, on a plane at a chosen distance so flights move it with depth |
-| Keyboard shortcuts                     | Implemented | Listed in Settings and in the editor                                                             |
-| Real-time collaboration                | Deferred    | The schema does not preclude it                                                                  |
+| Feature                                | Status      | Notes                                                                                               |
+| -------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------- |
+| Add, delete, duplicate, reorder scenes | Implemented | Drag to reorder                                                                                     |
+| Insert between scenes                  | Implemented | Hover affordance in the gap, plus a scene menu                                                      |
+| Sections                               | Implemented | Add, rename, delete, reorder; deleting keeps the scenes                                             |
+| Undo and redo                          | Implemented | Typing coalesces into one entry per burst                                                           |
+| Copy, cut, paste, duplicate            | Implemented | In-memory clipboard, no permission prompt                                                           |
+| Multi-select                           | Implemented | Shift-click and marquee                                                                             |
+| Drag and resize                        | Implemented | Eight handles; shift preserves aspect                                                               |
+| Snapping and guides                    | Implemented | Safe area, stage centre, other elements' edges; Alt suspends                                        |
+| Align and distribute                   | Implemented | A single selection aligns to the safe area                                                          |
+| Z-order, lock, hide                    | Implemented |                                                                                                     |
+| Inline text editing                    | Implemented | Plain-text only, so pasted markup cannot enter the document                                         |
+| Contextual inspector                   | Implemented | Appears only with a selection                                                                       |
+| Layout picker                          | Implemented | Re-flows content into a designed composition, keeping the text                                      |
+| Undo and redo                          | Implemented | Coalesced history; a labelled group in the header at every width                                    |
+| Show-wide backdrop                     | Implemented | One picture behind the whole show, on a plane at a chosen distance so flights move it with depth    |
+| Drawn backdrop                         | Implemented | A composition in the deck's own palette on that same plane — aurora, strata or halo — on by default |
+| Keyboard shortcuts                     | Implemented | Listed in Settings and in the editor                                                                |
+| Real-time collaboration                | Deferred    | The schema does not preclude it                                                                     |
 
 ### Elements
 
@@ -148,27 +149,33 @@ timeline editor is **deferred** — reliable transitions first.
 
 ## Presenting
 
-| Feature                            | Status      | Notes                                                               |
-| ---------------------------------- | ----------- | ------------------------------------------------------------------- |
-| Full-screen stage                  | Implemented | Fullscreen API, with an honest message when refused                 |
-| No editor chrome                   | Implemented | A separate route, asserted by a test                                |
-| Keyboard and click navigation      | Implemented | Arrows, space, page keys, digits; click right/left thirds           |
-| Element builds and staggered lists | Implemented | Advance walks builds before changing scene                          |
-| Camera travel                      | Implemented | Fly, dissolve or cut — set once for the whole presentation          |
-| Spatial arrangements               | Implemented | Flow (default), reel, grid, timeline, spiral, dive, constellation   |
-| Continuous surface                 | Implemented | Scenes are regions with no edge, not cards                          |
-| Movements                          | Implemented | Named stretches of the argument, shown to the audience on a rail    |
-| Next-movement signpost             | Implemented | Names what follows as a movement ends                               |
-| Presentation health                | Implemented | Six checks over the real document, with the fix for each            |
-| Pacing strip                       | Implemented | Time per movement, estimated from content where untimed             |
-| Accented claim                     | Implemented | The clause a heading turns on carries the theme accent              |
-| Atmosphere                         | Implemented | Per-pixel colour field in WebGL, blended from the regions around it |
-| Journey map                        | Implemented | Drag scenes in world space; drop one inside another to nest it      |
-| Overview                           | Implemented | `O` pulls back over the whole world and draws the route             |
-| Scene jumper                       | Implemented | Searches titles _and_ on-scene text                                 |
-| Blank the screen                   | Implemented | `B`; any advance restores it                                        |
-| Wake lock                          | Implemented | Where the browser supports it                                       |
-| Progress indicator                 | Implemented | A hairline the audience reads as pacing                             |
+| Feature                            | Status      | Notes                                                                              |
+| ---------------------------------- | ----------- | ---------------------------------------------------------------------------------- |
+| Full-screen stage                  | Implemented | Fullscreen API, with an honest message when refused                                |
+| No editor chrome                   | Implemented | A separate route, asserted by a test                                               |
+| Keyboard and click navigation      | Implemented | Arrows, space, page keys, digits; click right/left thirds                          |
+| Element builds and staggered lists | Implemented | Advance walks builds before changing scene                                         |
+| Camera travel                      | Implemented | Fly, dissolve or cut — set once for the whole presentation                         |
+| Spatial arrangements               | Implemented | Flow (default), reel, grid, timeline, spiral, dive, constellation                  |
+| Continuous surface                 | Implemented | Scenes are regions with no edge, not cards                                         |
+| Movements                          | Implemented | Named stretches of the argument, shown to the audience on a rail                   |
+| Next-movement signpost             | Implemented | Names what follows as a movement ends                                              |
+| Presentation health                | Implemented | Six checks over the real document, with the fix for each                           |
+| Pacing strip                       | Implemented | Time per movement, estimated from content where untimed                            |
+| Accented claim                     | Implemented | The clause a heading turns on carries the theme accent                             |
+| Atmosphere                         | Implemented | Per-pixel colour field in WebGL, blended from the regions around it                |
+| The room answers the hand          | Implemented | On the viewer and the demo, backdrop and air follow a mouse; the scene never moves |
+| Journey map                        | Implemented | Drag scenes in world space; drop one inside another to nest it                     |
+| Overview                           | Implemented | `O` pulls back over the whole world and draws the route                            |
+| Opening and closing                | Implemented | Opens wide over the whole argument and dives; ends on it, named                    |
+| Swipe navigation                   | Implemented | Left for on, right for back, on the viewer, the demo and the stage                 |
+| Full screen by hand                | Implemented | A corner button on the viewer, by either API name; says so if refused              |
+| Share card                         | Implemented | A share link unfurls as the deck's own card, in its theme, with its shape          |
+| Help under `?`                     | Implemented | The editor's shortcut list and the stage's keys, one key away                      |
+| Scene jumper                       | Implemented | Searches titles _and_ on-scene text                                                |
+| Blank the screen                   | Implemented | `B`; any advance restores it                                                       |
+| Wake lock                          | Implemented | Where the browser supports it                                                      |
+| Progress indicator                 | Implemented | A hairline the audience reads as pacing                                            |
 
 ### Presenter console
 
@@ -200,20 +207,21 @@ window to the projector — one instruction, no experimental API.
 
 ## Recording
 
-| Feature                          | Status      | Notes                                                           |
-| -------------------------------- | ----------- | --------------------------------------------------------------- |
-| Screen capture                   | Implemented | `getDisplayMedia`; the user picks the tab                       |
-| Microphone with device selection | Implemented | Echo cancellation and noise suppression on                      |
-| Camera picture-in-picture        | Implemented | Composited onto a canvas, so it is _in_ the file                |
-| Camera corner, size, shape       | Implemented | Four corners, three sizes, circle or rounded                    |
-| Pause and resume                 | Implemented | Where `MediaRecorder.pause` exists                              |
-| Scene timeline                   | Implemented | Becomes chapter markers in playback                             |
-| Local download                   | Implemented | Offered the instant recording stops, before any upload          |
-| Upload to library                | Implemented | Private bucket; playback through a signed URL                   |
-| Honest failure                   | Implemented | A failed upload is marked `local_only` and says so              |
-| Format                           | Implemented | Negotiated against the browser: MP4 on Safari, WebM on Chromium |
-| Server-side transcoding          | Deferred    | Would need a paid worker; the download is the practical path    |
-| Trimming and editing             | Deferred    |                                                                 |
+| Feature                          | Status      | Notes                                                             |
+| -------------------------------- | ----------- | ----------------------------------------------------------------- |
+| Screen capture                   | Implemented | `getDisplayMedia`; the user picks the tab                         |
+| Microphone with device selection | Implemented | Echo cancellation and noise suppression on                        |
+| Camera picture-in-picture        | Implemented | Composited onto a canvas, so it is _in_ the file                  |
+| Camera corner, size, shape       | Implemented | Four corners, three sizes, circle or rounded                      |
+| Pause and resume                 | Implemented | Where `MediaRecorder.pause` exists                                |
+| Count-in                         | Implemented | Three, two, one over the stage before capture begins; Esc cancels |
+| Scene timeline                   | Implemented | Becomes chapter markers in playback                               |
+| Local download                   | Implemented | Offered the instant recording stops, before any upload            |
+| Upload to library                | Implemented | Private bucket; playback through a signed URL                     |
+| Honest failure                   | Implemented | A failed upload is marked `local_only` and says so                |
+| Format                           | Implemented | Negotiated against the browser: MP4 on Safari, WebM on Chromium   |
+| Server-side transcoding          | Deferred    | Would need a paid worker; the download is the practical path      |
+| Trimming and editing             | Deferred    |                                                                   |
 
 Annotations, camera flights and video all appear in the recording, because the
 capture is of the rendered tab.
@@ -269,5 +277,12 @@ give a lecture, which is what this MVP is for.
 
 `docs/ROADMAP.md` covers what has been asked for and not yet built — audience
 feedback (polls, trivia, Q&A), integrations with confidence monitors and
-Descript, generation grounded in a reference file, and more templates and
+Descript, keeping a reference file as stored evidence, and more templates and
 themes — with the shape each would take.
+
+Generating _from_ a reference file is built, and it is worth being exact about
+what that means: `src/lib/ingest/` extracts **bounded text** — roughly fifteen
+thousand tokens — from a `.pptx`, `.docx`, Markdown or plain-text file in the
+browser, and sends it with that one generation. It is not a visual import. The
+pictures in last year's deck do not come across, its layouts do not, and
+nothing is stored, so regenerating next week means attaching the file again.

@@ -24,7 +24,48 @@ function subscribeFullscreen(onChange: () => void) {
   };
 }
 
-const isFullscreen = () => Boolean(document.fullscreenElement);
+/**
+ * The prefixed API is not history: Safari on iPad still exposes only the
+ * `webkit` names, and a viewer that read the standard ones alone reported a
+ * fullscreen stage as windowed and never asked for one.
+ */
+type PrefixedDocument = Document & {
+  webkitFullscreenEnabled?: boolean;
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
+};
+type PrefixedElement = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+
+const prefixed = () => document as PrefixedDocument;
+
+/** The element that is fullscreen, by either name. */
+export function fullscreenElement(): Element | null {
+  return document.fullscreenElement ?? prefixed().webkitFullscreenElement ?? null;
+}
+
+/** Asks for fullscreen by whichever name the browser has; throws if neither. */
+export async function requestFullscreen(element: HTMLElement): Promise<void> {
+  if (typeof element.requestFullscreen === "function") {
+    await element.requestFullscreen({ navigationUI: "hide" });
+    return;
+  }
+  const webkit = (element as PrefixedElement).webkitRequestFullscreen;
+  if (typeof webkit === "function") {
+    await webkit.call(element);
+    return;
+  }
+  throw new Error("Fullscreen is not available here.");
+}
+
+async function exitFullscreen(): Promise<void> {
+  if (typeof document.exitFullscreen === "function") {
+    await document.exitFullscreen();
+    return;
+  }
+  await prefixed().webkitExitFullscreen?.();
+}
+
+const isFullscreen = () => Boolean(fullscreenElement());
 const serverFullscreen = () => false;
 
 /**
@@ -33,11 +74,9 @@ const serverFullscreen = () => false;
  * for. Reading it this way avoids a state update on mount.
  */
 const subscribeNever = () => () => {};
-const readSupport = () =>
-  Boolean(
-    document.fullscreenEnabled ??
-    (document as Document & { webkitFullscreenEnabled?: boolean }).webkitFullscreenEnabled,
-  );
+// `||`, not `??`: a browser that has the standard flag set to false and the
+// prefixed one true is asking to be used by the prefixed name.
+const readSupport = () => Boolean(document.fullscreenEnabled || prefixed().webkitFullscreenEnabled);
 const assumeSupported = () => true;
 
 export function useFullscreen(target?: React.RefObject<HTMLElement | null>) {
@@ -50,7 +89,7 @@ export function useFullscreen(target?: React.RefObject<HTMLElement | null>) {
   const enter = async () => {
     const element = target?.current ?? document.documentElement;
     try {
-      await element.requestFullscreen({ navigationUI: "hide" });
+      await requestFullscreen(element);
       setDenied(false);
       return true;
     } catch {
@@ -61,14 +100,14 @@ export function useFullscreen(target?: React.RefObject<HTMLElement | null>) {
 
   const exit = async () => {
     try {
-      if (document.fullscreenElement) await document.exitFullscreen();
+      if (fullscreenElement()) await exitFullscreen();
     } catch {
       // Already exited, or refused; the subscription settles the real state.
     }
   };
 
   const toggle = async () => {
-    if (document.fullscreenElement) {
+    if (fullscreenElement()) {
       await exit();
       return false;
     }

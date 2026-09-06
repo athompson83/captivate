@@ -23,6 +23,7 @@ function fixtureUrl(): Promise<string> {
 async function open(
   page: Page,
   variant: "mount" | "mountWithAside" = "mount",
+  settled = true,
 ): Promise<{ problems: string[]; sceneCount: number }> {
   const problems: string[] = [];
   page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
@@ -33,11 +34,50 @@ async function open(
   await page.goto(await fixtureUrl());
   const sceneCount = await page.evaluate((which) => window.sharedViewerFixture[which](), variant);
   await page.waitForSelector("[data-view]");
+  // Every deck opens wide for a beat; most of these start once it has landed.
+  if (settled) await page.waitForSelector("[data-view]:not([data-opening])");
   return { problems, sceneCount };
 }
 
 const status = (page: Page) => page.locator('[aria-live="polite"]');
 const view = (page: Page) => page.locator("[data-view]").getAttribute("data-view");
+
+/**
+ * Waits until the camera has stopped moving.
+ *
+ * The announcement changes when the *state* does, which is the start of a
+ * flight rather than the end of it — the world writes `style.transform`
+ * straight to one promoted layer for as long as the travel lasts. A tap
+ * dispatched in that window lands on whatever is passing under the point.
+ *
+ * This suite failed in CI on a commit that changed only documentation, and
+ * passed every time locally. The cause was not the timing: this fixture never
+ * imported `globals.css`, so the viewer mounted with *none* of its layout —
+ * `h-screen`, `w-screen` and `overflow-hidden` were inert strings, the root
+ * was `position: static` with a content-driven height, and the world grew it
+ * by about twenty pixels a second for as long as the page stayed open. The
+ * camera never settled, so what sat under a fixed screen point depended on how
+ * loaded the machine was. `build.ts` warns about exactly this.
+ *
+ * With the stylesheet the root is 390x844, `overflow: hidden`, and the camera
+ * lands in under a second. This stays as the guard that says so: two
+ * consecutive equal reads, one frame apart, is the landing.
+ */
+async function settle(page: Page) {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(async () => {
+          const layer = document.querySelector("[data-world]") as HTMLElement | null;
+          if (!layer) return "gone";
+          const before = layer.style.transform;
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          return before === layer.style.transform ? "still" : "moving";
+        }),
+      { timeout: 15_000, message: "the camera never stopped moving" },
+    )
+    .not.toBe("moving");
+}
 
 test.describe("shared viewer", () => {
   test.beforeAll(async () => {
@@ -45,11 +85,20 @@ test.describe("shared viewer", () => {
     await fixtureUrl();
   });
 
-  test("mounts the worked example without errors and starts on scene one", async ({ page }) => {
-    const { problems, sceneCount } = await open(page);
+  test("mounts the worked example without errors, opens wide, and lands on scene one", async ({
+    page,
+  }) => {
+    const { problems, sceneCount } = await open(page, "mount", false);
     expect(sceneCount).toBeGreaterThanOrEqual(10);
+
+    // The opening beat: the whole argument first, then the dive. Read from
+    // inside the page, because the beat is shorter than our round trips.
+    expect(await page.evaluate(() => window.sharedViewerFixture.firstView())).toBe("opening");
+    const stage = page.locator("[data-view]");
+    await expect(stage).toHaveAttribute("data-view", "scene");
+    await expect(stage).not.toHaveAttribute("data-opening", "");
+
     await expect(status(page)).toContainText(`Scene 1 of ${sceneCount}`);
-    expect(await view(page)).toBe("scene");
     expect(problems).toEqual([]);
   });
 
@@ -69,10 +118,13 @@ test.describe("shared viewer", () => {
 
     expect(await view(page)).toBe("world");
     await expect(status(page)).toContainText(`Scene ${sceneCount} of ${sceneCount}`);
+    // The closing image is named after the deck.
+    await expect(page.locator("[data-closing]")).toBeVisible();
 
     // Back from the closing image returns to the final scene, not past it.
     await page.keyboard.press("ArrowLeft");
     expect(await view(page)).toBe("scene");
+    await expect(page.locator("[data-closing]")).toHaveCount(0);
     await expect(status(page)).toContainText(`Scene ${sceneCount} of ${sceneCount}`);
 
     expect(problems).toEqual([]);
@@ -87,6 +139,30 @@ test.describe("shared viewer", () => {
     expect(await view(page)).toBe("scene");
 
     expect(problems).toEqual([]);
+  });
+
+  test.describe("on a phone", () => {
+    test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+
+    test("swipes move through the deck, and a tap on the left goes back", async ({ page }) => {
+      const { problems } = await open(page);
+      await expect(status(page)).toContainText("Scene 1 of");
+      // The invitation speaks to a hand.
+      await expect(page.getByText("Swipe or tap to move through")).toBeVisible();
+
+      for (let i = 0; i < 12; i += 1) {
+        await page.evaluate(() => window.sharedViewerFixture.swipe(-160));
+        if (!/Scene 1 of/.test((await status(page).textContent()) ?? "")) break;
+      }
+      await expect(status(page)).toContainText("Scene 2 of");
+
+      // A real tap on the left edge is the way back — once the camera has
+      // arrived. Mid-flight the point is over whatever is travelling past it.
+      await settle(page);
+      await page.touchscreen.tap(30, 422);
+      await expect(status(page)).toContainText("Scene 1 of");
+      expect(problems).toEqual([]);
+    });
   });
 
   test.describe("asides", () => {

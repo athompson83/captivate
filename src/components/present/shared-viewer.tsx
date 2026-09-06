@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { Sparkles } from "lucide-react";
+import { Maximize2, Minimize2, Sparkles } from "lucide-react";
 import type { SharedDeck } from "@/lib/data/shared-payload";
 import { getTheme, themeCssVars } from "@/lib/schema/theme";
 import { buildStepCount } from "@/lib/present/motion";
 import { useFullscreen } from "@/lib/present/fullscreen";
+import { useOpening } from "@/lib/present/opening";
+import { isControl, useCoarsePointer, useSwipe } from "@/lib/present/swipe";
 import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
 import { World, type Focus } from "@/components/stage/world";
@@ -17,6 +19,7 @@ import {
   MOVEMENT_RAIL_WIDTH,
   movementRailVisible,
 } from "./movement-rail";
+import { ClosingFrame } from "./closing-frame";
 
 /**
  * A shared deck, self-driven.
@@ -57,6 +60,7 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
   const [sceneIndex, setSceneIndex] = useState(0);
   const [step, setStep] = useState(0);
   const [overview, setOverview] = useState(false);
+  const [ended, setEnded] = useState(false);
   const [started, setStarted] = useState(false);
   /** Scene indices dived through to get here; the way back out, innermost last. */
   const [divePath, setDivePath] = useState<number[]>([]);
@@ -67,8 +71,12 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     () => scenes.map((_, i) => i).filter((i) => !isDetail[i]),
     [scenes, isDetail],
   );
+  // The show opens wide, as the stage does: the whole argument for a beat,
+  // then the dive. The first press ends it early.
+  const { opening, settle } = useOpening(running.length);
+  const wide = opening || overview;
   const railShown =
-    journey.showMovements && !overview && movementRailVisible(movements, running.length);
+    journey.showMovements && !wide && movementRailVisible(movements, running.length);
   const nextMain = (from: number) => running.find((i) => i > from) ?? null;
   const prevMain = (from: number) => {
     const earlier = running.filter((i) => i < from);
@@ -77,9 +85,11 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
 
   /** Lands on a scene, fully built when returning to it, at step 0 going on. */
   const land = (index: number, built: boolean) => {
+    settle();
     setSceneIndex(index);
     setStep(built ? (stepCounts[index] ?? 1) - 1 : 0);
     setOverview(false);
+    setEnded(false);
   };
 
   /** The way back out of an aside, shared by `next` and `prev`. */
@@ -115,8 +125,14 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
 
   const next = () => {
     setStarted(true);
+    // During the opening beat the first press is the dive itself.
+    if (opening) {
+      settle();
+      return;
+    }
     if (overview) {
       setOverview(false);
+      setEnded(false);
       return;
     }
     const steps = stepCounts[sceneIndex] ?? 1;
@@ -133,15 +149,22 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     }
     const target = nextMain(sceneIndex);
     // Past the final scene of the running order, the camera pulls back: the
-    // whole argument at once is the last thing a reader sees.
-    if (target === null) setOverview(true);
-    else land(target, false);
+    // whole argument at once is the last thing a reader sees, named as the end.
+    if (target === null) {
+      setOverview(true);
+      setEnded(true);
+    } else land(target, false);
   };
 
   const prev = () => {
     setStarted(true);
+    if (opening) {
+      settle();
+      return;
+    }
     if (overview) {
       setOverview(false);
+      setEnded(false);
       return;
     }
     if (step > 0) {
@@ -201,7 +224,9 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
         case "O":
           e.preventDefault();
           setStarted(true);
+          settle();
           setOverview((value) => !value);
+          setEnded(false);
           break;
         case "f":
         case "F":
@@ -209,9 +234,11 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
           void fullscreen.toggle();
           break;
         case "Escape":
-          if (overview) {
+          if (wide) {
             e.preventDefault();
+            settle();
             setOverview(false);
+            setEnded(false);
           }
           break;
       }
@@ -220,14 +247,21 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  // A phone has no arrow keys: a swipe is the move a hand makes unprompted.
+  const swipe = useSwipe((direction) => (direction === "left" ? next() : prev()));
+  const coarse = useCoarsePointer();
+
   const advanceOnClick = (e: React.MouseEvent) => {
+    // The click a browser synthesises after a swipe is not a second move, and
+    // a click on a hotspot is the hotspot's.
+    if (swipe.consume() || isControl(e.target)) return;
     // The same clicker convention as the stage: right side forward, left back.
     const rect = e.currentTarget.getBoundingClientRect();
     if ((e.clientX - rect.left) / rect.width < 0.28) prev();
     else next();
   };
 
-  const focus: Focus = overview ? { kind: "world" } : { kind: "scene", index: sceneIndex };
+  const focus: Focus = wide ? { kind: "world" } : { kind: "scene", index: sceneIndex };
 
   if (scenes.length === 0) {
     return (
@@ -240,10 +274,16 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
   return (
     <div
       ref={containerRef}
-      data-view={overview ? "world" : "scene"}
-      className="stage-safe relative h-screen w-screen overflow-hidden bg-black"
+      data-view={wide ? "world" : "scene"}
+      data-opening={opening ? "" : undefined}
+      // Pans are the viewer's (a swipe), pinches stay the browser's, and a
+      // pull at the top of a deck never becomes a page refresh.
+      className="stage-safe relative h-screen w-screen touch-pinch-zoom overflow-hidden overscroll-none bg-black"
       style={themeCssVars(theme)}
       onClick={advanceOnClick}
+      onPointerDown={swipe.onPointerDown}
+      onPointerUp={swipe.onPointerUp}
+      onPointerCancel={swipe.onPointerCancel}
     >
       <World
         scenes={scenes}
@@ -258,10 +298,11 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
         pace={journey.pace}
         depth={journey.depth}
         backdrop={journey.backdrop}
-        showPath={journey.showPath && overview}
+        lean
+        showPath={journey.showPath && wide}
         safeInsetLeft={railShown ? MOVEMENT_RAIL_WIDTH : 0}
         className="absolute inset-0"
-        onSceneSelect={overview ? goto : undefined}
+        onSceneSelect={wide ? goto : undefined}
         onHotspot={dive}
         hotspotName={hotspotName}
       />
@@ -275,6 +316,11 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
         />
       )}
 
+      {/* The closing image, named. */}
+      <AnimatePresence>
+        {ended && overview && <ClosingFrame key="closing" title={deck.title} />}
+      </AnimatePresence>
+
       {/* The invitation. One card, gone on the first advance. */}
       <AnimatePresence>
         {!started && (
@@ -287,7 +333,9 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
             <div className="rounded-full border border-white/12 bg-black/55 px-5 py-2.5 text-center backdrop-blur-md">
               <p className="text-[13px] font-medium text-white/90">{deck.title}</p>
               <p className="mt-0.5 text-[11.5px] text-white/55">
-                Click or press → to move through · O sees the whole map
+                {coarse
+                  ? "Swipe or tap to move through"
+                  : "Click or press → to move through · O sees the whole map"}
               </p>
             </div>
           </motion.div>
@@ -305,15 +353,49 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
         />
       </div>
 
-      {/* Quiet attribution; also the way out for a reader who wants their own. */}
-      <Link
-        href="/"
-        onClick={(e) => e.stopPropagation()}
-        className="absolute top-4 right-4 z-20 flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[11px] font-medium text-white/55 backdrop-blur-md transition-colors hover:text-white/90"
-      >
-        <Sparkles className="size-3" aria-hidden />
-        Made with Captivate
-      </Link>
+      {/* The corner: full screen by hand (F has no key on a phone), and a
+          quiet attribution that is also the way out for a reader who wants
+          their own. Both stop the click reaching the click zone. */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+        {fullscreen.supported && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              void fullscreen.toggle();
+            }}
+            aria-label={fullscreen.active ? "Leave full screen" : "Full screen"}
+            aria-pressed={fullscreen.active}
+            className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white/65 backdrop-blur-md transition-colors hover:text-white"
+          >
+            {fullscreen.active ? (
+              <Minimize2 className="size-3.5" aria-hidden />
+            ) : (
+              <Maximize2 className="size-3.5" aria-hidden />
+            )}
+          </button>
+        )}
+        <Link
+          href="/"
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[11px] font-medium text-white/55 backdrop-blur-md transition-colors hover:text-white/90"
+        >
+          <Sparkles className="size-3" aria-hidden />
+          Made with Captivate
+        </Link>
+      </div>
+
+      {/* Refused — inside a frame, on a managed device — and said so, as the
+          stage does, rather than a button that silently does nothing. */}
+      {fullscreen.denied && (
+        <div
+          role="status"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-5 left-1/2 z-30 -translate-x-1/2 rounded-full border border-white/12 bg-black/75 px-3.5 py-1.5 text-[12px] text-white/85 backdrop-blur-md"
+        >
+          This browser wouldn&apos;t go full screen. The deck still fills the window.
+        </div>
+      )}
 
       <p className="sr-only" aria-live="polite">
         {isDetail[sceneIndex]

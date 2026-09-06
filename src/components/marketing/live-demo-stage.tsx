@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useOpening } from "@/lib/present/opening";
+import { isControl, useCoarsePointer, useSwipe } from "@/lib/present/swipe";
+import { ClosingFrame } from "@/components/present/closing-frame";
 import { AnimatePresence, motion } from "motion/react";
 import { getTheme, themeCssVars } from "@/lib/schema/theme";
 import { buildStepCount } from "@/lib/present/motion";
@@ -46,14 +49,24 @@ export function LiveDemoStage() {
   const [sceneIndex, setSceneIndex] = useState(0);
   const [step, setStep] = useState(0);
   const [overview, setOverview] = useState(false);
+  const [ended, setEnded] = useState(false);
   const [started, setStarted] = useState(false);
+  // The demo opens exactly as the stage does: the whole argument for a beat
+  // as it scrolls into view, then the dive to the first scene.
+  const { opening, settle } = useOpening(scenes.length);
+  const wide = opening || overview;
 
   const last = scenes.length - 1;
 
   const next = () => {
     setStarted(true);
+    if (opening) {
+      settle();
+      return;
+    }
     if (overview) {
       setOverview(false);
+      setEnded(false);
       return;
     }
     if (step < (stepCounts[sceneIndex] ?? 1) - 1) {
@@ -64,6 +77,7 @@ export function LiveDemoStage() {
     // is the last thing a reader sees, here as on the stage.
     if (sceneIndex === last) {
       setOverview(true);
+      setEnded(true);
       return;
     }
     setSceneIndex(sceneIndex + 1);
@@ -72,8 +86,13 @@ export function LiveDemoStage() {
 
   const prev = () => {
     setStarted(true);
+    if (opening) {
+      settle();
+      return;
+    }
     if (overview) {
       setOverview(false);
+      setEnded(false);
       return;
     }
     if (step > 0) {
@@ -88,14 +107,18 @@ export function LiveDemoStage() {
 
   const goto = (index: number) => {
     setStarted(true);
+    settle();
     setSceneIndex(Math.max(0, Math.min(last, index)));
     setStep(0);
     setOverview(false);
+    setEnded(false);
   };
 
   const toggleOverview = () => {
     setStarted(true);
+    settle();
     setOverview((value) => !value);
+    setEnded(false);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -128,23 +151,29 @@ export function LiveDemoStage() {
         toggleOverview();
         break;
       case "Escape":
-        if (overview) {
+        if (wide) {
           e.preventDefault();
+          settle();
           setOverview(false);
+          setEnded(false);
         }
         break;
     }
   };
 
+  const swipe = useSwipe((direction) => (direction === "left" ? next() : prev()));
+  const coarse = useCoarsePointer();
+
   const advanceOnClick = (e: React.MouseEvent) => {
+    if (swipe.consume() || isControl(e.target)) return;
     // The same clicker convention as the stage: right side forward, left back.
     const rect = e.currentTarget.getBoundingClientRect();
     if ((e.clientX - rect.left) / rect.width < 0.28) prev();
     else next();
   };
 
-  const focus: Focus = overview ? { kind: "world" } : { kind: "scene", index: sceneIndex };
-  const where = overview
+  const focus: Focus = wide ? { kind: "world" } : { kind: "scene", index: sceneIndex };
+  const where = wide
     ? "The whole argument"
     : `Scene ${sceneIndex + 1} of ${scenes.length}: ${scenes[sceneIndex]?.title ?? ""}`;
 
@@ -154,10 +183,16 @@ export function LiveDemoStage() {
         role="region"
         aria-label={`Live demo: ${title}. Focus the stage and use the arrow keys to move through it.`}
         tabIndex={0}
-        data-view={overview ? "world" : "scene"}
+        data-view={wide ? "world" : "scene"}
+        data-opening={opening ? "" : undefined}
         onKeyDown={onKeyDown}
         onClick={advanceOnClick}
-        className="relative aspect-[16/9] w-full cursor-pointer overflow-hidden rounded-[var(--radius-xl)] bg-black outline-none focus-visible:ring-2 focus-visible:ring-[var(--sky-action)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sky-deep)]"
+        onPointerDown={swipe.onPointerDown}
+        onPointerUp={swipe.onPointerUp}
+        onPointerCancel={swipe.onPointerCancel}
+        // Sideways is the demo's; up and down stay the page's, so a visitor
+        // scrolling past it with a thumb is never caught.
+        className="relative aspect-[16/9] w-full cursor-pointer touch-pan-y touch-pinch-zoom overflow-hidden rounded-[var(--radius-xl)] bg-black outline-none focus-visible:ring-2 focus-visible:ring-[var(--sky-action)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sky-deep)]"
         style={themeCssVars(theme)}
       >
         <World
@@ -172,10 +207,16 @@ export function LiveDemoStage() {
           travel={journey.travel}
           pace={journey.pace}
           depth={journey.depth}
-          showPath={journey.showPath && overview}
+          backdrop={journey.backdrop}
+          lean
+          showPath={journey.showPath && wide}
           className="absolute inset-0"
-          onSceneSelect={overview ? goto : undefined}
+          onSceneSelect={wide ? goto : undefined}
         />
+
+        <AnimatePresence>
+          {ended && overview && <ClosingFrame key="closing" title={title} />}
+        </AnimatePresence>
 
         {/* The invitation. Gone on the first move. */}
         <AnimatePresence>
@@ -187,7 +228,9 @@ export function LiveDemoStage() {
               className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-6"
             >
               <p className="rounded-full border border-white/12 bg-black/55 px-4 py-2 text-center text-[12.5px] font-medium text-white/85 backdrop-blur-md">
-                Press → or tap the stage · O sees the whole map
+                {coarse
+                  ? "Swipe or tap the stage to move through"
+                  : "Press → or tap the stage · O sees the whole map"}
               </p>
             </motion.div>
           )}
@@ -214,7 +257,7 @@ export function LiveDemoStage() {
             Back
           </DemoButton>
           <DemoButton onClick={toggleOverview}>
-            {overview ? "Back to the scene" : "Whole map"}
+            {wide ? "Back to the scene" : "Whole map"}
           </DemoButton>
           <DemoButton onClick={next} primary>
             Next

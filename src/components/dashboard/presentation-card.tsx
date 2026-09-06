@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { deletePresentation, duplicatePresentation, updatePresentation } from "@/lib/data/actions";
 import { cn } from "@/lib/utils/cn";
 import { relativeTime } from "@/lib/utils/format";
+import { canFinish, generationLabel } from "@/lib/data/generation-state";
 
 /**
  * A deck card. The thumbnail is a *live render* of the first scene rather than
@@ -29,6 +30,10 @@ export function PresentationCard({
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  // Derived on the server, where the clock may be read — see
+  // `listPresentations`. The `generating` claim expires, so a deck whose
+  // runtime was killed stops claiming to be busy rather than spinning for ever.
+  const generation = presentation.generation;
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [favorite, setFavorite] = useState(presentation.isFavorite);
@@ -135,6 +140,23 @@ export function PresentationCard({
             {relativeTime(presentation.updatedAt)}
             {presentation.folderName && ` · ${presentation.folderName}`}
           </p>
+          {/*
+            Where a generation got to, on the card, because that is where an
+            author looks after closing the tab. Two decks with the same title a
+            minute apart in production is what not saying this costs.
+          */}
+          {generationLabel(generation) && (
+            <p
+              className={cn(
+                "mt-1 truncate text-[11.5px]",
+                generation === "generating" ? "text-ink-3" : "text-[var(--warning-text)]",
+              )}
+            >
+              {generation === "generating" ? "◐ " : "△ "}
+              {generationLabel(generation)}
+              {canFinish(generation) && " · open it to finish"}
+            </p>
+          )}
         </div>
 
         <button

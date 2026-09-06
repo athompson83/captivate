@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { composeDeck } from "@/lib/narrative/compose";
 import { layoutFor } from "@/lib/narrative/generate";
 import { composeScene } from "@/lib/editor/layouts";
 import { fallbackScene } from "@/lib/ai/fallback";
@@ -57,8 +58,16 @@ describe("roles that are points rather than pages", () => {
   });
 
   it("alternates evidence between one number and a chart", () => {
+    // One number first — most evidence a talk leans on is a single figure,
+    // and a chart drawn around one number has nothing to compare. A second
+    // evidence beat running takes the chart rather than repeating the shape.
+    expect(
+      composeDeck([
+        { role: "evidence", visualIntent: "auto" },
+        { role: "evidence", visualIntent: "auto" },
+      ]),
+    ).toEqual(["figure", "chart"]);
     expect(layoutFor("auto", "evidence", 4)).toBe("figure");
-    expect(layoutFor("auto", "evidence", 5)).toBe("chart");
     // Data the author asked for as data is always a chart.
     expect(layoutFor("data", "evidence", 4)).toBe("chart");
   });

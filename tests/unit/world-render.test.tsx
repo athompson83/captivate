@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeAll } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, beforeAll, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { FileText } from "lucide-react";
 import { World } from "@/components/stage/world";
 import { EmptyState } from "@/components/ui/misc";
@@ -10,6 +10,13 @@ import { JOURNEY_DEFAULTS, type Scene } from "@/lib/schema/presentation";
 
 const STAGE = { width: 1600, height: 900 };
 const theme = getTheme("midnight");
+
+/** The reader's motion preference, switchable per test. */
+let prefersReducedMotion = false;
+vi.mock("motion/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("motion/react")>()),
+  useReducedMotion: () => prefersReducedMotion,
+}));
 
 /**
  * jsdom gives every element a zero bounding box, so the world never measures a
@@ -221,47 +228,47 @@ describe("the world", () => {
   });
 });
 
+/**
+ * Drives requestAnimationFrame by hand so a flight can be stepped.
+ *
+ * `cancelAnimationFrame` really has to drop the callback: a mock that only
+ * pretends to cancel makes this whole file unable to see the bug below, and
+ * a regression test that cannot fail is worse than no test at all.
+ */
+function controllableFrames() {
+  const pending = new Map<number, FrameRequestCallback>();
+  let id = 0;
+  const original = {
+    raf: globalThis.requestAnimationFrame,
+    caf: globalThis.cancelAnimationFrame,
+  };
+
+  globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+    id += 1;
+    pending.set(id, cb);
+    return id;
+  }) as typeof requestAnimationFrame;
+  globalThis.cancelAnimationFrame = ((handle: number) => {
+    pending.delete(handle);
+  }) as typeof cancelAnimationFrame;
+
+  return {
+    step(now: number) {
+      const due = [...pending.entries()];
+      pending.clear();
+      for (const [, cb] of due) cb(now);
+    },
+    get scheduled() {
+      return pending.size;
+    },
+    restore() {
+      globalThis.requestAnimationFrame = original.raf;
+      globalThis.cancelAnimationFrame = original.caf;
+    },
+  };
+}
+
 describe("a flight in progress", () => {
-  /**
-   * Drives requestAnimationFrame by hand so a flight can be stepped.
-   *
-   * `cancelAnimationFrame` really has to drop the callback: a mock that only
-   * pretends to cancel makes this whole file unable to see the bug below, and
-   * a regression test that cannot fail is worse than no test at all.
-   */
-  function controllableFrames() {
-    const pending = new Map<number, FrameRequestCallback>();
-    let id = 0;
-    const original = {
-      raf: globalThis.requestAnimationFrame,
-      caf: globalThis.cancelAnimationFrame,
-    };
-
-    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
-      id += 1;
-      pending.set(id, cb);
-      return id;
-    }) as typeof requestAnimationFrame;
-    globalThis.cancelAnimationFrame = ((handle: number) => {
-      pending.delete(handle);
-    }) as typeof cancelAnimationFrame;
-
-    return {
-      step(now: number) {
-        const due = [...pending.entries()];
-        pending.clear();
-        for (const [, cb] of due) cb(now);
-      },
-      get scheduled() {
-        return pending.size;
-      },
-      restore() {
-        globalThis.requestAnimationFrame = original.raf;
-        globalThis.cancelAnimationFrame = original.caf;
-      },
-    };
-  }
-
   it("keeps flying when something else re-renders the tree", () => {
     // The bug this exists for: the flight effect re-runs on every render,
     // because its `target` is a fresh object each time. When the animation
@@ -410,19 +417,86 @@ describe("the movement rail's strip", () => {
   });
 });
 
-/** The transformed element: the one carrying a style.transform translate. */
+/**
+ * The world layer.
+ *
+ * By its marker, not by "the first div carrying a transform": the backdrop
+ * layers are transformed too, and they are painted before the world, so the
+ * looser version silently started measuring the room instead of the content.
+ */
 function findWorld(container: HTMLElement): HTMLElement | null {
-  return (
-    [...container.querySelectorAll<HTMLElement>("div")].find((el) =>
-      el.style.transform.includes("translate"),
-    ) ?? null
-  );
+  return container.querySelector<HTMLElement>("[data-world]");
 }
 
 describe("the backdrop", () => {
-  it("is absent until the author sets a picture", () => {
+  it("is drawn when the author has set no picture", () => {
+    // The default. A deck nobody has touched still has a designed room behind
+    // it — the reported gap was that it had none — and the layer that carries
+    // it is the same one a photograph would use.
     const { container } = renderWorld(3);
+    const layer = container.querySelector<HTMLElement>("[data-backdrop]");
+    expect(layer).not.toBeNull();
+    expect(layer!.getAttribute("data-backdrop-graphic")).toBe("aurora");
+    expect(layer!.style.backgroundImage).toContain("radial-gradient");
+    // Drawn, not photographed: no picture is fetched for it.
+    expect(layer!.querySelector("img")).toBeNull();
+  });
+
+  it("is absent when there is neither a picture nor a drawn backdrop", () => {
+    const { container } = renderWorld(3, {
+      backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35, graphic: "none" },
+    });
     expect(container.querySelector("[data-backdrop]")).toBeNull();
+  });
+
+  it("draws every graphic from the theme's own colours", () => {
+    // No hex anywhere: a backdrop that does not come from the palette fights
+    // the air blended from the regions in front of it.
+    for (const graphic of ["aurora", "strata", "halo"] as const) {
+      const { container, unmount } = renderWorld(3, {
+        backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35, graphic },
+      });
+      const layer = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const paint = layer.style.backgroundImage + layer.style.backgroundColor;
+      expect(paint, graphic).toContain("oklab");
+      expect(paint, graphic).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+      unmount();
+    }
+  });
+
+  it("paints no drawn backdrop under a picture that would cover it", () => {
+    // A photograph fills the whole plane, so a wash behind it is paint nobody
+    // can see — and this one is expensive paint. Only ever one of the two.
+    const { container } = renderWorld(3, {
+      backdrop: {
+        url: "/api/assets/abc/content",
+        assetId: "abc",
+        alt: "a hall",
+        distance: 0.5,
+        dim: 0.4,
+        graphic: "aurora",
+      },
+    });
+    const layers = [...container.querySelectorAll<HTMLElement>("[data-backdrop]")];
+    expect(layers).toHaveLength(1);
+    expect(layers[0].getAttribute("data-backdrop-picture")).not.toBeNull();
+    expect(layers[0].style.backgroundImage).toBe("");
+    expect(layers[0].querySelector("img")?.getAttribute("src")).toBe("/api/assets/abc/content");
+  });
+
+  it("never scales the drawn backdrop, whatever the camera does", () => {
+    /*
+     * The drawn backdrop is four radial gradients across a layer bigger than
+     * the screen. A transform whose scale changes every frame — which is what
+     * a flight is — makes the browser re-rasterise that paint every frame,
+     * and with a software rasteriser the page stops responding: the browser
+     * suite hung on a keypress until this was translate-only.
+     */
+    const { container } = renderWorld(3);
+    const layer = container.querySelector<HTMLElement>("[data-backdrop]")!;
+    expect(layer.style.transform).toContain("translate(");
+    expect(layer.style.transform).not.toContain("scale(");
+    expect(layer.style.transform).not.toContain("rotate(");
   });
 
   it("paints the picture on its own layer behind the world, dimmed toward the canvas", () => {
@@ -433,6 +507,7 @@ describe("the backdrop", () => {
         alt: "a hall",
         distance: 0.5,
         dim: 0.4,
+        graphic: "none" as const,
       },
     });
     const layer = container.querySelector("[data-backdrop]");
@@ -448,7 +523,14 @@ describe("the backdrop", () => {
 
   it("paints nothing when the picture was removed", () => {
     const { container } = renderWorld(3, {
-      backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35 },
+      backdrop: {
+        url: "",
+        assetId: null,
+        alt: "",
+        distance: 0.5,
+        dim: 0.35,
+        graphic: "none" as const,
+      },
     });
     expect(container.querySelector("[data-backdrop]")).toBeNull();
   });
@@ -520,6 +602,68 @@ describe("performing on arrival", () => {
     expect(document.querySelectorAll('[data-scene-index="3"] [data-held]')).toHaveLength(0);
   });
 
+  it("still counts as landed when the framing changes under a standing camera", () => {
+    /*
+     * The reported defect: "the drawings are now all gone".
+     *
+     * Landing used to be the camera last landed on compared with the camera
+     * being aimed at — a question about geometry, when the one that matters
+     * is about intent. A viewport that changes size recomputes the framing of
+     * the very scene the camera is already sitting on, the two cameras stop
+     * being equal, and the world reports it has never landed. Anything that
+     * mounts from then on is held, and a held drawing renders as a stroke of
+     * zero visible length: the scene looks finished with the picture simply
+     * absent. A phone hiding its address bar makes exactly this change.
+     */
+    const frames = controllableFrames();
+    try {
+      const scenes = makeScenes(3);
+      const placements = arrange("reel", scenes, STAGE);
+      const withPicture = scenes.map((scene, i) =>
+        i === 0
+          ? {
+              ...scene,
+              content: composeScene("split-left", {
+                heading: "Heading number 1",
+                media: { url: "https://example.com/x.jpg", alt: "A picture" },
+              }),
+            }
+          : scene,
+      );
+      const props = (aspect: "16:9" | "4:3", deck: typeof scenes) => ({
+        scenes: deck,
+        placements,
+        theme,
+        aspect,
+        focus: { kind: "scene" as const, index: 0 },
+        activeIndex: 0,
+        step: 0,
+        play: true,
+        travel: "fly" as const,
+        pace: JOURNEY_DEFAULTS.pace,
+        depth: JOURNEY_DEFAULTS.depth,
+      });
+
+      // Landed on scene one.
+      const { container, rerender } = render(<World {...props("16:9", scenes)} />);
+      expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+
+      // The framing of that same scene changes — the shape of a resize — and
+      // the camera sets off for the new one without arriving yet.
+      rerender(<World {...props("4:3", scenes)} />);
+
+      // Something mounts in that window.
+      rerender(<World {...props("4:3", withPicture)} />);
+
+      expect(
+        container.querySelectorAll("[data-held]"),
+        "the camera is on the scene it landed on; a reframing is not a flight away from it",
+      ).toHaveLength(0);
+    } finally {
+      frames.restore();
+    }
+  });
+
   it("lets a cut arrive at once, so the new scene performs immediately", () => {
     const scenes = makeScenes(50);
     const placements = arrange("reel", scenes, STAGE);
@@ -584,6 +728,174 @@ describe("performing on arrival", () => {
     renderWorld(4);
     for (const region of document.querySelectorAll<HTMLElement>("[data-scene-index]")) {
       expect(region.style.opacity).toBe("1");
+    }
+  });
+});
+
+/**
+ * Depth inside each scene is written by the camera loop as two custom
+ * properties on the region — never through React — and only while presenting.
+ */
+describe("depth inside the scenes", () => {
+  it("hands the scene under the camera a zero offset and its neighbours a real one", () => {
+    renderWorld(4, { play: true });
+    const active = document.querySelector<HTMLElement>('[data-scene-index="0"]');
+    expect(active!.style.getPropertyValue("--px")).toBe("0.00px");
+    expect(active!.style.getPropertyValue("--py")).toBe("0.00px");
+    const neighbour = [...document.querySelectorAll<HTMLElement>("[data-scene-index]")].find(
+      (region) => region.dataset.sceneIndex !== "0",
+    );
+    expect(neighbour).toBeDefined();
+    expect(neighbour!.style.getPropertyValue("--px")).not.toBe("");
+    expect(neighbour!.style.getPropertyValue("--px")).not.toBe("0.00px");
+  });
+
+  it("writes nothing in the editor", () => {
+    renderWorld(4);
+    for (const region of document.querySelectorAll<HTMLElement>("[data-scene-index]")) {
+      expect(region.style.getPropertyValue("--px")).toBe("");
+    }
+  });
+});
+
+/**
+ * The room answers the hand. A mouse over the world leans what is behind the
+ * scene — the backdrop here, the air where WebGL draws it — and leaves the
+ * scene exactly where it was. Never a finger, never under reduced motion, and
+ * only where the surface asked for it.
+ */
+describe("the room answers the hand", () => {
+  const backdrop = {
+    url: "/api/assets/abc/content",
+    assetId: "abc",
+    alt: "a hall",
+    distance: 0.5,
+    dim: 0.4,
+    graphic: "none" as const,
+  };
+  const translateX = (transform: string) => {
+    const matches = [...transform.matchAll(/translate\(([-\d.]+)px, ([-\d.]+)px\)/g)];
+    return Number(matches[matches.length - 1][1]);
+  };
+  const pointer = (
+    node: Element,
+    type: string,
+    x: number,
+    pointerType: "mouse" | "touch" = "mouse",
+  ) =>
+    fireEvent(
+      node,
+      new PointerEvent(type, { bubbles: true, clientX: x, clientY: 450, pointerType }),
+    );
+  const settle = (frames: ReturnType<typeof controllableFrames>) => {
+    for (let t = 0; t <= 3000 && frames.scheduled > 0; t += 16) frames.step(t);
+  };
+
+  it("moves the room behind the scene toward the hand, and the scene not at all", () => {
+    const frames = controllableFrames();
+    try {
+      const { container } = renderWorld(3, { lean: true, play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const world = container.querySelector<HTMLElement>("[data-world]")!;
+      const restingRoom = room.style.transform;
+      const restingWorld = world.style.transform;
+
+      pointer(container.firstElementChild!, "pointermove", 1600);
+      expect(frames.scheduled).toBeGreaterThan(0);
+      settle(frames);
+
+      expect(translateX(room.style.transform)).toBeGreaterThan(translateX(restingRoom));
+      expect(world.style.transform).toBe(restingWorld);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("eases rather than jumps", () => {
+    const frames = controllableFrames();
+    try {
+      const { container } = renderWorld(3, { lean: true, play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const resting = translateX(room.style.transform);
+
+      pointer(container.firstElementChild!, "pointermove", 1600);
+      frames.step(0);
+      frames.step(16);
+      const partway = translateX(room.style.transform);
+      settle(frames);
+      const arrived = translateX(room.style.transform);
+
+      expect(partway).toBeGreaterThan(resting);
+      expect(partway).toBeLessThan(arrived);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("returns exactly level when the hand leaves", () => {
+    const frames = controllableFrames();
+    try {
+      const { container } = renderWorld(3, { lean: true, play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const resting = room.style.transform;
+
+      pointer(container.firstElementChild!, "pointermove", 1600);
+      settle(frames);
+      expect(room.style.transform).not.toBe(resting);
+
+      pointer(container.firstElementChild!, "pointerleave", 1600);
+      settle(frames);
+      expect(room.style.transform).toBe(resting);
+      expect(frames.scheduled).toBe(0);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("does not answer a finger — that is a swipe", () => {
+    const frames = controllableFrames();
+    try {
+      const { container } = renderWorld(3, { lean: true, play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const resting = room.style.transform;
+
+      pointer(container.firstElementChild!, "pointermove", 1600, "touch");
+      expect(frames.scheduled).toBe(0);
+      expect(room.style.transform).toBe(resting);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("is still where the surface did not ask for it", () => {
+    const frames = controllableFrames();
+    try {
+      const { container } = renderWorld(3, { play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const resting = room.style.transform;
+
+      pointer(container.firstElementChild!, "pointermove", 1600);
+      expect(frames.scheduled).toBe(0);
+      expect(room.style.transform).toBe(resting);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("is still under a reduced-motion preference", () => {
+    const frames = controllableFrames();
+    prefersReducedMotion = true;
+    try {
+      const { container } = renderWorld(3, { lean: true, play: true, backdrop });
+      const room = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const resting = room.style.transform;
+
+      pointer(container.firstElementChild!, "pointermove", 1600);
+      expect(frames.scheduled).toBe(0);
+      expect(room.style.transform).toBe(resting);
+    } finally {
+      prefersReducedMotion = false;
+      frames.restore();
     }
   });
 });

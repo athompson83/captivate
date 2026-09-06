@@ -70,7 +70,14 @@ const PexelsResponse = z.object({
         alt: z.string().nullable().optional(),
         photographer: z.string(),
         photographer_url: z.string(),
-        src: z.object({ large: z.string(), medium: z.string() }),
+        // `large2x` is optional rather than required, and the fallback below
+        // is the point: a provider that stops sending a rendition must not
+        // take the whole picture search down with it.
+        src: z.object({
+          large: z.string(),
+          large2x: z.string().optional(),
+          medium: z.string(),
+        }),
       }),
     )
     .default([]),
@@ -146,7 +153,24 @@ export async function searchStockPhotos(query: string): Promise<Sourced<StockRes
       ok: true,
       data: parsed.data.photos.map((photo) => ({
         thumbnailUrl: photo.src.medium,
-        fullUrl: photo.src.large,
+        // The biggest rendition the provider offers by name, falling back to
+        // the one this always used.
+        //
+        // Every stock photograph in every deck generated before this came from
+        // `large`, and the bytes tell the story: 26 stored assets between 19KB
+        // and 127KB, tightly clustered — a fixed, modest rendition rather than
+        // anything sized for a room. A picture that is crisp in the editor and
+        // soft on a three-metre screen is worst on the cover, which is the
+        // first thing an audience sees.
+        //
+        // Unverified from here, and worth saying so: this environment has no
+        // provider key, so the exact pixel dimensions each rendition returns
+        // have not been read back from the API. The fallback makes the change
+        // safe either way — at worst it fetches exactly what it fetched
+        // before. Confirming what actually arrives belongs to the
+        // real-provider run (BETA-003), which should read the stored asset's
+        // dimensions rather than trusting this comment.
+        fullUrl: photo.src.large2x ?? photo.src.large,
         providerAssetId: String(photo.id),
         originalPageUrl: photo.url,
         creatorName: photo.photographer,

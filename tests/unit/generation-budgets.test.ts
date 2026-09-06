@@ -128,6 +128,56 @@ describe("the narrative map has room to finish", () => {
   });
 });
 
+describe("a scene added on its own gets its picture too", () => {
+  /**
+   * The route an author uses *after* looking at the deck was the one route
+   * that skipped the pass which fills media slots. So a split scene added to a
+   * finished deck arrived with a dashed placeholder while every scene around
+   * it carried a picture — the failure looks like a broken feature and is
+   * actually a missing call.
+   *
+   * Read from source for the same reason as the block below: `dressScenes` is
+   * private to a `server-only` module and the claim is about one call site.
+   */
+  it("dresses the single scene it just wrote", () => {
+    expect(service).toMatch(/const scene = materialise\(result\.data\);\s+await dressScenes\(/);
+  });
+
+  it("cannot spend a paid image on a scene nobody asked to generate one for", () => {
+    // The paid generated image is the *deck*'s cover fallback — one picture,
+    // once, for the first thing a room sees. It used to be gated on the
+    // scene's layout being `cover`, and `GeneratedLayout` excludes only
+    // `custom`: an author asking this route for a title scene could have had
+    // money spent on a picture they never asked for. It is the caller's
+    // affordance now, and only the deck route claims it.
+    expect(service).toMatch(/mayGenerateCover && scene\.content\.layout === "cover"/);
+    expect(service).toMatch(
+      /await dressScenes\(scenes, presentationId, totalSeconds, \{\s*mayGenerateCover: true,?\s*\}\)/,
+    );
+    const single = service.match(/await dressScenes\(\[scene\], presentationId, 0, \{([^}]*)\}\)/);
+    expect(single, "the single-scene route should name its own options").not.toBeNull();
+    expect(single![1]).not.toContain("mayGenerateCover");
+  });
+
+  it("asks for less time than the route it runs inside has left", () => {
+    const dress = service.match(
+      /await dressScenes\(\[scene\], presentationId, 0, \{ budgetMs: (\d[\d_]*) \}\)/,
+    );
+    expect(dress, "the single-scene dress pass should name its own budget").not.toBeNull();
+
+    const attempt = service.match(
+      /attemptTimeoutMs: (\d[\d_]*),[\s\S]{0,80}?if \(!result\.ok\) return \{ ok: false, error: result\.error \};/,
+    );
+    expect(attempt, "the single-scene model call should name its timeout").not.toBeNull();
+
+    const ceiling = numeric(read("src/app/api/ai/scene/route.ts").match(/maxDuration = (\d+)/)![1]);
+    expect(
+      (numeric(attempt![1]) + numeric(dress![1])) / 1000,
+      "writing the scene and dressing it must both fit inside the route's ceiling",
+    ).toBeLessThan(ceiling);
+  });
+});
+
 describe("a generated layout says it was a guess", () => {
   it("composes with `inferredLayout`, so an over-long list can give way", () => {
     // `layoutFor` picks a layout from a moment's visual intent before the

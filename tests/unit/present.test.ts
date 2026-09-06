@@ -331,7 +331,7 @@ describe("session command routing", () => {
     // Elapsed time is `now - origin`, and pausing only stops `now` moving.
     // Resuming stamped `now` with the wall clock while both origins stayed
     // put, so the room watched the timers jump forward by the whole break.
-    const api = createSession({ presentationId: "pause", scenes, role: "stage" });
+    const api = createSession({ presentationId: "pause", scenes, role: "stage", openWide: false });
     api.send("next"); // Starts the clock.
 
     const before = api.store.getState();
@@ -358,7 +358,12 @@ describe("session command routing", () => {
     // things a presenter does mid-break, and every command refreshed `nowMs`.
     // The origins do not move until resume, so the elapsed time jumped forward
     // by the length of the break and then jumped back again.
-    const api = createSession({ presentationId: "paused-cmd", scenes, role: "stage" });
+    const api = createSession({
+      presentationId: "paused-cmd",
+      scenes,
+      role: "stage",
+      openWide: false,
+    });
     api.send("next");
 
     const start = Date.now();
@@ -378,7 +383,12 @@ describe("session command routing", () => {
     // *during* the break that stamped the wall clock would be shifted a second
     // time and start life minutes in the future — so the scene timer would
     // count backwards from a negative elapsed.
-    const api = createSession({ presentationId: "paused-nav", scenes, role: "stage" });
+    const api = createSession({
+      presentationId: "paused-nav",
+      scenes,
+      role: "stage",
+      openWide: false,
+    });
     api.send("next");
 
     const start = Date.now();
@@ -400,7 +410,12 @@ describe("session command routing", () => {
     // The console runs its own ticker. Joining during a break it stamped its
     // own wall clock, so the two windows showed elapsed times a whole break
     // apart — the stage frozen at the pause, the console minutes ahead.
-    const stage = createSession({ presentationId: "paused-broadcast", scenes, role: "stage" });
+    const stage = createSession({
+      presentationId: "paused-broadcast",
+      scenes,
+      role: "stage",
+      openWide: false,
+    });
     const detachStage = stage.attach();
     stage.send("next");
 
@@ -411,7 +426,12 @@ describe("session command routing", () => {
 
     // Ten minutes of break, then the presenter opens the console.
     vi.spyOn(Date, "now").mockReturnValue(start + 600_000);
-    const desk = createSession({ presentationId: "paused-broadcast", scenes, role: "console" });
+    const desk = createSession({
+      presentationId: "paused-broadcast",
+      scenes,
+      role: "console",
+      openWide: false,
+    });
     const detachDesk = desk.attach();
     await new Promise((resolve) => setTimeout(resolve, 20));
 
@@ -430,8 +450,18 @@ describe("session command routing", () => {
     // for the up-to-a-second before the next tick the console was measuring a
     // frozen `now` against origins in its future — and showed the break back
     // as a negative elapsed.
-    const stage = createSession({ presentationId: "resume-broadcast", scenes, role: "stage" });
-    const desk = createSession({ presentationId: "resume-broadcast", scenes, role: "console" });
+    const stage = createSession({
+      presentationId: "resume-broadcast",
+      scenes,
+      role: "stage",
+      openWide: false,
+    });
+    const desk = createSession({
+      presentationId: "resume-broadcast",
+      scenes,
+      role: "console",
+      openWide: false,
+    });
     const detachStage = stage.attach();
     const detachDesk = desk.attach();
     stage.send("next");
@@ -454,7 +484,7 @@ describe("session command routing", () => {
   });
 
   it("advances the stage locally", () => {
-    const api = createSession({ presentationId: "p", scenes, role: "stage" });
+    const api = createSession({ presentationId: "p", scenes, role: "stage", openWide: false });
     expect(api.store.getState().sceneIndex).toBe(0);
 
     api.send("next");
@@ -468,7 +498,7 @@ describe("session command routing", () => {
   });
 
   it("lets a console with no stage connected rehearse on its own", () => {
-    const api = createSession({ presentationId: "p2", scenes, role: "console" });
+    const api = createSession({ presentationId: "p2", scenes, role: "console", openWide: false });
     expect(api.store.getState().peerConnected).toBe(false);
 
     api.send("next");
@@ -476,7 +506,7 @@ describe("session command routing", () => {
   });
 
   it("defers to the stage once one is connected", () => {
-    const api = createSession({ presentationId: "p3", scenes, role: "console" });
+    const api = createSession({ presentationId: "p3", scenes, role: "console", openWide: false });
     api.store.setState({ peerConnected: true });
 
     // The command goes over the channel; the console must not also move itself,
@@ -486,7 +516,7 @@ describe("session command routing", () => {
   });
 
   it("clamps navigation to the deck", () => {
-    const api = createSession({ presentationId: "p4", scenes, role: "stage" });
+    const api = createSession({ presentationId: "p4", scenes, role: "stage", openWide: false });
     api.send("prev");
     expect(api.store.getState().sceneIndex).toBe(0);
 
@@ -498,7 +528,7 @@ describe("session command routing", () => {
   });
 
   it("pulls the camera back over the whole world at the end", () => {
-    const api = createSession({ presentationId: "p-end", scenes, role: "stage" });
+    const api = createSession({ presentationId: "p-end", scenes, role: "stage", openWide: false });
     api.send("last");
     // Walk the final scene's builds; the press after the last one pulls back.
     for (let i = 0; i < 10 && !api.store.getState().overview; i += 1) api.send("next");
@@ -522,7 +552,7 @@ describe("session command routing", () => {
   });
 
   it("starts the clock on the first advance, not on load", () => {
-    const api = createSession({ presentationId: "p5", scenes, role: "stage" });
+    const api = createSession({ presentationId: "p5", scenes, role: "stage", openWide: false });
     expect(api.store.getState().startedAt).toBeNull();
 
     api.send("next");
@@ -530,7 +560,7 @@ describe("session command routing", () => {
   });
 
   it("blanks and restores the audience view", () => {
-    const api = createSession({ presentationId: "p6", scenes, role: "stage" });
+    const api = createSession({ presentationId: "p6", scenes, role: "stage", openWide: false });
     api.send("blank");
     expect(api.store.getState().blanked).toBe(true);
 
@@ -541,7 +571,7 @@ describe("session command routing", () => {
   });
 
   it("clears annotations for a scene without touching the others", () => {
-    const api = createSession({ presentationId: "p7", scenes, role: "stage" });
+    const api = createSession({ presentationId: "p7", scenes, role: "stage", openWide: false });
     const stroke = { id: "a", color: "#fff", width: 1, points: [{ x: 0.1, y: 0.1 }] };
 
     api.setAnnotations(0, { strokes: [stroke], highlights: [] });
@@ -588,12 +618,15 @@ describe("flowRole-aware navigation", () => {
   // 0 main, 1 detail, 2 main, 3 detail, 4 main
   const mixed = () => [scene(0), scene(1, "detail"), scene(2), scene(3, "detail"), scene(4)];
 
+  // The opening beat is under test in `opening.test.ts`; here every first
+  // press has to be a real move.
   const session = (scenes: Scene[]) =>
     createSession({
       presentationId: PRESENTATION,
       scenes,
       role: "stage",
       establishSections: false,
+      openWide: false,
     });
 
   const at = (s: ReturnType<typeof session>) => s.store.getState().sceneIndex;

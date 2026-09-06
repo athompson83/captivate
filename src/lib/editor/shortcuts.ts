@@ -26,6 +26,8 @@ export function useEditorShortcuts(handlers: {
   onToggleNotes: () => void;
   onToggleAi: () => void;
   onSave: () => void;
+  /** Opens the list of these keys; `?`, the key every keyboard app answers to. */
+  onHelp: () => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -102,6 +104,11 @@ export function useEditorShortcuts(handlers: {
         return;
       }
 
+      if (e.key === "?" && !mod) {
+        e.preventDefault();
+        handlers.onHelp();
+        return;
+      }
       if (e.key === "n" && !mod) {
         e.preventDefault();
         handlers.onToggleNotes();
@@ -220,4 +227,5 @@ export const SHORTCUTS: { keys: string; action: string; group: string }[] = [
   { keys: "N", action: "Toggle notes", group: "Panels" },
   { keys: "I", action: "Toggle AI", group: "Panels" },
   { keys: "⌘S", action: "Save now", group: "Panels" },
+  { keys: "?", action: "This list", group: "Panels" },
 ];

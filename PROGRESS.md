@@ -10,15 +10,34 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` → PR #78 (merged,
-  squash `95e671e`); this closeout on the same branch, restarted from `main`
-- `main`: through PR #78 (merged) — `95e671e`; every migration through
-  `0030_shared_backdrop_asset.sql` applied to production (no migration since)
-- Brand: Captivate is the product; Axtevi is the company it sits under
-  (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
-  `NEXT_PUBLIC_SITE_URL`.
-- Production: live and in use at `https://www.axtevi.com`; the owner tests
-  deployed builds and reports defects
+- Branch: `claude/captivate-3d-graphics-5ypuvx`, restarted from `main` after
+  PR #94 — the closeout for MVP-026, which is merged and deployed
+- `main`: through PR #94 (merged) — `01437d0`, the four defects the owner
+  reported after using the shipped build: pictures that never arrive, drawings
+  that had gone, no designed background, and a browser that crashes while
+  presenting; every migration through `0030_shared_backdrop_asset.sql` applied
+  to production (no migration since, and none in that round — the drawn
+  backdrop is a field on the journey JSON, which stored rows parse straight
+  into)
+- Brand: Captivate is the product; Axtevi is the company it sits under.
+  No domain is hardcoded anywhere in `src/` — every absolute link is built
+  from `NEXT_PUBLIC_SITE_URL`, so moving hosts is configuration.
+- Production: **`https://captivate.axtevi.com` is the canonical origin.** The
+  owner attached it to the Vercel project on 2026-09-06, after this session
+  found it resolving to Vercel's IPs with no certificate — its TLS handshake
+  failed outright, which is why the address the docs had always named as the
+  product's home could not be opened. It serves now, and `/present/<id>` on it
+  redirects a signed-out request to its own `/sign-in` carrying the deck back.
+  `www.axtevi.com` and `axtevi.com` remain attached and serve the same
+  deployment; `axtevi.com` 308s to `www`. Sessions are per-host, so the two
+  are not interchangeable once signed in — pick one.
+- **Never a `*.vercel.app` address.** Every deployment URL, production ones
+  included, sits behind Vercel's authentication and answers a phone with a
+  302 to `vercel.com/sso-api` — at the edge, before any of this app's code
+  runs, so nothing here can rescue such a link. Three separate "I can't
+  present" reports were all a saved shortcut to one of those. The custom
+  domains answer the same path with the app's own sign-in redirect; that
+  contrast is the diagnostic.
 - Database: canonical Supabase project `qnbwyymwhvqprjtyfdmb`. Every migration
   through `0026_pin_helper_search_path.sql` is **applied to production**.
   `0022`–`0026` were applied on 2026-09-01 ahead of the PR #48 deploy — that
@@ -35,28 +54,559 @@
 
 ### The heartbeats were sent, and compressed away before the phone saw them
 
-The owner tried a thirty-minute talk from their phone again on 2026-09-05
-and got "Couldn't build a map — Couldn't reach the server". The ledger says
-`/api/ai/map` succeeded: created 14:54:31Z, completed 14:55:29Z, 58 seconds,
-and a second call — the owner's retry, pressed at 14:55:13Z while the first
-was still running — succeeded in 33. So PR #74's heartbeats, a newline every
-ten seconds, did not reach the device: a phone that had received one byte in
-the last sixty would not have given up.
+The owner tried a thirty-minute talk from their phone on 2026-09-05 and got
+"Couldn't build a map — Couldn't reach the server". The `ai_generations` ledger
+says `/api/ai/map` succeeded: created 14:54:31Z, completed 14:55:29Z, 58
+seconds — and a second call, the owner's retry pressed at 14:55:13Z while the
+first was still running, succeeded in 33. So PR #74's heartbeats, a newline
+every ten seconds, did not reach the device: a phone that had received one byte
+in the last sixty would not have given up.
 
-The response is `application/json`, JSON is compressible, and a compressing
-hop between the function and the phone holds a one-byte chunk in its window
-rather than forwarding it; `Cache-Control: no-transform` is a request, not a
-rule. The wrapper now declares `Content-Encoding: identity`, which a
-compressing proxy honours by not re-encoding a body that already says how
-it is encoded, and which every browser reads as "no decoding". The unit test
-pins the header; the route test that requires every long route to answer
-through the wrapper is unchanged.
+The response is `application/json`, JSON is compressible, and a compressing hop
+between the function and the phone holds a one-byte chunk in its window rather
+than forwarding it; `Cache-Control: no-transform` is a request, not a rule. The
+wrapper now declares `Content-Encoding: identity`, which a compressing proxy
+honours by not re-encoding a body that already says how it is encoded, and
+which every browser reads as "no decoding". The unit test pins the header.
 
 Not verified here: the header's effect through the production edge from a
-phone — this environment cannot hold a signed-in session against
-`https://www.axtevi.com` and cannot read Vercel's logs. The owner's phone is
-the check, as before, and the ledger will show a single `map` row per
-attempt when it holds.
+phone. This environment cannot hold a signed-in session against the production
+host and cannot read Vercel's logs. The owner's phone is the check, and the
+ledger will show one `map` row per attempt when it holds.
+
+### A generation you can walk away from, and a deck that stops doubling
+
+**Landed.** PR #99 squash-merged as `9d6b36e`, all six CI jobs green on the head
+that merged — including the authenticated Playwright suite, which is what caught
+both of the deck-doubling defects below. Migrations
+`0032_presentation_generation_status.sql` and
+`0033_link_template_scenes_to_moments.sql` applied to production.
+
+Read back afterwards: `https://captivate.axtevi.com` answers 200 and
+`/present/<id>?plain=1` redirects a signed-out request to its own `/sign-in`
+**carrying the flag as well as the deck** — which matters, because an escape
+hatch dropped by the sign-in round trip would not be one. Beyond that the build
+could not be read out of production from here: every surface this round changed
+sits behind authentication, no share link exists to reach the public viewer
+through, and this session's Vercel token is refused the deployment list (403).
+So "deployed and serving" is evidence; "this build's copy is on the page" is
+not, and the owner's own phone remains the test that matters.
+
+The owner reported two things: generations that had to be watched, and a
+presentation that said "provided with limits". Both were read out of the
+database before anything was changed.
+
+**"Provided with limits"** was a contract disagreement, not a model failure.
+The scene schema required a `title` the prompt never asked for, so the model's
+answer was rejected field by field and what survived was reported as a partial
+generation. `title` has a default and the prompt asks for one.
+
+**Walking away.** Vercel's request cancellation is opt-in and this project does
+not enable it, so a generation finishes whether or not the phone stayed awake.
+The work was never the thing at risk — the author's ability to find out was.
+Production held two decks both called "How to Build a Side Hustle With AI",
+created a minute apart, each with sixteen moments and sixteen placeholder
+scenes: that is what "I could not tell what happened, so I pressed it again"
+looks like in a table. `presentations.generation_status` records `generating`
+before the model is called and `ready`, `partial` or `failed` after, and a
+claim older than the route could possibly still be running reads as stalled
+rather than as a spinner that never resolves. `scenes-from-map` also writes the
+scenes itself now, rather than handing them back for a loop in the page to save
+one at a time — which had put a five-minute job behind a lock screen.
+
+**A deck that doubled, twice.** The end-to-end test written for that write path
+failed in CI with a template's eleven scenes becoming nineteen, and it was
+right both times.
+
+- A map _derived_ from a deck's own scenes gives each moment the id of the
+  scene it was read from. Matching on `moment_id` alone found no owners and
+  appended a second copy of the deck.
+- Fixing that did not fix the test, because the failing case was a different
+  one: a template that declares a `shape` inserted its moments with fresh ids
+  and created its scenes with `moment_id` null. Two ordered lists describing
+  the same talk, grouped by the same movement labels, with nothing connecting
+  them. So the narrative map described an argument attached to no deck —
+  editing a moment changed no scene at all — and generating from it wrote a
+  second parallel deck beside the first.
+
+`pairTemplateMoments` pairs them under the only rule available: within a
+movement, the nth scene is the nth beat. `0033` repairs the decks created
+before it, and one production deck was affected — "Lecture", seven scenes, all
+seven now naming their beat.
+
+**The presenting crash, measured.** The owner has reported a browser dying
+mid-presentation five times, most recently through `axtevi.com`, which rules
+out the hostname. Rather than ship a sixth guess, the world was measured in a
+real browser at a real phone viewport (393x852): **three live photographs,
+28.3 MB of decoded bitmap and a 1.3 MB WebGL canvas — flat across four, twelve
+and twenty-four scene decks.** Culling holds it, and neither number explains a
+terminated content process. `tests/e2e/picture-weight.spec.ts` asserts the
+flatness, so a change that made it linear would be caught.
+
+Stated plainly: **the crash is not explained by anything measurable from here.**
+Chromium is not WebKit and this container has no phone. What did come of the
+measurement is real but small — scene backgrounds and the world backdrop now
+decode off the main thread, where they were decoding synchronously during a
+flight — and the `?plain=1` escape hatch, which drops the GL context entirely,
+is now reachable from the presenter's help panel. It existed for a release and
+could only be found by typing it, which for the author who needed it was the
+same as not existing. It is offered as what it is: the page's most expensive
+object, removed, not a fix for a cause nobody has found.
+
+### The generated deck's composition, measured rather than judged
+
+**Landed.** PR #97 squash-merged as `284e37f`, all six CI jobs green on the head
+that merged. Migration `0031_moment_intent_authored.sql` applied to production.
+Read back from the running deployment afterwards: `captivate-eight.vercel.app`
+now answers `/present/<id>?audience=1` with a 308 to
+`https://captivate.axtevi.com/present/<id>?audience=1`, and following it lands
+on the app's own sign-in with the deck still queued behind it.
+
+The brief was to close the gap between a schema-valid generated deck and one
+worth standing in front of. The first thing done was to measure it, against
+every deck the product has ever generated (343 moments, 351 scenes):
+
+- `statement` was **41%** of every stored scene (143 of 351);
+- `takeaway`, `action`, `figure`, `explainer` and `quote` were at **zero**.
+  Four compositions the engine ships had never once reached an audience, and a
+  fifth (`chart`) had reached three scenes;
+- the visual intent the model proposes was `statement` **152 of 343 times** and
+  `auto` **once**;
+- the media **fill rate was already 100%** — every image slot in every deck was
+  filled. So "the images aren't populating" was never unfilled slots. A
+  seventeen-scene deck had _one slot_.
+
+Both causes were the same cause twice. `statement` is what a model answers when
+it has no opinion and it was read as an instruction, vetoing the role's own
+composition — an `application` beat is a call to action by definition and
+arrived as a centred line. And the movement-ending take-home rule required
+`auto`, so it had effectively never run.
+
+What replaced it: **provenance** (`moments.intent_authored` — an intent the
+author picked is an instruction, one a model proposed is a suggestion) and a
+**deck-level composer** (`src/lib/narrative/compose.ts`) that ranks each
+moment's compositions and picks by what has just been on screen. No shape three
+times running, no four scenes with nowhere to put a picture, splits alternating
+from the last split actually placed rather than from `index % 2`.
+
+Recomposed against the real maps of six production decks — same roles, same
+intents, same movement boundaries:
+
+| deck                                     | before                                           | after          |
+| ---------------------------------------- | ------------------------------------------------ | -------------- |
+| AI and the Next Five Years of Healthcare | 5 kinds, 7/13 with a picture slot                | 7 kinds, 7/12  |
+| Whole Blood in the Field                 | 6 kinds, 2/14                                    | 10 kinds, 5/14 |
+| Paralytics in the Prehospital Airway     | 5 kinds, 1/17                                    | 11 kinds, 3/16 |
+| Homeostasis                              | 6 kinds, 6/17                                    | 8 kinds, 7/17  |
+| Choosing a Cofounder                     | 6 kinds, 3/12                                    | 9 kinds, 5/12  |
+| AI Didn't Kill SEO                       | 6 kinds, 2/14                                    | 9 kinds, 4/14  |
+| **total**                                | **21/87 picture slots, 7 distinct compositions** | **31/85, 12**  |
+
+Every one of those decks now ends on a call to action or a take-home rather
+than on a bare centred line.
+
+Also in the round: the stock photograph is chosen rather than taken from
+`found.data[0]` — ranked on crop survival into that slot's real shape, pixels
+enough for a projector, the scene's own vocabulary, and whether another scene
+already used it; `/api/ai/scene` dresses the scene it writes, which it never
+did, so a scene added to a finished deck no longer arrives with a placeholder
+while every scene around it has a picture; the cover brief asks for composition
+rather than mandating abstraction; and regenerating a deck that already has
+scenes offers to keep it as a copy first, which is the non-destructive upgrade
+path for stored compositions.
+
+**One product, one hostname.** The owner reported landing on a `*.vercel.app`
+deployment URL a fourth time, after making both configuration changes. Those
+changes are correct and live — production's `robots.txt` and sitemap, both
+generated from `siteOrigin`, name `https://captivate.axtevi.com` — and they
+were never going to fix it. Measured rather than assumed: the custom domain and
+`captivate-eight.vercel.app` both answer 200, a per-deployment URL answers 302
+to `vercel.com/sso-api`, and the Present control is a _relative_ link, so it
+cannot move anyone between hosts. A production deployment reached on any
+`vercel.app` hostname now redirects to the canonical origin keeping its path;
+preview deployments are deliberately untouched. What no code here can reach is
+a per-deployment URL under Deployment Protection, answered at Vercel's edge
+before the application runs.
+
+**Three claims corrected mid-branch**, each in its own commit rather than
+quietly amended: a detail-scene count read from the wrong column; "no paid
+image can be spent here", which was wrong because `GeneratedLayout` lets the
+single-scene route compose a cover; and a photo-ranking comment that read as a
+guarantee about the delivered image when it scores the original.
+
+**What this is not.** Every composition number above is structural — layout
+counts, fill rates, slot shapes. None of it is a creative judgement and no
+creative acceptance has been recorded. Real-provider generation runs, measured
+latency and cost, and physical-device verification are not done: this container
+holds no model or Supabase keys, so no deck was generated end to end. BETA-002,
+BETA-003 and BETA-006 stay open, and the composer's effect on a deck a person
+actually reads is unproven.
+
+### Four things the owner reported after using the build
+
+**Landed.** PR #94 squash-merged as `01437d0`, all five CI jobs green on the
+head that merged — including the browser suite, which had hung to its timeout
+on the first cut and finished in five minutes on this one. Read back out of
+production afterwards, over HTTP: the deployed stylesheet carries this round's
+wrapper split exactly (`.pxl{height:100%}` and `.pxl-depth{transform:...}`,
+which did not exist before it), and the deployed bundle carries the drawn
+backdrop's three names and their descriptions. So the domain is serving this
+build.
+
+Not verified from here: the same check through a real browser. Chromium's TLS
+to `www.axtevi.com` is dropped by this container's proxy relay mid-handshake
+(`ws_closed_mid_exchange`, while `curl` to the same host answers 200), so the
+in-page evidence for this round is the local production build driven in a real
+browser — the drawn backdrop rendering, parallaxing and leaving the type
+legible — plus all seventy browser tests in the shader and lifecycle projects,
+and CI's own production-server suite rendering every route. The owner's phone
+remains the test that matters for the four reports themselves.
+
+Pictures that never arrive, drawings that had gone, no designed background,
+and a browser that crashes while presenting. Three were defects, one was not
+what it looked like, and each was read out of production before anything was
+changed.
+
+**Pictures.** The pipeline that finds a photograph and the one that draws a
+diagram were both healthy; there was nowhere to put what they produced.
+`layoutFor` chooses a layout from the moment's visual intent first, only some
+layouts have a media slot, and nothing downstream can put a picture on a scene
+without one — `imagePromptFor` returns "" and `drawableScenes` has nothing to
+draw into. `statement` is the model's default intent, it names no content, and
+it returned a layout with no slot. So the rule that gives the spine of an
+argument a picture every other scene — written for this exact complaint, and
+carrying a comment that says so — was reachable only on an `auto` intent. Of
+315 moments generated over ten days the model chose `auto` **once** and
+`statement` 140 times: the rule had never run. The owner's newest deck is
+fourteen scenes with one picture and eight bare headings, which is what that
+produces. A `statement` intent no longer vetoes the spine's picture; every
+intent that names content — a comparison, data, a quotation, a list — still
+wins outright. The suite passed throughout because every case in it passed
+`auto`; the new ones pass what the model really sends, and fail without the
+fix.
+
+**Drawings.** The data was never the problem: the stored drawing in that same
+deck has sixteen real paths, `opacity: 1`, `hidden: false`, and every
+`kind='drawing'` row in the ledger says `succeeded`. Two rendering defects hid
+them. While presenting, an element that mounts mid-flight is _held_ at the
+start of its entrance, and a held drawing renders at `step = -1`, which leaves
+every path at `stroke-dashoffset: var(--dp-len)` — a stroke of zero visible
+length. The release waits on the world reporting a landing, and that report
+used to compare the camera it last landed on with the camera it is aiming at:
+a question about geometry, when the one that matters is about intent. A
+viewport that changes size — a phone hiding its address bar — recomputes the
+framing of the very scene the camera is already sitting on, the two cameras
+stop being equal, and the world reports it has never landed. The landing is
+now the _focus_ it landed on, which a resize does not touch.
+
+A first attempt gave the hold a timed floor instead, and the browser suite
+caught it: releasing every held element after a few seconds also releases the
+ones on scenes the camera is nowhere near, which is exactly the defect
+"performed on arrival" exists to prevent, and it broke a tap on the shared
+viewer as well. The suite is the reason that never reached production. In
+the editor and in thumbnails the fault was plainer — the depth wrapper added
+in PR #82 carries `height: 100%` only while presenting, so everywhere else it
+was an auto-height box and every `height: 100%` element inside it, drawings
+and pictures alike, collapsed to its content. Height is structural and now
+applies on every surface; the parallax stays presenting-only.
+
+**A designed background.** There was none to have: no deck on production has a
+backdrop set, because the only way to get one was to find a photograph. The
+room is now drawn — `lib/present/graphic-backdrop.ts`, three compositions in
+the deck's own palette on the same plane and at the same depth as a picture,
+with `aurora` the default so a deck nobody has touched still has a designed
+room. Every form is a soft radial or a wide band with no visible edge, every
+colour is derived from the theme in OKLab, and it is CSS on a layer the
+compositor already moves rather than a second WebGL context. Two things about
+that layer came from the browser suite rather than from reasoning. It
+translates and never scales, because a transform whose scale changes every
+frame makes the browser re-rasterise the paint on every one of them. And its
+size is written in CSS as a negative inset rather than computed from the
+measured viewport, because the world measures its own box to drive the camera
+and a layer sized from that measurement changed it — the two chased each
+other until React gave up with "maximum update depth exceeded" and the demo
+mounted to a blank page. The first cut was
+a brown haze; the washes are tighter now and read as light against dark canvas.
+The title slide sits over it, and the cover's stock query now asks for a wide
+atmospheric image rather than a literal photograph of the subject, which is
+what made it look like stock.
+
+**The crash, which was two different things.** The screenshot is the preview
+deployment's login wall, not a crash: that URL answers `302` to
+`vercel.com/sso-api`, and iOS Chrome renders that dead end as "Can't open this
+page". Production answers `200`. Driving the real engine through forty flights
+in a real browser, the heap sits flat around 13 MB with no oversized layers
+and no console errors, so the engine does not leak. But there _was_ a genuine
+tab-killer waiting: the backdrop's layer was laid out at the plane's size, in
+CSS pixels, with `will-change: transform` — eleven scenes on a phone is
+18,510 x 40,119, about 2.9 GB of texture for a picture the size of a phone
+screen. Nobody had hit it because nobody had a backdrop, and this round turns
+one on by default for every deck. The layer's size is now a raster decision:
+two viewports, four megabytes, with the plane's size carried in the transform
+as a ratio so the pixels on screen are unchanged to three decimal places.
+
+Tests: the spine carries pictures on a `statement` intent and spends the
+drawing budget, while a named intent still wins and every other role is
+untouched; a drawing draws when the landing is never reported, and does not
+release while the flight is still running; the wrapper has its height on every
+surface; the drawn backdrop paints from the palette with no hex, a picture
+lays over it, and `none` removes the layer; the backdrop lands in the same two
+screen points from a layer a thousand times smaller. Each new case was run
+against the unfixed code and failed.
+
+### The room answers the hand
+
+The owner's guidance, sent again, is the practice of 3D and animation work,
+and the one thing in it not yet applied to the audience surfaces was the
+oldest trick in depth: it is believed when it answers the viewer. Everything
+behind a scene had depth — the backdrop on its plane, the motes at three
+distances — and it showed only during a flight; between flights a visitor
+with a mouse over the world was looking at a still picture. Now, on the
+shared viewer and the landing page's live demo, the room answers the hand
+(`lib/present/lean.ts`): the backdrop and the air are seen from a camera
+leaned toward where the pointer is, up to two percent of the camera's width
+at the edge, so what is behind the scene shifts the way the view through a
+window does when you lean. The scene itself does not move — a scene being
+read is never misregistered, the rule from MVP-018 kept rather than bent.
+The lean eases in its own frame loop, which runs only while the room has
+somewhere to go and never through React, and repaints only the room — the
+world and every region's depth are untouched by a lean; a flight reads it
+and never steps it; it returns exactly level when the pointer leaves. Not
+for a finger, which is a swipe; not under reduced motion; not on the
+projector, whose pointer is nobody's hand; not in the editor.
+
+Considered and not built: a perspective tilt on the dashboard's cards. The
+guidance names tilt-on-hover, and a card there genuinely is a discrete object
+— but it is furniture on an admin surface, and every round so far has spent
+its motion on the presentation itself.
+
+Found on the way: `docs/FEATURES.md` and `docs/UX.md` on `main` carried
+committed merge-conflict markers for a while — the presenting table twice,
+with a `=======` Prettier had re-wrapped into a table row. Repaired on this
+branch (CodeRabbit caught the second file) and, independently, on `main`
+before this merged; `main` moved four times under this branch in an hour,
+and each merge took its status files whole and re-applied this round on top.
+
+Review: CodeRabbit, triggered by hand because the repository is below its
+automatic-review threshold, found the committed markers in `UX.md` and asked
+that a lean frame not rerun the whole content pass; both are done. Codex
+remains out of credit.
+
+Tests: where the hand is, clamped at the edges and level over a box with no
+size; the ease closes the same distance at 30 and 60 frames a second, snaps
+within rest, returns exactly level and never moves on a zero step; the
+leaned camera keeps its width and rotation, leans by a fraction of its width
+at any zoom, scales the vertical by the aspect, moves the backdrop with the
+hand, and leans as the room sees it when turned. The world: a mouse over it
+moves the backdrop and not the world, eases rather than jumps, returns
+exactly level with the loop stopped, and does nothing for a finger, without
+the prop, or under reduced motion. The three positive cases were run with the
+listener removed and failed. CI: all five jobs green on `32a9266`.
+
+### Help under `?`
+
+The presenter bar hides itself after 2.6 seconds and every action on it has
+a key — the right design for the room and the wrong one for a first night,
+when the affordances are gone before they have been read. The editor had a
+shortcut list behind a toolbar icon and no key to open it; the stage had no
+list at all. Now `?` opens the editor's list from anywhere (the dialog's
+state moved up to the editor root so the keymap can reach it) and puts the
+presenter's keys over the stage (`lib/present/keys.ts`,
+`presenter-help.tsx`), with a Keys button on the bar for the same; Esc or
+`?` closes it, and it never renders in audience-only mode. The list is data
+held to the stage's real key handler by a test, so a key added to one and not
+the other fails the build. Along the way the empty scene's copy promised
+three steps and offered two buttons and a key to remember; the third, "Let
+AI draft it", is a button now, and the line beneath teaches `I` and `?`.
+
+Tests: `?` opens the editor's list except while typing and is listed among
+the shortcuts it opens; every `case` in the stage's key handler is named in
+the presenter's list; the overlay renders as a dialog that closes on a click
+away; the empty scene offers its third step as a button.
+
+### A share link that looks like something before it is opened
+
+A link pasted into a chat is unfurled by the chat, and every deck unfurled
+as the site's own card: the product's name where the presentation's should
+be. The viewer route now serves the deck's card
+(`app/v/[token]/opengraph-image.tsx`, built by
+`lib/marketing/share-card.tsx` and rasterised by `next/og`): its title in its
+own theme, the description beneath, and the shape of the thing along the
+bottom — scenes and movements. It is resolved through the same SECURITY
+DEFINER function the viewer uses, so a revoked or mistyped link unfurls as
+the generic card and a card can never show what a link-holder would not see;
+the read is request-time, so nothing is cached past the moment the owner
+turns the link off. Theme tokens are hex, which is what the rasteriser
+understands. The built server rendered the fallback card as a 1200×630 PNG.
+
+Tests: the card carries the title, description, counts and the theme's
+colours; the generic card for nothing; a long title is cut on a word and one
+scene is singular; a source test pins the route to the shared resolver and
+to no presenter field.
+
+**Landed and verified.** PR #90 squash-merged as `7e31939`, CI green on the
+head. Production, after the deploy: `/v/<unknown token>/opengraph-image`
+answered 200 `image/png`, a 1200×630 card of 91,731 bytes, and the viewer
+page's `og:image` points at it. Smoke suite 35 of 37 through the proxy, the
+two misses both `net::ERR_TIMED_OUT` at the proxy on a single navigation,
+and both passed on one re-run — 37 of 37 across the two runs.
+
+### Full screen by hand
+
+The viewer's full screen was reachable only by the F key, and a phone has no
+F. It is now a button in the corner beside the attribution, shown only where
+the browser can do it — an iPhone cannot — and a refusal (inside a frame, on
+a managed device) is said aloud as the stage already says it, rather than a
+button that silently does nothing. Underneath, the hook now speaks both
+names: Safari on iPad still exposes only the `webkit` fullscreen API, and a
+hook that read the standard names alone reported a fullscreen deck as
+windowed and never asked for one (`lib/present/fullscreen.ts`). Support is
+read with `||` rather than `??`, because a browser whose standard flag is
+false and prefixed flag true is asking to be used by the prefixed name.
+
+Tests: the element is found under the prefixed name; the request falls back
+to the prefixed name and refuses when neither exists; support comes from the
+prefixed flag; a phone with neither is unsupported; a prefixed change event
+is followed and a refusal is reported; the viewer's button asks for full
+screen and never advances the deck.
+
+**Landed and verified.** PR #89 squash-merged as `75b089e`, CI green on the
+head. No presentation in production carries a share link, so the corner
+itself could not be probed live without creating owner data; the evidence is
+the deployment — the proxied smoke suite 37 of 37 against `www.axtevi.com`
+after the deploy and the viewer route answering for an unknown token — and
+the lifecycle browser suite, 7 of 7, on the same code.
+
+### Three, two, one
+
+Pressing Start in the recording dialog acquired the streams and began the
+file on the same tick, so the first second of every recording was the
+presenter closing a dialog. Now the streams are acquired, the dialog closes,
+a count runs over the stage — one number a second, from three
+(`lib/record/countdown.ts`, `recording-countdown.tsx`) — and `MediaRecorder`
+starts on zero. The count is never in the file, because nothing is being
+captured until it ends. Escape or the button cancels, which releases the
+streams exactly as an error would, without the toast; unmounting mid-count
+aborts it too. The number is announced assertively for a presenter who cannot
+see the stage, and under reduced motion it changes without the settle.
+
+Tests: the count shows each number a second apart and resolves a step after
+the last, stops at once when cancelled, and is already over when cancelled
+before it began; the overlay announces the number and cancels from the button
+or Escape; a source-reading test pins the order in `begin` — prepare, close
+the dialog, count, then start — so the count can never reach the file.
+
+**Landed and verified.** PR #88 squash-merged as `f1c6c93`, CI green on the
+head. The count needs a real screen-capture permission, which no probe can
+grant, so production evidence is the deployment itself: the proxied smoke
+suite 37 of 37 against `www.axtevi.com` after the deploy, and the stage route
+answering (a redirect to sign-in for an anonymous request, as designed).
+
+### A share link on a phone
+
+A share link is opened on a phone more often than anywhere else, and a phone
+has no arrow keys: the viewer's only moves were keys and click zones, and
+nothing stopped a pull at the top of the deck from refreshing the page. Now
+the viewer, the landing page's live demo and the stage move on a swipe — left
+for on, right for back, the same two moves as the click zones, which stay
+(`lib/present/swipe.ts`). The recogniser is strict: a short, mostly horizontal
+journey; a scroll or a hesitation does nothing, so the page never moves under
+a reader who was only steadying a thumb. The click a browser synthesises
+after a touch swipe is swallowed once, and only the click of that journey —
+the flag clears when the next pointer lands, because a swipe whose click never
+came used to eat the tap that followed. Along the way a real bug: a tap on a
+hotspot bubbled to the click zone and dived _and_ stepped on, and inside the
+aside the step was the way straight back out; a click on a control is now the
+control's alone. `touch-action` keeps pinches the browser's and gives sideways
+to the viewer (and up and down to the page, on the landing demo);
+`overscroll-behavior` ends pull-to-refresh over a deck. The invitation says
+"swipe or tap" to a coarse pointer, read as an external store so the first
+client render agrees with the server.
+
+Tests: the recogniser's thresholds each way; the control guard; the hook
+reports a swipe, swallows the click that follows and not the tap after; the
+viewer and the demo move on a swipe and not on a scroll; a hotspot tap dives
+and stays; the browser suite runs the viewer as a phone (`hasTouch`,
+`isMobile`, 390×844) and swipes it through the deck, then taps the left edge
+back. `npm run verify` green; lifecycle browser suite 8 of 8.
+
+**Landed and verified.** PR #86 squash-merged as `6bdbfa7`, CI green on the
+head. Probed `www.axtevi.com` as a phone (Pixel 7 emulation, coarse pointer)
+after the deploy: the live demo's invitation read "Swipe or tap the stage to
+move through"; a vertical journey left it on "Scene 1 of 11"; swipes to the
+left walked it to "Scene 2 of 11: The room leaves early" and one swipe to the
+right returned it to scene 1; the stage's `touch-action` resolved to
+`pan-y pinch-zoom`; empty console. Smoke suite 37 of 37 through the proxy.
+
+### The show opens and closes on the whole of itself
+
+Both audience surfaces cut straight onto scene one with the camera already
+landed, and past the last scene they flipped to the overview and stopped: no
+first impression, no last one, and a white flash from the site's light body
+before either arrived on a projector. Now a show opens wide — the camera over
+the whole argument with the route drawn, a beat, then the dive to the first
+scene (`lib/present/opening.ts`, session state `opening`). It is the second
+half of the one move the room asked for, starting the show, and it does for
+the whole presentation what establishing does for a section. The first press
+ends the beat and lands rather than steps; a presenter who pulls back during
+it stays there; reduced motion makes it a cut; a one-scene deck does not open.
+Past the last scene the same pull-back is marked as the end (`ended`) and
+dressed: after the flight lands the lights come down around the centre and the
+title is set over the whole of it (`closing-frame.tsx`) — the last thing the
+room sees and, since a recording captures the stage as shown, the film's
+outro. The shared viewer and the landing page's live demo open and close the
+same way. `loading.tsx` under `/present/[id]` and `/v/[token]` paints a black
+frame while the deck is awaited, so a projector never flashes white.
+
+Tests: the session holds, dives, lands on the first press, keeps a hand-pulled
+overview, cuts under reduced motion, tears its timer down with the session,
+and marks the end only past the last scene; the hook does the same for the
+self-driven viewers; the shared viewer and the live demo open wide and settle
+in jsdom and in a real browser, where the fixtures record the first view
+in-page because the beat is shorter than a couple of round trips; the closing
+frame names the deck and passes clicks through; both load frames are black.
+`npm run verify` green; lifecycle browser suite 7 of 7.
+
+**Landed and verified.** PR #84 squash-merged as `298bacd`, CI green on the
+head. Probed `www.axtevi.com` through a real browser after the deploy: the
+live demo's first view, recorded in-page from the moment it mounted, was the
+opening hold; it dove on its own to "Scene 1 of 11: Title"; past the last
+scene the closing frame read "Hold the room" at opacity 1; one press back
+returned to a scene with the frame gone; empty console. Smoke suite 37 of 37
+through the proxy.
+
+### Depth inside the scene
+
+The owner's guidance, sent a third time, lists depth without WebGL among its
+practices — CSS layers at different distances. Everything behind a scene
+already had depth: the backdrop on its plane, the atmosphere's motes at
+three distances. The scene itself was the one flat thing on the canvas: a
+picture and the words over it moved as one sheet. Now the words sit a little
+nearer than the surface and the pictures a little farther
+(`lib/present/parallax.ts`), and as the camera departs or arrives they slide
+against each other by an amount proportional to the camera's offset from the
+scene's centre, capped at three percent of the stage so a far scene never
+scatters. On a scene the offset is exactly zero, so nothing is ever
+misregistered while it is being read — the depth shows only in the motion.
+The camera loop writes two custom properties per region once a frame and
+each element's layer multiplies them by its depth in CSS, so sixty elements
+cost two style writes and the compositor moves the layers. Only while
+presenting; in the editor an element sits exactly where it was put.
+
+Tests: the offset is zero on the scene, grows with the camera's offset in
+the region's own pixels, is capped, turns with a turned region; words are in
+front and pictures behind; the world hands the active region a zero offset
+and a neighbour a real one, and writes nothing in the editor; the stage
+gives elements their depth layers only while presenting.
+
+**Landed and verified.** PR #82 squash-merged as `918109a`, CI green on the
+head and on `main`. Production, through a real browser against
+`www.axtevi.com`: the live demo renders `.pxl` depth layers; on arrival the
+active scene's region reads `--px: 0.00px; --py: 0.00px` and its neighbours
+read the cap (`±48.00px` — three percent of the 1600-unit stage); mid-flight
+the scene being left and the one being approached both read `33.02px`, and
+after landing the new scene reads zero again with the cap redistributed
+around it. Empty console. Smoke suite 37 of 37 through the proxy.
 
 ### Words that arrive, and a camera that answers the scroll
 
@@ -987,10 +1537,13 @@ boundary holds from the writer's side too.
 ## Standing owner actions
 
 0. **Set Supabase Auth's URL configuration for production** — Authentication
-   → URL Configuration: Site URL `https://www.axtevi.com`, and
-   `https://www.axtevi.com/auth/callback` under Redirect URLs. Until then every
-   confirmation and password-reset email points at `http://localhost:3000`.
-   Read from the emails themselves on 2026-09-02, not inferred.
+   → URL Configuration: Site URL `https://captivate.axtevi.com`, with
+   `https://captivate.axtevi.com/**` and `https://www.axtevi.com/**` under
+   Redirect URLs. Until then every confirmation and password-reset email
+   points at `http://localhost:3000`. Read from the emails themselves on
+   2026-09-02, not inferred. The canonical origin changed on 2026-09-06; both
+   hosts serve, so both belong in the allowlist even though only the first is
+   canonical.
 1. Set the Stripe account's public business name to **Axtevi** — it appears on
    card statements, receipts and the Billing Portal.
 2. Confirm `STRIPE_WEBHOOK_SECRET` matches the mode of `STRIPE_SECRET_KEY`.
