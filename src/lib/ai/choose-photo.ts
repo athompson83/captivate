@@ -30,7 +30,19 @@ import type { StockResult } from "./visual-sourcing";
  * decision is testable against a fixed list of candidates.
  */
 
-/** Below this on the long edge a photograph is soft on a projector. */
+/**
+ * Below this on the long edge a photograph is soft on a projector.
+ *
+ * Measured against the *original's* dimensions, which is what the search
+ * returns, and that is a claim about the candidate rather than about the file
+ * that ends up stored: the fetched URL is one of the provider's named
+ * renditions, and this environment has no provider key with which to read back
+ * what those actually contain. So read this as "the source has pixels to
+ * spare", not as "the delivered image is sharp". The delivered size is a
+ * question for the real-provider run (BETA-003); until then the honest thing
+ * is that a candidate failing this is definitely too small, while one passing
+ * it is merely not disqualified.
+ */
 const MIN_LONG_EDGE = 1400;
 
 /** Words that say nothing about what a picture shows. */
@@ -123,6 +135,12 @@ export function scorePhoto(
  * 1 where the shapes match, and it falls away as they diverge — a 16:9
  * photograph in an 8:9 hole keeps half its width, so half the composition the
  * photographer made is gone and the subject may go with it.
+ *
+ * Same caveat as `MIN_LONG_EDGE`: this is the *original's* shape. Where a
+ * provider's rendition is itself a fixed crop, the delivered aspect is that
+ * rendition's rather than this one, and the comparison is then about which
+ * original survives the provider's crop best rather than ours. It still ranks
+ * candidates in the right order; it is not a promise about the final frame.
  */
 function cropSurvival(candidate: StockResult, slotAspect: number): number {
   if (candidate.width <= 0 || candidate.height <= 0 || slotAspect <= 0) return 0;
