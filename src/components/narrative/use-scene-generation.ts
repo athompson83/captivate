@@ -3,7 +3,12 @@
 import { useCallback, useState } from "react";
 import { briefsFor } from "@/lib/narrative/generate";
 import { composeScene } from "@/lib/editor/layouts";
-import { addScene, linkScenesToMoments, saveScene } from "@/lib/data/actions";
+import {
+  addScene,
+  duplicatePresentation,
+  linkScenesToMoments,
+  saveScene,
+} from "@/lib/data/actions";
 import { useEditor } from "@/lib/editor/store";
 import { useToast } from "@/components/ui/toast";
 import { WrittenScenes } from "@/lib/ai/schemas";
@@ -53,8 +58,24 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
     };
   }, []);
 
+  /**
+   * @param keepCopy Duplicate the deck as it stands before replacing anything.
+   *
+   * The upgrade path for a deck that already exists. A generator fix does not
+   * reach stored scenes — the composition a deck was built with is written
+   * down — so the only way an existing deck gets the better one is to write it
+   * again, and writing it again is destructive by definition. A copy taken
+   * first makes it reversible: the author compares the two and keeps whichever
+   * is better, rather than deciding in advance and living with it.
+   *
+   * Taken *before* the model call rather than after, so a generation that
+   * half-succeeds cannot leave the author with neither version intact.
+   */
   const generate = useCallback(
-    async (depth: "outline" | "full" = "full") => {
+    async (
+      depth: "outline" | "full" = "full",
+      { keepCopy = false }: { keepCopy?: boolean } = {},
+    ) => {
       const state = useEditor.getState();
       const { sections, moments } = state.document;
       const unlocked = moments.filter((moment) => !moment.locked);
@@ -70,6 +91,25 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
 
       setGenerating(true);
       try {
+        if (keepCopy) {
+          const copied = await duplicatePresentation(presentationId);
+          if (!copied.ok) {
+            // Not a warning to carry on past: the author asked for the old
+            // deck to survive and it would not have.
+            toast({
+              tone: "error",
+              title: "Nothing was regenerated",
+              description: `The copy could not be made, so the deck was left alone. ${copied.error}`,
+            });
+            return;
+          }
+          toast({
+            tone: "info",
+            title: "Copy saved",
+            description: "The deck as it was is on your dashboard. Writing the new one now.",
+          });
+        }
+
         const briefs = briefsFor(sections, moments).filter((brief) =>
           unlocked.some((moment) => moment.id === brief.momentId),
         );

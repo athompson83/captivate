@@ -626,10 +626,15 @@ async function dressScenes(
       if (replaced) scene.content = replaced;
     }),
     ...photos.map(async (scene) => {
-      let photo = await fillWithStockPhoto(scene.photoQuery ?? "", scene.imagePrompt, presentationId, {
-        slotAspect: mediaSlotAspect(scene.content.layout) ?? 16 / 9,
-        taken,
-      });
+      let photo = await fillWithStockPhoto(
+        scene.photoQuery ?? "",
+        scene.imagePrompt,
+        presentationId,
+        {
+          slotAspect: mediaSlotAspect(scene.content.layout) ?? 16 / 9,
+          taken,
+        },
+      );
       if (!photo && scene.content.layout === "cover") {
         photo = await fillWithGeneratedImage(scene.imagePrompt, presentationId);
       }

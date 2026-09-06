@@ -33,25 +33,25 @@ describe("choosing for the slot", () => {
   it("prefers the picture that survives the crop into a tall half-scene", () => {
     const wide = photo({ providerAssetId: "wide", width: 4000, height: 1500 });
     const upright = photo({ providerAssetId: "upright", width: 2000, height: 2200 });
-    expect(chooseStockPhoto([wide, upright], { slotAspect: SPLIT, terms: "" })?.providerAssetId).toBe(
-      "upright",
-    );
+    expect(
+      chooseStockPhoto([wide, upright], { slotAspect: SPLIT, terms: "" })?.providerAssetId,
+    ).toBe("upright");
   });
 
   it("prefers the wide one for a full-bleed cover", () => {
     const wide = photo({ providerAssetId: "wide", width: 4000, height: 2250 });
     const upright = photo({ providerAssetId: "upright", width: 2000, height: 2200 });
-    expect(chooseStockPhoto([wide, upright], { slotAspect: COVER, terms: "" })?.providerAssetId).toBe(
-      "wide",
-    );
+    expect(
+      chooseStockPhoto([wide, upright], { slotAspect: COVER, terms: "" })?.providerAssetId,
+    ).toBe("wide");
   });
 
   it("refuses a picture that would be soft on a projector when a sharp one exists", () => {
     const small = photo({ providerAssetId: "small", width: 600, height: 400 });
     const large = photo({ providerAssetId: "large", width: 3000, height: 2000 });
-    expect(chooseStockPhoto([small, large], { slotAspect: COVER, terms: "" })?.providerAssetId).toBe(
-      "large",
-    );
+    expect(
+      chooseStockPhoto([small, large], { slotAspect: COVER, terms: "" })?.providerAssetId,
+    ).toBe("large");
   });
 });
 
@@ -74,9 +74,9 @@ describe("choosing for meaning", () => {
     // about the words is the only thing left and it is not thrown away.
     const first = photo({ providerAssetId: "first" });
     const second = photo({ providerAssetId: "second" });
-    expect(chooseStockPhoto([first, second], { slotAspect: COVER, terms: "" })?.providerAssetId).toBe(
-      "first",
-    );
+    expect(
+      chooseStockPhoto([first, second], { slotAspect: COVER, terms: "" })?.providerAssetId,
+    ).toBe("first");
   });
 
   it("does not let a description alone beat a picture of the right shape", () => {

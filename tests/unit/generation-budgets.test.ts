@@ -152,9 +152,7 @@ describe("a scene added on its own gets its picture too", () => {
     );
     expect(attempt, "the single-scene model call should name its timeout").not.toBeNull();
 
-    const ceiling = numeric(
-      read("src/app/api/ai/scene/route.ts").match(/maxDuration = (\d+)/)![1],
-    );
+    const ceiling = numeric(read("src/app/api/ai/scene/route.ts").match(/maxDuration = (\d+)/)![1]);
     expect(
       (numeric(attempt![1]) + numeric(dress![1])) / 1000,
       "writing the scene and dressing it must both fit inside the route's ceiling",

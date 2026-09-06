@@ -50,7 +50,10 @@ export function EditorRoot({
 
   const narrow = useIsNarrow();
   const navVisible = navOpen ?? !narrow;
-  const { generate, generating } = useSceneGeneration(presentationId, initial.presentation.title);
+  const { generate, generating, plan } = useSceneGeneration(
+    presentationId,
+    initial.presentation.title,
+  );
 
   // What a claim can be grounded in. Loaded once when the map is first opened,
   // because it is the workspace's material rather than this deck's, and it
@@ -137,7 +140,8 @@ export function EditorRoot({
             <NarrativeMapView
               presentationId={presentationId}
               evidenceOptions={evidenceOptions}
-              onGenerate={(depth) => void generate(depth)}
+              onGenerate={(depth, options) => void generate(depth, options)}
+              replacing={plan().replacing}
               generating={generating}
             />
           ) : (

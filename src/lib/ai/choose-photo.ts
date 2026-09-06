@@ -112,7 +112,9 @@ export function scorePhoto(
   slotAspect: number,
   wanted: ReadonlySet<string>,
 ): number {
-  return cropSurvival(candidate, slotAspect) * 2 + sharpness(candidate) + relevance(candidate, wanted);
+  return (
+    cropSurvival(candidate, slotAspect) * 2 + sharpness(candidate) + relevance(candidate, wanted)
+  );
 }
 
 /**
