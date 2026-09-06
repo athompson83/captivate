@@ -140,6 +140,19 @@ export interface WorldProps {
   lean?: boolean;
   showPath?: boolean;
   /**
+   * Whether to draw the air — the WebGL depth field behind the scenes.
+   *
+   * On by default, because it is the world's own light. Off is a presenting
+   * mode for a device that cannot afford a WebGL context: iOS terminates a web
+   * content process under memory pressure and a live GL context is the most
+   * expensive thing on the page by a distance, so an author whose phone keeps
+   * dying while presenting has somewhere to go that is not "buy a better
+   * phone". The component is not rendered at all rather than paused — a
+   * context that exists still costs — and everything else about the world is
+   * unchanged, including the colour wash that reads as light without it.
+   */
+  air?: boolean;
+  /**
    * Viewport pixels on the left the camera must treat as occupied — the
    * movement rail overlays the world there, and without this the camera
    * framed scenes into space the rail was standing in. Applied only at
@@ -181,6 +194,7 @@ export const World = memo(function World({
   backdrop,
   lean = false,
   showPath = false,
+  air = true,
   safeInsetLeft = 0,
   className,
   chrome,
@@ -764,7 +778,7 @@ export const World = memo(function World({
         the whole claim the world makes and the one thing a single CSS gradient
         cannot say.
       */}
-      {viewport.width > 0 && (
+      {air && viewport.width > 0 && (
         <Atmosphere
           onReady={registerAtmosphere}
           placements={placements}

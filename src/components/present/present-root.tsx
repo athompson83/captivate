@@ -60,11 +60,20 @@ export function PresentRoot({
   scenes,
   sections,
   audienceOnly,
+  plain,
 }: {
   presentation: PresentationRecord;
   scenes: Scene[];
   sections: Section[];
   audienceOnly: boolean;
+  /**
+   * Present without the WebGL air. `?plain=1`.
+   *
+   * For a device that cannot afford a live GL context — iOS terminates a web
+   * content process under memory pressure, and this is the page's most
+   * expensive object by a distance. Everything else is unchanged.
+   */
+  plain: boolean;
 }) {
   const theme = getTheme(presentation.themeId);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -385,6 +394,7 @@ export function PresentRoot({
           pace={journey.pace}
           depth={journey.depth}
           backdrop={journey.backdrop}
+          air={!plain}
           showPath={journey.showPath && wide}
           safeInsetLeft={railShown ? MOVEMENT_RAIL_WIDTH : 0}
           className="absolute inset-0"
