@@ -163,6 +163,26 @@ test.describe("shared viewer", () => {
       await expect(status(page)).toContainText("Scene 1 of");
       expect(problems).toEqual([]);
     });
+
+    test("is told to turn, where the scene is twice the size", async ({ page }) => {
+      const { problems } = await open(page);
+      const cue = page.getByText("Turn your phone");
+      await expect(cue).toBeVisible();
+
+      // The same device turned: the scene goes from 361 px wide to 642 px and
+      // its smaller type from 7 px to 17 px, so the advice has been taken and
+      // the line has nothing left to say.
+      await page.setViewportSize({ width: 844, height: 390 });
+      await expect(cue).toBeHidden();
+
+      // And a laptop has nothing to rotate. This is the assertion that fails
+      // if the orientation bound is dropped and the line becomes a notice on
+      // every screen.
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await expect(cue).toBeHidden();
+
+      expect(problems).toEqual([]);
+    });
   });
 
   test.describe("asides", () => {

@@ -215,6 +215,25 @@ to the same place and the title is set over it — the closing image, named. A
 presentation that begins and ends with its own shape is easier to hold in the
 mind than one that begins on a title card and ends on a black screen.
 
+**One scene at a time, whatever the screen.** A viewport is rarely the scene's
+shape: an upright phone shows it as a strip with the world above and below, a
+16:10 laptop letterboxes, and the movement rail's column sits beside the frame
+everywhere. The neighbouring regions used to show through — the next scene's
+bullets under a title, an axis label beside the rail — and the room read two
+scenes at once. Now the world beyond the landed scene falls into feathered
+darkness. It lifts as a flight begins, so travel still shows the map moving
+past, and it does not exist over the overview or a section, where every scene is
+equally the subject. It starts outside the frame's own padding, so on a screen
+the scene's shape nothing changes and there is never an edge to read as a card.
+
+**An upright phone is told to turn.** A deck is a landscape object. Measured in
+the viewer, a 390-pixel screen renders the scene 361 pixels wide and its smaller
+type at 7 pixels, which nobody reads; turned, the same scene is 642 pixels and
+that type is 17. So the opening card carries one more line while the phone is
+upright, and it leaves with the card on the first advance. Bounded by
+orientation rather than guessed at: a laptop has nothing to rotate and is never
+told to.
+
 **Nothing moves that the room did not ask for.** The camera only moves on an
 advance, a jump, or an explicit pull-back — never on a timer, and never to
 decorate. The two timed beats, opening and establishing, are the second half

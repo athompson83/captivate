@@ -337,6 +337,21 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
                   ? "Swipe or tap to move through"
                   : "Click or press → to move through · O sees the whole map"}
               </p>
+              {/*
+                A deck is a landscape object, and a phone held upright frames it
+                as a strip: measured in this viewer, a 390x844 screen renders the
+                scene 361 px wide and its smaller type at 7 px, which nobody
+                reads. Turned, the same scene is 642 px and that type is 17 px.
+                No framing fixes that, so the one thing worth saying to an
+                upright phone is to turn it.
+
+                Orientation variants rather than state: no listener, no render,
+                and it answers the moment the device does. Bounded by `sm` as
+                well, because a narrow window on a laptop has nothing to rotate.
+              */}
+              <p className="mt-0.5 text-[11.5px] text-white/40 sm:hidden landscape:hidden">
+                Turn your phone — the scene gets twice as big
+              </p>
             </div>
           </motion.div>
         )}

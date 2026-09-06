@@ -52,6 +52,48 @@
 
 ## Latest Session
 
+### One scene at a time, and a phone told to turn
+
+Screenshots of the share-link viewer through the fixture harness — the real
+`SharedViewer` on the worked example at 1440x900 and at a phone's 390x844 —
+showed what the docs did not say. On the phone the framed scene is a strip
+across the middle and the next scene's bullets sat right under the title; on
+the laptop a chart's "40" axis label peeked in beside the movement rail on a
+scene that had nothing to do with it. The room was reading two scenes at once.
+
+**The spotlight.** `World` now renders four feathered bands of darkness around
+the scene the camera has landed on, in world space inside the transformed
+layer, so they ride the camera for free. They fade up 700 ms after arrival,
+drop as a flight begins, and do not exist over the overview or a section. The
+dark starts outside the frame's own padding and feathers over a tenth of the
+scene's width — on a 16:9 screen nothing changes, and there is never an edge.
+It is mixed toward black rather than the theme canvas because the canvas at
+nine-tenths still let white text read through, which the first screenshot of
+the change proved. After: the phone rows where the neighbour used to read
+peak at 7 of 255.
+
+**Turn your phone.** Measuring rather than looking said the rest: on a 390x844
+phone the scene renders 361 px wide and its smaller type at 6.9 px; on a
+430x932 phone, 7.6 px; turned to 844x390, the scene is 642 px and that type is
+17 px. A deck is a landscape object and no framing changes that, so the
+viewer's opening card carries one more line while the phone is upright, and it
+leaves with the card on the first advance. Orientation variants, not state — no
+listener, no render, and a laptop is never told to rotate.
+
+**What this branch gave up.** It also carried a swipe recogniser and a fix for
+the shared-viewer fixture's missing stylesheet. Both arrived on `main` first
+and in stronger form — main's swipe bounds the gesture in time as well as
+distance and carries `isControl`, and PR #100 diagnosed the fixture as the
+cause of a camera that never settled. Main's versions are taken whole and mine
+are gone; the auto-merge had left `present-root` calling `useSwipe` twice with
+duplicate pointer props, which is worth recording as the shape of the mistake
+rather than quietly fixing.
+
+Verified: `npm run verify` green; `world-render.test.tsx` 42 of 42; the viewer
+spec run in the lifecycle project. Not verified here: a thumb on a real phone,
+and the spotlight's fade on a physical GPU — the owner's phone and BETA-002
+remain the checks.
+
 ### A generation you can walk away from, and a deck that stops doubling
 
 **Landed.** PR #99 squash-merged as `9d6b36e`, all six CI jobs green on the head
