@@ -4,6 +4,7 @@ import {
   canFinish,
   generationLabel,
   generationState,
+  unfinishedGenerationNote,
 } from "@/lib/data/generation-state";
 
 /**
@@ -89,6 +90,38 @@ describe("what the author is told", () => {
       const label = generationLabel(state);
       expect(label, state).toBeTruthy();
       expect(label!.length, state).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("what the map says next to the button that finishes it", () => {
+  /**
+   * The dashboard offers "open it to finish". For a release, opening it
+   * finished nothing: the map looked ordinary and never said which of its
+   * scenes were placeholders.
+   */
+  it("says something specific for every way a generation can be left undone", () => {
+    for (const status of ["generating", "partial", "failed"]) {
+      expect(unfinishedGenerationNote(status, false), status).toBeTruthy();
+    }
+    // Three different situations, three different things to tell someone.
+    const said = ["generating", "partial", "failed"].map((s) => unfinishedGenerationNote(s, false));
+    expect(new Set(said).size).toBe(3);
+  });
+
+  it("says nothing at all about a deck that is simply finished", () => {
+    expect(unfinishedGenerationNote("ready", false)).toBeNull();
+    expect(unfinishedGenerationNote(null, false)).toBeNull();
+    expect(unfinishedGenerationNote(undefined, false)).toBeNull();
+    expect(unfinishedGenerationNote("something-new", false)).toBeNull();
+  });
+
+  it("stays quiet while this tab is the one generating", () => {
+    // The only case where a stored `generating` means what it says rather than
+    // naming a run somebody walked away from. Telling an author their deck was
+    // abandoned while they watch it being written is worse than saying nothing.
+    for (const status of ["generating", "partial", "failed", "ready"]) {
+      expect(unfinishedGenerationNote(status, true), status).toBeNull();
     }
   });
 });

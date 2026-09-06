@@ -36,6 +36,7 @@ import { Segmented, Toggle } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { MomentCard } from "./moment-card";
 import { cn } from "@/lib/utils/cn";
+import { unfinishedGenerationNote } from "@/lib/data/generation-state";
 
 /**
  * The narrative map.
@@ -77,6 +78,17 @@ export function NarrativeMapView({
 
   const map = useMemo(() => assembleMap(sections, moments), [sections, moments]);
   const targetSeconds = useEditor((s) => s.document.presentation.targetSeconds);
+  /**
+   * A generation this deck did not come back from.
+   *
+   * The dashboard already says "open it to finish", and until now opening it
+   * finished nothing: the author arrived at a map that looked ordinary and
+   * had no idea which of its scenes were placeholders. Suppressed while this
+   * tab is generating, which is the one case where the stored `generating`
+   * means what it says and is not a run somebody walked away from.
+   */
+  const storedStatus = useEditor((s) => s.document.presentation.generationStatus);
+  const unfinished = unfinishedGenerationNote(storedStatus, generating);
   const derived = useEditor((s) => s.momentsDerived);
 
   const sensors = useSensors(
@@ -345,6 +357,15 @@ export function NarrativeMapView({
                 generating={generating}
               />
             </div>
+
+            {unfinished && (
+              <p
+                role="status"
+                className="text-ink-2 border-line bg-sunken mt-1 rounded-[var(--radius-md)] border px-3 py-2 text-[12.5px]"
+              >
+                {unfinished}
+              </p>
+            )}
           </div>
         </header>
 

@@ -81,3 +81,33 @@ export function generationLabel(state: GenerationState): string | null {
       return null;
   }
 }
+
+/**
+ * What to say on the map itself, next to the button that finishes it.
+ *
+ * The dashboard offers "open it to finish", and for a release opening it
+ * finished nothing: the author arrived at a map that looked ordinary and had
+ * no way to tell which of its scenes were placeholders.
+ *
+ * `busyHere` is whether *this* tab is generating right now, which is the one
+ * case where a stored `generating` means what it says rather than naming a run
+ * somebody walked away from. Read from the stored status rather than from
+ * `generationState`, because the clock belongs to the server and reading it
+ * during a render is what the compiler's rules exist to stop.
+ */
+export function unfinishedGenerationNote(
+  status: string | null | undefined,
+  busyHere: boolean,
+): string | null {
+  if (busyHere) return null;
+  switch (status) {
+    case "generating":
+      return "This deck was left mid-generation. The scenes written so far are saved; generating again finishes the rest and rewrites nothing an author has touched.";
+    case "partial":
+      return "The last generation finished only part of this deck. Some scenes are still placeholders — generating again rewrites those beats in place.";
+    case "failed":
+      return "The last generation did not finish. The map is intact, so generating again picks it up from here.";
+    default:
+      return null;
+  }
+}
