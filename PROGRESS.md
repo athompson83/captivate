@@ -19,11 +19,25 @@
   to production (no migration since, and none in that round — the drawn
   backdrop is a field on the journey JSON, which stored rows parse straight
   into)
-- Brand: Captivate is the product; Axtevi is the company it sits under
-  (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
-  `NEXT_PUBLIC_SITE_URL`.
-- Production: live and in use at `https://www.axtevi.com`; the owner tests
-  deployed builds and reports defects
+- Brand: Captivate is the product; Axtevi is the company it sits under.
+  No domain is hardcoded anywhere in `src/` — every absolute link is built
+  from `NEXT_PUBLIC_SITE_URL`, so moving hosts is configuration.
+- Production: **`https://captivate.axtevi.com` is the canonical origin.** The
+  owner attached it to the Vercel project on 2026-09-06, after this session
+  found it resolving to Vercel's IPs with no certificate — its TLS handshake
+  failed outright, which is why the address the docs had always named as the
+  product's home could not be opened. It serves now, and `/present/<id>` on it
+  redirects a signed-out request to its own `/sign-in` carrying the deck back.
+  `www.axtevi.com` and `axtevi.com` remain attached and serve the same
+  deployment; `axtevi.com` 308s to `www`. Sessions are per-host, so the two
+  are not interchangeable once signed in — pick one.
+- **Never a `*.vercel.app` address.** Every deployment URL, production ones
+  included, sits behind Vercel's authentication and answers a phone with a
+  302 to `vercel.com/sso-api` — at the edge, before any of this app's code
+  runs, so nothing here can rescue such a link. Three separate "I can't
+  present" reports were all a saved shortcut to one of those. The custom
+  domains answer the same path with the app's own sign-in redirect; that
+  contrast is the diagnostic.
 - Database: canonical Supabase project `qnbwyymwhvqprjtyfdmb`. Every migration
   through `0026_pin_helper_search_path.sql` is **applied to production**.
   `0022`–`0026` were applied on 2026-09-01 ahead of the PR #48 deploy — that
@@ -1333,10 +1347,13 @@ boundary holds from the writer's side too.
 ## Standing owner actions
 
 0. **Set Supabase Auth's URL configuration for production** — Authentication
-   → URL Configuration: Site URL `https://www.axtevi.com`, and
-   `https://www.axtevi.com/auth/callback` under Redirect URLs. Until then every
-   confirmation and password-reset email points at `http://localhost:3000`.
-   Read from the emails themselves on 2026-09-02, not inferred.
+   → URL Configuration: Site URL `https://captivate.axtevi.com`, with
+   `https://captivate.axtevi.com/**` and `https://www.axtevi.com/**` under
+   Redirect URLs. Until then every confirmation and password-reset email
+   points at `http://localhost:3000`. Read from the emails themselves on
+   2026-09-02, not inferred. The canonical origin changed on 2026-09-06; both
+   hosts serve, so both belong in the allowlist even though only the first is
+   canonical.
 1. Set the Stripe account's public business name to **Axtevi** — it appears on
    card statements, receipts and the Billing Portal.
 2. Confirm `STRIPE_WEBHOOK_SECRET` matches the mode of `STRIPE_SECRET_KEY`.

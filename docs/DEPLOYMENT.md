@@ -406,6 +406,19 @@ is recorded as an owner action in `PROJECT_CHECKLIST.md`.
 Set `NEXT_PUBLIC_SITE_URL` to the same origin so the app builds absolute links
 rather than inferring them from request headers.
 
+For this deployment that origin is **`https://captivate.axtevi.com`**, which
+has been the canonical one since 2026-09-06. `www.axtevi.com` and `axtevi.com`
+are attached to the same project and serve the same build, so both belong in
+the Redirect URLs allowlist — but only the canonical one belongs in
+`NEXT_PUBLIC_SITE_URL` and in Site URL, because that is the host every emailed
+link will land on and sessions do not cross hosts.
+
+Never set either to a `*.vercel.app` address. Deployment URLs — production
+ones included — sit behind Vercel's authentication and answer with a 302 to
+`vercel.com/sso-api` at the edge, before the app runs. An email link pointing
+at one is a link nobody outside the Vercel account can open, and no code in
+this repository can detect or repair it.
+
 ---
 
 ## Hosting
