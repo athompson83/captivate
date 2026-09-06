@@ -8,6 +8,7 @@ import {
   duplicatePresentation,
   linkScenesToMoments,
   saveScene,
+  updatePresentation,
 } from "@/lib/data/actions";
 import { useEditor } from "@/lib/editor/store";
 import { useToast } from "@/components/ui/toast";
@@ -213,6 +214,12 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
           // copy of every scene that had already landed. Duplicating the author's
           // content is worse than losing a toast, so the reload wins here.
         } else {
+          // Every scene landed, so whatever the deck was calling itself — a
+          // generation that stalled when a phone locked, or one that fell back
+          // to placeholders — it is finished now and should stop saying
+          // otherwise. Best-effort: a deck that is written but still labelled
+          // is a smaller problem than one that claims success it did not have.
+          await updatePresentation({ id: presentationId, generationStatus: "ready" });
           toast({
             tone: "success",
             title: `${written.length} ${written.length === 1 ? "scene" : "scenes"} generated`,

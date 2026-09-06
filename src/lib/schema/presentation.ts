@@ -819,6 +819,14 @@ export const PresentationRecord = z.object({
    * windows — the shared route resolves it server-side and never echoes it.
    */
   shareToken: z.string().uuid().nullable().default(null),
+  /**
+   * Where the deck's generation got to, so it can say so after the author has
+   * closed the tab. Defaulted, because every deck written before the column
+   * existed is finished, however it finished. See `generation-state.ts` — the
+   * `generating` claim expires rather than spinning for ever.
+   */
+  generationStatus: z.enum(["ready", "generating", "partial", "failed"]).default("ready"),
+  generationStartedAt: z.string().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
   lastOpenedAt: z.string().nullable(),
