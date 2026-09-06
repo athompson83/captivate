@@ -49,6 +49,12 @@ describe("keepAlive", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("application/json");
     expect(response.headers.get("cache-control")).toContain("no-transform");
+    // A compressing hop holds a one-byte heartbeat in its window instead of
+    // forwarding it, and the phone times out exactly as if none were sent —
+    // which is what happened. A body that declares its own encoding is not
+    // re-encoded by any proxy that respects the header, so the newline goes
+    // out as a newline.
+    expect(response.headers.get("content-encoding")).toBe("identity");
 
     const reader = response.body!.getReader();
 

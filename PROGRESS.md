@@ -52,6 +52,28 @@
 
 ## Latest Session
 
+### The heartbeats were sent, and compressed away before the phone saw them
+
+The owner tried a thirty-minute talk from their phone on 2026-09-05 and got
+"Couldn't build a map — Couldn't reach the server". The `ai_generations` ledger
+says `/api/ai/map` succeeded: created 14:54:31Z, completed 14:55:29Z, 58
+seconds — and a second call, the owner's retry pressed at 14:55:13Z while the
+first was still running, succeeded in 33. So PR #74's heartbeats, a newline
+every ten seconds, did not reach the device: a phone that had received one byte
+in the last sixty would not have given up.
+
+The response is `application/json`, JSON is compressible, and a compressing hop
+between the function and the phone holds a one-byte chunk in its window rather
+than forwarding it; `Cache-Control: no-transform` is a request, not a rule. The
+wrapper now declares `Content-Encoding: identity`, which a compressing proxy
+honours by not re-encoding a body that already says how it is encoded, and
+which every browser reads as "no decoding". The unit test pins the header.
+
+Not verified here: the header's effect through the production edge from a
+phone. This environment cannot hold a signed-in session against the production
+host and cannot read Vercel's logs. The owner's phone is the check, and the
+ledger will show one `map` row per attempt when it holds.
+
 ### A generation you can walk away from, and a deck that stops doubling
 
 **Landed.** PR #99 squash-merged as `9d6b36e`, all six CI jobs green on the head
