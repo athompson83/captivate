@@ -378,13 +378,18 @@ leaves with is an icon, a number and a sentence:
 - **takeaway** — one take-home point, led by an icon set as large as the
   heading beside it, with one line under it saying why it holds. A
   movement-ending claim, evidence, example or synthesis lands here
-  (`layoutFor` reads `endsMovement`), so every movement hands over its point.
+  (`composeDeck` reads `endsMovement`), so every movement hands over its point.
+  Until 2026-09-06 that rule required the `auto` visual intent, which the model
+  has proposed once in the product's life, so no generated deck had ever
+  contained one.
 - **action** — a call to action: the imperative as the heading, then up to
   three steps across the width. An `application` or a `close` composes here; a
   deck ends on what to do next, not on a list of what was said.
 - **figure** — one number large enough to be the scene, its label, the claim
-  it proves and one sentence on what to do about it. Evidence alternates this
-  with `chart`. The generator may only write a figure it was given; with none
+  it proves and one sentence on what to do about it. An `evidence` beat takes
+  this first and a `chart` where the shape has just been used — most evidence a
+  talk leans on is a single figure, and a chart drawn around one number has
+  nothing to compare. The generator may only write a figure it was given; with none
   it writes the claim and leaves the slot empty, and so does the fallback.
 - **explainer** — a plain-language sentence, three icon-led points (what it
   is, why it happens, what follows) and a picture. `context` moments compose

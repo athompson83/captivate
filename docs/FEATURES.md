@@ -277,5 +277,12 @@ give a lecture, which is what this MVP is for.
 
 `docs/ROADMAP.md` covers what has been asked for and not yet built — audience
 feedback (polls, trivia, Q&A), integrations with confidence monitors and
-Descript, generation grounded in a reference file, and more templates and
+Descript, keeping a reference file as stored evidence, and more templates and
 themes — with the shape each would take.
+
+Generating _from_ a reference file is built, and it is worth being exact about
+what that means: `src/lib/ingest/` extracts **bounded text** — roughly fifteen
+thousand tokens — from a `.pptx`, `.docx`, Markdown or plain-text file in the
+browser, and sends it with that one generation. It is not a visual import. The
+pictures in last year's deck do not come across, its layouts do not, and
+nothing is stored, so regenerating next week means attaching the file again.
