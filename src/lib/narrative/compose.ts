@@ -93,15 +93,16 @@ type Layout = Extract<
  * says so in its name. An author who sets either is honoured through
  * `intentAuthored` instead — provenance, not vocabulary.
  */
-const NAMES_CONTENT: Record<string, Layout | null> = {
-  comparison: "two-column",
-  data: "chart",
-  sequence: "three-up",
-  quotation: "quote",
-  enumeration: "bullets",
-  imagery: null, // a side-by-side; which side is a sequence decision
-  demonstration: null,
-};
+const NAMES_CONTENT = new Map<VisualIntent, Layout | null>([
+  ["comparison", "two-column"],
+  ["data", "chart"],
+  ["sequence", "three-up"],
+  ["quotation", "quote"],
+  ["enumeration", "bullets"],
+  // A picture rather than a composition; the role picks which kind, below.
+  ["imagery", null],
+  ["demonstration", null],
+]);
 
 /** A cover is the opening image. These intents asked for something else. */
 const NOT_A_COVER: VisualIntent[] = ["data", "quotation", "comparison", "sequence"];
@@ -197,6 +198,14 @@ function shapeOf(layout: Layout): string {
 export function layoutChoices(beat: Beat, index: number): Layout[] {
   const { role, visualIntent: intent } = beat;
 
+  // An intent the author set is an instruction wherever it appears, and that
+  // has to include the first scene. Checked before the cover rule below rather
+  // than after it: an author who opens the picker on their opening beat and
+  // chooses "One statement" is saying they want a line, and answering that
+  // with a full-bleed photograph is the same override this file exists to
+  // remove — just aimed at the person instead of the role.
+  if (beat.intentAuthored && intent === "statement") return ["statement"];
+
   // The deck opens on a cover: a full-bleed image with the title over it,
   // lifted by the first advance. Stated as what a cover loses to, because the
   // classic opening line carries the `statement` intent and a line over a
@@ -209,8 +218,8 @@ export function layoutChoices(beat: Beat, index: number): Layout[] {
     return ["cover"];
   }
 
-  if (intent in NAMES_CONTENT) {
-    const named = NAMES_CONTENT[intent];
+  if (NAMES_CONTENT.has(intent)) {
+    const named = NAMES_CONTENT.get(intent);
     if (named) return [named];
     // Imagery and demonstration name a *picture*, not a composition. So the
     // role still chooses which kind of picture composition: a context beat
@@ -224,22 +233,16 @@ export function layoutChoices(beat: Beat, index: number): Layout[] {
     return [...pictorial, "split-right", "split-left"];
   }
 
-  // `statement` and `auto` are weak — unless the author set one, in which case
-  // it is as much an instruction as any other.
-  if (beat.intentAuthored && intent === "statement") return ["statement"];
-
-  const choices = [...ROLE_CHOICES[role]];
+  const choices = ROLE_CHOICES[role];
 
   // The end of a movement is where its point is handed over. An explicit
   // intent still wins — a comparison that closes a movement is a comparison —
   // but a beat the application is composing lands as a take-home.
-  if (beat.endsMovement && LANDS_A_POINT.includes(role) && !choices.includes("takeaway")) {
-    choices.unshift("takeaway");
-  } else if (beat.endsMovement && LANDS_A_POINT.includes(role)) {
+  if (beat.endsMovement && LANDS_A_POINT.includes(role)) {
     return ["takeaway", ...choices.filter((layout) => layout !== "takeaway")];
   }
 
-  return choices;
+  return [...choices];
 }
 
 /**

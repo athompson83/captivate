@@ -95,6 +95,20 @@ describe("an intent that names content still wins", () => {
     expect(composeDeck([beat("claim", "enumeration")])[0]).toBe("bullets");
   });
 
+  it("honours an author on the opening beat, where a cover would otherwise win", () => {
+    // The cover rule fires on the deck's first moment and it fires on the
+    // `statement` intent deliberately, because that is the intent a model
+    // gives an opening line. An author who opens the picker and chooses "One
+    // statement" is saying something different, and answering it with a
+    // full-bleed photograph is the same override this composer exists to
+    // remove — aimed at the person instead of the role.
+    expect(
+      composeDeck([{ role: "hook", visualIntent: "statement", intentAuthored: true }])[0],
+    ).toBe("statement");
+    // And the model's own `statement` on the same beat still opens on a cover.
+    expect(composeDeck([beat("hook")])[0]).toBe("cover");
+  });
+
   it("honours an author who genuinely wants one line on an application beat", () => {
     // `statement` is weak coming from the model and an instruction coming from
     // the author. Provenance is the difference, not the word: an author who
