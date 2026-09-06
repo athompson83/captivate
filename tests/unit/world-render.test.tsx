@@ -417,13 +417,15 @@ describe("the movement rail's strip", () => {
   });
 });
 
-/** The transformed element: the one carrying a style.transform translate. */
+/**
+ * The world layer.
+ *
+ * By its marker, not by "the first div carrying a transform": the backdrop
+ * layers are transformed too, and they are painted before the world, so the
+ * looser version silently started measuring the room instead of the content.
+ */
 function findWorld(container: HTMLElement): HTMLElement | null {
-  return (
-    [...container.querySelectorAll<HTMLElement>("div")].find((el) =>
-      el.style.transform.includes("translate"),
-    ) ?? null
-  );
+  return container.querySelector<HTMLElement>("[data-world]");
 }
 
 describe("the backdrop", () => {
@@ -462,7 +464,9 @@ describe("the backdrop", () => {
     }
   });
 
-  it("lays the picture over the drawn backdrop when there is one", () => {
+  it("paints no drawn backdrop under a picture that would cover it", () => {
+    // A photograph fills the whole plane, so a wash behind it is paint nobody
+    // can see — and this one is expensive paint. Only ever one of the two.
     const { container } = renderWorld(3, {
       backdrop: {
         url: "/api/assets/abc/content",
@@ -473,9 +477,26 @@ describe("the backdrop", () => {
         graphic: "aurora",
       },
     });
+    const layers = [...container.querySelectorAll<HTMLElement>("[data-backdrop]")];
+    expect(layers).toHaveLength(1);
+    expect(layers[0].getAttribute("data-backdrop-picture")).not.toBeNull();
+    expect(layers[0].style.backgroundImage).toBe("");
+    expect(layers[0].querySelector("img")?.getAttribute("src")).toBe("/api/assets/abc/content");
+  });
+
+  it("never scales the drawn backdrop, whatever the camera does", () => {
+    /*
+     * The drawn backdrop is four radial gradients across a layer bigger than
+     * the screen. A transform whose scale changes every frame — which is what
+     * a flight is — makes the browser re-rasterise that paint every frame,
+     * and with a software rasteriser the page stops responding: the browser
+     * suite hung on a keypress until this was translate-only.
+     */
+    const { container } = renderWorld(3);
     const layer = container.querySelector<HTMLElement>("[data-backdrop]")!;
-    expect(layer.style.backgroundImage).toContain("radial-gradient");
-    expect(layer.querySelector("img")?.getAttribute("src")).toBe("/api/assets/abc/content");
+    expect(layer.style.transform).toContain("translate(");
+    expect(layer.style.transform).not.toContain("scale(");
+    expect(layer.style.transform).not.toContain("rotate(");
   });
 
   it("paints the picture on its own layer behind the world, dimmed toward the canvas", () => {

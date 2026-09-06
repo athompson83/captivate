@@ -92,6 +92,64 @@ export function backdropPlane(
 }
 
 /**
+ * How much wider than the viewport the *drawn* backdrop's layer is.
+ *
+ * Enough that the parallax shift below never brings an edge into frame, and no
+ * more: this layer is painted, not photographed, so every pixel of it costs.
+ */
+const DRAWN_OVERSCAN = 1.4;
+
+/** The size to lay the drawn backdrop's layer out at, in CSS pixels. */
+export function drawnBackdropLayer(viewport: Size): Size {
+  return {
+    width: Math.max(1, viewport.width) * DRAWN_OVERSCAN,
+    height: Math.max(1, viewport.height) * DRAWN_OVERSCAN,
+  };
+}
+
+/**
+ * The drawn backdrop's transform, which translates and never scales.
+ *
+ * A photograph on the plane can be scaled all day: it is one raster and the
+ * compositor resamples it. A drawn backdrop is a *paint* — four radial
+ * gradients across a layer bigger than the screen — and a transform whose
+ * scale changes every frame, which is exactly what a flight produces, makes
+ * the browser re-rasterise that paint on every one of those frames. With a
+ * software rasteriser it stops responding altogether: the browser suite hung
+ * on a keypress until this was translate-only, and the machines that
+ * rasterise in software are the low-end ones this whole round is for.
+ *
+ * Translation alone keeps the depth that matters. Parallax is read from
+ * things moving at different rates across the screen, not from the far plane
+ * growing under a zoom — and an abstract wash has no detail whose growth the
+ * eye could measure anyway. The shift is the camera's distance from the
+ * world's centre at the plane's own scale, which is smaller than the
+ * content's by the depth, so the room moves slower than the scenes and holds
+ * still while the camera does. Rotation is dropped for the same reason and
+ * costs nothing: there is no horizon in a wash to keep level.
+ */
+export function drawnBackdropTransform(
+  camera: Camera,
+  viewport: Size,
+  bounds: Rect,
+  stage: Size,
+  distance: number,
+): string {
+  const scale =
+    viewport.width / Math.max(camera.width + backdropDepth(distance) * stage.width, 1e-6);
+  const layer = drawnBackdropLayer(viewport);
+  // The layer is centred on the viewport, and the margin is how far it may
+  // travel before an edge would show.
+  const marginX = (layer.width - viewport.width) / 2;
+  const marginY = (layer.height - viewport.height) / 2;
+  const centreX = bounds.x + bounds.width / 2;
+  const centreY = bounds.y + bounds.height / 2;
+  const dx = Math.max(-marginX, Math.min(marginX, (centreX - camera.x) * scale));
+  const dy = Math.max(-marginY, Math.min(marginY, (centreY - camera.y) * scale));
+  return `translate(${(dx - marginX).toFixed(2)}px, ${(dy - marginY).toFixed(2)}px)`;
+}
+
+/**
  * The CSS transform that puts the plane under a camera.
  *
  * `worldTransform` with two changes. The scale divides by the camera's width

@@ -28,7 +28,13 @@ import {
   type Size,
 } from "@/lib/present/camera";
 import { smoothPath } from "@/lib/present/path";
-import { backdropLayer, backdropPlane, backdropTransform } from "@/lib/present/backdrop";
+import {
+  backdropLayer,
+  backdropPlane,
+  backdropTransform,
+  drawnBackdropLayer,
+  drawnBackdropTransform,
+} from "@/lib/present/backdrop";
 import { graphicBackdrop } from "@/lib/present/graphic-backdrop";
 import { regionParallax } from "@/lib/present/parallax";
 import {
@@ -192,6 +198,8 @@ export const World = memo(function World({
   const worldRef = useRef<HTMLDivElement>(null);
   /** The picture behind the show, moved from the same loop as the world. */
   const backdropRef = useRef<HTMLDivElement>(null);
+  /** The drawn backdrop, which translates rather than scaling — see `drawnBackdropTransform`. */
+  const drawnRef = useRef<HTMLDivElement>(null);
   /** The full-viewport wash whose colour tracks where the camera is. */
   const ambientRef = useRef<HTMLDivElement>(null);
   /**
@@ -324,12 +332,13 @@ export const World = memo(function World({
   // A picture, a drawn backdrop, or both. The drawn one is the default, so a
   // deck nobody has touched still has a designed room behind it rather than a
   // flat field; a photograph, where the author set one, covers it.
-  const graphic = useMemo(
-    () => graphicBackdrop(backdrop?.graphic ?? "aurora", basePalette),
-    [backdrop?.graphic, basePalette],
-  );
   const picture = Boolean(backdrop?.url);
-  const hasBackdrop = picture || Boolean(graphic);
+  // A picture covers the whole plane, so a drawn backdrop under one is paint
+  // nobody can see. Only ever one of the two is built.
+  const graphic = useMemo(
+    () => (picture ? null : graphicBackdrop(backdrop?.graphic ?? "aurora", basePalette)),
+    [picture, backdrop?.graphic, basePalette],
+  );
   const backdropDistance = backdrop?.distance ?? 0.5;
   const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
   // The viewport's own aspect, not the inset one: the picture covers the
@@ -383,6 +392,17 @@ export const World = memo(function World({
           room,
           viewport,
           plane,
+          stage,
+          backdropDistance,
+        );
+      }
+
+      // The drawn one moves on its own, translate-only transform.
+      if (drawnRef.current) {
+        drawnRef.current.style.transform = drawnBackdropTransform(
+          room,
+          viewport,
+          worldBounds,
           stage,
           backdropDistance,
         );
@@ -536,6 +556,7 @@ export const World = memo(function World({
     stage,
     basePalette,
     plane,
+    worldBounds,
     backdropDistance,
     play,
     lean,
@@ -745,34 +766,46 @@ export const World = memo(function World({
         scenes and a zoom grows it less, and on a scene it is perfectly still.
         Dimmed toward the theme's canvas so the scenes' text stays legible.
       */}
-      {hasBackdrop && (
+      {/*
+        The room, drawn. Its own layer and its own transform: a paint this
+        large may translate every frame but must never be re-rasterised by a
+        changing scale — see `drawnBackdropTransform`.
+      */}
+      {graphic && (
         <div
-          ref={backdropRef}
+          ref={drawnRef}
           aria-hidden
           data-backdrop
           data-backdrop-graphic={backdrop?.graphic ?? "aurora"}
           className="pointer-events-none absolute top-0 left-0 origin-top-left"
+          style={{
+            ...drawnBackdropLayer(viewport),
+            willChange: "transform",
+            backgroundColor: graphic.backgroundColor,
+            backgroundImage: graphic.backgroundImage,
+          }}
+        />
+      )}
+
+      {picture && backdrop && (
+        <div
+          ref={backdropRef}
+          aria-hidden
+          data-backdrop
+          data-backdrop-picture
+          className="pointer-events-none absolute top-0 left-0 origin-top-left"
           // Laid out at the layer's size, not the plane's: the plane is world
           // units and a world is thousands of them across. See `backdropLayer`.
-          style={{
-            ...backdropLayer(viewport),
-            willChange: "transform",
-            // The drawn backdrop is the layer's own paint, so a picture over
-            // it needs no second element and an empty layer has no seam.
-            backgroundColor: graphic?.backgroundColor,
-            backgroundImage: graphic?.backgroundImage,
-          }}
+          style={{ ...backdropLayer(viewport), willChange: "transform" }}
         >
-          {picture && backdrop && (
-            /* eslint-disable-next-line @next/next/no-img-element -- a signed private asset in a transformed layer; see element-view */
-            <img
-              src={backdrop.url}
-              alt=""
-              draggable={false}
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            />
-          )}
-          {picture && backdrop && backdrop.dim > 0 && (
+          {/* eslint-disable-next-line @next/next/no-img-element -- a signed private asset in a transformed layer; see element-view */}
+          <img
+            src={backdrop.url}
+            alt=""
+            draggable={false}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+          {backdrop.dim > 0 && (
             <div
               style={{
                 position: "absolute",
