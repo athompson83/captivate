@@ -54,9 +54,21 @@
 
 ### A generation you can walk away from, and a deck that stops doubling
 
-**In flight.** PR #99, branch `claude/captivate-3d-graphics-5ypuvx`. Migrations
+**Landed.** PR #99 squash-merged as `9d6b36e`, all six CI jobs green on the head
+that merged — including the authenticated Playwright suite, which is what caught
+both of the deck-doubling defects below. Migrations
 `0032_presentation_generation_status.sql` and
 `0033_link_template_scenes_to_moments.sql` applied to production.
+
+Read back afterwards: `https://captivate.axtevi.com` answers 200 and
+`/present/<id>?plain=1` redirects a signed-out request to its own `/sign-in`
+**carrying the flag as well as the deck** — which matters, because an escape
+hatch dropped by the sign-in round trip would not be one. Beyond that the build
+could not be read out of production from here: every surface this round changed
+sits behind authentication, no share link exists to reach the public viewer
+through, and this session's Vercel token is refused the deployment list (403).
+So "deployed and serving" is evidence; "this build's copy is on the page" is
+not, and the owner's own phone remains the test that matters.
 
 The owner reported two things: generations that had to be watched, and a
 presentation that said "provided with limits". Both were read out of the
