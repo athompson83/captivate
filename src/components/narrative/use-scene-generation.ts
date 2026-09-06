@@ -3,16 +3,10 @@
 import { useCallback, useState } from "react";
 import { briefsFor } from "@/lib/narrative/generate";
 import { composeScene } from "@/lib/editor/layouts";
-import {
-  addScene,
-  duplicatePresentation,
-  linkScenesToMoments,
-  saveScene,
-  updatePresentation,
-} from "@/lib/data/actions";
+import { duplicatePresentation } from "@/lib/data/actions";
 import { useEditor } from "@/lib/editor/store";
 import { useToast } from "@/components/ui/toast";
-import { WrittenScenes } from "@/lib/ai/schemas";
+import { SceneWriteOutcome } from "@/lib/ai/schemas";
 import type { SceneContent } from "@/lib/schema/presentation";
 
 /**
@@ -136,96 +130,25 @@ export function useSceneGeneration(presentationId: string, prompt: string) {
           throw new Error(reported ?? "Couldn't generate scenes.");
         }
 
-        const parsed = WrittenScenes.safeParse(body);
-        if (!parsed.success) {
-          throw new Error("The generated scenes came back in a shape this editor cannot store.");
+        // The scenes are already written. The route saves them itself now —
+        // this used to be a loop here, which put a five-minute job behind the
+        // phone staying awake, and a lock screen between the answer arriving
+        // and the last save left a deck half rewritten and looking finished.
+        const outcome = SceneWriteOutcome.safeParse(body);
+        if (!outcome.success) {
+          throw new Error("The generated scenes came back in a shape this editor cannot read.");
         }
-        const { scenes: written, notice } = parsed.data;
+        const { saved, unplaceable, notice } = outcome.data;
 
-        // Reuse the scene a moment already owns rather than deleting and
-        // recreating it: the scene's own id is what recordings, thumbnails and
-        // any future note anchor already point at.
-        const links: { sceneId: string; momentId: string | null }[] = [];
-        // Generation is the one place where a silent write failure is invisible
-        // by construction: the reload below replaces the whole document, so a
-        // scene that was never written simply is not there — and a success toast
-        // for it reads as the model's work disappearing rather than as an error.
-        const failures: string[] = [];
-        let saved = 0;
-
-        for (const generated of written) {
-          const existing = useEditor
-            .getState()
-            .document.scenes.find((scene) => scene.momentId === generated.momentId);
-
-          if (existing) {
-            const result = await saveScene({
-              id: existing.id,
-              presentationId,
-              title: generated.title,
-              content: generated.content,
-              speakerNotes: generated.speakerNotes,
-            });
-            if (result.ok) saved += 1;
-            else failures.push(result.error);
-            continue;
-          }
-
-          const moment = moments.find((m) => m.id === generated.momentId);
-          const created = await addScene({
-            presentationId,
-            sectionId: moment?.movementId ?? null,
-            title: generated.title,
-            content: generated.content,
-            speakerNotes: generated.speakerNotes,
-          });
-          if (created.ok) {
-            saved += 1;
-            links.push({ sceneId: created.data.id, momentId: generated.momentId });
-          } else {
-            failures.push(created.error);
-          }
-        }
-
-        if (links.length) {
-          const linked = await linkScenesToMoments({ presentationId, links });
-          // A scene that exists but is filed under no moment is not a small
-          // problem: regenerating would make a second copy rather than reuse it.
-          if (!linked.ok) failures.push(linked.error);
-        }
-
-        if (failures.length) {
-          toast({
-            tone: "error",
-            title: saved
-              ? `Saved ${saved} of ${written.length} scenes`
-              : "Couldn't save the generated scenes",
-            description: failures[0],
-          });
-
-          // Nothing was written, so the store still matches the server and the
-          // author keeps the message that says why. This is the case where the
-          // explanation matters most and costs nothing.
-          if (saved === 0) return;
-
-          // Something *was* written. The store does not know about it, and the
-          // check that decides whether to reuse a scene or create one reads the
-          // store — so leaving it behind would make the next attempt add a second
-          // copy of every scene that had already landed. Duplicating the author's
-          // content is worse than losing a toast, so the reload wins here.
-        } else {
-          // Every scene landed, so whatever the deck was calling itself — a
-          // generation that stalled when a phone locked, or one that fell back
-          // to placeholders — it is finished now and should stop saying
-          // otherwise. Best-effort: a deck that is written but still labelled
-          // is a smaller problem than one that claims success it did not have.
-          await updatePresentation({ id: presentationId, generationStatus: "ready" });
-          toast({
-            tone: "success",
-            title: `${written.length} ${written.length === 1 ? "scene" : "scenes"} generated`,
-            description: notice ?? "Generated from your narrative map.",
-          });
-        }
+        toast({
+          tone: "success",
+          title: `${saved} ${saved === 1 ? "scene" : "scenes"} generated`,
+          description:
+            notice ??
+            (unplaceable
+              ? `Generated from your narrative map. ${unplaceable} ${unplaceable === 1 ? "scene" : "scenes"} named a moment this deck no longer has and ${unplaceable === 1 ? "was" : "were"} left out.`
+              : "Generated from your narrative map."),
+        });
 
         // The document has changed underneath the store; a reload is the honest
         // way to show it rather than reconstructing state that the server owns.

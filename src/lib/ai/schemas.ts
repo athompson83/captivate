@@ -199,6 +199,26 @@ export const WrittenScenes = z.object({
 });
 export type WrittenScenes = z.infer<typeof WrittenScenes>;
 
+/**
+ * What `/api/ai/scenes-from-map` reports back once it has written the scenes
+ * itself.
+ *
+ * A count rather than the content. The route used to hand every scene back for
+ * the browser to save one at a time, which put a five-minute job behind a
+ * phone staying awake; now the writing is done before the response is sent and
+ * the page only has to say what happened and reload.
+ */
+export const SceneWriteOutcome = z.object({
+  saved: z.number().int().min(0),
+  replaced: z.number().int().min(0).default(0),
+  created: z.number().int().min(0).default(0),
+  /** Scenes naming a moment the deck no longer has. Dropped, and said aloud. */
+  unplaceable: z.number().int().min(0).default(0),
+  source: z.string().optional(),
+  notice: z.string().optional(),
+});
+export type SceneWriteOutcome = z.infer<typeof SceneWriteOutcome>;
+
 /* -------------------------------------------------------------------------- */
 /* The narrative map                                                           */
 /* -------------------------------------------------------------------------- */

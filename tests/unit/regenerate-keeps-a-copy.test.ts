@@ -75,11 +75,38 @@ describe("a regeneration the author walks away from", () => {
     expect(route).toMatch(/generation_started_at: new Date\(\)\.toISOString\(\)/);
   });
 
-  it("only ever lets a browser say a deck has finished", () => {
+  it("writes the scenes itself instead of handing them to the browser", () => {
+    // The loop that used to do this lived in the page, which is what put a
+    // five-minute job behind a phone staying awake. There is no window to be
+    // interrupted in once the route writes before it responds.
+    expect(route).toMatch(/planSceneWrites\(/);
+    expect(route).toMatch(/from\("scenes"\)[\s\S]{0,80}\.update\(/);
+    expect(route).toMatch(/from\("scenes"\)\.insert\(/);
+    expect(hook, "the page should no longer save scenes one at a time").not.toMatch(
+      /await saveScene\(/,
+    );
+    expect(hook).not.toMatch(/await addScene\(/);
+  });
+
+  it("calls the deck finished only when every write landed", () => {
+    // A partial run leaves the claim standing, so it expires into "never
+    // finished writing" and offers to finish rather than looking done.
+    const ready = route.indexOf("failures.length === 0");
+    expect(ready, "the ready mark should be guarded by the failures").toBeGreaterThan(-1);
+    expect(route.slice(ready, ready + 400)).toMatch(/generation_status:/);
+  });
+
+  it("never lets a browser set a deck's generation state at all", () => {
     // The route knows when writing began and so can time out its own claim; a
-    // client cannot, and a client that could say "generating" could leave a
-    // deck spinning with nothing able to disprove it.
+    // browser cannot, and one that could say "generating" would leave a deck
+    // spinning with nothing able to disprove it. Now that the route does the
+    // writing there is no reason for a client to touch this at all, and the
+    // safest version of a field nothing needs is one that does not exist.
     const actions = readFileSync(join(root, "src/lib/data/actions.ts"), "utf8");
-    expect(actions).toMatch(/generationStatus: z\.literal\("ready"\)\.optional\(\)/);
+    const input = actions.slice(
+      actions.indexOf("const UpdateInput"),
+      actions.indexOf("export async function updatePresentation"),
+    );
+    expect(input).not.toMatch(/generationStatus/);
   });
 });

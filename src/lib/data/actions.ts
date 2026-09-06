@@ -249,13 +249,6 @@ const UpdateInput = z.object({
   isFavorite: z.boolean().optional(),
   journey: JourneyConfig.optional(),
   targetSeconds: z.number().int().min(0).max(14_400).optional(),
-  /**
-   * Only `ready` is accepted, and deliberately: a browser may say a deck has
-   * finished generating, never that one has started. The claim that a deck is
-   * `generating` belongs to the route doing the writing, which is the only
-   * thing that knows when it began and therefore when to stop believing it.
-   */
-  generationStatus: z.literal("ready").optional(),
 });
 
 export async function updatePresentation(input: unknown): Promise<Result<void>> {
@@ -276,15 +269,6 @@ export async function updatePresentation(input: unknown): Promise<Result<void>> 
   if (rest.journey !== undefined)
     patch.journey = rest.journey as unknown as PresentationRow["journey"];
   if (rest.targetSeconds !== undefined) patch.target_seconds = rest.targetSeconds;
-  // Only ever cleared from the client. A deck can be *marked* finished by the
-  // regeneration that finished it, but nothing in a browser may claim a deck
-  // is generating — that is the writing route's word, and only it knows when
-  // the claim started.
-  if (rest.generationStatus === "ready") {
-    patch.generation_status = "ready";
-    patch.generation_started_at = null;
-  }
-
   if (Object.keys(patch).length === 0) return ok(undefined);
 
   const supabase = await client();
