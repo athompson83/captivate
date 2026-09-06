@@ -36,6 +36,60 @@ export function siteOrigin(): string {
   return FALLBACK;
 }
 
+/**
+ * Where a request that arrived on the wrong hostname should be sent, or null
+ * where it is already in the right place.
+ *
+ * A deployment answers on more hostnames than the one it is meant to live at:
+ * every Vercel project keeps a `*.vercel.app` alias, and every deployment gets
+ * its own. That is not cosmetic. **Sessions are per-host**, so someone who
+ * signs in on the alias and later opens the real domain is signed out with no
+ * explanation, and someone who saves the alias to a phone's home screen has
+ * bookmarked a copy of the product that will keep drifting away from the one
+ * everybody else uses.
+ *
+ * So a *production* deployment reached on any `vercel.app` hostname sends the
+ * reader to the canonical origin and keeps their path.
+ *
+ * Two limits worth stating rather than discovering:
+ *
+ *  - **preview deployments are left alone.** `VERCEL_ENV` is `preview` there,
+ *    and bouncing a reviewer from the deployment they were asked to look at to
+ *    production would make the preview link useless;
+ *  - **this cannot rescue a URL Vercel refuses first.** A per-deployment URL
+ *    under Deployment Protection is answered with a redirect to Vercel's own
+ *    sign-in at the edge, before any of this application runs. Nothing in this
+ *    repository executes on that request, so nothing here can repair it.
+ */
+export function canonicalRedirect(
+  host: string | null,
+  pathAndQuery: string,
+  env: { siteUrl?: string; vercelEnv?: string } = {
+    siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+    vercelEnv: process.env.VERCEL_ENV,
+  },
+): string | null {
+  if (env.vercelEnv !== "production") return null;
+
+  const canonical = env.siteUrl?.trim();
+  if (!canonical) return null;
+
+  const requested = host?.split(":")[0]?.toLowerCase();
+  if (!requested || !requested.endsWith(".vercel.app")) return null;
+
+  let target: URL;
+  try {
+    target = new URL(canonical);
+  } catch {
+    return null;
+  }
+  // A canonical origin that is itself a vercel.app host would loop.
+  if (target.hostname.toLowerCase() === requested) return null;
+  if (target.hostname.toLowerCase().endsWith(".vercel.app")) return null;
+
+  return `${target.origin.replace(/\/$/, "")}${pathAndQuery}`;
+}
+
 export function siteUrl(): URL {
   return new URL(siteOrigin());
 }
