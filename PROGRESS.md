@@ -11,13 +11,14 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/captivate-3d-graphics-5ypuvx`, restarted from `main` after
-  PR #91 — four defects the owner reported after using the shipped build:
-  pictures that never arrive, drawings that had gone, no designed background,
-  and a browser that crashes while presenting (MVP-026)
-- `main`: through PR #91 (merged) — `79b8d8f`, the room answers the hand;
-  every migration through `0030_shared_backdrop_asset.sql` applied to
-  production (no migration since, and none in this round — the drawn backdrop
-  is a field on the journey JSON, which stored rows parse straight into)
+  PR #94 — the closeout for MVP-026, which is merged and deployed
+- `main`: through PR #94 (merged) — `01437d0`, the four defects the owner
+  reported after using the shipped build: pictures that never arrive, drawings
+  that had gone, no designed background, and a browser that crashes while
+  presenting; every migration through `0030_shared_backdrop_asset.sql` applied
+  to production (no migration since, and none in that round — the drawn
+  backdrop is a field on the journey JSON, which stored rows parse straight
+  into)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -38,6 +39,24 @@
 ## Latest Session
 
 ### Four things the owner reported after using the build
+
+**Landed.** PR #94 squash-merged as `01437d0`, all five CI jobs green on the
+head that merged — including the browser suite, which had hung to its timeout
+on the first cut and finished in five minutes on this one. Read back out of
+production afterwards, over HTTP: the deployed stylesheet carries this round's
+wrapper split exactly (`.pxl{height:100%}` and `.pxl-depth{transform:...}`,
+which did not exist before it), and the deployed bundle carries the drawn
+backdrop's three names and their descriptions. So the domain is serving this
+build.
+
+Not verified from here: the same check through a real browser. Chromium's TLS
+to `www.axtevi.com` is dropped by this container's proxy relay mid-handshake
+(`ws_closed_mid_exchange`, while `curl` to the same host answers 200), so the
+in-page evidence for this round is the local production build driven in a real
+browser — the drawn backdrop rendering, parallaxing and leaving the type
+legible — plus all seventy browser tests in the shader and lifecycle projects,
+and CI's own production-server suite rendering every route. The owner's phone
+remains the test that matters for the four reports themselves.
 
 Pictures that never arrive, drawings that had gone, no designed background,
 and a browser that crashes while presenting. Three were defects, one was not
