@@ -32,7 +32,6 @@ import {
   backdropLayer,
   backdropPlane,
   backdropTransform,
-  drawnBackdropLayer,
   drawnBackdropTransform,
 } from "@/lib/present/backdrop";
 import { graphicBackdrop } from "@/lib/present/graphic-backdrop";
@@ -94,6 +93,14 @@ const Atmosphere = dynamic(() => import("./atmosphere").then((m) => m.Atmosphere
 /** Where the camera should be, expressed as intent rather than as geometry. */
 export type Focus =
   { kind: "scene"; index: number } | { kind: "world" } | { kind: "section"; sectionId: string };
+
+/** Whether two focuses name the same destination. */
+function sameFocus(a: Focus, b: Focus): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "scene" && b.kind === "scene") return a.index === b.index;
+  if (a.kind === "section" && b.kind === "section") return a.sectionId === b.sectionId;
+  return true;
+}
 
 /** On-screen width, in px, below which a scene is drawn as a marker. */
 const DETAIL_THRESHOLD = 132;
@@ -282,13 +289,23 @@ export const World = memo(function World({
    * still travelling, and the room landed on a finished scene. `onArrive`
    * was fired and nothing listened; this is what it was for.
    *
-   * Derived from the camera last landed on rather than flipped by the flight
-   * effect: the destination mounts in the very render that changes the
+   * Derived from what the camera last landed *on* rather than flipped by the
+   * flight effect: the destination mounts in the very render that changes the
    * target, and an element decides at mount whether it is held. A flag set
    * in an effect arrives one render too late, and that render is the one
    * that matters.
+   *
+   * The focus, not the camera. This used to hold the camera last landed on
+   * and compare it to the one being aimed at, which asks a question about
+   * geometry when the one that matters is about intent: a viewport that
+   * changes size — a phone hiding its address bar — recomputes the framing of
+   * the very scene the camera is already sitting on, the two cameras stop
+   * being equal, and the world reports that it has never landed. Nothing
+   * looks wrong until you notice that every drawing is missing, because a
+   * held drawing renders as a stroke of zero length. A resize does not change
+   * which scene the presenter is on, so it no longer changes the answer.
    */
-  const [landedOn, setLandedOn] = useState<Camera | null>(null);
+  const [landedFocus, setLandedFocus] = useState<Focus | null>(null);
 
   const measureRef = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
@@ -320,7 +337,7 @@ export const World = memo(function World({
     () => cameraFor(focus, scenes, placements, stage, aspectRatio),
     [focus, scenes, placements, stage, aspectRatio],
   );
-  const landed = landedOn !== null && camerasEqual(landedOn, target);
+  const landed = landedFocus !== null && sameFocus(landedFocus, focus);
   /**
    * Landed on a *scene*, which is the only landing a scene performs for. The
    * establishing shot over a new section and the overview are landings too,
@@ -402,7 +419,7 @@ export const World = memo(function World({
         drawnRef.current.style.transform = drawnBackdropTransform(
           room,
           viewport,
-          worldBounds,
+          plane,
           stage,
           backdropDistance,
         );
@@ -485,7 +502,7 @@ export const World = memo(function World({
      */
     const arrive = () => {
       setOrigin(target);
-      setLandedOn(target);
+      setLandedFocus(focus);
       arriveRef.current?.();
     };
 
@@ -543,6 +560,7 @@ export const World = memo(function World({
     frameRef.current = requestAnimationFrame(tick);
   }, [
     target,
+    focus,
     viewport,
     inset,
     effective,
@@ -556,7 +574,6 @@ export const World = memo(function World({
     stage,
     basePalette,
     plane,
-    worldBounds,
     backdropDistance,
     play,
     lean,
@@ -772,14 +789,24 @@ export const World = memo(function World({
         changing scale — see `drawnBackdropTransform`.
       */}
       {graphic && (
+        /*
+          Sized in CSS, never from the measured viewport.
+
+          The layer reaches a fifth of the screen past every edge so the
+          parallax shift below never brings an edge into frame — and it says so
+          as a percentage of its containing block, because a size computed from
+          the world's own `ResizeObserver` measurement changed that
+          measurement, and the two chased each other until React gave up and
+          the demo mounted to a blank page. `DRAWN_MARGIN` mirrors this inset
+          for the clamp; the two belong together.
+        */
         <div
           ref={drawnRef}
           aria-hidden
           data-backdrop
           data-backdrop-graphic={backdrop?.graphic ?? "aurora"}
-          className="pointer-events-none absolute top-0 left-0 origin-top-left"
+          className="pointer-events-none absolute inset-[-20%]"
           style={{
-            ...drawnBackdropLayer(viewport),
             willChange: "transform",
             backgroundColor: graphic.backgroundColor,
             backgroundImage: graphic.backgroundImage,

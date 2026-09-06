@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
 import { Stage } from "@/components/stage/stage";
 import { getTheme } from "@/lib/schema/theme";
 import { composeScene } from "@/lib/editor/layouts";
@@ -336,72 +336,6 @@ describe("performing a scene on arrival", () => {
     expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
     // Stage 0 sketches on landing; stage 1 still waits for the presenter.
     expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
-  });
-
-  it("draws even when the landing is never reported", () => {
-    /*
-     * The reported defect, and the reason this file needed a clock.
-     *
-     * `arrived` is the world comparing the camera it last landed on with the
-     * one it is aiming at, and a target that keeps being recomputed — a phone
-     * hiding its address bar resizes the viewport, which changes the framing —
-     * leaves those two never equal. A held drawing is not a late drawing:
-     * `step = -1` leaves every path at a stroke of zero visible length, so the
-     * scene looks finished with the picture simply absent, for the rest of the
-     * show. The hold now has a floor.
-     */
-    vi.useFakeTimers();
-    try {
-      const { container } = render(
-        <Stage
-          content={drawn}
-          theme={theme}
-          aspect="16:9"
-          fixedScale={1}
-          play
-          step={0}
-          arrived={false}
-        />,
-      );
-      expect(container.querySelectorAll(".dp-drawn")).toHaveLength(0);
-
-      // No landing is ever reported. A flight is a bounded thing, so past the
-      // ceiling there is nothing left to wait for.
-      act(() => {
-        vi.advanceTimersByTime(6500);
-      });
-
-      expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
-      expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("does not release the hold while the flight is still running", () => {
-    // The ceiling is a floor under a failure, not a replacement for the
-    // landing: a scene still does not perform in the distance.
-    vi.useFakeTimers();
-    try {
-      const { container } = render(
-        <Stage
-          content={drawn}
-          theme={theme}
-          aspect="16:9"
-          fixedScale={1}
-          play
-          step={0}
-          arrived={false}
-        />,
-      );
-      act(() => {
-        vi.advanceTimersByTime(2000);
-      });
-      expect(container.querySelectorAll("[data-held]")).toHaveLength(2);
-      expect(container.querySelectorAll(".dp-drawn")).toHaveLength(0);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it("leaves alone an element that was on screen when the flight began", () => {

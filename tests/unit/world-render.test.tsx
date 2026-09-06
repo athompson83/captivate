@@ -602,6 +602,68 @@ describe("performing on arrival", () => {
     expect(document.querySelectorAll('[data-scene-index="3"] [data-held]')).toHaveLength(0);
   });
 
+  it("still counts as landed when the framing changes under a standing camera", () => {
+    /*
+     * The reported defect: "the drawings are now all gone".
+     *
+     * Landing used to be the camera last landed on compared with the camera
+     * being aimed at — a question about geometry, when the one that matters
+     * is about intent. A viewport that changes size recomputes the framing of
+     * the very scene the camera is already sitting on, the two cameras stop
+     * being equal, and the world reports it has never landed. Anything that
+     * mounts from then on is held, and a held drawing renders as a stroke of
+     * zero visible length: the scene looks finished with the picture simply
+     * absent. A phone hiding its address bar makes exactly this change.
+     */
+    const frames = controllableFrames();
+    try {
+      const scenes = makeScenes(3);
+      const placements = arrange("reel", scenes, STAGE);
+      const withPicture = scenes.map((scene, i) =>
+        i === 0
+          ? {
+              ...scene,
+              content: composeScene("split-left", {
+                heading: "Heading number 1",
+                media: { url: "https://example.com/x.jpg", alt: "A picture" },
+              }),
+            }
+          : scene,
+      );
+      const props = (aspect: "16:9" | "4:3", deck: typeof scenes) => ({
+        scenes: deck,
+        placements,
+        theme,
+        aspect,
+        focus: { kind: "scene" as const, index: 0 },
+        activeIndex: 0,
+        step: 0,
+        play: true,
+        travel: "fly" as const,
+        pace: JOURNEY_DEFAULTS.pace,
+        depth: JOURNEY_DEFAULTS.depth,
+      });
+
+      // Landed on scene one.
+      const { container, rerender } = render(<World {...props("16:9", scenes)} />);
+      expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+
+      // The framing of that same scene changes — the shape of a resize — and
+      // the camera sets off for the new one without arriving yet.
+      rerender(<World {...props("4:3", scenes)} />);
+
+      // Something mounts in that window.
+      rerender(<World {...props("4:3", withPicture)} />);
+
+      expect(
+        container.querySelectorAll("[data-held]"),
+        "the camera is on the scene it landed on; a reframing is not a flight away from it",
+      ).toHaveLength(0);
+    } finally {
+      frames.restore();
+    }
+  });
+
   it("lets a cut arrive at once, so the new scene performs immediately", () => {
     const scenes = makeScenes(50);
     const placements = arrange("reel", scenes, STAGE);

@@ -228,6 +228,15 @@ seen through air), `halo` (one bloom off-centre) or `none`. `aurora` is the
 default, so a deck nobody has touched still has a designed room; a photograph,
 where the author sets one, is laid over it.
 
+Its layer translates and never scales, and its size is written in CSS as a
+negative inset rather than computed from the measured viewport. Both are
+lessons from the browser suite rather than theory: a transform whose scale
+changes every frame makes the browser re-rasterise the paint on each one, and
+a layer sized from the world's own `ResizeObserver` measurement changes that
+measurement, so the two chase each other until React stops with "maximum
+update depth exceeded". `DRAWN_MARGIN` mirrors the CSS inset for the clamp;
+the two belong together.
+
 Everything in it obeys the rules the rest of the canvas does. Every form is a
 soft radial or a wide band with no visible edge — no rectangles, no grid, no
 dots. Every colour is derived from the theme in OKLab, so it cannot fight the
@@ -536,6 +545,25 @@ recording reproduces the motion the audience saw.
 
 `prefers-reduced-motion` collapses transitions to effectively instant and
 suppresses entrance animation entirely.
+
+### What counts as having landed
+
+A scene performs when the camera lands on it, and "landed" is the _focus_ the
+camera last arrived at compared with the focus it is aiming at — not the
+camera compared with the camera. Geometry is the wrong question: a viewport
+that changes size recomputes the framing of the scene the camera is already
+sitting on, and a world that compares cameras then reports it has never
+landed. Everything that mounts from then on is held at the start of its
+entrance, and a held drawing is not a late drawing — it renders as a stroke of
+zero visible length, so the scene looks finished with its picture simply
+absent. That is what "the drawings are all gone" turned out to be. A resize
+does not change which scene the presenter is on, so it no longer changes the
+answer.
+
+The comparison stays _derived_ rather than a flag flipped in an effect: the
+destination mounts in the very render that changes the focus, and an element
+decides at mount whether it is held, so a flag set in an effect would arrive
+one render too late.
 
 ### Performed on arrival
 

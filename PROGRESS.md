@@ -68,12 +68,19 @@ deck has sixteen real paths, `opacity: 1`, `hidden: false`, and every
 them. While presenting, an element that mounts mid-flight is _held_ at the
 start of its entrance, and a held drawing renders at `step = -1`, which leaves
 every path at `stroke-dashoffset: var(--dp-len)` — a stroke of zero visible
-length. The release depended on the world reporting a landing, which is a
-comparison between the camera it last landed on and the camera it is aiming
-at; a target that keeps being recomputed, which is what a phone hiding its
-address bar does to the framing, leaves those two never equal and the drawing
-invisible for the rest of the show. The hold now has a floor: past the longest
-flight any pace produces there is nothing left to protect an entrance from. In
+length. The release waits on the world reporting a landing, and that report
+used to compare the camera it last landed on with the camera it is aiming at:
+a question about geometry, when the one that matters is about intent. A
+viewport that changes size — a phone hiding its address bar — recomputes the
+framing of the very scene the camera is already sitting on, the two cameras
+stop being equal, and the world reports it has never landed. The landing is
+now the _focus_ it landed on, which a resize does not touch.
+
+A first attempt gave the hold a timed floor instead, and the browser suite
+caught it: releasing every held element after a few seconds also releases the
+ones on scenes the camera is nowhere near, which is exactly the defect
+"performed on arrival" exists to prevent, and it broke a tap on the shared
+viewer as well. The suite is the reason that never reached production. In
 the editor and in thumbnails the fault was plainer — the depth wrapper added
 in PR #82 carries `height: 100%` only while presenting, so everywhere else it
 was an auto-height box and every `height: 100%` element inside it, drawings
@@ -87,7 +94,15 @@ the deck's own palette on the same plane and at the same depth as a picture,
 with `aurora` the default so a deck nobody has touched still has a designed
 room. Every form is a soft radial or a wide band with no visible edge, every
 colour is derived from the theme in OKLab, and it is CSS on a layer the
-compositor already moves rather than a second WebGL context. The first cut was
+compositor already moves rather than a second WebGL context. Two things about
+that layer came from the browser suite rather than from reasoning. It
+translates and never scales, because a transform whose scale changes every
+frame makes the browser re-rasterise the paint on every one of them. And its
+size is written in CSS as a negative inset rather than computed from the
+measured viewport, because the world measures its own box to drive the camera
+and a layer sized from that measurement changed it — the two chased each
+other until React gave up with "maximum update depth exceeded" and the demo
+mounted to a blank page. The first cut was
 a brown haze; the washes are tighter now and read as light against dark canvas.
 The title slide sits over it, and the cover's stock query now asks for a wide
 atmospheric image rather than a literal photograph of the subject, which is
