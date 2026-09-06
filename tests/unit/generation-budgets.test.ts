@@ -128,6 +128,40 @@ describe("the narrative map has room to finish", () => {
   });
 });
 
+describe("a scene added on its own gets its picture too", () => {
+  /**
+   * The route an author uses *after* looking at the deck was the one route
+   * that skipped the pass which fills media slots. So a split scene added to a
+   * finished deck arrived with a dashed placeholder while every scene around
+   * it carried a picture — the failure looks like a broken feature and is
+   * actually a missing call.
+   *
+   * Read from source for the same reason as the block below: `dressScenes` is
+   * private to a `server-only` module and the claim is about one call site.
+   */
+  it("dresses the single scene it just wrote", () => {
+    expect(service).toMatch(/const scene = materialise\(result\.data\);\s+await dressScenes\(/);
+  });
+
+  it("asks for less time than the route it runs inside has left", () => {
+    const dress = service.match(/await dressScenes\(\[scene\], presentationId, 0, (\d[\d_]*)\)/);
+    expect(dress, "the single-scene dress pass should name its own budget").not.toBeNull();
+
+    const attempt = service.match(
+      /attemptTimeoutMs: (\d[\d_]*),[\s\S]{0,80}?if \(!result\.ok\) return \{ ok: false, error: result\.error \};/,
+    );
+    expect(attempt, "the single-scene model call should name its timeout").not.toBeNull();
+
+    const ceiling = numeric(
+      read("src/app/api/ai/scene/route.ts").match(/maxDuration = (\d+)/)![1],
+    );
+    expect(
+      (numeric(attempt![1]) + numeric(dress![1])) / 1000,
+      "writing the scene and dressing it must both fit inside the route's ceiling",
+    ).toBeLessThan(ceiling);
+  });
+});
+
 describe("a generated layout says it was a guess", () => {
   it("composes with `inferredLayout`, so an over-long list can give way", () => {
     // `layoutFor` picks a layout from a moment's visual intent before the
