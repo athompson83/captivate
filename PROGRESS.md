@@ -54,8 +54,12 @@
 
 ### The generated deck's composition, measured rather than judged
 
-**In review.** PR #97, branch `claude/captivate-3d-graphics-5ypuvx`. Migration
-`0031_moment_intent_authored.sql` applied to production.
+**Landed.** PR #97 squash-merged as `284e37f`, all six CI jobs green on the head
+that merged. Migration `0031_moment_intent_authored.sql` applied to production.
+Read back from the running deployment afterwards: `captivate-eight.vercel.app`
+now answers `/present/<id>?audience=1` with a 308 to
+`https://captivate.axtevi.com/present/<id>?audience=1`, and following it lands
+on the app's own sign-in with the deck still queued behind it.
 
 The brief was to close the gap between a schema-valid generated deck and one
 worth standing in front of. The first thing done was to measure it, against
@@ -110,11 +114,30 @@ rather than mandating abstraction; and regenerating a deck that already has
 scenes offers to keep it as a copy first, which is the non-destructive upgrade
 path for stored compositions.
 
-**What this is not.** Every number above is structural — layout counts, fill
-rates, slot shapes. None of it is a creative judgement and no creative
-acceptance has been recorded. Real-provider generation runs, measured latency
-and cost, and physical-device verification are not done: this container holds
-no model or Supabase keys, so no deck was generated end to end. BETA-002,
+**One product, one hostname.** The owner reported landing on a `*.vercel.app`
+deployment URL a fourth time, after making both configuration changes. Those
+changes are correct and live — production's `robots.txt` and sitemap, both
+generated from `siteOrigin`, name `https://captivate.axtevi.com` — and they
+were never going to fix it. Measured rather than assumed: the custom domain and
+`captivate-eight.vercel.app` both answer 200, a per-deployment URL answers 302
+to `vercel.com/sso-api`, and the Present control is a _relative_ link, so it
+cannot move anyone between hosts. A production deployment reached on any
+`vercel.app` hostname now redirects to the canonical origin keeping its path;
+preview deployments are deliberately untouched. What no code here can reach is
+a per-deployment URL under Deployment Protection, answered at Vercel's edge
+before the application runs.
+
+**Three claims corrected mid-branch**, each in its own commit rather than
+quietly amended: a detail-scene count read from the wrong column; "no paid
+image can be spent here", which was wrong because `GeneratedLayout` lets the
+single-scene route compose a cover; and a photo-ranking comment that read as a
+guarantee about the delivered image when it scores the original.
+
+**What this is not.** Every composition number above is structural — layout
+counts, fill rates, slot shapes. None of it is a creative judgement and no
+creative acceptance has been recorded. Real-provider generation runs, measured
+latency and cost, and physical-device verification are not done: this container
+holds no model or Supabase keys, so no deck was generated end to end. BETA-002,
 BETA-003 and BETA-006 stay open, and the composer's effect on a deck a person
 actually reads is unproven.
 
