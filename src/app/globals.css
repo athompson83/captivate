@@ -425,6 +425,8 @@
      its own depth. Transform only, so the compositor moves the layers. */
   .pxl {
     height: 100%;
+  }
+  .pxl-depth {
     transform: translate(
       calc(var(--px, 0px) * var(--depth, 0)),
       calc(var(--py, 0px) * var(--depth, 0))

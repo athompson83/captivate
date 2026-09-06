@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { layoutFor } from "@/lib/narrative/generate";
-import { composeScene } from "@/lib/editor/layouts";
+import { composeScene, layoutSlots } from "@/lib/editor/layouts";
 import { drawableScenes, drawingCap, imagePromptFor } from "@/lib/editor/place-drawing";
 import type { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 
@@ -156,5 +156,104 @@ describe("a talk long enough for several drawings has somewhere to put them", ()
     // moved there would be crushed, which is the reason the promotion is
     // limited to the single-line roles.
     expect(layoutFor("enumeration", "claim", 1)).toBe("bullets");
+  });
+});
+
+/**
+ * The intent the model actually sends.
+ *
+ * The suite above proves the spine carries pictures when the moment's intent
+ * is `auto`, and every one of its cases passed while real decks came back with
+ * one picture in fourteen scenes. Read out of production: of 315 moments
+ * generated over ten days, `statement` was chosen 140 times and `auto` once.
+ * So `auto` is the one input the generator almost never sees, and a suite that
+ * only ever passes it is a suite that cannot fail.
+ *
+ * These cases pass `statement` — the model's default, and its commonest answer
+ * — and they fail against the defect.
+ */
+describe("the spine carries pictures on the intent the model really sends", () => {
+  const DECK: NarrativeRole[] = [
+    "hook",
+    "claim",
+    "reframe",
+    "claim",
+    "evidence",
+    "synthesis",
+    "claim",
+    "reframe",
+    "application",
+    "synthesis",
+    "claim",
+    "close",
+  ];
+
+  const layouts = (intent: VisualIntent) =>
+    DECK.map((role, index) => layoutFor(intent, role, index));
+  const withMedia = (list: ReturnType<typeof layouts>) =>
+    list.filter((layout) => Boolean(layoutSlots(layout).media));
+
+  it("gives a statement-intent deck somewhere to put several pictures", () => {
+    const slots = withMedia(layouts("statement"));
+    // The reported deck had one picture in fourteen scenes. A deck this long
+    // earns at least three drawings before a photograph is even considered.
+    expect(
+      slots.length,
+      `only ${slots.length} of ${DECK.length} scenes had a slot for a picture`,
+    ).toBeGreaterThanOrEqual(3);
+  });
+
+  it("spends the drawing budget on a statement-intent deck", () => {
+    const cap = drawingCap(20 * 60, true);
+    const scenes = DECK.map((role, index) => {
+      const layout = layoutFor("statement", role, index);
+      const heading = `Moment ${index}`;
+      const imagePrompt = imagePromptFor({ imagePrompt: "", layout, heading });
+      return {
+        content: composeScene(layout, {
+          heading,
+          media: imagePrompt ? { url: "", alt: imagePrompt } : undefined,
+        }),
+        imagePrompt,
+      };
+    });
+    expect(drawableScenes(scenes, cap).length).toBe(cap);
+  });
+
+  it("still leaves a statement-intent deck plenty of air", () => {
+    // A deck of nothing but side-by-side scenes is the other failure, so the
+    // spine alternates: every other claim keeps its centred line, and half the
+    // deck is still a single sentence with air around it.
+    const list = layouts("statement");
+    const split = list.filter((l) => l === "split-left" || l === "split-right");
+    expect(split.length).toBeGreaterThan(0);
+    expect(split.length).toBeLessThan(list.length / 2);
+    expect(list.filter((layout) => layout === "statement").length).toBeGreaterThanOrEqual(
+      list.length / 3,
+    );
+  });
+
+  it("still yields to an intent that names specific content", () => {
+    // Only `statement` is weak. A claim the author marked as a comparison is
+    // a comparison, and a one-line intent never turns evidence into a chart
+    // it has no numbers for.
+    expect(layoutFor("comparison", "claim", 1)).toBe("two-column");
+    expect(layoutFor("data", "claim", 1)).toBe("chart");
+    expect(layoutFor("quotation", "claim", 1)).toBe("quote");
+    expect(layoutFor("enumeration", "claim", 1)).toBe("bullets");
+  });
+
+  it("leaves every role but the spine exactly where it was", () => {
+    for (const role of [
+      "evidence",
+      "context",
+      "contrast",
+      "application",
+      "close",
+    ] as NarrativeRole[]) {
+      for (let index = 0; index < 6; index++) {
+        expect(layoutFor("statement", role, index), `${role} at ${index}`).toBe("statement");
+      }
+    }
   });
 });

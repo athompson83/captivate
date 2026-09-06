@@ -28,7 +28,8 @@ import {
   type Size,
 } from "@/lib/present/camera";
 import { smoothPath } from "@/lib/present/path";
-import { backdropPlane, backdropTransform } from "@/lib/present/backdrop";
+import { backdropLayer, backdropPlane, backdropTransform } from "@/lib/present/backdrop";
+import { graphicBackdrop } from "@/lib/present/graphic-backdrop";
 import { regionParallax } from "@/lib/present/parallax";
 import {
   LEVEL,
@@ -320,7 +321,15 @@ export const World = memo(function World({
    */
   const onScene = landed && focus.kind === "scene" ? focus.index : -1;
 
-  const hasBackdrop = Boolean(backdrop?.url);
+  // A picture, a drawn backdrop, or both. The drawn one is the default, so a
+  // deck nobody has touched still has a designed room behind it rather than a
+  // flat field; a photograph, where the author set one, covers it.
+  const graphic = useMemo(
+    () => graphicBackdrop(backdrop?.graphic ?? "aurora", basePalette),
+    [backdrop?.graphic, basePalette],
+  );
+  const picture = Boolean(backdrop?.url);
+  const hasBackdrop = picture || Boolean(graphic);
   const backdropDistance = backdrop?.distance ?? 0.5;
   const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
   // The viewport's own aspect, not the inset one: the picture covers the
@@ -736,22 +745,34 @@ export const World = memo(function World({
         scenes and a zoom grows it less, and on a scene it is perfectly still.
         Dimmed toward the theme's canvas so the scenes' text stays legible.
       */}
-      {hasBackdrop && backdrop && (
+      {hasBackdrop && (
         <div
           ref={backdropRef}
           aria-hidden
           data-backdrop
+          data-backdrop-graphic={backdrop?.graphic ?? "aurora"}
           className="pointer-events-none absolute top-0 left-0 origin-top-left"
-          style={{ width: plane.width, height: plane.height, willChange: "transform" }}
+          // Laid out at the layer's size, not the plane's: the plane is world
+          // units and a world is thousands of them across. See `backdropLayer`.
+          style={{
+            ...backdropLayer(viewport),
+            willChange: "transform",
+            // The drawn backdrop is the layer's own paint, so a picture over
+            // it needs no second element and an empty layer has no seam.
+            backgroundColor: graphic?.backgroundColor,
+            backgroundImage: graphic?.backgroundImage,
+          }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element -- a signed private asset in a transformed layer; see element-view */}
-          <img
-            src={backdrop.url}
-            alt=""
-            draggable={false}
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          />
-          {backdrop.dim > 0 && (
+          {picture && backdrop && (
+            /* eslint-disable-next-line @next/next/no-img-element -- a signed private asset in a transformed layer; see element-view */
+            <img
+              src={backdrop.url}
+              alt=""
+              draggable={false}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          )}
+          {picture && backdrop && backdrop.dim > 0 && (
             <div
               style={{
                 position: "absolute",

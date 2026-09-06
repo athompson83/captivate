@@ -344,8 +344,32 @@ export function layoutFor(
     return "takeaway";
   }
 
+  /*
+   * `statement` is the model's default, and it names no content.
+   *
+   * The cover rule above learned this the hard way and says so: an intent that
+   * names specific content — a chart, a pull quote, a comparison — is a thing
+   * the author asked for, and it wins. "Say one line" is not. Yet every moment
+   * whose intent came back `statement` returned a layout with no media slot,
+   * and nothing downstream can put a picture on a scene that has no slot for
+   * one: `imagePromptFor` returns "" and `drawableScenes` has nothing to
+   * draw into.
+   *
+   * Read out of production before this changed: of 315 moments generated over
+   * ten days the model chose `auto` exactly once, so the spine rule below —
+   * written to stop "a twenty-minute deck with exactly one drawing in it" —
+   * had effectively never run. The decks it was meant to fix looked exactly as
+   * they had: fourteen scenes, one picture, eight of them a bare heading.
+   *
+   * So a `statement` intent no longer vetoes the spine's picture. It still
+   * decides every other role, where the role's own answer is a chart or a list
+   * that one line cannot fill.
+   */
+  const SPINE: NarrativeRole[] = ["claim", "reframe", "synthesis"];
+
   switch (intent) {
     case "statement":
+      if (SPINE.includes(role)) break;
       return "statement";
     case "comparison":
       return "two-column";

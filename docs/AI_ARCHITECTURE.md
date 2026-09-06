@@ -106,6 +106,33 @@ Where the model asks for an image via `imagePrompt`, a placeholder image element
 is created in the right slot with the prompt as its alt text. The composition is
 correct; the user only has to drop a picture in.
 
+### The slot decides, and the intent no longer vetoes it
+
+`layoutFor` chooses a layout from the moment's **visual intent** first and its
+**role** second, and only some layouts have a media slot at all. Nothing
+downstream can put a picture on a scene that has none: `imagePromptFor` returns
+an empty string and `drawableScenes` has nothing to draw into.
+
+That made one input decisive in a way nobody intended. `statement` is the
+model's default intent and it names no content — and it returned a layout with
+no slot, so the rule that gives the spine of an argument a picture every other
+scene, written for exactly this complaint, was only reachable on an `auto`
+intent. Read out of production: of 315 moments generated over ten days the
+model chose `auto` **once**, and `statement` 140 times. The rule had
+effectively never run, and decks came back at fourteen scenes with one picture
+and eight bare headings.
+
+So a `statement` intent no longer vetoes the spine's picture — it falls
+through to the role, which alternates `split-left`/`split-right` with a plain
+centred line so half the deck still has air around it. Every intent that names
+specific content still wins outright: a comparison is two columns, data is a
+chart, a quotation is a pull quote, an enumeration stays a list that a
+side-by-side slot would crush. Only the default is weak, because it is a
+statement about brevity rather than about content.
+
+The lesson is the cover rule's, one scene later, and the tests now pass the
+intent the model actually sends rather than the one that made them pass.
+
 ---
 
 ## Cost control

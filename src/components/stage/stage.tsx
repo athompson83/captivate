@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import type { AspectRatio, SceneContent, SceneElement } from "@/lib/schema/presentation";
 import {
@@ -81,6 +81,15 @@ export interface StageProps {
    */
   arrived?: boolean;
 }
+
+/**
+ * How long an element may wait for a landing before it performs anyway.
+ *
+ * Comfortably past the longest flight the slowest pace produces, so this never
+ * fires while a camera is still travelling — it exists only so that a landing
+ * the world never reports cannot hide an element for the rest of the show.
+ */
+const HOLD_CEILING_MS = 6000;
 
 export const Stage = memo(function Stage({
   content,
@@ -292,6 +301,30 @@ function ElementLayer({
   // an earlier render, rather than in an effect that would land a frame late.
   const [held, setHeld] = useState(play && !arrived);
   if (held && arrived) setHeld(false);
+  /*
+   * And released by the clock if the landing never comes.
+   *
+   * `arrived` is the world comparing the camera it last landed on with the
+   * camera it is currently aiming at. That is a value comparison, and any
+   * churn in the target — a viewport that keeps changing size, which is what
+   * a phone's address bar does as it hides — can leave the two never equal.
+   * An element that mounted during such a window is then held forever, and a
+   * held drawing is not a late drawing: `step = -1` leaves every path at
+   * `stroke-dashoffset: var(--dp-len)`, which is a stroke of zero visible
+   * length. The scene looks finished, the text is all there, and the picture
+   * is simply absent. That is the reported "the drawings are now all gone".
+   *
+   * So the hold has a floor. A flight is a bounded thing — the longest one
+   * the slowest pace allows is a few seconds — and past that ceiling there is
+   * no flight left to protect the entrance from. Releasing late shows the
+   * entrance a beat after the camera settled; not releasing shows nothing,
+   * ever, which is the worse failure by a distance.
+   */
+  useEffect(() => {
+    if (!play || !held) return;
+    const timer = setTimeout(() => setHeld(false), HOLD_CEILING_MS);
+    return () => clearTimeout(timer);
+  }, [play, held]);
   const holding = play && held;
   // What only happens in front of the room: a figure counting, a chart
   // building. Keyed on the landing itself, not on the hold — a scene that was
@@ -371,8 +404,18 @@ function ElementLayer({
       {/* Depth: the world writes --px/--py on the region once a frame; this
           layer multiplies them by the element's depth in CSS. Only while
           presenting — in the editor an element sits exactly where it was put. */}
+      {/*
+        Two things, and only one of them is about presenting. `pxl` is the
+        wrapper's *height*: it sits between the frame and the element, so
+        without it every `height: 100%` element inside — a drawing, a picture —
+        measures against an auto-height box and collapses to its content. That
+        is structural and belongs on every surface, including the editor and
+        thumbnails, where this div was previously left unstyled and drawings
+        rendered short. `pxl-depth` is the parallax, and stays presenting-only:
+        in the editor an element sits exactly where it was put.
+      */}
       <div
-        className={play ? "pxl" : undefined}
+        className={play ? "pxl pxl-depth" : "pxl"}
         style={
           play ? ({ "--depth": elementDepth(element.type) } as React.CSSProperties) : undefined
         }

@@ -21,6 +21,38 @@ import { FRAME_PADDING } from "./camera";
 const OVERSCAN = 1.12;
 
 /**
+ * How many viewports wide the picture's *layer* is, whatever the plane's size.
+ *
+ * The plane is measured in world units, and a world is large: eleven scenes
+ * on a phone put the plane at 18,510 x 40,119 — and the layer was laid out at
+ * exactly that, in CSS pixels, with `will-change: transform` on it. That asks
+ * the compositor for a texture of 743 megapixels, about 2.9 GB, for a picture
+ * the size of a phone screen. A browser given that either tiles it at ruinous
+ * cost or loses the tab; on iOS it loses the tab, which is what "the browser
+ * keeps crashing" looks like from the other side of the screen.
+ *
+ * So the layer's size is a *raster* decision and has nothing to do with the
+ * plane: two viewports across, which is sharp at the framings a presentation
+ * actually uses and costs four viewports of texture — six megabytes on a
+ * phone rather than three gigabytes. `backdropTransform` scales it back up to
+ * the plane's projected size, so what reaches the screen is unchanged.
+ */
+const RASTER_VIEWPORTS = 2;
+
+/**
+ * The size to lay the picture's layer out at, in CSS pixels.
+ *
+ * Shares the viewport's aspect, so one scale factor relates it to the plane on
+ * both axes.
+ */
+export function backdropLayer(viewport: Size): Size {
+  return {
+    width: Math.max(1, viewport.width) * RASTER_VIEWPORTS,
+    height: Math.max(1, viewport.height) * RASTER_VIEWPORTS,
+  };
+}
+
+/**
  * How far behind the content the plane sits, in scene widths.
  *
  * `distance` is the author's 0–1 setting. Zero is just behind the scenes,
@@ -62,10 +94,12 @@ export function backdropPlane(
 /**
  * The CSS transform that puts the plane under a camera.
  *
- * `worldTransform` with one change: the scale divides by the camera's width
- * *plus* the plane's depth, which is the whole of the parallax. The element it
- * is written to has the plane's world size and its transform origin at the
- * top-left, like the world itself.
+ * `worldTransform` with two changes. The scale divides by the camera's width
+ * *plus* the plane's depth, which is the whole of the parallax. And the
+ * element it is written to is `backdropLayer`-sized rather than plane-sized
+ * (see `RASTER_VIEWPORTS`), so the plane's size enters as a ratio: the scale
+ * is multiplied by it and the translation divided by it, which lands the same
+ * pixels on the screen from a layer the browser can actually hold.
  */
 export function backdropTransform(
   camera: Camera,
@@ -76,10 +110,13 @@ export function backdropTransform(
 ): string {
   const scale =
     viewport.width / Math.max(camera.width + backdropDepth(distance) * stage.width, 1e-6);
+  // World units per layer pixel. The layer shares the viewport's aspect and
+  // so does the plane, so one ratio serves both axes.
+  const perPixel = plane.width / Math.max(backdropLayer(viewport).width, 1e-6);
   return [
     `translate(${viewport.width / 2}px, ${viewport.height / 2}px)`,
     `rotate(${-camera.rotation}deg)`,
-    `scale(${scale})`,
-    `translate(${plane.x - camera.x}px, ${plane.y - camera.y}px)`,
+    `scale(${scale * perPixel})`,
+    `translate(${(plane.x - camera.x) / perPixel}px, ${(plane.y - camera.y) / perPixel}px)`,
   ].join(" ");
 }

@@ -427,9 +427,55 @@ function findWorld(container: HTMLElement): HTMLElement | null {
 }
 
 describe("the backdrop", () => {
-  it("is absent until the author sets a picture", () => {
+  it("is drawn when the author has set no picture", () => {
+    // The default. A deck nobody has touched still has a designed room behind
+    // it — the reported gap was that it had none — and the layer that carries
+    // it is the same one a photograph would use.
     const { container } = renderWorld(3);
+    const layer = container.querySelector<HTMLElement>("[data-backdrop]");
+    expect(layer).not.toBeNull();
+    expect(layer!.getAttribute("data-backdrop-graphic")).toBe("aurora");
+    expect(layer!.style.backgroundImage).toContain("radial-gradient");
+    // Drawn, not photographed: no picture is fetched for it.
+    expect(layer!.querySelector("img")).toBeNull();
+  });
+
+  it("is absent when there is neither a picture nor a drawn backdrop", () => {
+    const { container } = renderWorld(3, {
+      backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35, graphic: "none" },
+    });
     expect(container.querySelector("[data-backdrop]")).toBeNull();
+  });
+
+  it("draws every graphic from the theme's own colours", () => {
+    // No hex anywhere: a backdrop that does not come from the palette fights
+    // the air blended from the regions in front of it.
+    for (const graphic of ["aurora", "strata", "halo"] as const) {
+      const { container, unmount } = renderWorld(3, {
+        backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35, graphic },
+      });
+      const layer = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const paint = layer.style.backgroundImage + layer.style.backgroundColor;
+      expect(paint, graphic).toContain("oklab");
+      expect(paint, graphic).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+      unmount();
+    }
+  });
+
+  it("lays the picture over the drawn backdrop when there is one", () => {
+    const { container } = renderWorld(3, {
+      backdrop: {
+        url: "/api/assets/abc/content",
+        assetId: "abc",
+        alt: "a hall",
+        distance: 0.5,
+        dim: 0.4,
+        graphic: "aurora",
+      },
+    });
+    const layer = container.querySelector<HTMLElement>("[data-backdrop]")!;
+    expect(layer.style.backgroundImage).toContain("radial-gradient");
+    expect(layer.querySelector("img")?.getAttribute("src")).toBe("/api/assets/abc/content");
   });
 
   it("paints the picture on its own layer behind the world, dimmed toward the canvas", () => {
@@ -440,6 +486,7 @@ describe("the backdrop", () => {
         alt: "a hall",
         distance: 0.5,
         dim: 0.4,
+        graphic: "none" as const,
       },
     });
     const layer = container.querySelector("[data-backdrop]");
@@ -455,7 +502,14 @@ describe("the backdrop", () => {
 
   it("paints nothing when the picture was removed", () => {
     const { container } = renderWorld(3, {
-      backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35 },
+      backdrop: {
+        url: "",
+        assetId: null,
+        alt: "",
+        distance: 0.5,
+        dim: 0.35,
+        graphic: "none" as const,
+      },
     });
     expect(container.querySelector("[data-backdrop]")).toBeNull();
   });
@@ -634,6 +688,7 @@ describe("the room answers the hand", () => {
     alt: "a hall",
     distance: 0.5,
     dim: 0.4,
+    graphic: "none" as const,
   };
   const translateX = (transform: string) => {
     const matches = [...transform.matchAll(/translate\(([-\d.]+)px, ([-\d.]+)px\)/g)];

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
 import { Stage } from "@/components/stage/stage";
 import { getTheme } from "@/lib/schema/theme";
 import { composeScene } from "@/lib/editor/layouts";
@@ -338,6 +338,72 @@ describe("performing a scene on arrival", () => {
     expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
   });
 
+  it("draws even when the landing is never reported", () => {
+    /*
+     * The reported defect, and the reason this file needed a clock.
+     *
+     * `arrived` is the world comparing the camera it last landed on with the
+     * one it is aiming at, and a target that keeps being recomputed — a phone
+     * hiding its address bar resizes the viewport, which changes the framing —
+     * leaves those two never equal. A held drawing is not a late drawing:
+     * `step = -1` leaves every path at a stroke of zero visible length, so the
+     * scene looks finished with the picture simply absent, for the rest of the
+     * show. The hold now has a floor.
+     */
+    vi.useFakeTimers();
+    try {
+      const { container } = render(
+        <Stage
+          content={drawn}
+          theme={theme}
+          aspect="16:9"
+          fixedScale={1}
+          play
+          step={0}
+          arrived={false}
+        />,
+      );
+      expect(container.querySelectorAll(".dp-drawn")).toHaveLength(0);
+
+      // No landing is ever reported. A flight is a bounded thing, so past the
+      // ceiling there is nothing left to wait for.
+      act(() => {
+        vi.advanceTimersByTime(6500);
+      });
+
+      expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+      expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not release the hold while the flight is still running", () => {
+    // The ceiling is a floor under a failure, not a replacement for the
+    // landing: a scene still does not perform in the distance.
+    vi.useFakeTimers();
+    try {
+      const { container } = render(
+        <Stage
+          content={drawn}
+          theme={theme}
+          aspect="16:9"
+          fixedScale={1}
+          play
+          step={0}
+          arrived={false}
+        />,
+      );
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(container.querySelectorAll("[data-held]")).toHaveLength(2);
+      expect(container.querySelectorAll(".dp-drawn")).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("leaves alone an element that was on screen when the flight began", () => {
     // A neighbour visible at the edge of the previous scene must not vanish
     // when the camera sets off towards it. An entrance is for what the
@@ -597,14 +663,45 @@ describe("depth layers", () => {
     const live = render(
       <Stage content={content} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
     );
-    const layers = [...live.container.querySelectorAll<HTMLElement>(".pxl")];
+    const layers = [...live.container.querySelectorAll<HTMLElement>(".pxl-depth")];
     expect(layers.length).toBeGreaterThan(1);
     const depths = layers.map((layer) => Number(layer.style.getPropertyValue("--depth")));
     expect(depths.some((d) => d < 0)).toBe(true);
     expect(depths.some((d) => d > 0)).toBe(true);
     live.unmount();
 
+    // The parallax is the presenting half and is gone here; an element in the
+    // editor sits exactly where it was put.
     const still = renderStage(content);
-    expect(still.container.querySelectorAll(".pxl")).toHaveLength(0);
+    expect(still.container.querySelectorAll(".pxl-depth")).toHaveLength(0);
+    for (const layer of still.container.querySelectorAll<HTMLElement>(".pxl")) {
+      expect(layer.style.getPropertyValue("--depth")).toBe("");
+    }
+  });
+
+  it("gives the wrapper its height on every surface, not only while presenting", () => {
+    // The wrapper sits between an element's frame and the element, so an
+    // element sized `height: 100%` — a drawing, a picture — measures against
+    // it. Left unstyled in the editor and in thumbnails, it is an auto-height
+    // box and every one of them collapsed to its content: a drawing rendered
+    // short inside a frame that was the right size all along.
+    for (const surface of [
+      renderStage(content),
+      render(
+        <Stage
+          content={content}
+          theme={theme}
+          aspect="16:9"
+          fixedScale={1}
+          play
+          step={0}
+          arrived
+        />,
+      ),
+    ]) {
+      const layers = surface.container.querySelectorAll(".pxl");
+      expect(layers.length).toBeGreaterThan(1);
+      surface.unmount();
+    }
   });
 });
