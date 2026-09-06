@@ -29,6 +29,7 @@ import {
   type AiKind,
   type RewriteMode,
   GeneratedDrawing,
+  sceneName,
 } from "./schemas";
 import { deriveTitle, fallbackRewrite, fallbackScene, subjectOf } from "./fallback";
 import { fallbackMap } from "./narrative-fallback";
@@ -444,6 +445,8 @@ Every scene's body text is at most two sentences. If an explanation needs more, 
 
 Use the whole instrument. An eyebrow situates ("Module 2 · Airway"), a headingAccent carries the clause the claim turns on, cards give a three-up its three ideas, a chart's data uses the evidence's real magnitudes. A scene that uses only heading and bullets when its layout offers more reads as a form letter.
 
+Every scene also carries a \`title\`: three to six words naming it in the presenter's own navigator. It is the only field never drawn on stage — it is how an author finds one scene in a list of thirty — so write it on every scene and keep it short.
+
 Each layout draws a fixed set of fields and shows nothing else, so write into the ones its layout has. A statement whose words are in \`body\` is a blank screen:
 
 - cover, title — eyebrow, heading, headingAccent, subheading (cover also imagePrompt)
@@ -809,7 +812,9 @@ function materialise(
       : null;
 
   return {
-    title: scene.title,
+    // Recovered from the content where the model wrote no name — see
+    // `sceneName`. A deck is not worth losing over a label in a sidebar.
+    title: sceneName(scene),
     // `layoutFor` chose this layout from the moment's visual intent, before
     // the model wrote a word — so the composition may give way where the
     // content does not fit it. A person picking a layout gets what they picked.
