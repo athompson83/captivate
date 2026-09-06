@@ -93,6 +93,7 @@ captivate/
 │  │  │  ├─ parallax.ts            Depth inside a scene: words nearer, pictures farther
 │  │  │  ├─ backdrop.ts            One picture behind the show, on a plane at a distance
 │  │  │  ├─ lean.ts                The room answers the hand: backdrop and air follow a mouse
+│  │  │  ├─ graphic-backdrop.ts    The room, drawn: aurora, strata, halo, from the palette
 │  │  │  └─ audience.ts            What the projector window is allowed to load
 │  │  ├─ narrative/
 │  │  │  ├─ map.ts                 Assemble, derive, reorder, diff the map

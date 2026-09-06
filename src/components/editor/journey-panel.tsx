@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Check, Route, RotateCcw } from "lucide-react";
-import type { ArrangePreset } from "@/lib/schema/presentation";
+import type { ArrangePreset, BackdropGraphic } from "@/lib/schema/presentation";
+import { BACKDROP_GRAPHIC_META } from "@/lib/schema/presentation";
 import { ARRANGEMENTS, arrange } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
 import { setScenePlacements } from "@/lib/data/actions";
@@ -162,9 +163,54 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
         <section className="border-line-subtle space-y-3 border-t pt-4">
           <h3 className="text-ink-3 text-[11px] font-medium tracking-wide uppercase">Backdrop</h3>
           <p className="text-ink-3 text-[11.5px] leading-snug">
-            One picture behind the whole show. It sits some way behind the scenes, so a flight moves
+            The room the whole show stands in. It sits some way behind the scenes, so a flight moves
             it with depth and it holds still while you speak.
           </p>
+
+          <Field label="Drawn">
+            <Segmented<BackdropGraphic>
+              label="Drawn backdrop"
+              stretch
+              size="sm"
+              value={journey.backdrop.graphic}
+              options={(["none", "aurora", "strata", "halo"] as BackdropGraphic[]).map((value) => ({
+                value,
+                label: BACKDROP_GRAPHIC_META[value].label,
+              }))}
+              onChange={(graphic) =>
+                updatePresentationMeta(
+                  { journey: { ...journey, backdrop: { ...journey.backdrop, graphic } } },
+                  { label: "Change the drawn backdrop" },
+                )
+              }
+            />
+            <p className="text-ink-3 mt-1.5 text-[11px] leading-snug">
+              {BACKDROP_GRAPHIC_META[journey.backdrop.graphic].plain}
+            </p>
+          </Field>
+
+          {/*
+            Distance is the plane's, not the picture's, so it belongs to
+            whichever backdrop is showing. Dim lays the canvas over a
+            photograph and stays with the photograph.
+          */}
+          {(journey.backdrop.url || journey.backdrop.graphic !== "none") && (
+            <Slider
+              label="Distance"
+              value={journey.backdrop.distance}
+              min={0}
+              max={1}
+              step={0.05}
+              format={(v) => (v < 0.2 ? "Close" : v > 0.8 ? "Far" : v.toFixed(2))}
+              onChange={(v) =>
+                updatePresentationMeta(
+                  { journey: { ...journey, backdrop: { ...journey.backdrop, distance: v } } },
+                  { label: "Change backdrop distance", coalesceKey: "backdrop-distance" },
+                )
+              }
+            />
+          )}
+
           {journey.backdrop.url ? (
             <div className="space-y-3">
               <div className="border-line-subtle relative overflow-hidden rounded-[var(--radius-md)] border">
@@ -175,20 +221,6 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
                   className="block aspect-video w-full object-cover"
                 />
               </div>
-              <Slider
-                label="Distance"
-                value={journey.backdrop.distance}
-                min={0}
-                max={1}
-                step={0.05}
-                format={(v) => (v < 0.2 ? "Close" : v > 0.8 ? "Far" : v.toFixed(2))}
-                onChange={(v) =>
-                  updatePresentationMeta(
-                    { journey: { ...journey, backdrop: { ...journey.backdrop, distance: v } } },
-                    { label: "Change backdrop distance", coalesceKey: "backdrop-distance" },
-                  )
-                }
-              />
               <Slider
                 label="Dim"
                 value={journey.backdrop.dim}

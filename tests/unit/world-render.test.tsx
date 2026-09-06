@@ -417,19 +417,86 @@ describe("the movement rail's strip", () => {
   });
 });
 
-/** The transformed element: the one carrying a style.transform translate. */
+/**
+ * The world layer.
+ *
+ * By its marker, not by "the first div carrying a transform": the backdrop
+ * layers are transformed too, and they are painted before the world, so the
+ * looser version silently started measuring the room instead of the content.
+ */
 function findWorld(container: HTMLElement): HTMLElement | null {
-  return (
-    [...container.querySelectorAll<HTMLElement>("div")].find((el) =>
-      el.style.transform.includes("translate"),
-    ) ?? null
-  );
+  return container.querySelector<HTMLElement>("[data-world]");
 }
 
 describe("the backdrop", () => {
-  it("is absent until the author sets a picture", () => {
+  it("is drawn when the author has set no picture", () => {
+    // The default. A deck nobody has touched still has a designed room behind
+    // it — the reported gap was that it had none — and the layer that carries
+    // it is the same one a photograph would use.
     const { container } = renderWorld(3);
+    const layer = container.querySelector<HTMLElement>("[data-backdrop]");
+    expect(layer).not.toBeNull();
+    expect(layer!.getAttribute("data-backdrop-graphic")).toBe("aurora");
+    expect(layer!.style.backgroundImage).toContain("radial-gradient");
+    // Drawn, not photographed: no picture is fetched for it.
+    expect(layer!.querySelector("img")).toBeNull();
+  });
+
+  it("is absent when there is neither a picture nor a drawn backdrop", () => {
+    const { container } = renderWorld(3, {
+      backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35, graphic: "none" },
+    });
     expect(container.querySelector("[data-backdrop]")).toBeNull();
+  });
+
+  it("draws every graphic from the theme's own colours", () => {
+    // No hex anywhere: a backdrop that does not come from the palette fights
+    // the air blended from the regions in front of it.
+    for (const graphic of ["aurora", "strata", "halo"] as const) {
+      const { container, unmount } = renderWorld(3, {
+        backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35, graphic },
+      });
+      const layer = container.querySelector<HTMLElement>("[data-backdrop]")!;
+      const paint = layer.style.backgroundImage + layer.style.backgroundColor;
+      expect(paint, graphic).toContain("oklab");
+      expect(paint, graphic).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+      unmount();
+    }
+  });
+
+  it("paints no drawn backdrop under a picture that would cover it", () => {
+    // A photograph fills the whole plane, so a wash behind it is paint nobody
+    // can see — and this one is expensive paint. Only ever one of the two.
+    const { container } = renderWorld(3, {
+      backdrop: {
+        url: "/api/assets/abc/content",
+        assetId: "abc",
+        alt: "a hall",
+        distance: 0.5,
+        dim: 0.4,
+        graphic: "aurora",
+      },
+    });
+    const layers = [...container.querySelectorAll<HTMLElement>("[data-backdrop]")];
+    expect(layers).toHaveLength(1);
+    expect(layers[0].getAttribute("data-backdrop-picture")).not.toBeNull();
+    expect(layers[0].style.backgroundImage).toBe("");
+    expect(layers[0].querySelector("img")?.getAttribute("src")).toBe("/api/assets/abc/content");
+  });
+
+  it("never scales the drawn backdrop, whatever the camera does", () => {
+    /*
+     * The drawn backdrop is four radial gradients across a layer bigger than
+     * the screen. A transform whose scale changes every frame — which is what
+     * a flight is — makes the browser re-rasterise that paint every frame,
+     * and with a software rasteriser the page stops responding: the browser
+     * suite hung on a keypress until this was translate-only.
+     */
+    const { container } = renderWorld(3);
+    const layer = container.querySelector<HTMLElement>("[data-backdrop]")!;
+    expect(layer.style.transform).toContain("translate(");
+    expect(layer.style.transform).not.toContain("scale(");
+    expect(layer.style.transform).not.toContain("rotate(");
   });
 
   it("paints the picture on its own layer behind the world, dimmed toward the canvas", () => {
@@ -440,6 +507,7 @@ describe("the backdrop", () => {
         alt: "a hall",
         distance: 0.5,
         dim: 0.4,
+        graphic: "none" as const,
       },
     });
     const layer = container.querySelector("[data-backdrop]");
@@ -455,7 +523,14 @@ describe("the backdrop", () => {
 
   it("paints nothing when the picture was removed", () => {
     const { container } = renderWorld(3, {
-      backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35 },
+      backdrop: {
+        url: "",
+        assetId: null,
+        alt: "",
+        distance: 0.5,
+        dim: 0.35,
+        graphic: "none" as const,
+      },
     });
     expect(container.querySelector("[data-backdrop]")).toBeNull();
   });
@@ -525,6 +600,68 @@ describe("performing on arrival", () => {
 
     rerender(<World {...props} focus={{ kind: "scene", index: 3 }} activeIndex={3} />);
     expect(document.querySelectorAll('[data-scene-index="3"] [data-held]')).toHaveLength(0);
+  });
+
+  it("still counts as landed when the framing changes under a standing camera", () => {
+    /*
+     * The reported defect: "the drawings are now all gone".
+     *
+     * Landing used to be the camera last landed on compared with the camera
+     * being aimed at — a question about geometry, when the one that matters
+     * is about intent. A viewport that changes size recomputes the framing of
+     * the very scene the camera is already sitting on, the two cameras stop
+     * being equal, and the world reports it has never landed. Anything that
+     * mounts from then on is held, and a held drawing renders as a stroke of
+     * zero visible length: the scene looks finished with the picture simply
+     * absent. A phone hiding its address bar makes exactly this change.
+     */
+    const frames = controllableFrames();
+    try {
+      const scenes = makeScenes(3);
+      const placements = arrange("reel", scenes, STAGE);
+      const withPicture = scenes.map((scene, i) =>
+        i === 0
+          ? {
+              ...scene,
+              content: composeScene("split-left", {
+                heading: "Heading number 1",
+                media: { url: "https://example.com/x.jpg", alt: "A picture" },
+              }),
+            }
+          : scene,
+      );
+      const props = (aspect: "16:9" | "4:3", deck: typeof scenes) => ({
+        scenes: deck,
+        placements,
+        theme,
+        aspect,
+        focus: { kind: "scene" as const, index: 0 },
+        activeIndex: 0,
+        step: 0,
+        play: true,
+        travel: "fly" as const,
+        pace: JOURNEY_DEFAULTS.pace,
+        depth: JOURNEY_DEFAULTS.depth,
+      });
+
+      // Landed on scene one.
+      const { container, rerender } = render(<World {...props("16:9", scenes)} />);
+      expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
+
+      // The framing of that same scene changes — the shape of a resize — and
+      // the camera sets off for the new one without arriving yet.
+      rerender(<World {...props("4:3", scenes)} />);
+
+      // Something mounts in that window.
+      rerender(<World {...props("4:3", withPicture)} />);
+
+      expect(
+        container.querySelectorAll("[data-held]"),
+        "the camera is on the scene it landed on; a reframing is not a flight away from it",
+      ).toHaveLength(0);
+    } finally {
+      frames.restore();
+    }
   });
 
   it("lets a cut arrive at once, so the new scene performs immediately", () => {
@@ -634,6 +771,7 @@ describe("the room answers the hand", () => {
     alt: "a hall",
     distance: 0.5,
     dim: 0.4,
+    graphic: "none" as const,
   };
   const translateX = (transform: string) => {
     const matches = [...transform.matchAll(/translate\(([-\d.]+)px, ([-\d.]+)px\)/g)];

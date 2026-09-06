@@ -28,7 +28,13 @@ import {
   type Size,
 } from "@/lib/present/camera";
 import { smoothPath } from "@/lib/present/path";
-import { backdropPlane, backdropTransform } from "@/lib/present/backdrop";
+import {
+  backdropLayer,
+  backdropPlane,
+  backdropTransform,
+  drawnBackdropTransform,
+} from "@/lib/present/backdrop";
+import { graphicBackdrop } from "@/lib/present/graphic-backdrop";
 import { regionParallax } from "@/lib/present/parallax";
 import {
   LEVEL,
@@ -87,6 +93,14 @@ const Atmosphere = dynamic(() => import("./atmosphere").then((m) => m.Atmosphere
 /** Where the camera should be, expressed as intent rather than as geometry. */
 export type Focus =
   { kind: "scene"; index: number } | { kind: "world" } | { kind: "section"; sectionId: string };
+
+/** Whether two focuses name the same destination. */
+function sameFocus(a: Focus, b: Focus): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "scene" && b.kind === "scene") return a.index === b.index;
+  if (a.kind === "section" && b.kind === "section") return a.sectionId === b.sectionId;
+  return true;
+}
 
 /** On-screen width, in px, below which a scene is drawn as a marker. */
 const DETAIL_THRESHOLD = 132;
@@ -191,6 +205,8 @@ export const World = memo(function World({
   const worldRef = useRef<HTMLDivElement>(null);
   /** The picture behind the show, moved from the same loop as the world. */
   const backdropRef = useRef<HTMLDivElement>(null);
+  /** The drawn backdrop, which translates rather than scaling — see `drawnBackdropTransform`. */
+  const drawnRef = useRef<HTMLDivElement>(null);
   /** The full-viewport wash whose colour tracks where the camera is. */
   const ambientRef = useRef<HTMLDivElement>(null);
   /**
@@ -273,13 +289,23 @@ export const World = memo(function World({
    * still travelling, and the room landed on a finished scene. `onArrive`
    * was fired and nothing listened; this is what it was for.
    *
-   * Derived from the camera last landed on rather than flipped by the flight
-   * effect: the destination mounts in the very render that changes the
+   * Derived from what the camera last landed *on* rather than flipped by the
+   * flight effect: the destination mounts in the very render that changes the
    * target, and an element decides at mount whether it is held. A flag set
    * in an effect arrives one render too late, and that render is the one
    * that matters.
+   *
+   * The focus, not the camera. This used to hold the camera last landed on
+   * and compare it to the one being aimed at, which asks a question about
+   * geometry when the one that matters is about intent: a viewport that
+   * changes size — a phone hiding its address bar — recomputes the framing of
+   * the very scene the camera is already sitting on, the two cameras stop
+   * being equal, and the world reports that it has never landed. Nothing
+   * looks wrong until you notice that every drawing is missing, because a
+   * held drawing renders as a stroke of zero length. A resize does not change
+   * which scene the presenter is on, so it no longer changes the answer.
    */
-  const [landedOn, setLandedOn] = useState<Camera | null>(null);
+  const [landedFocus, setLandedFocus] = useState<Focus | null>(null);
 
   const measureRef = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
@@ -311,7 +337,7 @@ export const World = memo(function World({
     () => cameraFor(focus, scenes, placements, stage, aspectRatio),
     [focus, scenes, placements, stage, aspectRatio],
   );
-  const landed = landedOn !== null && camerasEqual(landedOn, target);
+  const landed = landedFocus !== null && sameFocus(landedFocus, focus);
   /**
    * Landed on a *scene*, which is the only landing a scene performs for. The
    * establishing shot over a new section and the overview are landings too,
@@ -320,7 +346,16 @@ export const World = memo(function World({
    */
   const onScene = landed && focus.kind === "scene" ? focus.index : -1;
 
-  const hasBackdrop = Boolean(backdrop?.url);
+  // A picture, a drawn backdrop, or both. The drawn one is the default, so a
+  // deck nobody has touched still has a designed room behind it rather than a
+  // flat field; a photograph, where the author set one, covers it.
+  const picture = Boolean(backdrop?.url);
+  // A picture covers the whole plane, so a drawn backdrop under one is paint
+  // nobody can see. Only ever one of the two is built.
+  const graphic = useMemo(
+    () => (picture ? null : graphicBackdrop(backdrop?.graphic ?? "aurora", basePalette)),
+    [picture, backdrop?.graphic, basePalette],
+  );
   const backdropDistance = backdrop?.distance ?? 0.5;
   const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
   // The viewport's own aspect, not the inset one: the picture covers the
@@ -371,6 +406,17 @@ export const World = memo(function World({
       // so the parallax is never a frame behind the content.
       if (backdropRef.current) {
         backdropRef.current.style.transform = backdropTransform(
+          room,
+          viewport,
+          plane,
+          stage,
+          backdropDistance,
+        );
+      }
+
+      // The drawn one moves on its own, translate-only transform.
+      if (drawnRef.current) {
+        drawnRef.current.style.transform = drawnBackdropTransform(
           room,
           viewport,
           plane,
@@ -456,7 +502,7 @@ export const World = memo(function World({
      */
     const arrive = () => {
       setOrigin(target);
-      setLandedOn(target);
+      setLandedFocus(focus);
       arriveRef.current?.();
     };
 
@@ -514,6 +560,7 @@ export const World = memo(function World({
     frameRef.current = requestAnimationFrame(tick);
   }, [
     target,
+    focus,
     viewport,
     inset,
     effective,
@@ -736,13 +783,47 @@ export const World = memo(function World({
         scenes and a zoom grows it less, and on a scene it is perfectly still.
         Dimmed toward the theme's canvas so the scenes' text stays legible.
       */}
-      {hasBackdrop && backdrop && (
+      {/*
+        The room, drawn. Its own layer and its own transform: a paint this
+        large may translate every frame but must never be re-rasterised by a
+        changing scale — see `drawnBackdropTransform`.
+      */}
+      {graphic && (
+        /*
+          Sized in CSS, never from the measured viewport.
+
+          The layer reaches a fifth of the screen past every edge so the
+          parallax shift below never brings an edge into frame — and it says so
+          as a percentage of its containing block, because a size computed from
+          the world's own `ResizeObserver` measurement changed that
+          measurement, and the two chased each other until React gave up and
+          the demo mounted to a blank page. `DRAWN_MARGIN` mirrors this inset
+          for the clamp; the two belong together.
+        */
+        <div
+          ref={drawnRef}
+          aria-hidden
+          data-backdrop
+          data-backdrop-graphic={backdrop?.graphic ?? "aurora"}
+          className="pointer-events-none absolute inset-[-20%]"
+          style={{
+            willChange: "transform",
+            backgroundColor: graphic.backgroundColor,
+            backgroundImage: graphic.backgroundImage,
+          }}
+        />
+      )}
+
+      {picture && backdrop && (
         <div
           ref={backdropRef}
           aria-hidden
           data-backdrop
+          data-backdrop-picture
           className="pointer-events-none absolute top-0 left-0 origin-top-left"
-          style={{ width: plane.width, height: plane.height, willChange: "transform" }}
+          // Laid out at the layer's size, not the plane's: the plane is world
+          // units and a world is thousands of them across. See `backdropLayer`.
+          style={{ ...backdropLayer(viewport), willChange: "transform" }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- a signed private asset in a transformed layer; see element-view */}
           <img

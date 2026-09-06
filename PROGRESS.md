@@ -11,14 +11,13 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/captivate-3d-graphics-5ypuvx`, restarted from `main` after
-  PR #88 and merged with `main` through PR #92 — the room answers the hand: on
-  the shared viewer and the live demo, the backdrop and the air follow a mouse
-  over the world while the scene stays put; CI green, merging to `main` on the
-  owner's instruction; production verification to follow (MVP-025)
-- `main`: through PR #92 (merged) — `83c2969`, help under `?`, awaiting its
-  production verification from the session that owns it; every migration
-  through `0030_shared_backdrop_asset.sql` applied to production (no migration
-  since)
+  PR #91 — four defects the owner reported after using the shipped build:
+  pictures that never arrive, drawings that had gone, no designed background,
+  and a browser that crashes while presenting (MVP-026)
+- `main`: through PR #91 (merged) — `79b8d8f`, the room answers the hand;
+  every migration through `0030_shared_backdrop_asset.sql` applied to
+  production (no migration since, and none in this round — the drawn backdrop
+  is a field on the journey JSON, which stored rows parse straight into)
 - Brand: Captivate is the product; Axtevi is the company it sits under
   (`captivate.axtevi.com`). No domain is hardcoded — redirects build from
   `NEXT_PUBLIC_SITE_URL`.
@@ -37,6 +36,100 @@
   executable by no role at all.
 
 ## Latest Session
+
+### Four things the owner reported after using the build
+
+Pictures that never arrive, drawings that had gone, no designed background,
+and a browser that crashes while presenting. Three were defects, one was not
+what it looked like, and each was read out of production before anything was
+changed.
+
+**Pictures.** The pipeline that finds a photograph and the one that draws a
+diagram were both healthy; there was nowhere to put what they produced.
+`layoutFor` chooses a layout from the moment's visual intent first, only some
+layouts have a media slot, and nothing downstream can put a picture on a scene
+without one — `imagePromptFor` returns "" and `drawableScenes` has nothing to
+draw into. `statement` is the model's default intent, it names no content, and
+it returned a layout with no slot. So the rule that gives the spine of an
+argument a picture every other scene — written for this exact complaint, and
+carrying a comment that says so — was reachable only on an `auto` intent. Of
+315 moments generated over ten days the model chose `auto` **once** and
+`statement` 140 times: the rule had never run. The owner's newest deck is
+fourteen scenes with one picture and eight bare headings, which is what that
+produces. A `statement` intent no longer vetoes the spine's picture; every
+intent that names content — a comparison, data, a quotation, a list — still
+wins outright. The suite passed throughout because every case in it passed
+`auto`; the new ones pass what the model really sends, and fail without the
+fix.
+
+**Drawings.** The data was never the problem: the stored drawing in that same
+deck has sixteen real paths, `opacity: 1`, `hidden: false`, and every
+`kind='drawing'` row in the ledger says `succeeded`. Two rendering defects hid
+them. While presenting, an element that mounts mid-flight is _held_ at the
+start of its entrance, and a held drawing renders at `step = -1`, which leaves
+every path at `stroke-dashoffset: var(--dp-len)` — a stroke of zero visible
+length. The release waits on the world reporting a landing, and that report
+used to compare the camera it last landed on with the camera it is aiming at:
+a question about geometry, when the one that matters is about intent. A
+viewport that changes size — a phone hiding its address bar — recomputes the
+framing of the very scene the camera is already sitting on, the two cameras
+stop being equal, and the world reports it has never landed. The landing is
+now the _focus_ it landed on, which a resize does not touch.
+
+A first attempt gave the hold a timed floor instead, and the browser suite
+caught it: releasing every held element after a few seconds also releases the
+ones on scenes the camera is nowhere near, which is exactly the defect
+"performed on arrival" exists to prevent, and it broke a tap on the shared
+viewer as well. The suite is the reason that never reached production. In
+the editor and in thumbnails the fault was plainer — the depth wrapper added
+in PR #82 carries `height: 100%` only while presenting, so everywhere else it
+was an auto-height box and every `height: 100%` element inside it, drawings
+and pictures alike, collapsed to its content. Height is structural and now
+applies on every surface; the parallax stays presenting-only.
+
+**A designed background.** There was none to have: no deck on production has a
+backdrop set, because the only way to get one was to find a photograph. The
+room is now drawn — `lib/present/graphic-backdrop.ts`, three compositions in
+the deck's own palette on the same plane and at the same depth as a picture,
+with `aurora` the default so a deck nobody has touched still has a designed
+room. Every form is a soft radial or a wide band with no visible edge, every
+colour is derived from the theme in OKLab, and it is CSS on a layer the
+compositor already moves rather than a second WebGL context. Two things about
+that layer came from the browser suite rather than from reasoning. It
+translates and never scales, because a transform whose scale changes every
+frame makes the browser re-rasterise the paint on every one of them. And its
+size is written in CSS as a negative inset rather than computed from the
+measured viewport, because the world measures its own box to drive the camera
+and a layer sized from that measurement changed it — the two chased each
+other until React gave up with "maximum update depth exceeded" and the demo
+mounted to a blank page. The first cut was
+a brown haze; the washes are tighter now and read as light against dark canvas.
+The title slide sits over it, and the cover's stock query now asks for a wide
+atmospheric image rather than a literal photograph of the subject, which is
+what made it look like stock.
+
+**The crash, which was two different things.** The screenshot is the preview
+deployment's login wall, not a crash: that URL answers `302` to
+`vercel.com/sso-api`, and iOS Chrome renders that dead end as "Can't open this
+page". Production answers `200`. Driving the real engine through forty flights
+in a real browser, the heap sits flat around 13 MB with no oversized layers
+and no console errors, so the engine does not leak. But there _was_ a genuine
+tab-killer waiting: the backdrop's layer was laid out at the plane's size, in
+CSS pixels, with `will-change: transform` — eleven scenes on a phone is
+18,510 x 40,119, about 2.9 GB of texture for a picture the size of a phone
+screen. Nobody had hit it because nobody had a backdrop, and this round turns
+one on by default for every deck. The layer's size is now a raster decision:
+two viewports, four megabytes, with the plane's size carried in the transform
+as a ratio so the pixels on screen are unchanged to three decimal places.
+
+Tests: the spine carries pictures on a `statement` intent and spends the
+drawing budget, while a named intent still wins and every other role is
+untouched; a drawing draws when the landing is never reported, and does not
+release while the flight is still running; the wrapper has its height on every
+surface; the drawn backdrop paints from the palette with no hex, a picture
+lays over it, and `none` removes the layer; the backdrop lands in the same two
+screen points from a layer a thousand times smaller. Each new case was run
+against the unfixed code and failed.
 
 ### The room answers the hand
 

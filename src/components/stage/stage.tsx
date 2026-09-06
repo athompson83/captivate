@@ -371,8 +371,18 @@ function ElementLayer({
       {/* Depth: the world writes --px/--py on the region once a frame; this
           layer multiplies them by the element's depth in CSS. Only while
           presenting — in the editor an element sits exactly where it was put. */}
+      {/*
+        Two things, and only one of them is about presenting. `pxl` is the
+        wrapper's *height*: it sits between the frame and the element, so
+        without it every `height: 100%` element inside — a drawing, a picture —
+        measures against an auto-height box and collapses to its content. That
+        is structural and belongs on every surface, including the editor and
+        thumbnails, where this div was previously left unstyled and drawings
+        rendered short. `pxl-depth` is the parallax, and stays presenting-only:
+        in the editor an element sits exactly where it was put.
+      */}
       <div
-        className={play ? "pxl" : undefined}
+        className={play ? "pxl pxl-depth" : "pxl"}
         style={
           play ? ({ "--depth": elementDepth(element.type) } as React.CSSProperties) : undefined
         }

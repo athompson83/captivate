@@ -642,6 +642,25 @@ export type ArrangePreset = z.infer<typeof ArrangePreset>;
  * image — and it is dimmed toward the theme's canvas so text stays legible
  * over it. An empty `url` means there is none.
  */
+/**
+ * The backdrops that are drawn rather than photographed.
+ *
+ * A photograph is the right answer when the author has one, and most decks do
+ * not have one — so the room behind the scenes was nothing but the air. These
+ * are compositions in the presentation's own palette, on the same plane and at
+ * the same depth as a picture. `src/lib/present/graphic-backdrop.ts` draws
+ * them; this is only the name of the choice.
+ */
+export const BackdropGraphic = z.enum(["none", "aurora", "strata", "halo"]);
+export type BackdropGraphic = z.infer<typeof BackdropGraphic>;
+
+export const BACKDROP_GRAPHIC_META: Record<BackdropGraphic, { label: string; plain: string }> = {
+  none: { label: "None", plain: "The air alone, blended from the scenes around the camera." },
+  aurora: { label: "Aurora", plain: "Wide washes of the theme's light, crossing and pooling." },
+  strata: { label: "Strata", plain: "Soft bands, like distance seen through air." },
+  halo: { label: "Halo", plain: "One bloom off-centre, and the room falling away from it." },
+};
+
 export const JourneyBackdrop = z.object({
   url: MediaSource.default(""),
   assetId: z.string().max(64).nullable().default(null),
@@ -650,6 +669,17 @@ export const JourneyBackdrop = z.object({
   distance: z.number().min(0).max(1).default(0.5),
   /** How much of the theme's canvas colour is laid over the picture. */
   dim: z.number().min(0).max(1).default(0.35),
+  /**
+   * A drawn backdrop, behind the picture and shown on its own when there is
+   * no picture.
+   *
+   * `aurora` by default, so a deck nobody has touched still has a designed
+   * room rather than a flat field — the reported gap was "there still isn't a
+   * nice graphic background", and a default nobody has to find is the only
+   * kind that fixes that. Stored decks that predate the field parse straight
+   * into it, and `none` is one click away.
+   */
+  graphic: BackdropGraphic.default("aurora"),
 });
 export type JourneyBackdrop = z.infer<typeof JourneyBackdrop>;
 
