@@ -1,3 +1,7 @@
+// The real stylesheet, because two of the claims this fixture is asked to
+// prove are CSS: that the upright-phone cue is bounded by an orientation
+// media query, and that it is gone on a screen with nothing to rotate.
+import "@/app/globals.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { SharedViewer } from "@/components/present/shared-viewer";

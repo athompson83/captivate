@@ -69,6 +69,16 @@ pan-y` so a vertical drag still scrolls. A swipe the browser also reports
 - **Phone hints.** The demo's pill hides below the `sm` breakpoint and the
   status line invites instead; the viewer's copy says "Tap, swipe or press
   →". `live-demo.test.tsx` pins both and a swipe through the deck.
+- **Turn your phone.** Measuring the viewer at three sizes said the rest: on a
+  390×844 phone the scene renders 361 px wide and its smaller type at 6.9 px;
+  on a 430×932 phone, 7.6 px; turned to 844×390, the scene is 642 px and that
+  type is 17 px. A deck is a landscape object and no amount of framing changes
+  that, so the opening card carries one more line when the phone is upright,
+  and it leaves with the card on the first advance. Orientation variants, not
+  state — no listener, no render, and a laptop is never told to rotate. The
+  shared-viewer fixture now imports the real stylesheet, because the claim is
+  a media query; the spec turns the viewport and asserts the line is gone, and
+  it does fail with the bound removed.
 
 Verified: `npm run verify` green; fixture screenshots before and after at
 both sizes are in the pull request. Not verified here: a real thumb on a

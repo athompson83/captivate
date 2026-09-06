@@ -216,6 +216,14 @@ vertical drag is a scroll and is left alone; tapping the right two-thirds still
 advances for everyone who learnt that first. A mouse drag is never a swipe —
 that is the presenter's laser or ink.
 
+**An upright phone is told to turn.** A deck is a landscape object, and a phone
+held upright frames it as a strip: on a 390-pixel screen the scene renders 361
+pixels wide and its smaller type lands at 7 pixels, which nobody reads. Turned,
+the same scene is 642 pixels and that type is 17. So the opening card carries one
+more line on a phone held upright, and it goes with the rest of the card on the
+first advance. It is bounded by orientation, not guessed at: a laptop has nothing
+to rotate and is never told to.
+
 **Nothing moves that the room did not ask for.** The camera only moves on an
 advance, a jump, or an explicit pull-back — never on a timer, and never to
 decorate. `prefers-reduced-motion` turns every flight into a cut.

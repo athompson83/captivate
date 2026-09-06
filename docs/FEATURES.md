@@ -171,6 +171,7 @@ timeline editor is **deferred** — reliable transitions first.
 | Progress indicator                 | Implemented | A hairline the audience reads as pacing                                                                        |
 | Spotlight                          | Implemented | Beyond the landed scene the world goes dark, so a phone or a letterboxed screen never shows two scenes at once |
 | Swipe                              | Implemented | On touch, a horizontal swipe moves through the deck; tapping the right two-thirds still advances               |
+| Turn-your-phone cue                | Implemented | A phone held upright is told the scene doubles in landscape, on the opening card only, bounded by orientation  |
 
 ### Presenter console
 
