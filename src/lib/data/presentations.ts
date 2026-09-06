@@ -8,6 +8,7 @@ import {
   ScenePlacement,
   parseSceneContent,
   repairDanglingHotspots,
+  relinkOrphanedDetails,
   type PresentationDocument,
   type PresentationRecord,
   type Scene,
@@ -416,8 +417,16 @@ export async function getPresentationDocument(
   // Only here is the whole deck in hand, so only here can a hotspot pointing at
   // a deleted scene be found. Report it alongside the salvaged scenes: the
   // author should know a link was cleared rather than discover it on stage.
-  const { scenes, repaired } = repairDanglingHotspots(parsed);
+  const { scenes: linked, repaired } = repairDanglingHotspots(parsed);
   for (const id of repaired) if (!recoveredScenes.includes(id)) recoveredScenes.push(id);
+
+  // And the mirror: a detail scene nothing points at any more. Regenerating a
+  // deck rewrites each parent scene's content, hotspot included, while the
+  // detail scene it dived to survives untouched and unreachable — invisible to
+  // the running order, with no error anywhere. Same reason this can only
+  // happen here: it needs the whole deck at once.
+  const { scenes, repaired: relinked } = relinkOrphanedDetails(linked);
+  for (const id of relinked) if (!recoveredScenes.includes(id)) recoveredScenes.push(id);
 
   return {
     presentation: toPresentationRecord(presentationRes.data as PresentationRow),
