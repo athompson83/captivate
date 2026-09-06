@@ -545,7 +545,7 @@ ${referenceBlock(context.reference ?? null)}`,
     };
   });
 
-  await dressScenes(scenes, presentationId, totalSeconds);
+  await dressScenes(scenes, presentationId, totalSeconds, { mayGenerateCover: true });
 
   return { ok: true, data: { source: "model", scenes } };
 }
@@ -577,12 +577,26 @@ async function dressScenes(
   scenes: { title: string; content: SceneContent; imagePrompt: string; photoQuery?: string }[],
   presentationId: string | null,
   totalSeconds: number,
-  /**
-   * How long the whole pass may take. The deck routes run at the 300-second
-   * platform ceiling and can afford 55; `/api/ai/scene` runs at 60 and has
-   * already spent up to 25 writing the scene, so it asks for less.
-   */
-  budgetMs = 55_000,
+  {
+    /**
+     * How long the whole pass may take. The deck routes run at the 300-second
+     * platform ceiling and can afford 55; `/api/ai/scene` runs at 60 and has
+     * already spent up to 25 writing the scene, so it asks for less.
+     */
+    budgetMs = 55_000,
+    /**
+     * Whether an unfilled cover may fall back to one *paid* generated image.
+     *
+     * A property of the caller, not of the layout. It was written as "this
+     * scene's layout is `cover`", and the single-scene route can produce a
+     * cover: `GeneratedLayout` excludes only `custom`, so an author asking for
+     * a title scene could have had money spent on a picture they never asked
+     * for. The rule this implements is "one paid image for the first thing a
+     * room sees, once per deck" — which is about generating a deck, so the
+     * deck route says so and nothing else does.
+     */
+    mayGenerateCover = false,
+  }: { budgetMs?: number; mayGenerateCover?: boolean } = {},
 ): Promise<void> {
   const hasEmptySlot = (content: SceneContent) =>
     content.elements.some(
@@ -635,7 +649,7 @@ async function dressScenes(
           taken,
         },
       );
-      if (!photo && scene.content.layout === "cover") {
+      if (!photo && mayGenerateCover && scene.content.layout === "cover") {
         photo = await fillWithGeneratedImage(scene.imagePrompt, presentationId);
       }
       if (!photo) return;
@@ -714,7 +728,7 @@ ${instruction}`,
   // generated-image fallback is the cover's alone, and a single scene is never
   // a cover — so this is a drawing or a stock photograph or nothing.
   const scene = materialise(result.data);
-  await dressScenes([scene], presentationId, 0, 20_000);
+  await dressScenes([scene], presentationId, 0, { budgetMs: 20_000 });
 
   return { ok: true, data: { scenes: [scene], source: "model" } };
 }
