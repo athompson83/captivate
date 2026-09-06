@@ -15,9 +15,12 @@ captivate/
 │  │  │  ├─ settings/              Profile, theme, shortcuts
 │  │  │  └─ new/                   Creation flow (template and AI paths)
 │  │  ├─ edit/[id]/                Editor — its own chrome, outside the shell
-│  │  ├─ present/[id]/             The stage (audience view)
+│  │  ├─ present/[id]/             The stage (audience view); a black
+│  │  │  │                         loading frame before it
 │  │  │  └─ console/               The presenter console
-│  │  ├─ v/[token]/                Public share-link viewer — no account
+│  │  ├─ v/[token]/                Public share-link viewer — no account;
+│  │  │                            the same black frame before it, and the
+│  │  │                            deck's own Open Graph card
 │  │  ├─ handout/[id]/             Print/PDF export, owner only
 │  │  ├─ api/
 │  │  │  ├─ ai/                    map, create-from-map, scenes-from-map,
@@ -47,12 +50,15 @@ captivate/
 │  │  ├─ present/                  Stage root, presenter bar, console,
 │  │  │                            annotation layer, scene jumper,
 │  │  │                            movement rail (the argument's shape,
-│  │  │                            shown to the room), shared viewer
+│  │  │                            shown to the room), shared viewer,
+│  │  │                            closing frame (the end, named), the keys
+│  │  │                            overlay under `?`
 │  │  ├─ marketing/                The landing page: hero (a three.js world,
 │  │  │                            a CSS one beneath it), the live demo that
 │  │  │                            runs the real engine on the worked example
 │  │  ├─ handout/                  The paper version of a deck
-│  │  ├─ record/                   Recording controller and setup dialog
+│  │  ├─ record/                   Recording controller, setup dialog and
+│  │  │                            the count-in before capture
 │  │  ├─ dashboard/                Cards, library, galleries, settings
 │  │  ├─ notes/                    Notes workspace
 │  │  ├─ auth/                     Auth forms
@@ -74,6 +80,9 @@ captivate/
 │  │  │  └─ shortcuts.ts           Keyboard map
 │  │  ├─ present/
 │  │  │  ├─ session.ts             Session store + React binding
+│  │  │  ├─ keys.ts                The presenter's keys, as a list `?` shows
+│  │  │  ├─ opening.ts             The opening beat: hold wide, then dive
+│  │  │  ├─ swipe.ts               Moving by hand: the swipe recogniser
 │  │  │  ├─ protocol.ts            Cross-window messages, Zod-validated
 │  │  │  ├─ motion.ts              Entrance and emphasis presets
 │  │  │  ├─ camera.ts              Optimal zoom-and-pan flight (Van Wijk & Nuij)
@@ -81,6 +90,10 @@ captivate/
 │  │  │  ├─ path.ts                The smoothed route drawn between waypoints
 │  │  │  ├─ ambient.ts             Atmosphere: the colour of the air per position
 │  │  │  ├─ atmosphere.ts          The same, per pixel: uniforms for the shader
+│  │  │  ├─ parallax.ts            Depth inside a scene: words nearer, pictures farther
+│  │  │  ├─ backdrop.ts            One picture behind the show, on a plane at a distance
+│  │  │  ├─ lean.ts                The room answers the hand: backdrop and air follow a mouse
+│  │  │  ├─ graphic-backdrop.ts    The room, drawn: aurora, strata, halo, from the palette
 │  │  │  └─ audience.ts            What the projector window is allowed to load
 │  │  ├─ narrative/
 │  │  │  ├─ map.ts                 Assemble, derive, reorder, diff the map
@@ -92,6 +105,7 @@ captivate/
 │  │  │  ├─ stage.ts               Stage geometry helpers
 │  │  │  └─ fullscreen.ts          Fullscreen and wake lock
 │  │  ├─ record/recorder.ts        MediaRecorder state machine, compositing
+│  │  ├─ record/countdown.ts       Three, two, one: the count before capture
 │  │  ├─ ai/
 │  │  │  ├─ schemas.ts             Output schemas — the wall
 │  │  │  ├─ provider.ts            The only door to a model
@@ -113,7 +127,8 @@ captivate/
 │  │  ├─ supabase/                 client, server, admin, config, types
 │  │  ├─ marketing/                The hero's world and flight path; the
 │  │  │                            worked example as a deck the landing
-│  │  │                            page's live demo (and a browser test) walks
+│  │  │                            page's live demo (and a browser test) walks;
+│  │  │                            the share card a link unfurls as
 │  │  ├─ templates/registry.ts     Six curated templates
 │  │  └─ utils/                    cn, formatting, OKLab/WCAG colour, embed
 │  │                               sandboxing

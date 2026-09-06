@@ -44,12 +44,16 @@ export function EditorRoot({
   const [navOpen, setNavOpen] = useState<boolean | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [view, setView] = useState<EditorView>("scene");
   const [evidenceOptions, setEvidenceOptions] = useState<EvidenceRef[]>([]);
 
   const narrow = useIsNarrow();
   const navVisible = navOpen ?? !narrow;
-  const { generate, generating } = useSceneGeneration(presentationId, initial.presentation.title);
+  const { generate, generating, plan } = useSceneGeneration(
+    presentationId,
+    initial.presentation.title,
+  );
 
   // What a claim can be grounded in. Loaded once when the map is first opened,
   // because it is the workspace's material rather than this deck's, and it
@@ -91,6 +95,7 @@ export function EditorRoot({
   useEditorShortcuts({
     onToggleNotes: () => setNotesOpen((v) => !v),
     onToggleAi: () => setAiOpen((v) => !v),
+    onHelp: () => setHelpOpen(true),
     onSave: flush,
   });
 
@@ -108,6 +113,8 @@ export function EditorRoot({
         onToggleNotes={() => setNotesOpen((v) => !v)}
         aiOpen={aiOpen}
         onToggleAi={() => setAiOpen((v) => !v)}
+        helpOpen={helpOpen}
+        onHelpChange={setHelpOpen}
         onSave={flush}
         view={view}
         onViewChange={setView}
@@ -128,12 +135,13 @@ export function EditorRoot({
 
         <div className="flex min-w-0 flex-1 flex-col">
           {view === "scene" ? (
-            <Canvas theme={theme} />
+            <Canvas theme={theme} onAskAi={() => setAiOpen(true)} />
           ) : view === "narrative" ? (
             <NarrativeMapView
               presentationId={presentationId}
               evidenceOptions={evidenceOptions}
-              onGenerate={(depth) => void generate(depth)}
+              onGenerate={(depth, options) => void generate(depth, options)}
+              replacing={plan().replacing}
               generating={generating}
             />
           ) : (

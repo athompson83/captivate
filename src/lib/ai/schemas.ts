@@ -24,8 +24,27 @@ export const GeneratedLayout = SceneLayout.exclude(["custom"]);
  * The model cannot produce a dense slide because the schema will not hold one.
  */
 export const GeneratedScene = z.object({
-  title: z.string().min(1).max(120),
-  layout: GeneratedLayout,
+  /**
+   * The scene's name in the navigator. Never drawn on the stage.
+   *
+   * Optional, and that is the whole point. Two production decks were refused
+   * outright on 2026-09-06 — `scenes.N.title: expected string, received
+   * undefined` for almost every scene — after the model wrote every heading,
+   * bullet and speaker note and omitted only this. It omitted it because
+   * nothing asked: the system prompt lists the fields each layout *draws* and
+   * says a scene shows nothing else, and an undrawn field appears in none of
+   * those lists. The prompt names it now, and `sceneName` recovers it from the
+   * content when a model still leaves it out. A deck is not worth losing over
+   * a label in a sidebar.
+   */
+  title: z.string().max(120).default(""),
+  /**
+   * Defaulted for the same reason. `buildScenesFromMap` overrides this with
+   * the composer's own layout and never reads it, so a batch could be refused
+   * over a field that would have been discarded; the single-scene route gets a
+   * plain statement rather than an error.
+   */
+  layout: GeneratedLayout.default("statement"),
   heading: z.string().max(120).default(""),
   /**
    * The clause the claim turns on, carried in the theme's accent colour.
@@ -129,6 +148,28 @@ export const GeneratedScenes = z.object({
 });
 
 /**
+ * What to call a scene in the navigator.
+ *
+ * The model's own name where it wrote one, and otherwise the most
+ * name-shaped thing it *did* write: the heading a room reads, the quote a
+ * pull-quote scene carries instead of one, the eyebrow that situates a
+ * section. Never empty — a scene with no name cannot be found in a list of
+ * thirty — and never longer than the column it is written into.
+ */
+export function sceneName(scene: {
+  title?: string;
+  heading?: string;
+  quote?: string;
+  eyebrow?: string;
+}): string {
+  const candidate =
+    [scene.title, scene.heading, scene.quote, scene.eyebrow]
+      .map((value) => value?.trim())
+      .find((value) => value) ?? "Untitled scene";
+  return candidate.slice(0, 120);
+}
+
+/**
  * What `/api/ai/generate-scenes` hands back to the editor.
  *
  * These scenes go straight into the open document, so the response is parsed
@@ -157,6 +198,26 @@ export const WrittenScenes = z.object({
   notice: z.string().optional(),
 });
 export type WrittenScenes = z.infer<typeof WrittenScenes>;
+
+/**
+ * What `/api/ai/scenes-from-map` reports back once it has written the scenes
+ * itself.
+ *
+ * A count rather than the content. The route used to hand every scene back for
+ * the browser to save one at a time, which put a five-minute job behind a
+ * phone staying awake; now the writing is done before the response is sent and
+ * the page only has to say what happened and reload.
+ */
+export const SceneWriteOutcome = z.object({
+  saved: z.number().int().min(0),
+  replaced: z.number().int().min(0).default(0),
+  created: z.number().int().min(0).default(0),
+  /** Scenes naming a moment the deck no longer has. Dropped, and said aloud. */
+  unplaceable: z.number().int().min(0).default(0),
+  source: z.string().optional(),
+  notice: z.string().optional(),
+});
+export type SceneWriteOutcome = z.infer<typeof SceneWriteOutcome>;
 
 /* -------------------------------------------------------------------------- */
 /* The narrative map                                                           */

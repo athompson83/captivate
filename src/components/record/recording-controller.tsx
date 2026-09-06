@@ -32,6 +32,8 @@ import {
 import type { CameraBackground } from "@/lib/media/segmentation";
 import type { CameraFeedSettings } from "@/components/present/presenter-camera";
 import { transcriptSupported } from "@/lib/record/transcript";
+import { COUNTDOWN_FROM, countdown } from "@/lib/record/countdown";
+import { RecordingCountdown } from "./recording-countdown";
 import { toWebVTT } from "@/lib/record/transcript-core";
 import { createRecording, finaliseRecording } from "@/lib/data/recordings";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -99,6 +101,9 @@ export function RecordingController({
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "done" | "failed">("idle");
   const [notice, setNotice] = useState<string | null>(null);
   const [canPause, setCanPause] = useState(false);
+  /** The number showing while the count runs; null otherwise. */
+  const [count, setCount] = useState<number | null>(null);
+  const countdownRef = useRef<AbortController | null>(null);
 
   const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
@@ -146,7 +151,15 @@ export function RecordingController({
     return () => clearInterval(interval);
   }, [phase, channel, useCamera]);
 
-  useEffect(() => () => recorderRef.current?.cleanup(), []);
+  useEffect(
+    () => () => {
+      countdownRef.current?.abort();
+      recorderRef.current?.cleanup();
+    },
+    [],
+  );
+
+  const cancelCountdown = () => countdownRef.current?.abort();
 
   const openSetup = async () => {
     const devices = await listDevices();
@@ -177,10 +190,27 @@ export function RecordingController({
         burnInCaptions,
         placement,
       });
+
+      // The streams are acquired; the file has not begun. Close the dialog,
+      // count the presenter in, and only then start — so the first second of
+      // the recording is the presenter, not the click. Cancelling releases
+      // everything the same way an error does, without the toast.
+      setSetupOpen(false);
+      const control = new AbortController();
+      countdownRef.current = control;
+      const go = await countdown(COUNTDOWN_FROM, setCount, control.signal);
+      countdownRef.current = null;
+      setCount(null);
+      if (!go) {
+        recorder.cleanup();
+        recorderRef.current = null;
+        setPhase("idle");
+        return;
+      }
+
       await recorder.start();
       recorder.markScene(currentSceneId, currentSceneIndex, currentSceneOrdinal);
       setCanPause(recorder.canPause);
-      setSetupOpen(false);
       setResult(null);
       setUploadState("idle");
       toast({
@@ -191,6 +221,8 @@ export function RecordingController({
     } catch (error) {
       recorder.cleanup();
       recorderRef.current = null;
+      countdownRef.current = null;
+      setCount(null);
       setPhase("idle");
       toast({
         tone: "error",
@@ -336,6 +368,14 @@ export function RecordingController({
             <Circle className="size-3 fill-[var(--record)] text-[var(--record)]" aria-hidden />
             Record
           </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* The count, over the stage and never in the file: nothing is being
+          captured until it reaches zero. */}
+      <AnimatePresence>
+        {count !== null && (
+          <RecordingCountdown key="countdown" count={count} onCancel={cancelCountdown} />
         )}
       </AnimatePresence>
 

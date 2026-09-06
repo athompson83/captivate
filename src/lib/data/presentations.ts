@@ -2,12 +2,14 @@ import "server-only";
 
 import { supabaseServer } from "@/lib/supabase/server";
 import { logFailureSampled } from "@/lib/observability";
+import { generationState, type GenerationState } from "./generation-state";
 import {
   JourneyConfig,
   PRESENTATION_SCHEMA_VERSION,
   ScenePlacement,
   parseSceneContent,
   repairDanglingHotspots,
+  relinkOrphanedDetails,
   type PresentationDocument,
   type PresentationRecord,
   type Scene,
@@ -49,6 +51,9 @@ function parsePlacement(raw: unknown) {
   return parsed.success ? parsed.data : null;
 }
 
+/** Anything a newer build writes reads as `ready` rather than as a warning. */
+const GenerationStatuses = new Set(["ready", "generating", "partial", "failed"]);
+
 export function toPresentationRecord(row: PresentationRow): PresentationRecord {
   return {
     id: row.id,
@@ -66,6 +71,10 @@ export function toPresentationRecord(row: PresentationRow): PresentationRecord {
     thumbnailUrl: row.thumbnail_url,
     schemaVersion: row.schema_version,
     shareToken: row.share_token,
+    generationStatus: GenerationStatuses.has(row.generation_status)
+      ? (row.generation_status as PresentationRecord["generationStatus"])
+      : "ready",
+    generationStartedAt: row.generation_started_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastOpenedAt: row.last_opened_at,
@@ -110,6 +119,7 @@ export function toMoment(row: MomentRow): Moment {
     estimatedSeconds: row.estimated_seconds,
     evidence: evidence.success ? evidence.data : [],
     visualIntent: intent.success ? intent.data : "auto",
+    intentAuthored: row.intent_authored ?? false,
     instructions: row.instructions,
     locked: row.locked,
     position: row.position,
@@ -145,6 +155,14 @@ export function toScene(row: SceneRow): { scene: Scene; recovered: boolean } {
 export interface PresentationSummary extends PresentationRecord {
   sceneCount: number;
   folderName: string | null;
+  /**
+   * Where the generation got to, read against the server's clock.
+   *
+   * Derived here rather than in the card because the `generating` claim
+   * expires and deciding that needs the time — which a component may not read
+   * during render. Once per load, on the machine that fetched the row.
+   */
+  generation: GenerationState;
 }
 
 export interface ListOptions {
@@ -285,10 +303,15 @@ export async function listPresentations(opts: ListOptions = {}): Promise<Present
     scenes: { count: number }[] | null;
   };
 
+  // One reading for the whole page: rows a millisecond apart should not be
+  // able to disagree about whether a deck is still being written.
+  const now = Date.now();
+
   return (data as unknown as Joined[]).map((row) => ({
     ...toPresentationRecord(row),
     sceneCount: row.scenes?.[0]?.count ?? 0,
     folderName: row.folders?.name ?? null,
+    generation: generationState(row.generation_status, row.generation_started_at, now),
   }));
 }
 
@@ -415,8 +438,16 @@ export async function getPresentationDocument(
   // Only here is the whole deck in hand, so only here can a hotspot pointing at
   // a deleted scene be found. Report it alongside the salvaged scenes: the
   // author should know a link was cleared rather than discover it on stage.
-  const { scenes, repaired } = repairDanglingHotspots(parsed);
+  const { scenes: linked, repaired } = repairDanglingHotspots(parsed);
   for (const id of repaired) if (!recoveredScenes.includes(id)) recoveredScenes.push(id);
+
+  // And the mirror: a detail scene nothing points at any more. Regenerating a
+  // deck rewrites each parent scene's content, hotspot included, while the
+  // detail scene it dived to survives untouched and unreachable — invisible to
+  // the running order, with no error anywhere. Same reason this can only
+  // happen here: it needs the whole deck at once.
+  const { scenes, repaired: relinked } = relinkOrphanedDetails(linked);
+  for (const id of relinked) if (!recoveredScenes.includes(id)) recoveredScenes.push(id);
 
   return {
     presentation: toPresentationRecord(presentationRes.data as PresentationRow),
@@ -511,10 +542,15 @@ export async function listTrashed(): Promise<PresentationSummary[]> {
     folders: { name: string } | null;
     scenes: { count: number }[] | null;
   };
+  // One reading for the whole page: rows a millisecond apart should not be
+  // able to disagree about whether a deck is still being written.
+  const now = Date.now();
+
   return (data as unknown as Joined[]).map((row) => ({
     ...toPresentationRecord(row),
     sceneCount: row.scenes?.[0]?.count ?? 0,
     folderName: row.folders?.name ?? null,
+    generation: generationState(row.generation_status, row.generation_started_at, now),
   }));
 }
 

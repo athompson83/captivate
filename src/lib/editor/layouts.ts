@@ -53,6 +53,23 @@ const frame = (x: number, y: number, w: number, h: number): Frame => ({
   rotation: 0,
 });
 
+/**
+ * The shape of a layout's picture slot, as the room sees it.
+ *
+ * Geometry on the stage is normalised 0-100 in both axes and letterboxed into
+ * the display, so a slot's stored numbers are not its aspect: the tall half of
+ * a split scene is 50x100 units and reaches a 16:9 projector at 8:9. Choosing
+ * a photograph without this picked landscape pictures for upright holes and
+ * cropped the subject out of them.
+ *
+ * Returns null for a layout with nowhere to put a picture.
+ */
+export function mediaSlotAspect(layout: SceneLayout, displayAspect = 16 / 9): number | null {
+  const media = layoutSlots(layout).media;
+  if (!media || media.w <= 0 || media.h <= 0) return null;
+  return (media.w * displayAspect) / media.h;
+}
+
 export function layoutSlots(layout: SceneLayout): LayoutSlots {
   switch (layout) {
     case "title":

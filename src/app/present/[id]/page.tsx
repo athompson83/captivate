@@ -28,7 +28,7 @@ export default async function PresentPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ audience?: string }>;
+  searchParams: Promise<{ audience?: string; plain?: string }>;
 }) {
   if (!isSupabaseConfigured) return <SetupRequired />;
 
@@ -39,7 +39,7 @@ export default async function PresentPage({
   const document = await getPresentationDocument(id);
   if (!document) notFound();
 
-  const { audience } = await searchParams;
+  const { audience, plain } = await searchParams;
 
   return (
     <PresentRoot
@@ -53,6 +53,9 @@ export default async function PresentPage({
       // In audience mode the window is a pure display: no controls are rendered
       // at all, so there is nothing to accidentally reveal on a projector.
       audienceOnly={audience === "1"}
+      // Presenting without the WebGL air, for a device that cannot afford a
+      // live GL context. See `World`'s `air`.
+      plain={plain === "1"}
     />
   );
 }

@@ -581,3 +581,61 @@ describe("kinetic headings", () => {
     expect(container.querySelectorAll(".kt-word")).toHaveLength(0);
   });
 });
+
+/**
+ * Each element's depth layer, present only while presenting: in the editor
+ * an element sits exactly where it was put.
+ */
+describe("depth layers", () => {
+  const content = composeScene("split-left", {
+    heading: "A claim",
+    bullets: ["one"],
+    media: { url: "https://example.com/x.jpg", alt: "A picture" },
+  });
+
+  it("gives words and pictures their depth while presenting, and none in the editor", () => {
+    const live = render(
+      <Stage content={content} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    const layers = [...live.container.querySelectorAll<HTMLElement>(".pxl-depth")];
+    expect(layers.length).toBeGreaterThan(1);
+    const depths = layers.map((layer) => Number(layer.style.getPropertyValue("--depth")));
+    expect(depths.some((d) => d < 0)).toBe(true);
+    expect(depths.some((d) => d > 0)).toBe(true);
+    live.unmount();
+
+    // The parallax is the presenting half and is gone here; an element in the
+    // editor sits exactly where it was put.
+    const still = renderStage(content);
+    expect(still.container.querySelectorAll(".pxl-depth")).toHaveLength(0);
+    for (const layer of still.container.querySelectorAll<HTMLElement>(".pxl")) {
+      expect(layer.style.getPropertyValue("--depth")).toBe("");
+    }
+  });
+
+  it("gives the wrapper its height on every surface, not only while presenting", () => {
+    // The wrapper sits between an element's frame and the element, so an
+    // element sized `height: 100%` — a drawing, a picture — measures against
+    // it. Left unstyled in the editor and in thumbnails, it is an auto-height
+    // box and every one of them collapsed to its content: a drawing rendered
+    // short inside a frame that was the right size all along.
+    for (const surface of [
+      renderStage(content),
+      render(
+        <Stage
+          content={content}
+          theme={theme}
+          aspect="16:9"
+          fixedScale={1}
+          play
+          step={0}
+          arrived
+        />,
+      ),
+    ]) {
+      const layers = surface.container.querySelectorAll(".pxl");
+      expect(layers.length).toBeGreaterThan(1);
+      surface.unmount();
+    }
+  });
+});

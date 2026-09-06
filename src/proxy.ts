@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { isPublicPath } from "@/lib/auth/public-paths";
+import { canonicalRedirect } from "@/lib/site";
 
 /**
  * Refreshes the Supabase auth session on every navigation and gates the
@@ -13,6 +14,16 @@ import { isPublicPath } from "@/lib/auth/public-paths";
 const AUTH_PATHS = ["/sign-in", "/sign-up", "/reset-password"];
 
 export default async function proxy(request: NextRequest) {
+  // Before anything else, and before any session work: a production
+  // deployment reached on a `vercel.app` hostname sends the reader to the
+  // canonical origin. Sessions are per-host, so arriving on the alias means
+  // signing in again into a copy of the product nobody else is using.
+  const canonical = canonicalRedirect(
+    request.headers.get("host") ?? request.nextUrl.host,
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
+  if (canonical) return NextResponse.redirect(canonical, 308);
+
   let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

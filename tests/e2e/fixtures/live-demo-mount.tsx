@@ -12,12 +12,43 @@ import { LiveDemoStage } from "@/components/marketing/live-demo-stage";
  */
 declare global {
   interface Window {
-    liveDemoFixture: { mount: () => void };
+    liveDemoFixture: {
+      mount: () => void;
+      /** Resolves with what the stage showed first: "opening", or a view. */
+      firstView: () => Promise<string | null>;
+    };
   }
 }
 
+/**
+ * Recorded in-page from the moment of mounting, because the opening beat is
+ * shorter than a couple of round trips from the test runner can be.
+ */
+let firstView: Promise<string | null> = Promise.resolve(null);
+
+function watchFirstView() {
+  firstView = new Promise((resolve) => {
+    let tries = 0;
+    const look = () => {
+      const el = document.querySelector("[data-view]");
+      if (el) {
+        resolve(el.hasAttribute("data-opening") ? "opening" : el.getAttribute("data-view"));
+        return;
+      }
+      if ((tries += 1) > 600) {
+        resolve(null);
+        return;
+      }
+      requestAnimationFrame(look);
+    };
+    look();
+  });
+}
+
 window.liveDemoFixture = {
+  firstView: () => firstView,
   mount: () => {
+    watchFirstView();
     const host = document.createElement("div");
     // Real page context: something above it to scroll past, and a body that
     // can receive the keys the stage must not answer.

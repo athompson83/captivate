@@ -167,6 +167,8 @@ export function deriveMap(
       estimatedSeconds: scene.durationSeconds ?? estimateScene(scene),
       evidence: [],
       visualIntent: "auto",
+      // Derived from an existing deck, so nobody chose it.
+      intentAuthored: false,
       instructions: "",
       locked: false,
       position,

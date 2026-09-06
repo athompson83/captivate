@@ -8,7 +8,6 @@ import { usePresentSession } from "@/lib/present/session";
 import { useFullscreen, useWakeLock } from "@/lib/present/fullscreen";
 import { resolvePlacements } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
-import { useSwipe } from "@/lib/present/swipe";
 import { PRESENTER_COLORS, type PresenterTool } from "@/lib/present/protocol";
 import { World, type Focus } from "@/components/stage/world";
 import { setCaptureSurface } from "@/lib/record/capture-surface";
@@ -22,6 +21,9 @@ import {
   movementRailVisible,
 } from "./movement-rail";
 import { AnnotationLayer } from "./annotation-layer";
+import { ClosingFrame } from "./closing-frame";
+import { PresenterHelp } from "./presenter-help";
+import { isControl, useSwipe } from "@/lib/present/swipe";
 import { PresenterBar } from "./presenter-bar";
 import { ConnectPhone } from "./connect-phone";
 import { useRemoteBridge } from "@/lib/present/use-remote-bridge";
@@ -58,11 +60,20 @@ export function PresentRoot({
   scenes,
   sections,
   audienceOnly,
+  plain,
 }: {
   presentation: PresentationRecord;
   scenes: Scene[];
   sections: Section[];
   audienceOnly: boolean;
+  /**
+   * Present without the WebGL air. `?plain=1`.
+   *
+   * For a device that cannot afford a live GL context — iOS terminates a web
+   * content process under memory pressure, and this is the page's most
+   * expensive object by a distance. Everything else is unchanged.
+   */
+  plain: boolean;
 }) {
   const theme = getTheme(presentation.themeId);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,10 +92,11 @@ export function PresentRoot({
 
   // rail renders, and whether the camera reserves the strip it stands in.
 
+  // The camera is over the whole argument: pulled back by hand, or holding
+  // there for the opening beat. Both hide the rail and draw the route.
+  const wide = session.overview || session.opening;
   const railShown =
-    journey.showMovements &&
-    !session.overview &&
-    movementRailVisible(movements, session.totalScenes);
+    journey.showMovements && !wide && movementRailVisible(movements, session.totalScenes);
   const signpost = journey.signpostNext ? nextMovement(movements, session.sceneIndex) : null;
   const signpostIndex = signpost ? movements.indexOf(signpost) : -1;
 
@@ -153,6 +165,8 @@ export function PresentRoot({
   const [color, setColor] = useState<string>(PRESENTER_COLORS[0].value);
   const [penWidth, setPenWidth] = useState(1);
   const [barVisible, setBarVisible] = useState(!audienceOnly);
+  /** The keys, over the stage. Presenter-facing; never in audience-only mode. */
+  const [helpOpen, setHelpOpen] = useState(false);
   /** Bumped on any presenter activity to restart the auto-hide countdown. */
   const [activity, setActivity] = useState(0);
   /** When the countdown was last restarted, so pointer moves stay cheap. */
@@ -167,12 +181,12 @@ export function PresentRoot({
    */
   const focus: Focus = useMemo(
     () =>
-      session.overview
+      wide
         ? { kind: "world" }
         : session.establishing
           ? { kind: "section", sectionId: session.establishing }
           : { kind: "scene", index: session.sceneIndex },
-    [session.overview, session.establishing, session.sceneIndex],
+    [wide, session.establishing, session.sceneIndex],
   );
 
   /**
@@ -293,8 +307,17 @@ export function PresentRoot({
           e.preventDefault();
           session.clearScene();
           break;
+        case "?":
+          if (!audienceOnly) {
+            e.preventDefault();
+            setHelpOpen((open) => !open);
+          }
+          break;
         case "Escape":
-          if (session.overview) {
+          if (helpOpen) {
+            e.preventDefault();
+            setHelpOpen(false);
+          } else if (session.overview) {
             e.preventDefault();
             session.toggleOverview();
           } else if (tool !== "none") {
@@ -317,20 +340,19 @@ export function PresentRoot({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [audienceOnly, fullscreen, presentation.id, scenes.length, session, tool]);
+  }, [audienceOnly, fullscreen, helpOpen, presentation.id, scenes.length, session, tool]);
 
-  // Presenting from a phone or a tablet on one screen: a swipe moves the
-  // deck the way a tap on the right two-thirds does. Suppressed while a
-  // drawing tool is live, because then a finger on the stage is ink.
+  // The same two moves by hand, for a presenter driving from a tablet. The
+  // audience window and the annotation tools own their pointer, as for clicks.
   const swipe = useSwipe((direction) => {
     if (tool !== "none" || audienceOnly) return;
-    if (direction === "forward") session.next();
+    if (direction === "left") session.next();
     else session.prev();
   });
 
   const advanceOnClick = (e: React.MouseEvent) => {
-    if (swipe.consumeSwipe()) return;
     if (tool !== "none" || audienceOnly) return;
+    if (swipe.consume() || isControl(e.target)) return;
     // Click on the right two-thirds advances, left third goes back — the same
     // convention as a clicker, so it needs no explanation.
     const rect = e.currentTarget.getBoundingClientRect();
@@ -341,17 +363,17 @@ export function PresentRoot({
   return (
     <div
       ref={containerRef}
-      className="stage-safe relative h-screen w-screen overflow-hidden bg-black"
+      className="stage-safe relative h-screen w-screen touch-pinch-zoom overflow-hidden overscroll-none bg-black"
       // The stage tokens are defined here, not only inside the world, because
       // the movement rail and the signpost are presented *over* the world and
       // would otherwise resolve `--stage-ink` to nothing and inherit whatever
       // the page happened to be using.
       style={themeCssVars(theme)}
       onPointerMove={showBar}
+      onClick={advanceOnClick}
       onPointerDown={swipe.onPointerDown}
       onPointerUp={swipe.onPointerUp}
       onPointerCancel={swipe.onPointerCancel}
-      onClick={advanceOnClick}
     >
       {/* The show: everything the room sees, and exactly what a recording
           restricted by Element Capture contains. Presenter chrome stays
@@ -372,10 +394,11 @@ export function PresentRoot({
           pace={journey.pace}
           depth={journey.depth}
           backdrop={journey.backdrop}
-          showPath={journey.showPath && session.overview}
+          air={!plain}
+          showPath={journey.showPath && wide}
           safeInsetLeft={railShown ? MOVEMENT_RAIL_WIDTH : 0}
           className="absolute inset-0"
-          onSceneSelect={session.overview && !audienceOnly ? session.goto : undefined}
+          onSceneSelect={wide && !audienceOnly ? session.goto : undefined}
           // The audience window is a projector, not a control surface: a hotspot
           // there would let anyone who reaches the machine drive the talk.
           onHotspot={audienceOnly ? undefined : session.dive}
@@ -396,7 +419,7 @@ export function PresentRoot({
           />
         )}
 
-        {signpost && !session.overview && !session.blanked && !session.establishing && (
+        {signpost && !wide && !session.blanked && !session.establishing && (
           <MovementSignpost
             movement={signpost}
             index={signpostIndex}
@@ -404,7 +427,7 @@ export function PresentRoot({
           />
         )}
 
-        {establishingMovement && !session.overview && !session.blanked && (
+        {establishingMovement && !wide && !session.blanked && (
           <MovementSignpost
             movement={establishingMovement}
             index={establishingIndex}
@@ -412,6 +435,20 @@ export function PresentRoot({
             kind="entering"
           />
         )}
+
+        {/* The keys, on demand. Presenter-facing, like the timer. */}
+        <AnimatePresence>
+          {helpOpen && !audienceOnly && (
+            <PresenterHelp key="help" plain={plain} onClose={() => setHelpOpen(false)} />
+          )}
+        </AnimatePresence>
+
+        {/* The closing image, named. Past the last scene and nowhere else. */}
+        <AnimatePresence>
+          {session.ended && session.overview && !session.blanked && (
+            <ClosingFrame key="closing" title={presentation.title} />
+          )}
+        </AnimatePresence>
 
         {/* The presenter, placed over the world. Hidden while blanked so a
           black screen is genuinely black. */}
@@ -469,6 +506,7 @@ export function PresentRoot({
             cameraFeed={cameraFeed}
             onCameraFeedChange={updateCameraFeed}
             fullscreen={fullscreen}
+            onHelp={() => setHelpOpen(true)}
             remote={
               <ConnectPhone
                 presentationId={presentation.id}

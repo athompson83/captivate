@@ -1,7 +1,5 @@
-// The real stylesheet, because two of the claims this fixture is asked to
-// prove are CSS: that the upright-phone cue is bounded by an orientation
-// media query, and that it is gone on a screen with nothing to rotate.
 import "@/app/globals.css";
+
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { SharedViewer } from "@/components/present/shared-viewer";
@@ -56,7 +54,37 @@ function deckWithAside(): SharedDeck {
   return { ...deck, scenes: [withHotspot, ...rest, detail] };
 }
 
+/**
+ * What the stage showed first, recorded in-page from the moment of mounting.
+ *
+ * The opening beat lasts under two seconds and a round trip from the test
+ * runner can take most of one, so a spec that read the view after mounting
+ * sometimes saw the dive already landed. Watching from inside the page is
+ * timing-independent: "opening" while the beat holds, else the view.
+ */
+let firstView: Promise<string | null> = Promise.resolve(null);
+
+function watchFirstView() {
+  firstView = new Promise((resolve) => {
+    let tries = 0;
+    const look = () => {
+      const el = document.querySelector("[data-view]");
+      if (el) {
+        resolve(el.hasAttribute("data-opening") ? "opening" : el.getAttribute("data-view"));
+        return;
+      }
+      if ((tries += 1) > 600) {
+        resolve(null);
+        return;
+      }
+      requestAnimationFrame(look);
+    };
+    look();
+  });
+}
+
 function mount(deck: SharedDeck): number {
+  watchFirstView();
   const host = document.createElement("div");
   document.body.appendChild(host);
   createRoot(host).render(
@@ -72,6 +100,8 @@ declare global {
     sharedViewerFixture: {
       mount: () => number;
       mountWithAside: () => number;
+      /** Resolves with what the stage showed first: "opening", or a view. */
+      firstView: () => Promise<string | null>;
       /**
        * Walks the deck with the same keydown the browser delivers, in-page.
        *
@@ -86,6 +116,12 @@ declare global {
        * null if `cap` presses never got there.
        */
       walk: (key: string, cap: number) => Promise<number | null>;
+      /**
+       * A touch swipe across the stage, dispatched in-page as pointer events.
+       * Playwright's touchscreen can tap but not travel, and the recogniser
+       * under test listens to pointer events, so this is the same path.
+       */
+      swipe: (dx: number) => Promise<void>;
     };
   }
 }
@@ -94,6 +130,30 @@ window.sharedViewerFixture = {
   /** Renders the viewer; returns the number of scenes in the running order. */
   mount: () => mount(exampleDeck()),
   mountWithAside: () => mount(deckWithAside()),
+  firstView: () => firstView,
+
+  async swipe(dx: number) {
+    const el = document.querySelector("[data-view]");
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const at = (type: string, cx: number) =>
+      el.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          clientX: cx,
+          clientY: y,
+          pointerId: 7,
+          pointerType: "touch",
+          isPrimary: true,
+        }),
+      );
+    at("pointerdown", x);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    at("pointerup", x + dx);
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+  },
 
   async walk(key: string, cap: number) {
     for (let i = 0; i < cap; i += 1) {

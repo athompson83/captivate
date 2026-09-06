@@ -91,6 +91,13 @@ appearing as a library entry that plays nothing.
 It appears on movement and disappears after 2.6 seconds. Every action on it has
 a keyboard shortcut, so it never needs to appear at all.
 
+That is the right design for the room and the wrong one for a first night, when
+the affordances are gone before they have been read — so `?` puts the keys over
+the stage on demand, and the bar carries the same button. The list is data
+(`lib/present/keys.ts`) held to the stage's real key handler by a test, so a
+key added to one and not the other fails the build. Presenter-facing, like the
+timer; never in audience-only mode.
+
 The audience should be looking at content. In audience-only mode the bar does
 not exist.
 
@@ -129,8 +136,11 @@ section keeps it there.
 
 ## Empty states do work
 
-An empty scene offers three concrete next steps. An empty library explains what
-belongs there and offers both creation paths. An empty notes workspace explains
+An empty scene offers three concrete next steps — a heading, a layout, or AI —
+each as a button, with the keys beneath for next time (`I` for AI, `?` for the
+whole list; `?` opens the editor's shortcut list from anywhere, as it does in
+every keyboard-driven app). An empty library explains what belongs there and
+offers both creation paths. An empty notes workspace explains
 the difference between lecture notes and speaker notes.
 
 A blank rectangle with "No items" teaches nothing.
@@ -198,35 +208,51 @@ scene flies there.
 dives to its first scene. One beat, at the one moment where showing the shape of
 the thing is worth more than showing its content.
 
-**The light comes down on the scene the camera landed on.** A viewport is
-rarely the scene's shape — a phone held upright shows the scene as a strip
-across the middle, a laptop letterboxes a little, the movement rail's column
-sits beside the frame — and in every one of those the neighbouring regions
-used to show through: the next scene's bullets under the title, a chart's axis
-label beside the rail. The room was reading two scenes at once. Now, once the
-camera has landed, the world beyond the framed region goes dark. It lifts as a
-flight begins, so travel still shows the map moving past, and it does not exist
-over the overview or a section, where every scene is equally the subject. It is
-feathered and begins outside the frame's own padding, so on a screen the scene's
-shape nothing changes and there is never an edge to read as a card.
-
-**A phone swipes.** The share link is read on phones more than anywhere, and a
-thumb's first move is a swipe. Swiping left goes on and right goes back; a
-vertical drag is a scroll and is left alone; tapping the right two-thirds still
-advances for everyone who learnt that first. A mouse drag is never a swipe —
-that is the presenter's laser or ink.
-
-**An upright phone is told to turn.** A deck is a landscape object, and a phone
-held upright frames it as a strip: on a 390-pixel screen the scene renders 361
-pixels wide and its smaller type lands at 7 pixels, which nobody reads. Turned,
-the same scene is 642 pixels and that type is 17. So the opening card carries one
-more line on a phone held upright, and it goes with the rest of the card on the
-first advance. It is bounded by orientation, not guessed at: a laptop has nothing
-to rotate and is never told to.
+**The show opens and closes on the whole of itself.** On load the camera holds
+over the whole argument with the route drawn, then dives to the first scene;
+the first press ends the hold early. Past the last scene the camera pulls back
+to the same place and the title is set over it — the closing image, named. A
+presentation that begins and ends with its own shape is easier to hold in the
+mind than one that begins on a title card and ends on a black screen.
 
 **Nothing moves that the room did not ask for.** The camera only moves on an
 advance, a jump, or an explicit pull-back — never on a timer, and never to
-decorate. `prefers-reduced-motion` turns every flight into a cut.
+decorate. The two timed beats, opening and establishing, are the second half
+of a move the room did ask for. `prefers-reduced-motion` turns every flight
+into a cut, and the opening hold with it.
+
+**A phone is a hand, not a keyboard.** A share link is opened on a phone more
+often than anywhere else, so the viewer moves on a swipe — left for on, right
+for back, the same two moves as the click zones, which stay — and the
+invitation says so to a coarse pointer. The recogniser is strict: a short,
+mostly horizontal journey; a scroll or a hesitation does nothing. A tap on a
+hotspot is the hotspot's alone (it used to dive and step straight back out),
+pinches stay the browser's, and a pull at the top of a deck is never a page
+refresh. The stage takes the same gesture from a presenter on a tablet. Full
+screen is a button in the corner as well as the F key, because a hand has no
+F; it appears only where the browser can do it (an iPhone cannot), asks by the
+prefixed name Safari on iPad still uses, and says so when refused rather than
+doing nothing.
+
+**A share link looks like something before it is opened.** A link pasted into
+a chat is unfurled by the chat, and every deck used to unfurl as the site's
+own card — the product's name where the presentation's should be. Now the
+viewer route serves the deck's card: its title in its own theme, the shape of
+the thing beneath (scenes and movements), resolved through the same function
+the viewer uses, so a revoked link unfurls as the generic card and a card can
+never show what a link-holder would not see.
+
+**A mouse is a hand too.** On the shared viewer and the landing page's demo,
+moving the pointer over the world leans what is behind the scene — the
+backdrop, the air — a little toward it, and the scene stays exactly where it
+is. This is not the camera moving and it is not decoration: nothing happens
+until the visitor moves, it follows their hand, and it is level again the
+moment the hand leaves. The projector never does it — whoever's pointer
+crosses a stage window, it is not the room's.
+
+**The frame before the stage is black.** Both audience routes await the deck
+on the server; until it arrives they show a black frame rather than the site's
+light body, so a projector never flashes white before the first scene.
 
 ## The landing page runs the product
 

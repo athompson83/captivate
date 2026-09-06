@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Eraser,
   Highlighter,
+  Keyboard,
   LayoutGrid,
   Maximize2,
   Minimize2,
@@ -51,6 +52,7 @@ export function PresenterBar({
   cameraFeed,
   onCameraFeedChange,
   fullscreen,
+  onHelp,
   remote,
 }: {
   visible: boolean;
@@ -73,6 +75,8 @@ export function PresenterBar({
     denied: boolean;
     toggle: () => Promise<boolean>;
   };
+  /** Shows the keys over the stage; also on `?`. */
+  onHelp: () => void;
   /** The phone-remote control, or null where pairing is not offered. */
   remote: React.ReactNode;
 }) {
@@ -291,6 +295,10 @@ export function PresenterBar({
             </Tooltip>
 
             {remote}
+
+            <BarButton label="Keys" shortcut="?" onClick={onHelp}>
+              <Keyboard className="size-4" aria-hidden />
+            </BarButton>
 
             {fullscreen.supported && (
               <BarButton

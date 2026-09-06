@@ -1,97 +1,125 @@
-"use client";
-
-import { useCallback, useRef } from "react";
+import { useRef, useSyncExternalStore } from "react";
 
 /**
- * Swipe, on a stage that already answers to taps.
+ * Moving through a presentation by hand.
  *
- * A phone holding a share link is the device most people actually read a deck
- * on, and a phone's first instinct is to swipe. Until now the only touch move
- * was the clicker convention — tap the right two-thirds to go on, the left
- * third to go back — which nobody discovers unaided. Swiping left goes on and
- * swiping right goes back, the way every carousel has taught a thumb to
- * expect; the taps still work exactly as before.
+ * A share link is opened on a phone more often than anywhere else, and a
+ * phone has no arrow keys. A horizontal swipe is the move a hand makes
+ * without being told: left for on, right for back — the same two moves as
+ * the click zones, which stay. The stage takes the same gesture on a tablet.
  *
- * Only horizontal, deliberate movement counts. A vertical drag is a scroll —
- * on the landing page the stage sits in a page that scrolls, and a demo that
- * swallowed scrolling would be a demo nobody got past. A short drag is a tap
- * with a wobble, and is left for the click handler.
- *
- * Touch only. A mouse drag on the stage is the presenter's laser or ink, and
- * a trackpad has arrow keys.
+ * The recogniser is deliberately strict. A swipe is a short, mostly
+ * horizontal journey; a slow drag or a diagonal one is a scroll or a
+ * hesitation and does nothing, so the page never moves under a reader who
+ * was only steadying their thumb.
  */
 
-/** Distance, in CSS pixels, a finger has to travel before it is a swipe. */
-export const SWIPE_DISTANCE = 48;
+/** How far a pointer must travel, in CSS pixels, to count as a swipe. */
+export const SWIPE_MIN_PX = 48;
+/** Any longer than this and it is a drag, not a swipe. */
+export const SWIPE_MAX_MS = 700;
+/** Horizontal travel must exceed vertical by this factor. */
+export const SWIPE_RATIO = 2;
 
-/** How much more horizontal than vertical the travel has to be. */
-const SWIPE_DOMINANCE = 1.5;
+export type SwipeDirection = "left" | "right";
 
-export type Swipe = "forward" | "back";
+export interface PointerSample {
+  x: number;
+  y: number;
+  /** Milliseconds, on any clock shared by both samples. */
+  t: number;
+}
+
+/** Whether a pointer journey was a swipe, and which way. Pure. */
+export function swipeOf(start: PointerSample, end: PointerSample): SwipeDirection | null {
+  if (end.t - start.t > SWIPE_MAX_MS) return null;
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (Math.abs(dx) < SWIPE_MIN_PX) return null;
+  if (Math.abs(dx) < Math.abs(dy) * SWIPE_RATIO) return null;
+  return dx < 0 ? "left" : "right";
+}
 
 /**
- * What a completed finger movement meant, or nothing.
- *
- * A left swipe — the content pushed leftwards, the finger travelling to
- * smaller x — moves forward.
+ * Whether a click landed on a control of its own — a hotspot, a link — rather
+ * than on the open stage. Such a click is the control's, and the surface must
+ * not also read it as an advance: a tap on a hotspot used to dive *and* step
+ * on, and inside the aside the step was the way straight back out.
  */
-export function classifySwipe(dx: number, dy: number, distance = SWIPE_DISTANCE): Swipe | null {
-  if (Math.abs(dx) < distance) return null;
-  if (Math.abs(dx) < Math.abs(dy) * SWIPE_DOMINANCE) return null;
-  return dx < 0 ? "forward" : "back";
+export function isControl(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("button, a") !== null;
+}
+
+interface Tracked extends PointerSample {
+  id: number;
 }
 
 export interface SwipeHandlers {
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
-  onPointerCancel: () => void;
+  onPointerCancel: (e: React.PointerEvent) => void;
   /**
-   * Whether the pointer sequence that just ended was a swipe. A click handler
-   * on the same element asks this first, so a swipe that the browser also
-   * reports as a click is not counted twice.
+   * True exactly once after a swipe, for the click that may follow it. A
+   * browser can synthesise a click at the end of a short touch, and a surface
+   * that advanced on the swipe must not advance again on the click.
    */
-  consumeSwipe: () => boolean;
+  consume: () => boolean;
 }
 
-/**
- * Pointer handlers that turn a touch swipe into `forward` or `back`.
- *
- * The element should also carry `touch-action: pan-y`, so a horizontal drag
- * reaches these handlers instead of being taken by the browser as a scroll
- * attempt, while vertical drags keep scrolling the page.
- */
-export function useSwipe(onSwipe: (swipe: Swipe) => void): SwipeHandlers {
-  const start = useRef<{ x: number; y: number; id: number } | null>(null);
+/** Pointer handlers for a surface that moves on a swipe. */
+export function useSwipe(onSwipe: (direction: SwipeDirection) => void): SwipeHandlers {
+  const tracked = useRef<Tracked | null>(null);
   const swiped = useRef(false);
 
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    if (e.pointerType !== "touch") return;
-    start.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
-    swiped.current = false;
-  }, []);
-
-  const onPointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      const from = start.current;
-      start.current = null;
-      if (!from || from.id !== e.pointerId) return;
-      const swipe = classifySwipe(e.clientX - from.x, e.clientY - from.y);
-      if (!swipe) return;
-      swiped.current = true;
-      onSwipe(swipe);
+  return {
+    onPointerDown: (e) => {
+      // Only the primary button of a mouse; any touch or pen.
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      // A new journey. Whatever the last one was, the click that ends this
+      // one is this one's: a swipe's click never arrived, so a tap that came
+      // after it must not be swallowed in its place.
+      swiped.current = false;
+      tracked.current = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp };
     },
-    [onSwipe],
-  );
+    onPointerUp: (e) => {
+      const start = tracked.current;
+      if (!start || start.id !== e.pointerId) return;
+      tracked.current = null;
+      const direction = swipeOf(start, { x: e.clientX, y: e.clientY, t: e.timeStamp });
+      if (!direction) return;
+      swiped.current = true;
+      onSwipe(direction);
+    },
+    onPointerCancel: () => {
+      tracked.current = null;
+    },
+    consume: () => {
+      const was = swiped.current;
+      swiped.current = false;
+      return was;
+    },
+  };
+}
 
-  const onPointerCancel = useCallback(() => {
-    start.current = null;
-  }, []);
+const COARSE = "(pointer: coarse)";
 
-  const consumeSwipe = useCallback(() => {
-    const was = swiped.current;
-    swiped.current = false;
-    return was;
-  }, []);
+function subscribeCoarse(onChange: () => void) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
+  const query = window.matchMedia(COARSE);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
 
-  return { onPointerDown, onPointerUp, onPointerCancel, consumeSwipe };
+const readCoarse = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia(COARSE).matches;
+
+/**
+ * Whether the primary pointer is a finger, so an invitation can say "swipe"
+ * to a hand and "press →" to a keyboard. False on the server, and read as an
+ * external store so the first client render agrees with it.
+ */
+export function useCoarsePointer(): boolean {
+  return useSyncExternalStore(subscribeCoarse, readCoarse, () => false);
 }

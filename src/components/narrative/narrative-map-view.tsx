@@ -32,10 +32,11 @@ import { insertSection, removeSection } from "@/lib/editor/store";
 import { addSection } from "@/lib/data/actions";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
-import { Segmented } from "@/components/ui/misc";
+import { Segmented, Toggle } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { MomentCard } from "./moment-card";
 import { cn } from "@/lib/utils/cn";
+import { unfinishedGenerationNote } from "@/lib/data/generation-state";
 
 /**
  * The narrative map.
@@ -53,12 +54,15 @@ export function NarrativeMapView({
   presentationId,
   evidenceOptions,
   onGenerate,
+  replacing,
   generating,
   className,
 }: {
   presentationId: string;
   evidenceOptions: EvidenceRef[];
-  onGenerate: (depth: "outline" | "full") => void;
+  onGenerate: (depth: "outline" | "full", options?: { keepCopy?: boolean }) => void;
+  /** How many existing scenes a regeneration would overwrite. */
+  replacing: number;
   generating: boolean;
   className?: string;
 }) {
@@ -74,6 +78,17 @@ export function NarrativeMapView({
 
   const map = useMemo(() => assembleMap(sections, moments), [sections, moments]);
   const targetSeconds = useEditor((s) => s.document.presentation.targetSeconds);
+  /**
+   * A generation this deck did not come back from.
+   *
+   * The dashboard already says "open it to finish", and until now opening it
+   * finished nothing: the author arrived at a map that looked ordinary and
+   * had no idea which of its scenes were placeholders. Suppressed while this
+   * tab is generating, which is the one case where the stored `generating`
+   * means what it says and is not a run somebody walked away from.
+   */
+  const storedStatus = useEditor((s) => s.document.presentation.generationStatus);
+  const unfinished = unfinishedGenerationNote(storedStatus, generating);
   const derived = useEditor((s) => s.momentsDerived);
 
   const sensors = useSensors(
@@ -143,6 +158,7 @@ export function NarrativeMapView({
         estimatedSeconds: 60,
         evidence: [],
         visualIntent: "auto",
+        intentAuthored: false,
         instructions: "",
         locked: false,
         position: siblings.length,
@@ -335,8 +351,21 @@ export function NarrativeMapView({
                 moments={map.momentCount}
                 targetSeconds={targetSeconds}
               />
-              <GenerateControl onGenerate={onGenerate} generating={generating} />
+              <GenerateControl
+                onGenerate={onGenerate}
+                replacing={replacing}
+                generating={generating}
+              />
             </div>
+
+            {unfinished && (
+              <p
+                role="status"
+                className="text-ink-2 border-line bg-sunken mt-1 rounded-[var(--radius-md)] border px-3 py-2 text-[12.5px]"
+              >
+                {unfinished}
+              </p>
+            )}
           </div>
         </header>
 
@@ -641,12 +670,20 @@ export function DurationWarning({
  */
 function GenerateControl({
   onGenerate,
+  replacing,
   generating,
 }: {
-  onGenerate: (depth: "outline" | "full") => void;
+  onGenerate: (depth: "outline" | "full", options?: { keepCopy?: boolean }) => void;
+  /** How many existing scenes this would overwrite. */
+  replacing: number;
   generating: boolean;
 }) {
   const [depth, setDepth] = useState<"outline" | "full">("full");
+  // Only ever asked where there is something to lose, and on by default when
+  // there is: regenerating a finished deck is how it gets the better
+  // composition, and that should not be a decision an author can only regret
+  // afterwards.
+  const [keepCopy, setKeepCopy] = useState(true);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Segmented
@@ -659,9 +696,22 @@ function GenerateControl({
           { value: "outline", label: "Outline" },
         ]}
       />
-      <Button variant="primary" size="sm" onClick={() => onGenerate(depth)} loading={generating}>
+      {replacing > 0 && (
+        <Toggle
+          label="Keep the deck as it is, as a copy"
+          hint={`Regenerating rewrites ${replacing} ${replacing === 1 ? "scene" : "scenes"}.`}
+          checked={keepCopy}
+          onChange={setKeepCopy}
+        />
+      )}
+      <Button
+        variant="primary"
+        size="sm"
+        onClick={() => onGenerate(depth, { keepCopy: replacing > 0 && keepCopy })}
+        loading={generating}
+      >
         <Sparkles className="size-3.5" aria-hidden />
-        Generate scenes
+        {replacing > 0 ? "Regenerate scenes" : "Generate scenes"}
       </Button>
     </div>
   );

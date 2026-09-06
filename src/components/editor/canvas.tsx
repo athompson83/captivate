@@ -40,7 +40,14 @@ import { EmptySceneHint } from "./empty-scene-hint";
  */
 const EMPTY_ELEMENTS: SceneElement[] = [];
 
-export function Canvas({ theme }: { theme: PresentationTheme }) {
+export function Canvas({
+  theme,
+  onAskAi,
+}: {
+  theme: PresentationTheme;
+  /** Opens the AI dock, for an empty scene's third step. */
+  onAskAi?: () => void;
+}) {
   const scene = useCurrentScene();
   const aspect = useEditor((s) => s.document.presentation.aspectRatio);
   const selectedIds = useEditor((s) => s.selection.elementIds);
@@ -387,7 +394,7 @@ export function Canvas({ theme }: { theme: PresentationTheme }) {
             )}
           </div>
 
-          {elements.length === 0 && <EmptySceneHint sceneId={scene.id} />}
+          {elements.length === 0 && <EmptySceneHint sceneId={scene.id} onAskAi={onAskAi} />}
         </div>
 
         {selected.length > 0 && !editingId && (
