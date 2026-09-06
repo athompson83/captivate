@@ -110,6 +110,7 @@ export function toMoment(row: MomentRow): Moment {
     estimatedSeconds: row.estimated_seconds,
     evidence: evidence.success ? evidence.data : [],
     visualIntent: intent.success ? intent.data : "auto",
+    intentAuthored: row.intent_authored ?? false,
     instructions: row.instructions,
     locked: row.locked,
     position: row.position,

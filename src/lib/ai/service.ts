@@ -32,7 +32,7 @@ import {
 } from "./schemas";
 import { deriveTitle, fallbackRewrite, fallbackScene, subjectOf } from "./fallback";
 import { fallbackMap } from "./narrative-fallback";
-import { layoutFor, type AvailableEvidence, type MomentBrief } from "@/lib/narrative/generate";
+import { layoutsForDeck, type AvailableEvidence, type MomentBrief } from "@/lib/narrative/generate";
 import { GeneratedDiagram, compileDiagram } from "@/lib/drawing/diagram";
 
 /**
@@ -347,9 +347,10 @@ export async function buildScenesFromMap(
     }
   | { ok: false; error: string }
 > {
-  const layouts = briefs.map((brief, index) =>
-    layoutFor(brief.visualIntent, brief.role, index, { endsMovement: brief.endsMovement }),
-  );
+  // Composed as a deck, not moment by moment. A sequence of independently
+  // best choices is what put five identical centred lines in a thirteen-scene
+  // deck; `composeDeck` reads what has just been on screen. See `compose.ts`.
+  const layouts = layoutsForDeck(briefs);
 
   if (!isAiConfigured()) {
     return {

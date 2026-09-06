@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { composeDeck } from "@/lib/narrative/compose";
 import { layoutFor } from "@/lib/narrative/generate";
 import { drawableScenes } from "@/lib/editor/place-drawing";
 import { composeScene } from "@/lib/editor/layouts";
@@ -18,9 +19,17 @@ import { composeScene } from "@/lib/editor/layouts";
  * drawing pass will pick up.
  */
 describe("imagery moments get drawable layouts", () => {
-  it("routes imagery to a side-by-side, alternating", () => {
+  it("routes imagery to a side-by-side, alternating from the last one placed", () => {
+    // Alternation is a property of the sequence, not of the index. Two
+    // imagery beats running land on opposite sides; scenes in between them do
+    // not silently flip the side, which is what keying off `index % 2` did.
+    const sides = composeDeck([
+      { role: "example", visualIntent: "imagery" },
+      { role: "example", visualIntent: "imagery" },
+    ]);
+    expect(sides[0]).toBe("split-right");
+    expect(sides[1]).toBe("split-left");
     expect(layoutFor("imagery", "example", 0)).toBe("split-right");
-    expect(layoutFor("imagery", "example", 1)).toBe("split-left");
   });
 
   it("produces scenes the drawing pass actually selects", () => {

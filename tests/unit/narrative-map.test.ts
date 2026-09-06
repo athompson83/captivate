@@ -18,6 +18,7 @@ import {
   moveMoment,
 } from "@/lib/narrative/map";
 import { briefsFor, draftFromProposal, layoutFor, verifyEvidence } from "@/lib/narrative/generate";
+import { composeDeck } from "@/lib/narrative/compose";
 import { chooseShape, fallbackMap } from "@/lib/ai/narrative-fallback";
 import { ProposedMap } from "@/lib/ai/schemas";
 import { composeScene } from "@/lib/editor/layouts";
@@ -50,6 +51,7 @@ function moment(overrides: Partial<Moment> & { id: string }): Moment {
     estimatedSeconds: 60,
     evidence: [],
     visualIntent: "auto",
+    intentAuthored: false,
     instructions: "",
     locked: false,
     position: 0,
@@ -681,7 +683,7 @@ describe("visual intent to layout", () => {
     // A close is a call to action, not a list of what was said; evidence
     // alternates one number with a chart (see point-routing.test.ts).
     expect(layoutFor("auto", "close", 4)).toBe("action");
-    expect(layoutFor("auto", "evidence", 3)).toBe("chart");
+    expect(layoutFor("auto", "evidence", 3)).toBe("figure");
     expect(layoutFor("auto", "transition", 2)).toBe("section");
   });
 
@@ -691,8 +693,13 @@ describe("visual intent to layout", () => {
   });
 
   it("alternates a demonstration's side so two in a row do not mirror", () => {
-    expect(layoutFor("demonstration", "example", 0)).toBe("split-right");
-    expect(layoutFor("demonstration", "example", 1)).toBe("split-left");
+    // From the last split actually placed — see `compose.ts`.
+    expect(
+      composeDeck([
+        { role: "example", visualIntent: "demonstration" },
+        { role: "example", visualIntent: "demonstration" },
+      ]),
+    ).toEqual(["split-right", "split-left"]);
   });
 
   it("returns a layout for every role", () => {

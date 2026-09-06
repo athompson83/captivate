@@ -143,6 +143,7 @@ export function NarrativeMapView({
         estimatedSeconds: 60,
         evidence: [],
         visualIntent: "auto",
+        intentAuthored: false,
         instructions: "",
         locked: false,
         position: siblings.length,

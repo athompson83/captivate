@@ -7,6 +7,7 @@ import {
   type VisualIntent,
 } from "@/lib/schema/narrative";
 import type { ProposedMap } from "@/lib/ai/schemas";
+import { composeDeck, layoutChoices } from "./compose";
 
 /**
  * Turning a proposal into a map.
@@ -141,6 +142,10 @@ export function draftFromProposal(
         estimatedSeconds: within[momentIndex],
         evidence: verified.evidence,
         visualIntent: moment.visualIntent,
+        // A model proposed this one. `compose.ts` reads that differently from
+        // an intent the author picked, and the difference is the whole reason
+        // generated decks had four compositions in them instead of ten.
+        intentAuthored: false,
         instructions: "",
         locked: false,
         position: momentIndex,
@@ -192,6 +197,8 @@ export interface MomentBrief {
   takeaway: string;
   estimatedSeconds: number;
   visualIntent: VisualIntent;
+  /** True where the author chose the intent; false where a model proposed it. */
+  intentAuthored: boolean;
   instructions: string;
   evidence: EvidenceRef[];
   previousTitle: string | null;
@@ -246,6 +253,7 @@ export function briefsFor(movements: Section[], moments: Moment[]): MomentBrief[
       takeaway: entry.moment.takeaway,
       estimatedSeconds: entry.moment.estimatedSeconds,
       visualIntent: entry.moment.visualIntent,
+      intentAuthored: entry.moment.intentAuthored,
       instructions: entry.moment.instructions,
       evidence: entry.moment.evidence,
       previousTitle: flat[index - 1]?.moment.title ?? null,
@@ -259,198 +267,46 @@ export function briefsFor(movements: Section[], moments: Moment[]): MomentBrief[
 }
 
 /**
- * The layout a visual intent asks for, given the role.
+ * The layout a single moment asks for, given the role.
  *
- * Intent is deliberately one level above layout, so this mapping lives in the
- * application rather than in the map: changing how a comparison is composed
- * should not require rewriting every presentation that contains one.
- *
- * `context.endsMovement` is the one thing about the *shape* of the argument
- * this reads: a beat that closes a movement is where the room should be
- * handed the point of it, so the roles that carry a point land there as a
- * take-home rather than as one more page.
+ * Kept as the one-moment answer — the editor and several tests reason about a
+ * scene on its own — but it is no longer where composition is decided. A deck
+ * is a sequence, and a sequence of independently-best choices is what produced
+ * five identical centred lines in a thirteen-scene deck. `composeDeck` in
+ * `src/lib/narrative/compose.ts` owns the real decision and this returns its
+ * first choice for one beat.
  */
 export interface LayoutContext {
   endsMovement?: boolean;
+  /** True where the author chose the intent rather than a model proposing it. */
+  intentAuthored?: boolean;
 }
-
-/**
- * Roles whose movement-ending beat is the take-home point of that movement.
- *
- * Not `application`: it usually *is* the last beat of a movement, and its
- * imperative-and-steps composition is the call to action the whole change
- * exists to put in front of a room. A take-home would keep the sentence and
- * lose the steps.
- */
-const LANDS_A_POINT: NarrativeRole[] = [
-  "claim",
-  "reframe",
-  "synthesis",
-  "evidence",
-  "example",
-  "contrast",
-  "context",
-];
 
 export function layoutFor(
   intent: VisualIntent,
   role: NarrativeRole,
   index: number,
   context: LayoutContext = {},
-):
-  | "title"
-  | "cover"
-  | "statement"
-  | "bullets"
-  | "two-column"
-  | "three-up"
-  | "chart"
-  | "media-full"
-  | "quote"
-  | "split-left"
-  | "split-right"
-  | "code"
-  | "closing"
-  | "section"
-  | "takeaway"
-  | "action"
-  | "figure"
-  | "explainer" {
-  // The deck opens on a cover — a full-bleed image with the title over it,
-  // lifted by the first advance. With no image to fill it, the composition
-  // degrades to the title slide it covers.
-  //
-  // Stated as what a cover *loses to* rather than what it needs. The rule used
-  // to require an `auto` or `imagery` intent, which sounds permissive and is
-  // not: the classic opening line — a hook, written as one sentence — carries
-  // the `statement` intent, so the most common first moment there is fell
-  // through to a bare `statement` and decks opened on grey text. An intent
-  // that names specific content still wins, because a chart or a pull quote is
-  // a thing the author asked for; "say one line" is not, and a line over a
-  // photograph is the same line.
-  const NOT_A_COVER: VisualIntent[] = ["data", "quotation", "comparison", "sequence"];
-  if (
-    index === 0 &&
-    !NOT_A_COVER.includes(intent) &&
-    (role === "hook" || role === "provocation" || role === "question")
-  ) {
-    return "cover";
-  }
+) {
+  return layoutChoices(
+    {
+      role,
+      visualIntent: intent,
+      endsMovement: context.endsMovement,
+      intentAuthored: context.intentAuthored,
+    },
+    index,
+  )[0];
+}
 
-  // The end of a movement is where its point is handed over. An explicit
-  // intent still wins — a comparison that closes a movement is a comparison —
-  // but a beat left to the application to compose lands as a take-home.
-  if (context.endsMovement && intent === "auto" && LANDS_A_POINT.includes(role)) {
-    return "takeaway";
-  }
-
-  /*
-   * `statement` is the model's default, and it names no content.
-   *
-   * The cover rule above learned this the hard way and says so: an intent that
-   * names specific content — a chart, a pull quote, a comparison — is a thing
-   * the author asked for, and it wins. "Say one line" is not. Yet every moment
-   * whose intent came back `statement` returned a layout with no media slot,
-   * and nothing downstream can put a picture on a scene that has no slot for
-   * one: `imagePromptFor` returns "" and `drawableScenes` has nothing to
-   * draw into.
-   *
-   * Read out of production before this changed: of 315 moments generated over
-   * ten days the model chose `auto` exactly once, so the spine rule below —
-   * written to stop "a twenty-minute deck with exactly one drawing in it" —
-   * had effectively never run. The decks it was meant to fix looked exactly as
-   * they had: fourteen scenes, one picture, eight of them a bare heading.
-   *
-   * So a `statement` intent no longer vetoes the spine's picture. It still
-   * decides every other role, where the role's own answer is a chart or a list
-   * that one line cannot fill.
-   */
-  const SPINE: NarrativeRole[] = ["claim", "reframe", "synthesis"];
-
-  switch (intent) {
-    case "statement":
-      if (SPINE.includes(role)) break;
-      return "statement";
-    case "comparison":
-      return "two-column";
-    case "data":
-      return "chart";
-    case "sequence":
-      return "three-up";
-    case "imagery":
-      // A side-by-side, not a full-bleed backdrop. The generation pipeline
-      // fills empty side slots with staged line drawings, and a drawing
-      // cannot be a backdrop — line art under a heading is noise, which is
-      // why the drawing pass skips media-full. Routing imagery here meant
-      // the most visual moments of a deck were exactly the ones guaranteed
-      // to arrive empty. Full-bleed stays available to authors with a real
-      // photograph to put there.
-      return index % 2 === 0 ? "split-right" : "split-left";
-    case "quotation":
-      return "quote";
-    case "enumeration":
-      return "bullets";
-    case "demonstration":
-      return index % 2 === 0 ? "split-right" : "split-left";
-    default:
-      break;
-  }
-
-  switch (role) {
-    case "hook":
-    case "provocation":
-    case "question":
-      return "statement";
-    case "claim":
-    case "reframe":
-    case "synthesis":
-      /*
-       * Every other one of these carries a picture.
-       *
-       * These roles are the spine of an argument and there are usually several
-       * — so routing all of them to a bare `statement` is what produced a
-       * twenty-minute deck with exactly one drawing in it. Nothing in the
-       * generation pipeline can put a picture on a scene that has no slot for
-       * one, and only `split-*` gives a statement-shaped scene one.
-       *
-       * Alternating rather than converting: a deck of nothing but side-by-side
-       * scenes is as monotonous as a deck of nothing but centred lines, and a
-       * claim that lands hardest with the room is one with air around it.
-       *
-       * Safe for these roles specifically because they are a single line. The
-       * split body slot is 38x34 against `bullets`' 72x62, so moving an
-       * enumeration here would crush it; `layoutFor` keeps those where they
-       * are.
-       */
-      return index % 2 === 1 ? (index % 4 === 1 ? "split-right" : "split-left") : "statement";
-    case "evidence":
-      // Alternating one number with a chart. Most evidence a talk leans on is
-      // a single figure — a rate, a count, a ratio — and a chart drawn around
-      // one number is a chart with nothing to compare; setting the number
-      // large enough to be the scene is what a room actually remembers.
-      return index % 2 === 0 ? "figure" : "chart";
-    case "context":
-      // What the room needs in order to follow: a plain line, three points,
-      // and a picture — the composition of an explanation, not of a list.
-      return "explainer";
-    case "contrast":
-      return "two-column";
-    case "example":
-    case "demonstration":
-      return index % 2 === 0 ? "split-right" : "split-left";
-    case "application":
-      // "Show them what to do differently" is a call to action by definition.
-      return "action";
-    case "callback":
-      return "quote";
-    case "transition":
-      return "section";
-    case "close":
-      // A deck ends on what to do next, not on a list of what was said. The
-      // steps are still there — the layout carries up to three — but the
-      // imperative leads.
-      return "action";
-    default:
-      return "bullets";
-  }
+/** Composes every scene in a map, in order. See `compose.ts`. */
+export function layoutsForDeck(briefs: MomentBrief[]): ReturnType<typeof composeDeck> {
+  return composeDeck(
+    briefs.map((brief) => ({
+      role: brief.role,
+      visualIntent: brief.visualIntent,
+      endsMovement: brief.endsMovement,
+      intentAuthored: brief.intentAuthored,
+    })),
+  );
 }

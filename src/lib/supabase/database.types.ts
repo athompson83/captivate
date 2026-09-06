@@ -71,6 +71,8 @@ export type MomentRow = Timestamps & {
   estimated_seconds: number;
   evidence: Json;
   visual_intent: string;
+  /** True where the author chose the intent; false where a model proposed it. */
+  intent_authored: boolean;
   instructions: string;
   locked: boolean;
 };
