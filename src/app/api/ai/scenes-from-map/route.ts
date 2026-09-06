@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
 import { buildScenesFromMap } from "@/lib/ai/service";
+import { supabaseServer } from "@/lib/supabase/server";
 import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
 import { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 
@@ -65,6 +66,27 @@ export async function POST(request: Request) {
     // The briefs carry the map's own time distribution; their sum is the talk's
     // length, which decides how many staged drawings the deck earns.
     const totalSeconds = briefs.reduce((sum, brief) => sum + brief.estimatedSeconds, 0);
+
+    // Claimed here rather than in the browser, and that distinction is the
+    // point: only the thing doing the writing knows when the writing started,
+    // which is what lets the claim expire instead of spinning for ever.
+    //
+    // This route hands its scenes back for the client to save one at a time,
+    // so a phone that locks between the answer arriving and the last save
+    // leaves a half-written deck. Marking it here means the deck says
+    // "never finished writing" when the author returns, and offers to finish,
+    // rather than looking done and being half a deck.
+    if (presentationId) {
+      const supabase = await supabaseServer();
+      await supabase
+        .from("presentations")
+        .update({
+          generation_status: "generating",
+          generation_started_at: new Date().toISOString(),
+        })
+        .eq("id", presentationId);
+    }
+
     const result = await buildScenesFromMap(
       briefs,
       prompt,
@@ -74,7 +96,16 @@ export async function POST(request: Request) {
       totalSeconds,
     );
 
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
+    if (!result.ok) {
+      if (presentationId) {
+        const supabase = await supabaseServer();
+        await supabase
+          .from("presentations")
+          .update({ generation_status: "failed", generation_started_at: null })
+          .eq("id", presentationId);
+      }
+      return NextResponse.json({ error: result.error }, { status: 502 });
+    }
     return NextResponse.json(result.data);
   });
 }

@@ -54,3 +54,32 @@ describe("regenerating a deck that already has scenes", () => {
     expect(view).toMatch(/useState\(true\)/);
   });
 });
+
+describe("a regeneration the author walks away from", () => {
+  /**
+   * This route hands its scenes back for the browser to save one at a time,
+   * so a phone that locks between the answer arriving and the last save leaves
+   * a half-written deck that looks finished. The deck now says otherwise.
+   */
+  const route = readFileSync(join(root, "src/app/api/ai/scenes-from-map/route.ts"), "utf8");
+
+  it("is claimed by the route, before the model is asked", () => {
+    const claim = route.indexOf('generation_status: "generating"');
+    const model = route.indexOf("await buildScenesFromMap(");
+    expect(claim, "the route should mark the deck as being written").toBeGreaterThan(-1);
+    // Claimed after the answer would be claiming it once it no longer matters.
+    expect(claim).toBeLessThan(model);
+  });
+
+  it("records when the claim started, because that is what lets it expire", () => {
+    expect(route).toMatch(/generation_started_at: new Date\(\)\.toISOString\(\)/);
+  });
+
+  it("only ever lets a browser say a deck has finished", () => {
+    // The route knows when writing began and so can time out its own claim; a
+    // client cannot, and a client that could say "generating" could leave a
+    // deck spinning with nothing able to disprove it.
+    const actions = readFileSync(join(root, "src/lib/data/actions.ts"), "utf8");
+    expect(actions).toMatch(/generationStatus: z\.literal\("ready"\)\.optional\(\)/);
+  });
+});
