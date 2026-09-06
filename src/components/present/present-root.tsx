@@ -439,7 +439,7 @@ export function PresentRoot({
         {/* The keys, on demand. Presenter-facing, like the timer. */}
         <AnimatePresence>
           {helpOpen && !audienceOnly && (
-            <PresenterHelp key="help" onClose={() => setHelpOpen(false)} />
+            <PresenterHelp key="help" plain={plain} onClose={() => setHelpOpen(false)} />
           )}
         </AnimatePresence>
 

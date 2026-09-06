@@ -173,6 +173,17 @@ export const Stage = memo(function Stage({
             <img
               src={content.background.url}
               alt={content.background.alt}
+              /* A scene background is the largest picture on the page, and a
+                 synchronous decode of one happens on the main thread — during
+                 a camera flight, which is sixty transform writes a second.
+                 Measured at a phone viewport, the world holds three live
+                 photographs and 28 MB of decoded bitmap whatever the deck's
+                 length; the cost is real and the decode is worth keeping off
+                 the thread that is flying. The element images already do
+                 this. */
+              loading="lazy"
+              decoding="async"
+              draggable={false}
               style={{
                 position: "absolute",
                 inset: 0,

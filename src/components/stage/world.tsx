@@ -844,6 +844,9 @@ export const World = memo(function World({
             src={backdrop.url}
             alt=""
             draggable={false}
+            /* Decoded off the main thread: this one covers the whole layer and
+               is the largest single bitmap in the world. See `stage.tsx`. */
+            decoding="async"
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           />
           {backdrop.dim > 0 && (
