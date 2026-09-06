@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { layoutFor } from "@/lib/narrative/generate";
+import { composeDeck } from "@/lib/narrative/compose";
 import { composeScene, layoutSlots } from "@/lib/editor/layouts";
 import { drawableScenes, drawingCap, imagePromptFor } from "@/lib/editor/place-drawing";
 import type { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
@@ -76,8 +77,9 @@ describe("a talk long enough for several drawings has somewhere to put them", ()
    * pass against the defect.
    */
   function deck(modelWrotePrompts = false) {
+    const composed = composeDeck(SPINE.map((role) => ({ role, visualIntent: "auto" as const })));
     return SPINE.map((role, index) => {
-      const layout = layoutFor("auto", role, index);
+      const layout = composed[index];
       const heading = `Moment ${index}`;
       const imagePrompt = imagePromptFor({
         imagePrompt: modelWrotePrompts ? `a drawing for moment ${index}` : "",
@@ -113,7 +115,7 @@ describe("a talk long enough for several drawings has somewhere to put them", ()
   it("does not make the whole deck side-by-side", () => {
     // A deck of nothing but split scenes is as monotonous as a deck of nothing
     // but centred lines.
-    const layouts = SPINE.map((role, index) => layoutFor("auto", role, index));
+    const layouts = composeDeck(SPINE.map((role) => ({ role, visualIntent: "auto" as const })));
     const split = layouts.filter((l) => l === "split-left" || l === "split-right").length;
 
     expect(split).toBeGreaterThan(0);
@@ -189,7 +191,7 @@ describe("the spine carries pictures on the intent the model really sends", () =
   ];
 
   const layouts = (intent: VisualIntent) =>
-    DECK.map((role, index) => layoutFor(intent, role, index));
+    composeDeck(DECK.map((role) => ({ role, visualIntent: intent })));
   const withMedia = (list: ReturnType<typeof layouts>) =>
     list.filter((layout) => Boolean(layoutSlots(layout).media));
 
@@ -205,8 +207,9 @@ describe("the spine carries pictures on the intent the model really sends", () =
 
   it("spends the drawing budget on a statement-intent deck", () => {
     const cap = drawingCap(20 * 60, true);
+    const composed = layouts("statement");
     const scenes = DECK.map((role, index) => {
-      const layout = layoutFor("statement", role, index);
+      const layout = composed[index];
       const heading = `Moment ${index}`;
       const imagePrompt = imagePromptFor({ imagePrompt: "", layout, heading });
       return {
@@ -228,7 +231,14 @@ describe("the spine carries pictures on the intent the model really sends", () =
     const split = list.filter((l) => l === "split-left" || l === "split-right");
     expect(split.length).toBeGreaterThan(0);
     expect(split.length).toBeLessThan(list.length / 2);
-    expect(list.filter((layout) => layout === "statement").length).toBeGreaterThanOrEqual(
+    // Measured as *quiet screens* rather than as the `statement` layout. Air
+    // is a scene carrying one idea with space around it, and a take-home, a
+    // single number and a pull quote are all that; before the composer could
+    // reach them, `statement` was the only one it had, so counting the layout
+    // and counting the property were the same number. They are not any more,
+    // and the property is the one worth protecting.
+    const QUIET = ["statement", "section", "quote", "takeaway", "figure", "closing"];
+    expect(list.filter((layout) => QUIET.includes(layout)).length).toBeGreaterThanOrEqual(
       list.length / 3,
     );
   });
@@ -243,17 +253,34 @@ describe("the spine carries pictures on the intent the model really sends", () =
     expect(layoutFor("enumeration", "claim", 1)).toBe("bullets");
   });
 
-  it("leaves every role but the spine exactly where it was", () => {
-    for (const role of [
-      "evidence",
-      "context",
-      "contrast",
-      "application",
-      "close",
-    ] as NarrativeRole[]) {
-      for (let index = 0; index < 6; index++) {
-        expect(layoutFor("statement", role, index), `${role} at ${index}`).toBe("statement");
-      }
+  it("no longer silences the roles whose own answer is richer than a line", () => {
+    // This test used to assert the opposite, and asserting it is what kept the
+    // defect alive through two releases: every role but the spine was pinned
+    // to `statement` because the *model* had said `statement`, and production
+    // shows the model says that 44% of the time with nothing behind it. Four
+    // of this engine's compositions had therefore never reached an audience.
+    const answers = new Map<NarrativeRole, string>([
+      ["evidence", "figure"],
+      ["context", "explainer"],
+      ["contrast", "two-column"],
+      ["application", "action"],
+      ["close", "action"],
+    ]);
+    for (const [role, expected] of answers) {
+      // Second in a short deck, so no rhythm rule has anything to push against.
+      const composed = composeDeck([
+        { role: "claim", visualIntent: "statement" },
+        { role, visualIntent: "statement" },
+      ]);
+      expect(composed[1], role).toBe(expected);
     }
+  });
+
+  it("still honours an author who asked for one line", () => {
+    // Provenance, not vocabulary: the same word means one thing from a model
+    // and another from the person giving the talk.
+    expect(
+      composeDeck([{ role: "close", visualIntent: "statement", intentAuthored: true }])[0],
+    ).toBe("statement");
   });
 });

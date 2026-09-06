@@ -30,6 +30,7 @@ const Brief = z.object({
   takeaway: z.string().max(600).default(""),
   estimatedSeconds: z.number().int().min(0).max(3600).default(0),
   visualIntent: VisualIntent.default("auto"),
+  intentAuthored: z.boolean().default(false),
   instructions: z.string().max(1200).default(""),
   evidence: z
     .array(

@@ -106,32 +106,72 @@ Where the model asks for an image via `imagePrompt`, a placeholder image element
 is created in the right slot with the prompt as its alt text. The composition is
 correct; the user only has to drop a picture in.
 
-### The slot decides, and the intent no longer vetoes it
+### Composition is a deck decision, and the intent is a suggestion
 
-`layoutFor` chooses a layout from the moment's **visual intent** first and its
-**role** second, and only some layouts have a media slot at all. Nothing
-downstream can put a picture on a scene that has none: `imagePromptFor` returns
-an empty string and `drawableScenes` has nothing to draw into.
+Only some layouts have a media slot at all, and nothing downstream can put a
+picture on a scene that has none: `imagePromptFor` returns an empty string and
+`drawableScenes` has nothing to draw into. So whatever chooses the layout is
+also, silently, choosing how visual the deck is.
 
-That made one input decisive in a way nobody intended. `statement` is the
-model's default intent and it names no content — and it returned a layout with
-no slot, so the rule that gives the spine of an argument a picture every other
-scene, written for exactly this complaint, was only reachable on an `auto`
-intent. Read out of production: of 315 moments generated over ten days the
-model chose `auto` **once**, and `statement` 140 times. The rule had
-effectively never run, and decks came back at fourteen scenes with one picture
-and eight bare headings.
+That used to be one pure function of one moment, and it made two mistakes that
+compounded. Measured on 2026-09-06 across every deck the product had generated
+— 343 moments and 351 scenes:
 
-So a `statement` intent no longer vetoes the spine's picture — it falls
-through to the role, which alternates `split-left`/`split-right` with a plain
-centred line so half the deck still has air around it. Every intent that names
-specific content still wins outright: a comparison is two columns, data is a
-chart, a quotation is a pull quote, an enumeration stays a list that a
-side-by-side slot would crush. Only the default is weak, because it is a
-statement about brevity rather than about content.
+| intent the model chose | count |     | layout composed | count |
+| ---------------------- | ----- | --- | --------------- | ----- |
+| statement              | 152   |     | statement       | 143   |
+| comparison             | 50    |     | two-column      | 50    |
+| imagery                | 47    |     | three-up        | 40    |
+| sequence               | 40    |     | bullets         | 38    |
+| enumeration            | 32    |     | split-\*        | 47    |
+| demonstration          | 17    |     | chart           | 3     |
+| data                   | 4     |     | takeaway        | **0** |
+| auto                   | **1** |     | action          | **0** |
+|                        |       |     | figure          | **0** |
+|                        |       |     | explainer       | **0** |
+|                        |       |     | quote           | **0** |
 
-The lesson is the cover rule's, one scene later, and the tests now pass the
-intent the model actually sends rather than the one that made them pass.
+Four compositions the engine ships had never once reached an audience. The two
+causes are the same cause twice. `statement` is what a model answers when it
+has no opinion — 44% of every moment — and it was read as an instruction, so it
+vetoed the role's own composition: an `application` beat is a call to action by
+definition and arrived as a centred line. And the movement-ending take-home
+rule required the `auto` intent, which has been emitted once in the product's
+life.
+
+Two things replace it.
+
+**Provenance.** `moments.intent_authored` records whether the author chose the
+intent or a model proposed it. The same word carries different weight from the
+two: an author who opens the picker and chooses "One statement" for a call to
+action means it and gets it, and a model that says `statement` because it had
+nothing to say no longer silences the role.
+
+**A deck-level composer** (`src/lib/narrative/compose.ts`). Each moment offers
+its _ranked_ compositions and `composeDeck` picks from them by what has just
+been on screen: no shape three times running, no four scenes with nowhere to
+put a picture, splits alternating from the last split actually placed. A
+split-right after a split-left counts as the same shape, because the mirror
+image is not variety. Nothing keys off `index % 2` any more — a scene's shape
+depends on the argument around it, which is what every other decision in that
+file is made from. Pure and deterministic, so a deck composes identically in
+the editor, on the stage, in a thumbnail and in a recording.
+
+Every intent that names specific content still wins outright: a comparison is
+two columns, data is a chart, a quotation is a pull quote, an enumeration stays
+a list a side-by-side slot would crush. `imagery` and `demonstration` name a
+_picture_ rather than a composition, so the role still chooses which kind — a
+context beat asking for imagery is the explanation with the mechanism drawn
+beside it, not a heading and a photograph.
+
+`layoutFor` remains as the one-moment answer for callers that reason about a
+scene on its own; it returns the composer's first choice and no longer decides
+anything about a deck.
+
+The tests drive this with the distribution production actually produces rather
+than the one that makes it pass. Two of them had to be changed rather than
+added around — one asserted that every role but the spine stayed on
+`statement`, which is the defect written down as a requirement.
 
 ---
 

@@ -123,3 +123,69 @@ step ≥ 1 in play mode only); schema round-trips for `exit`, `cover`,
 `photoQuery`, `aside`; `drawingCap` values; `weaveAsides` (row order,
 `flowRole`, hotspot target resolves, no aside → unchanged); prompt invariants
 (cover demands an image, split scenes demand `imagePrompt`); `npm run verify`.
+
+---
+
+## What shipped, and what the first release got wrong (2026-09-06)
+
+The five sections above were built and deployed. Measuring the result against
+the production database rather than against the spec found that two of them
+were, in effect, dead code — and that the reason was one level above anything
+this spec describes.
+
+### The measurement
+
+Across every deck the product had generated at that date — 343 moments, 351
+stored scenes:
+
+| intent the model chose | count |     | layout composed | count |
+| ---------------------- | ----- | --- | --------------- | ----- |
+| statement              | 152   |     | statement       | 143   |
+| comparison             | 50    |     | two-column      | 50    |
+| imagery                | 47    |     | three-up        | 40    |
+| sequence               | 40    |     | bullets         | 38    |
+| enumeration            | 32    |     | split-\*        | 47    |
+| demonstration          | 17    |     | chart           | 3     |
+| data                   | 4     |     | takeaway        | **0** |
+| auto                   | **1** |     | action          | **0** |
+|                        |       |     | figure          | **0** |
+|                        |       |     | explainer       | **0** |
+|                        |       |     | quote           | **0** |
+
+Media fill rate, separately, was **100%**: every image slot in every deck was
+filled. So "the images aren't populating" was never about unfilled slots. A
+seventeen-scene deck had _one slot_.
+
+### What that means for section 4 and section 5
+
+Section 4 scaled the drawing budget to the talk's length — one staged drawing
+per ten minutes, up to six. Section 5 filled every remaining empty placeholder
+with a photograph. Both worked. Both were sized against a supply of media slots
+that composition was not producing: a twenty-minute deck earned four drawings
+and offered one or two scenes to draw into.
+
+The lesson is worth keeping because it generalises. **A budget for filling
+slots is not a budget for pictures.** Every part of this spec measured its own
+success at its own stage, and the stage above it decided the outcome.
+
+### The fix
+
+Composition moved up a level, to `src/lib/narrative/compose.ts`. It is a deck
+decision rather than a per-moment one: each moment offers ranked compositions
+and the deck picks by what has just been on screen. And `moments.intent_authored`
+now records whether the author or the model chose the visual intent, because
+the same word is an instruction from one and a shrug from the other.
+
+`docs/AI_ARCHITECTURE.md` carries the current description. This section stays
+as the record of what the spec assumed and where the assumption sat.
+
+### Still open against this spec
+
+- **Real-provider quality validation (BETA-003).** Everything above is
+  measured structurally — layout counts, fill rates, slot shapes. None of it is
+  a creative judgement, and no creative acceptance has been recorded.
+- **Physical-device validation (BETA-002).** Unchanged by this work.
+- **Durable generation (BETA-006).** The dress pass still races a wall-clock
+  budget inside one request: 55 seconds for a deck, 20 for a single scene. A
+  slot whose picture loses that race keeps its placeholder. That is bounded and
+  honest, and it is not the same as durable.

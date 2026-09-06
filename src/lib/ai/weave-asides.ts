@@ -1,4 +1,5 @@
-import type { SceneContent, SceneElement } from "@/lib/schema/presentation";
+import { hotspotIndex } from "@/lib/schema/presentation";
+import type { SceneContent } from "@/lib/schema/presentation";
 
 /**
  * Weaving generated asides into the deck.
@@ -42,29 +43,6 @@ export interface WovenRow {
 
 /** Bounded like every other generated array: an aside is a whole extra scene. */
 const MAX_ASIDES = 6;
-
-/**
- * Which element of the parent carries the dive.
- *
- * The most specific thing wins: a card is a named idea someone would poke at,
- * a chart is the claim's evidence, filled media is the thing being looked at.
- * The heading is the fallback — every composed scene has one, so an aside is
- * never silently unreachable.
- */
-function hotspotIndex(elements: SceneElement[]): number {
-  const byPriority: ((el: SceneElement) => boolean)[] = [
-    (el) => el.type === "callout",
-    (el) => el.type === "chart",
-    (el) => el.type === "drawing",
-    (el) => el.type === "image" && Boolean(el.url || el.assetId),
-    (el) => el.type === "heading",
-  ];
-  for (const matches of byPriority) {
-    const index = elements.findIndex((el) => !el.hidden && matches(el) && el.hotspot === null);
-    if (index !== -1) return index;
-  }
-  return -1;
-}
 
 export function weaveAsides(scenes: GeneratedSceneDraft[], makeId: () => string): WovenRow[] {
   const rows: WovenRow[] = [];

@@ -157,6 +157,17 @@ export const Moment = z.object({
   estimatedSeconds: z.number().int().min(0).max(MAX_MOMENT_SECONDS).default(0),
   evidence: z.array(EvidenceRef).max(24).default([]),
   visualIntent: VisualIntent.default("auto"),
+  /**
+   * True where the *author* chose the visual intent, rather than the model
+   * proposing it.
+   *
+   * The two are not the same instruction and were being read as one. A model
+   * says `statement` when it has no opinion — 44% of every moment it has ever
+   * proposed — and that was silencing the role's own composition, so a call to
+   * action arrived as a centred line. An author who opens the picker and
+   * chooses "One statement" means it. See `src/lib/narrative/compose.ts`.
+   */
+  intentAuthored: z.boolean().default(false),
   /** Anything the author wants this one moment's generation to honour. */
   instructions: z.string().max(1200).default(""),
   /** Locked moments are never replaced by regeneration. */

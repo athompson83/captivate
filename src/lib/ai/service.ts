@@ -4,7 +4,7 @@ import { complete, reserve } from "./rate-limit";
 import { logFailure } from "@/lib/observability";
 import { type BudgetGroup } from "@/lib/billing/plans";
 import { referenceBlock, type Reference } from "@/lib/ingest/reference";
-import { composeScene, type LayoutContent } from "@/lib/editor/layouts";
+import { composeScene, mediaSlotAspect, type LayoutContent } from "@/lib/editor/layouts";
 import {
   drawableScenes,
   drawingCap,
@@ -32,7 +32,7 @@ import {
 } from "./schemas";
 import { deriveTitle, fallbackRewrite, fallbackScene, subjectOf } from "./fallback";
 import { fallbackMap } from "./narrative-fallback";
-import { layoutFor, type AvailableEvidence, type MomentBrief } from "@/lib/narrative/generate";
+import { layoutsForDeck, type AvailableEvidence, type MomentBrief } from "@/lib/narrative/generate";
 import { GeneratedDiagram, compileDiagram } from "@/lib/drawing/diagram";
 
 /**
@@ -347,9 +347,10 @@ export async function buildScenesFromMap(
     }
   | { ok: false; error: string }
 > {
-  const layouts = briefs.map((brief, index) =>
-    layoutFor(brief.visualIntent, brief.role, index, { endsMovement: brief.endsMovement }),
-  );
+  // Composed as a deck, not moment by moment. A sequence of independently
+  // best choices is what put five identical centred lines in a thirteen-scene
+  // deck; `composeDeck` reads what has just been on screen. See `compose.ts`.
+  const layouts = layoutsForDeck(briefs);
 
   if (!isAiConfigured()) {
     return {
@@ -461,7 +462,7 @@ Each layout draws a fixed set of fields and shows nothing else, so write into th
 - figure — heading (the claim), figure, body
 - explainer — heading (the plain-language sentence), exactly three cards (what, why, what follows), imagePrompt
 
-Pictures: every cover, split-left, split-right, explainer and media-full scene MUST carry an imagePrompt — the picture is half the scene, and an empty half is a broken scene. The imagePrompt describes the one image that would teach or land the moment — a mechanism, a scene, a before-and-after — concretely enough to photograph or sketch. Also give those scenes a photoQuery: two to five plain search words for a stock photo of the same subject. The cover is the exception: name a wide, atmospheric image with depth and no readable detail — a place, a light, a texture, a horizon — because a literal photograph of the subject as the first thing the room sees is the stock-photo look, and the title has to sit legibly over it.
+Pictures: every cover, split-left, split-right, explainer and media-full scene MUST carry an imagePrompt — the picture is half the scene, and an empty half is a broken scene. The imagePrompt describes the one image that would teach or land the moment — a mechanism, a scene, a before-and-after — concretely enough to photograph or sketch. Also give those scenes a photoQuery: two to five plain search words for a stock photo of the same subject. The cover is composed differently, and the difference is *composition* rather than abstraction. Name the one image that is this talk's hero — the subject itself is allowed and often right — but describe it as a photographer would frame it for a title: a clear focal subject somewhere off-centre, real depth behind it, and a quiet region of sky, wall, shadow or ground where a display line can sit without fighting anything. What a cover must not be is the generic establishing shot that could open any talk on the subject, or a busy frame with readable detail across all of it. An atmospheric place-and-light image is one good answer to that and not the only one; a single arresting subject with air around it is usually better.
 
 Asides: for two to four scenes in the deck — the ones hiding a definition, a worked example, or the data behind a claim — add an aside: a small detail scene the presenter opens by clicking, off the main path. Its label names what the click reveals ("See the mechanism"). Give it a real title and either bullets or a short body, and one or two sentences of speaker notes. Most scenes have no aside; use them only where depth-on-demand genuinely helps.
 
@@ -544,7 +545,7 @@ ${referenceBlock(context.reference ?? null)}`,
     };
   });
 
-  await dressScenes(scenes, presentationId, totalSeconds);
+  await dressScenes(scenes, presentationId, totalSeconds, { mayGenerateCover: true });
 
   return { ok: true, data: { source: "model", scenes } };
 }
@@ -576,6 +577,26 @@ async function dressScenes(
   scenes: { title: string; content: SceneContent; imagePrompt: string; photoQuery?: string }[],
   presentationId: string | null,
   totalSeconds: number,
+  {
+    /**
+     * How long the whole pass may take. The deck routes run at the 300-second
+     * platform ceiling and can afford 55; `/api/ai/scene` runs at 60 and has
+     * already spent up to 25 writing the scene, so it asks for less.
+     */
+    budgetMs = 55_000,
+    /**
+     * Whether an unfilled cover may fall back to one *paid* generated image.
+     *
+     * A property of the caller, not of the layout. It was written as "this
+     * scene's layout is `cover`", and the single-scene route can produce a
+     * cover: `GeneratedLayout` excludes only `custom`, so an author asking for
+     * a title scene could have had money spent on a picture they never asked
+     * for. The rule this implements is "one paid image for the first thing a
+     * room sees, once per deck" — which is about generating a deck, so the
+     * deck route says so and nothing else does.
+     */
+    mayGenerateCover = false,
+  }: { budgetMs?: number; mayGenerateCover?: boolean } = {},
 ): Promise<void> {
   const hasEmptySlot = (content: SceneContent) =>
     content.elements.some(
@@ -607,6 +628,10 @@ async function dressScenes(
       )
     : [];
 
+  // One deck, one set of pictures: a photograph already on another scene is
+  // not offered again, however well it matches.
+  const taken = new Set<string>();
+
   const jobs: Promise<void>[] = [
     ...drawings.map(async (scene) => {
       const result = await generateDrawing(scene.imagePrompt, presentationId);
@@ -619,8 +644,12 @@ async function dressScenes(
         scene.photoQuery ?? "",
         scene.imagePrompt,
         presentationId,
+        {
+          slotAspect: mediaSlotAspect(scene.content.layout) ?? 16 / 9,
+          taken,
+        },
       );
-      if (!photo && scene.content.layout === "cover") {
+      if (!photo && mayGenerateCover && scene.content.layout === "cover") {
         photo = await fillWithGeneratedImage(scene.imagePrompt, presentationId);
       }
       if (!photo) return;
@@ -632,7 +661,7 @@ async function dressScenes(
   if (jobs.length > 0) {
     await Promise.race([
       Promise.allSettled(jobs),
-      new Promise((resolve) => setTimeout(resolve, 55_000)),
+      new Promise((resolve) => setTimeout(resolve, budgetMs)),
     ]);
   }
 
@@ -689,7 +718,19 @@ ${instruction}`,
   );
 
   if (!result.ok) return { ok: false, error: result.error };
-  return { ok: true, data: { scenes: [materialise(result.data)], source: "model" } };
+
+  // Dressed with the same pass a whole deck gets.
+  //
+  // It was not, and that is why a scene added to a finished deck arrived with
+  // a dashed placeholder where every scene around it had a picture: the one
+  // route an author uses *after* seeing the deck was the one route that
+  // skipped the step that fills them. No paid image can be spent here — the
+  // generated-image fallback is the cover's alone, and a single scene is never
+  // a cover — so this is a drawing or a stock photograph or nothing.
+  const scene = materialise(result.data);
+  await dressScenes([scene], presentationId, 0, { budgetMs: 20_000 });
+
+  return { ok: true, data: { scenes: [scene], source: "model" } };
 }
 
 /** A structural fallback scene: no model wrote it, and none will dress it. */

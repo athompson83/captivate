@@ -117,6 +117,7 @@ export async function POST(request: Request) {
         estimated_seconds: moment.estimatedSeconds,
         evidence: moment.evidence as unknown as MomentRow["evidence"],
         visual_intent: moment.visualIntent,
+        intent_authored: moment.intentAuthored,
         instructions: moment.instructions,
         locked: false,
       })),

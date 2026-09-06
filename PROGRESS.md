@@ -52,6 +52,72 @@
 
 ## Latest Session
 
+### The generated deck's composition, measured rather than judged
+
+**In review.** PR #97, branch `claude/captivate-3d-graphics-5ypuvx`. Migration
+`0031_moment_intent_authored.sql` applied to production.
+
+The brief was to close the gap between a schema-valid generated deck and one
+worth standing in front of. The first thing done was to measure it, against
+every deck the product has ever generated (343 moments, 351 scenes):
+
+- `statement` was **41%** of every stored scene (143 of 351);
+- `takeaway`, `action`, `figure`, `explainer` and `quote` were at **zero**.
+  Four compositions the engine ships had never once reached an audience, and a
+  fifth (`chart`) had reached three scenes;
+- the visual intent the model proposes was `statement` **152 of 343 times** and
+  `auto` **once**;
+- the media **fill rate was already 100%** — every image slot in every deck was
+  filled. So "the images aren't populating" was never unfilled slots. A
+  seventeen-scene deck had _one slot_.
+
+Both causes were the same cause twice. `statement` is what a model answers when
+it has no opinion and it was read as an instruction, vetoing the role's own
+composition — an `application` beat is a call to action by definition and
+arrived as a centred line. And the movement-ending take-home rule required
+`auto`, so it had effectively never run.
+
+What replaced it: **provenance** (`moments.intent_authored` — an intent the
+author picked is an instruction, one a model proposed is a suggestion) and a
+**deck-level composer** (`src/lib/narrative/compose.ts`) that ranks each
+moment's compositions and picks by what has just been on screen. No shape three
+times running, no four scenes with nowhere to put a picture, splits alternating
+from the last split actually placed rather than from `index % 2`.
+
+Recomposed against the real maps of six production decks — same roles, same
+intents, same movement boundaries:
+
+| deck                                     | before                                           | after          |
+| ---------------------------------------- | ------------------------------------------------ | -------------- |
+| AI and the Next Five Years of Healthcare | 5 kinds, 7/13 with a picture slot                | 7 kinds, 7/12  |
+| Whole Blood in the Field                 | 6 kinds, 2/14                                    | 10 kinds, 5/14 |
+| Paralytics in the Prehospital Airway     | 5 kinds, 1/17                                    | 11 kinds, 3/16 |
+| Homeostasis                              | 6 kinds, 6/17                                    | 8 kinds, 7/17  |
+| Choosing a Cofounder                     | 6 kinds, 3/12                                    | 9 kinds, 5/12  |
+| AI Didn't Kill SEO                       | 6 kinds, 2/14                                    | 9 kinds, 4/14  |
+| **total**                                | **21/87 picture slots, 7 distinct compositions** | **31/85, 12**  |
+
+Every one of those decks now ends on a call to action or a take-home rather
+than on a bare centred line.
+
+Also in the round: the stock photograph is chosen rather than taken from
+`found.data[0]` — ranked on crop survival into that slot's real shape, pixels
+enough for a projector, the scene's own vocabulary, and whether another scene
+already used it; `/api/ai/scene` dresses the scene it writes, which it never
+did, so a scene added to a finished deck no longer arrives with a placeholder
+while every scene around it has a picture; the cover brief asks for composition
+rather than mandating abstraction; and regenerating a deck that already has
+scenes offers to keep it as a copy first, which is the non-destructive upgrade
+path for stored compositions.
+
+**What this is not.** Every number above is structural — layout counts, fill
+rates, slot shapes. None of it is a creative judgement and no creative
+acceptance has been recorded. Real-provider generation runs, measured latency
+and cost, and physical-device verification are not done: this container holds
+no model or Supabase keys, so no deck was generated end to end. BETA-002,
+BETA-003 and BETA-006 stay open, and the composer's effect on a deck a person
+actually reads is unproven.
+
 ### Four things the owner reported after using the build
 
 **Landed.** PR #94 squash-merged as `01437d0`, all five CI jobs green on the

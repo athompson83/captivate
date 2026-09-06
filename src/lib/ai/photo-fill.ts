@@ -6,6 +6,7 @@ import {
   isStockSearchConfigured,
   searchStockPhotos,
 } from "./visual-sourcing";
+import { chooseStockPhoto } from "./choose-photo";
 import { saveStockPhoto } from "@/lib/data/sourced-assets";
 import { storeGeneratedImage } from "@/lib/data/sourced-store";
 
@@ -31,16 +32,34 @@ export function isPhotoFillConfigured(): boolean {
   return isStockSearchConfigured() || isImageGenerationConfigured();
 }
 
+export interface StockFillOptions {
+  /**
+   * The rendered shape of the slot this fills — see `chooseStockPhoto`. A
+   * split scene's tall half and a full-bleed cover want opposite pictures, and
+   * taking the provider's first result gave them the same one.
+   */
+  slotAspect: number;
+  /**
+   * Provider asset ids already used elsewhere in this deck, so the same
+   * photograph does not arrive on two scenes. Mutated as pictures are chosen.
+   */
+  taken?: Set<string>;
+}
+
 /**
  * Finds and re-hosts one stock photo for a scene.
  *
  * The query is the model's own few search words, falling back to the richer
  * image prompt — Pexels copes with a sentence, it just ranks words better.
+ * Which of the twenty-four results actually lands is a real decision and is
+ * made in `chooseStockPhoto`, from the slot's shape, the picture's resolution,
+ * the scene's own vocabulary and what the rest of the deck has already used.
  */
 export async function fillWithStockPhoto(
   query: string,
   fallbackPrompt: string,
   presentationId: string | null,
+  options: StockFillOptions = { slotAspect: 16 / 9 },
 ): Promise<FilledPhoto | null> {
   if (!isStockSearchConfigured()) return null;
   const term = query.trim() || fallbackPrompt.trim();
@@ -49,9 +68,15 @@ export async function fillWithStockPhoto(
   const found = await searchStockPhotos(term);
   if (!found.ok || found.data.length === 0) return null;
 
-  // The first result at the largest usable size; landscape orientation is
-  // already requested at the search.
-  const photo = found.data[0];
+  const photo = chooseStockPhoto(found.data, {
+    slotAspect: options.slotAspect,
+    terms: `${query} ${fallbackPrompt}`,
+    taken: options.taken,
+  });
+  if (!photo) return null;
+  // Claimed before the bytes are fetched, so two scenes racing the same search
+  // cannot both take it.
+  options.taken?.add(photo.providerAssetId);
   const saved = await saveStockPhoto({
     fullUrl: photo.fullUrl,
     providerAssetId: photo.providerAssetId,

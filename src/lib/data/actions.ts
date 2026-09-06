@@ -203,6 +203,8 @@ export async function createPresentation(input: unknown): Promise<Result<{ id: s
         estimated_seconds: moment.estimatedSeconds,
         evidence: [] as unknown as MomentRow["evidence"],
         visual_intent: moment.visualIntent,
+        // The model shaped this map; the author has not touched it.
+        intent_authored: false,
         instructions: "",
         locked: false,
       })),
@@ -492,6 +494,7 @@ export async function duplicatePresentation(id: string): Promise<Result<{ id: st
         estimated_seconds: m.estimated_seconds,
         evidence: m.evidence,
         visual_intent: m.visual_intent,
+        intent_authored: m.intent_authored,
         instructions: m.instructions,
         locked: m.locked,
       };

@@ -32,7 +32,7 @@ import { insertSection, removeSection } from "@/lib/editor/store";
 import { addSection } from "@/lib/data/actions";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
-import { Segmented } from "@/components/ui/misc";
+import { Segmented, Toggle } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { MomentCard } from "./moment-card";
 import { cn } from "@/lib/utils/cn";
@@ -53,12 +53,15 @@ export function NarrativeMapView({
   presentationId,
   evidenceOptions,
   onGenerate,
+  replacing,
   generating,
   className,
 }: {
   presentationId: string;
   evidenceOptions: EvidenceRef[];
-  onGenerate: (depth: "outline" | "full") => void;
+  onGenerate: (depth: "outline" | "full", options?: { keepCopy?: boolean }) => void;
+  /** How many existing scenes a regeneration would overwrite. */
+  replacing: number;
   generating: boolean;
   className?: string;
 }) {
@@ -143,6 +146,7 @@ export function NarrativeMapView({
         estimatedSeconds: 60,
         evidence: [],
         visualIntent: "auto",
+        intentAuthored: false,
         instructions: "",
         locked: false,
         position: siblings.length,
@@ -335,7 +339,11 @@ export function NarrativeMapView({
                 moments={map.momentCount}
                 targetSeconds={targetSeconds}
               />
-              <GenerateControl onGenerate={onGenerate} generating={generating} />
+              <GenerateControl
+                onGenerate={onGenerate}
+                replacing={replacing}
+                generating={generating}
+              />
             </div>
           </div>
         </header>
@@ -641,12 +649,20 @@ export function DurationWarning({
  */
 function GenerateControl({
   onGenerate,
+  replacing,
   generating,
 }: {
-  onGenerate: (depth: "outline" | "full") => void;
+  onGenerate: (depth: "outline" | "full", options?: { keepCopy?: boolean }) => void;
+  /** How many existing scenes this would overwrite. */
+  replacing: number;
   generating: boolean;
 }) {
   const [depth, setDepth] = useState<"outline" | "full">("full");
+  // Only ever asked where there is something to lose, and on by default when
+  // there is: regenerating a finished deck is how it gets the better
+  // composition, and that should not be a decision an author can only regret
+  // afterwards.
+  const [keepCopy, setKeepCopy] = useState(true);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Segmented
@@ -659,9 +675,22 @@ function GenerateControl({
           { value: "outline", label: "Outline" },
         ]}
       />
-      <Button variant="primary" size="sm" onClick={() => onGenerate(depth)} loading={generating}>
+      {replacing > 0 && (
+        <Toggle
+          label="Keep the deck as it is, as a copy"
+          hint={`Regenerating rewrites ${replacing} ${replacing === 1 ? "scene" : "scenes"}.`}
+          checked={keepCopy}
+          onChange={setKeepCopy}
+        />
+      )}
+      <Button
+        variant="primary"
+        size="sm"
+        onClick={() => onGenerate(depth, { keepCopy: replacing > 0 && keepCopy })}
+        loading={generating}
+      >
         <Sparkles className="size-3.5" aria-hidden />
-        Generate scenes
+        {replacing > 0 ? "Regenerate scenes" : "Generate scenes"}
       </Button>
     </div>
   );

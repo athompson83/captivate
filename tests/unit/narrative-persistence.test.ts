@@ -84,6 +84,7 @@ function moment(overrides: Partial<Moment> & { id: string }): Moment {
     estimatedSeconds: 60,
     evidence: [],
     visualIntent: "auto",
+    intentAuthored: false,
     instructions: "",
     locked: false,
     position: 0,
