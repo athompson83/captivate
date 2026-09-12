@@ -647,10 +647,15 @@ the editor, a thumbnail, or a scene the camera is passing:
   Ratios ("1 in 4") and small numbers are shown as they are: counting them
   says nothing. `src/lib/present/count-up.ts` decides what is counted and how
   each intermediate value is written.
-- **A chart builds.** Columns grow from their baseline, bars from their left
-  edge, donut arcs sweep round one after another, and a line draws itself with
-  the same measured-dash mechanism as a drawing. Transform and dash animations
-  only, so the compositor does the work.
+- **A chart is drawn.** A chart is compiled into the drawing language at
+  render time (`src/lib/drawing/chart.ts`) — a baseline, each column or bar
+  an outline with a wash, a line in one stroke with a mark at every point, a
+  donut as wedges, and every category, value and legend entry as a label in
+  the room's type — and sketched on arrival exactly as a drawing is: through
+  the three hands, stroke after stroke, held for the camera. The chart element
+  keeps its data; a change to the recipe reaches every chart already in a deck.
+  A chart drawn from a spreadsheet and a diagram drawn by a hand on one scene
+  were two visual languages; now there is one.
 - **A heading arrives a word at a time.** Each word rises into place a beat
   after the one before, so a claim is read in the order it was written — the
   typographic equivalent of a sentence being said. Inline-block spans, so
