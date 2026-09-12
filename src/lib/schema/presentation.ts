@@ -761,6 +761,13 @@ export const JourneyConfig = z.object({
   depth: z.number().min(0).max(1).default(0.55),
   /** A picture behind the whole show. See `JourneyBackdrop`. */
   backdrop: JourneyBackdrop.prefault({}),
+  /**
+   * The deck's visual direction, in one sentence: medium, light, a motif,
+   * what to avoid. Set by the scene writer for the whole talk and kept here
+   * so a picture made later follows it; editable in the journey panel. Every
+   * prompt an image model is given for this deck carries it. See `lib/ai/look.ts`.
+   */
+  look: z.string().max(400).default(""),
 });
 export type JourneyConfig = z.infer<typeof JourneyConfig>;
 

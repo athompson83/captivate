@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
-import { buildScenesFromMap } from "@/lib/ai/service";
+import { buildScenesFromMap, dressRoom } from "@/lib/ai/service";
+import { JourneyConfig } from "@/lib/schema/presentation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { planSceneWrites } from "@/lib/narrative/scene-writes";
 import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
@@ -77,15 +78,32 @@ export async function POST(request: Request) {
     // leaves a half-written deck. Marking it here means the deck says
     // "never finished writing" when the author returns, and offers to finish,
     // rather than looking done and being half a deck.
+    // The deck's theme and journey, read once: the theme's palette goes into
+    // every generated picture, and the journey is what the look and the room
+    // are written onto afterwards.
+    let deck: { title: string; themeId: string | null; journey: JourneyConfig } | null = null;
     if (presentationId) {
       const supabase = await supabaseServer();
-      await supabase
-        .from("presentations")
-        .update({
-          generation_status: "generating",
-          generation_started_at: new Date().toISOString(),
-        })
-        .eq("id", presentationId);
+      const [{ data: row }] = await Promise.all([
+        supabase
+          .from("presentations")
+          .select("title, theme_id, journey")
+          .eq("id", presentationId)
+          .maybeSingle(),
+        supabase
+          .from("presentations")
+          .update({
+            generation_status: "generating",
+            generation_started_at: new Date().toISOString(),
+          })
+          .eq("id", presentationId),
+      ]);
+      const journey = JourneyConfig.safeParse(row?.journey ?? {});
+      deck = {
+        title: row?.title ?? "",
+        themeId: row?.theme_id ?? null,
+        journey: journey.success ? journey.data : JourneyConfig.parse({}),
+      };
     }
 
     const result = await buildScenesFromMap(
@@ -95,6 +113,7 @@ export async function POST(request: Request) {
       presentationId,
       depth,
       totalSeconds,
+      { themeId: deck?.themeId ?? null },
     );
 
     if (!result.ok) {
@@ -163,6 +182,29 @@ export async function POST(request: Request) {
               speaker_notes: write.speakerNotes,
             } as never);
       if (error) failures.push(error.message);
+    }
+
+    // The look goes onto the journey, and the room behind the show is made
+    // to it — once, for a deck that has no picture there yet. Last, because
+    // it is the one picture the deck can open without.
+    if (deck && result.data.source === "model") {
+      const room = deck.journey.backdrop.url
+        ? null
+        : await dressRoom({
+            title: deck.title,
+            look: result.data.look,
+            themeId: deck.themeId,
+            presentationId,
+          });
+      const journey: JourneyConfig = {
+        ...deck.journey,
+        look: result.data.look || deck.journey.look,
+        backdrop: room ? { ...deck.journey.backdrop, ...room } : deck.journey.backdrop,
+      };
+      await supabase
+        .from("presentations")
+        .update({ journey: journey as never })
+        .eq("id", presentationId);
     }
 
     // Only a run that wrote everything it meant to may call the deck finished.

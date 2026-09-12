@@ -109,6 +109,8 @@ captivate/
 │  │  ├─ record/recorder.ts        MediaRecorder state machine, compositing
 │  │  ├─ record/countdown.ts       Three, two, one: the count before capture
 │  │  ├─ ai/
+│  │  │  ├─ look.ts                A look for every deck: the palette in words, the briefs
+│  │  │  ├─ picture-plan.ts        Which pictures are made and which are found
 │  │  │  ├─ schemas.ts             Output schemas — the wall
 │  │  │  ├─ provider.ts            The only door to a model
 │  │  │  ├─ service.ts             Application-level operations

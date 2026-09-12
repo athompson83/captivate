@@ -15,6 +15,8 @@ import {
 } from "@/lib/editor/store";
 import { Field, Segmented, Slider, Toggle } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/input";
+import { DEFAULT_LOOK, LOOK_MAX } from "@/lib/ai/look";
 import { AssetPicker } from "./asset-picker";
 import { HealthPanel } from "./health-panel";
 import { useToast } from "@/components/ui/toast";
@@ -159,6 +161,27 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
             })}
           </section>
         )}
+
+        <section className="border-line-subtle space-y-3 border-t pt-4">
+          <h3 className="text-ink-3 text-[11px] font-medium tracking-wide uppercase">Look</h3>
+          <p className="text-ink-3 text-[11.5px] leading-snug">
+            One sentence of visual direction for the whole deck. Every picture Captivate generates
+            for it follows this, with the theme&apos;s own palette.
+          </p>
+          <Textarea
+            label="Look"
+            rows={3}
+            maxLength={LOOK_MAX}
+            value={journey.look}
+            placeholder={DEFAULT_LOOK}
+            onChange={(e) =>
+              updatePresentationMeta(
+                { journey: { ...journey, look: e.target.value } },
+                { label: "Edit the look", coalesceKey: "journey-look" },
+              )
+            }
+          />
+        </section>
 
         <section className="border-line-subtle space-y-3 border-t pt-4">
           <h3 className="text-ink-3 text-[11px] font-medium tracking-wide uppercase">Backdrop</h3>
