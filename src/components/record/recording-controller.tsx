@@ -32,6 +32,7 @@ import {
 import type { CameraBackground } from "@/lib/media/segmentation";
 import type { CameraFeedSettings } from "@/components/present/presenter-camera";
 import { transcriptSupported } from "@/lib/record/transcript";
+import { CAPTION_POLL_MS, tailOf } from "@/lib/present/captions";
 import { COUNTDOWN_FROM, countdown } from "@/lib/record/countdown";
 import { RecordingCountdown } from "./recording-countdown";
 import { toWebVTT } from "@/lib/record/transcript-core";
@@ -72,6 +73,9 @@ export function RecordingController({
   channel,
   cameraFeed,
   onCameraFeedChange,
+  captions = false,
+  onCaption,
+  onHoldsSpeech,
 }: {
   presentationId: string;
   presentationTitle: string;
@@ -90,6 +94,18 @@ export function RecordingController({
    */
   cameraFeed: CameraFeedSettings;
   onCameraFeedChange: (next: CameraFeedSettings) => void;
+  /**
+   * Whether the stage is showing captions, and where to send them.
+   *
+   * A page gets one speech engine. While this recorder is transcribing it
+   * holds that engine, so the stage's own captions must stand aside — and
+   * the recorder's transcript feeds the band instead, so the room's captions
+   * do not stop the moment a recording starts.
+   */
+  captions?: boolean;
+  onCaption?: (text: string) => void;
+  /** Told when this recorder takes and releases the speech engine. */
+  onHoldsSpeech?: (holds: boolean) => void;
 }) {
   const { toast } = useToast();
   const recorderRef = useRef<PresentationRecorder | null>(null);
@@ -150,6 +166,38 @@ export function RecordingController({
     }, 500);
     return () => clearInterval(interval);
   }, [phase, channel, useCamera]);
+
+  /*
+   * The speech engine is claimed from the moment the microphone is asked for
+   * — before the count-in, so the stage's engine has released it by the time
+   * this one starts — and only while a transcript is wanted: a recording
+   * without one never opens the engine and the stage keeps its own.
+   */
+  const holdsSpeech = transcribe && phase !== "idle" && phase !== "complete" && phase !== "error";
+  const speechHolder = useRef(onHoldsSpeech);
+  const captionSink = useRef(onCaption);
+  useEffect(() => {
+    speechHolder.current = onHoldsSpeech;
+    captionSink.current = onCaption;
+  });
+  useEffect(() => {
+    speechHolder.current?.(holdsSpeech);
+  }, [holdsSpeech]);
+
+  useEffect(() => {
+    if (!captions || (phase !== "recording" && phase !== "paused")) return;
+    let last = "";
+    const poll = setInterval(() => {
+      const text = tailOf(recorderRef.current?.captionText() ?? "");
+      if (text === last) return;
+      last = text;
+      captionSink.current?.(text);
+    }, CAPTION_POLL_MS);
+    return () => {
+      clearInterval(poll);
+      if (last) captionSink.current?.("");
+    };
+  }, [captions, phase]);
 
   useEffect(
     () => () => {

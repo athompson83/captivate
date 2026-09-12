@@ -476,6 +476,17 @@ export class PresentationRecorder {
     this.onPhaseChange?.("recording");
   }
 
+  /**
+   * What the presenter is saying now, for a stage showing captions.
+   *
+   * A page gets one speech engine, so while this recorder is transcribing the
+   * stage's own captions stand aside and read from here instead. Empty when
+   * there is no transcript, and when the room has been quiet a moment.
+   */
+  captionText(): string {
+    return this.transcriber?.displayText() ?? "";
+  }
+
   markScene(sceneId: string | null, sceneIndex: number, ordinal?: number): void {
     if (!this.startedAt || this.recorder?.state !== "recording") return;
     const atMs = this.elapsedMs;

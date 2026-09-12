@@ -719,6 +719,25 @@ resolve to an arbitrary import.
 
 ---
 
+## Captions
+
+What the presenter is saying, for the room, on the stage. The browser's
+speech engine (`SpeechRecognition`, the same `LiveTranscriber` the recorder
+uses) listens in the window that has the microphone; every change of its text
+is trimmed to the last ninety-odd characters on a word boundary
+(`tailOf`, `src/lib/present/captions.ts`) and sent over the channel as a
+`captions` message, which the stage renders as a band low on the frame
+(`caption-band.tsx`), two lines at most. `null` turns it off. Interim
+results are shown, not just finals, because captions that trail the voice by
+a sentence are captions nobody reads. The band is inside the capture surface:
+a recording of the tab contains what the room saw.
+
+A page has one speech engine. While the recorder holds it for a transcript,
+the stage's own listener stands down and the recorder feeds the band from the
+same text it would burn in (`captionText()`), so the two never run at once.
+The message is additive to the protocol — a stage from an earlier build drops
+it and shows nothing, which is what it did before.
+
 ## Annotation
 
 Session overlays in normalised coordinates, rendered as SVG above the scene and

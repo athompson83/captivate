@@ -11,7 +11,7 @@
 export interface PresenterKey {
   keys: string;
   action: string;
-  group: "Moving" | "The camera" | "Marking up" | "Help";
+  group: "Moving" | "The camera" | "Marking up" | "Speaking" | "Help";
 }
 
 export const PRESENTER_KEYS: PresenterKey[] = [
@@ -28,6 +28,7 @@ export const PRESENTER_KEYS: PresenterKey[] = [
   { keys: "D", action: "Draw", group: "Marking up" },
   { keys: "E", action: "Erase", group: "Marking up" },
   { keys: "C", action: "Clear this scene's marks", group: "Marking up" },
+  { keys: "T", action: "Captions for the room, from your microphone", group: "Speaking" },
   { keys: "Esc", action: "Put the tool down, or leave the overview", group: "Help" },
   { keys: "?", action: "Show or hide these keys", group: "Help" },
 ];

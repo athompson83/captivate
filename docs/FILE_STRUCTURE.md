@@ -52,7 +52,7 @@ captivate/
 │  │  │                            movement rail (the argument's shape,
 │  │  │                            shown to the room), shared viewer,
 │  │  │                            closing frame (the end, named), the keys
-│  │  │                            overlay under `?`
+│  │  │                            overlay under `?`, the caption band
 │  │  ├─ marketing/                The landing page: hero (a three.js world,
 │  │  │                            a CSS one beneath it), the live demo that
 │  │  │                            runs the real engine on the worked example
@@ -83,6 +83,7 @@ captivate/
 │  │  │  ├─ keys.ts                The presenter's keys, as a list `?` shows
 │  │  │  ├─ opening.ts             The opening beat: hold wide, then dive
 │  │  │  ├─ swipe.ts               Moving by hand: the swipe recogniser
+│  │  │  ├─ captions.ts            Captions for the room: the speech engine, the tail of what was said
 │  │  │  ├─ protocol.ts            Cross-window messages, Zod-validated
 │  │  │  ├─ motion.ts              Entrance and emphasis presets
 │  │  │  ├─ camera.ts              Optimal zoom-and-pan flight (Van Wijk & Nuij)

@@ -96,6 +96,13 @@ export interface SessionState {
   ended: boolean;
 
   annotationsByScene: Record<number, SceneAnnotations>;
+  /**
+   * What the presenter is saying, for the room; `null` while captions are off.
+   *
+   * Set by whichever window holds the microphone — the console in two-window
+   * presenting, the stage itself on one screen — and rendered by the stage.
+   */
+  captions: string | null;
   pointer: { x: number; y: number } | null;
   pointerColor: string;
   peerConnected: boolean;
@@ -137,6 +144,7 @@ function initialState(scenes: Scene[], stepCounts: number[], openWide: boolean):
     opening: openWide && opensWide(runningOrderLength(scenes)),
     ended: false,
     annotationsByScene: {},
+    captions: null,
     pointer: null,
     pointerColor: "#F0B858",
     peerConnected: false,
@@ -160,6 +168,8 @@ export interface SessionApi {
     tool: PresenterTool,
     color: string,
   ) => void;
+  /** Captions for the room: the text so far, empty for quiet, `null` for off. */
+  broadcastCaptions: (text: string | null) => void;
 }
 
 /** How long the camera holds on a section before diving into it. */
@@ -517,6 +527,11 @@ export function createSession({
     channel.post({ type: "pointer", point, tool, color });
   };
 
+  const broadcastCaptions = (text: string | null) => {
+    store.setState({ captions: text });
+    channel.post({ type: "captions", text });
+  };
+
   const onMessage = (message: PresentMessage) => {
     switch (message.type) {
       case "hello":
@@ -565,6 +580,12 @@ export function createSession({
       case "pointer":
         if (role === "stage")
           store.setState({ pointer: message.point, pointerColor: message.color });
+        break;
+
+      case "captions":
+        // The stage shows them; a console never does, and must not let a
+        // second console's captions replace the ones it is producing.
+        if (role === "stage") store.setState({ captions: message.text });
         break;
 
       case "annotations":
@@ -631,6 +652,7 @@ export function createSession({
     clearScene,
     clearAll,
     broadcastPointer,
+    broadcastCaptions,
   };
 }
 
@@ -668,6 +690,7 @@ export interface PresentSession extends Omit<SessionState, "annotationsByScene" 
     tool: PresenterTool,
     color: string,
   ) => void;
+  broadcastCaptions: (text: string | null) => void;
 
   channel: PresentChannel;
 }
@@ -706,6 +729,7 @@ export function usePresentSession({
       establishing: state.establishing,
       opening: state.opening,
       ended: state.ended,
+      captions: state.captions,
       pointer: state.pointer,
       pointerColor: state.pointerColor,
       peerConnected: state.peerConnected,
@@ -737,6 +761,7 @@ export function usePresentSession({
       clearScene: api.clearScene,
       clearAll: api.clearAll,
       broadcastPointer: api.broadcastPointer,
+      broadcastCaptions: api.broadcastCaptions,
 
       channel: api.channel,
     };

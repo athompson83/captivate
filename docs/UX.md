@@ -257,6 +257,21 @@ until the visitor moves, it follows their hand, and it is level again the
 moment the hand leaves. The projector never does it — whoever's pointer
 crosses a stage window, it is not the room's.
 
+**The room can read what is being said.** `T` puts captions on the stage:
+the last stretch of what the presenter is saying, low on the frame where
+subtitles live, from the browser's own speech engine — the one a recording
+already uses for its transcript. Nothing is uploaded and nothing is kept; the
+words are gone once the room has been quiet a moment. The engine runs in
+whichever window has the microphone (the console in two-window presenting,
+the stage itself on one screen) and the stage renders what it is sent, so the
+projector never listens to anything. The control exists only where the
+browser has an engine (Chrome and Edge, today); elsewhere there is no button
+to press and nothing that looks like one. A page gets one engine, so while a
+recording is transcribing the stage's captions read from the recorder's
+transcript rather than fighting it for the microphone — which also means a
+recording of a captioned talk already contains its captions, and burning
+them in as well would show them twice.
+
 **The frame before the stage is black.** Both audience routes await the deck
 on the server; until it arrives they show a black frame rather than the site's
 light body, so a projector never flashes white before the first scene.
