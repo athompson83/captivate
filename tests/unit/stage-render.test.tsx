@@ -456,8 +456,9 @@ describe("performing a scene on arrival", () => {
     const drawnLine = render(
       <Stage content={line} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
     );
-    // A filled mark at each of two points, drawn on arrival.
-    expect(drawn(drawnLine.container)).toHaveLength(2);
+    // The area under the line and a filled mark at each of two points,
+    // drawn on arrival.
+    expect(drawn(drawnLine.container)).toHaveLength(3);
     expect(drawnLine.container.querySelector("svg[aria-label='Up.']")).not.toBeNull();
     drawnLine.unmount();
   });

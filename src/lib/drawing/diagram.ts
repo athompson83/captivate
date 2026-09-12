@@ -967,7 +967,19 @@ export function compileDiagram(diagram: GeneratedDiagram): CompiledDrawing {
     if (label) labels.push(label);
 
     if (node.kind === "symbol") {
+      // On a wash in its own ink, as the stage's icons are: a glyph on its
+      // own is a toolbar's mark. The wash is tone with no line (weight 0),
+      // a closed organic form seeded from the node's name, laid down
+      // before the strokes so the glyph is drawn over it.
       const name = node.symbol ?? "lightbulb";
+      const c = centre(box);
+      paths.push({
+        d: blobPath(c.x + box.w * 0.03, c.y + box.h * 0.04, box.w * 0.5, box.h * 0.48, node.id),
+        stage: node.stage,
+        weight: 0,
+        ink,
+        fill: true,
+      });
       for (const stroke of symbolPaths(name, box)) {
         paths.push({ d: stroke.d, stage: node.stage, weight: stroke.weight, ink });
       }

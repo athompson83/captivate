@@ -128,7 +128,10 @@ export function compileChart(element: ChartElement): CompiledDrawing {
     const cy = H / 2;
     const outer = 165;
     const inner = 100;
-    const total = data.reduce((s, d) => s + Math.abs(d.value), 0) || 1;
+    // The sum is the whole; the wedges divide by a nonzero stand-in so a
+    // chart of zeros draws nothing rather than dividing by nothing.
+    const sum = data.reduce((s, d) => s + Math.abs(d.value), 0);
+    const total = sum || 1;
     // A breath between wedges, so two the same ink still read as two. A
     // sliver keeps half its own sweep rather than vanishing into the gap,
     // so the ring never contradicts its legend.
@@ -163,6 +166,10 @@ export function compileChart(element: ChartElement): CompiledDrawing {
         });
         angle += sweep;
       });
+    }
+    // The whole, in the middle: what the wedges add up to, where there is one.
+    if (element.showValues && sum > 0) {
+      labels.push(label(valueText(sum), cx, cy, { size: 1.5 }));
     }
     const legendX = 480;
     const step = Math.min(46, (H - EDGE * 2) / Math.max(1, n));
@@ -200,13 +207,27 @@ export function compileChart(element: ChartElement): CompiledDrawing {
       y: base - ((base - top) * Math.abs(d.value)) / max,
     }));
     // The floor first, then the line in one stroke, then a mark at each
-    // point: the way a hand draws it, and the order the room watches.
+    // point: the way a hand draws it, and the order the room watches. The
+    // area under the line is washed before any of it — tone with no line —
+    // so the line reads as the edge of something rather than a wire.
     paths.push({
       d: `M ${f(left)} ${f(base)} L ${f(right)} ${f(base)}`,
       weight: 0.8,
       ink: "muted",
       stage: 0,
     });
+    if (points.length > 1) {
+      paths.push({
+        d:
+          `M ${f(points[0].x)} ${f(base)} ` +
+          points.map((p) => `L ${f(p.x)} ${f(p.y)}`).join(" ") +
+          ` L ${f(points[points.length - 1].x)} ${f(base)} Z`,
+        weight: 0,
+        ink: "accent",
+        fill: true,
+        stage: 0,
+      });
+    }
     paths.push({
       d: points.map((p, i) => `${i === 0 ? "M" : "L"} ${f(p.x)} ${f(p.y)}`).join(" "),
       weight: 1.6,

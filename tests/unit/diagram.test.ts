@@ -275,10 +275,18 @@ describe("the compiled picture", () => {
     expect([...stages].sort()).toEqual([0, 1, 2, 3]);
   });
 
-  it("fills only closed shapes and never a symbol", () => {
-    const filled = compileDiagram(diagram).paths.filter((p) => p.fill);
-    expect(filled).toHaveLength(1);
-    expect(filled[0].d.trim().endsWith("Z")).toBe(true);
+  it("fills only closed shapes, and a symbol's strokes never — only the wash beneath them", () => {
+    const paths = compileDiagram(diagram).paths;
+    const filled = paths.filter((p) => p.fill);
+    // The filled circle, and the wash under the symbol: tone with no line.
+    expect(filled).toHaveLength(2);
+    expect(filled.every((p) => p.d.trim().endsWith("Z"))).toBe(true);
+    const wash = filled.find((p) => p.weight === 0)!;
+    expect(wash).toBeDefined();
+    // The glyph's own strokes are drawn after the wash, at their weight, unfilled.
+    const glyph = paths.slice(paths.indexOf(wash) + 1).filter((p) => p.stage === wash.stage);
+    expect(glyph.length).toBeGreaterThan(0);
+    expect(glyph.every((p) => !p.fill && (p.weight ?? 1) > 0)).toBe(true);
   });
 });
 
@@ -730,6 +738,17 @@ describe("arranged compositions", () => {
       GeneratedDiagram.parse({ nodes: [{ id: "a", kind: "circle" }] }),
     );
     expect(drawing.paths[0].d).toMatch(/A 60 60/);
+  });
+});
+
+describe("a wash with no line", () => {
+  it("is a stroke of weight zero, and only with a fill", () => {
+    expect(
+      DrawnPath.safeParse({ d: "M 0 0 L 10 0 L 10 10 Z", weight: 0, fill: true }).success,
+    ).toBe(true);
+    // Without a fill it is nothing, and a drawing of nothing must not pass.
+    expect(DrawnPath.safeParse({ d: "M 0 0 L 10 0 L 10 10 Z", weight: 0 }).success).toBe(false);
+    expect(DrawnPath.safeParse({ d: "M 0 0 L 10 0", weight: 0, fill: false }).success).toBe(false);
   });
 });
 

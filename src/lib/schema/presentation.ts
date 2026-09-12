@@ -440,7 +440,8 @@ export const DrawnPath = z
      * detail, and construction lighter than both, is what makes line art read
      * as a drawing rather than as a plot of coordinates.
      */
-    weight: z.number().min(0.25).max(4).optional(),
+    /** Zero is a wash with no line: tone laid down without an outline. */
+    weight: z.number().min(0).max(4).optional(),
     /** Overrides the element's ink for this stroke; the accent marks the idea a stage adds. */
     ink: z.enum(["ink", "accent", "muted"]).optional(),
     /**
@@ -458,6 +459,12 @@ export const DrawnPath = z
     // rendered mistake.
     message: "A fill needs a closed path (ending in Z)",
     path: ["fill"],
+  })
+  // A stroke of weight zero is a wash with no line. Without a fill it is
+  // nothing at all, and a drawing of nothing would pass the schema and
+  // render blank.
+  .refine((path) => path.weight !== 0 || path.fill === true, {
+    message: "A stroke of weight zero must be a filled wash",
   });
 export type DrawnPath = z.infer<typeof DrawnPath>;
 

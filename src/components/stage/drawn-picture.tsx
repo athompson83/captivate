@@ -125,11 +125,15 @@ export function DrawnPicture({
   const size = labelSize(element.viewBox.width);
   const seed = Math.round(element.viewBox.width + element.viewBox.height) % 97;
 
-  // How many paths share each stage, and each path's index within its stage,
-  // so a stage's paths split its pace between them in order. Pure arithmetic
+  // How many strokes share each stage, and each stroke's index within its
+  // stage, so a stage's strokes split its pace between them in order. A
+  // wash with no line (weight 0) is not a stroke: it takes no slot and no
+  // time, and goes down the moment its stage is reached. Pure arithmetic
   // over props — fine in render.
+  const isStroke = (path: DrawingElement["paths"][number]) => (path.weight ?? 1) > 0;
   const perStage = new Map<number, number>();
   const slots = element.paths.map((path) => {
+    if (!isStroke(path)) return -1;
     const index = perStage.get(path.stage) ?? 0;
     perStage.set(path.stage, index + 1);
     return index;
@@ -211,6 +215,9 @@ export function DrawnPicture({
           const duration = element.paceSeconds / siblings;
           const drawn = path.stage <= step;
           const colour = INK[path.ink ?? element.ink];
+          // A wash under a stroke waits for the stroke to close; a wash with
+          // no line has nothing to wait for and goes down first.
+          const delay = isStroke(path) ? slots[i] * duration + duration : 0;
           return (
             <path
               key={i}
@@ -220,11 +227,7 @@ export function DrawnPicture({
               stroke={colour}
               strokeWidth={washBleed(element.strokeWidth)}
               strokeLinejoin="round"
-              style={
-                {
-                  "--dp-del": `${slots[i] * duration + duration}s`,
-                } as React.CSSProperties
-              }
+              style={{ "--dp-del": `${delay}s` } as React.CSSProperties}
             />
           );
         })}
@@ -245,6 +248,7 @@ export function DrawnPicture({
       ).map((pass) => (
         <g key={pass.id} filter={`url(#${pass.id})`} opacity={pass.opacity}>
           {element.paths.map((path, i) => {
+            if (!isStroke(path)) return null;
             const siblings = perStage.get(path.stage) ?? 1;
             const duration = element.paceSeconds / siblings;
             const drawn = path.stage <= step;
