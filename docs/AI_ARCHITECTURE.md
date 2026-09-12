@@ -108,7 +108,11 @@ correct; the user only has to drop a picture in. A scene whose picture should be
 drawn rather than photographed also carries a `drawingBrief` — the parts, their
 names and how they relate — and the drawing pass draws from that, never from
 the photograph's prompt (see `docs/PRESENTATION_ENGINE.md`, "Briefed for a
-diagram").
+diagram"). The diagram the drawing pass composes names its `arrangement` —
+row, column, cycle, radial, compare, or free — and the compiler lays the
+nodes out itself for every arrangement but free, so a model chooses shapes,
+symbols, relations, labels and stages and never coordinates unless the
+picture fits no named shape ("Arranged compositions", same document).
 
 ### A look for every deck
 

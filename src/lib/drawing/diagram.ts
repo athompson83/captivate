@@ -56,11 +56,17 @@ export const DiagramNode = z.object({
   ]),
   /** Which symbol, when the kind is `symbol`. Ignored otherwise. */
   symbol: z.enum(DIAGRAM_SYMBOLS).nullable().default(null),
-  /** Centre, in the 800×500 box. */
-  x: z.number().min(0).max(DIAGRAM_WIDTH),
-  y: z.number().min(0).max(DIAGRAM_HEIGHT),
-  w: z.number().min(16).max(DIAGRAM_WIDTH),
-  h: z.number().min(16).max(DIAGRAM_HEIGHT),
+  /**
+   * Centre and size, in the 800×500 box.
+   *
+   * Only read under the `free` arrangement. Under any other the composition
+   * places and sizes every node itself, so a model may leave these at zero;
+   * a free node left at zero gets a default box rather than a refusal.
+   */
+  x: z.number().min(0).max(DIAGRAM_WIDTH).default(0),
+  y: z.number().min(0).max(DIAGRAM_HEIGHT).default(0),
+  w: z.number().min(0).max(DIAGRAM_WIDTH).default(0),
+  h: z.number().min(0).max(DIAGRAM_HEIGHT).default(0),
   stage: z.number().int().min(0).max(3).default(0),
   accent: z.boolean().default(false),
   fill: z.boolean().default(false),
@@ -85,8 +91,23 @@ export const DiagramEdge = z.object({
 });
 export type DiagramEdge = z.infer<typeof DiagramEdge>;
 
+/**
+ * How the nodes are laid out.
+ *
+ * A model can say what a picture is of and what relates to what; asked for
+ * coordinates it scatters, overlaps, or lines six things up along one edge.
+ * So the shapes a whiteboard diagram takes are named, and the compiler lays
+ * each out itself: `row` reads left to right, `column` top to bottom,
+ * `cycle` is a ring of things joined by curves, `radial` is a hub with its
+ * parts around it, `compare` is two columns, and `free` is the model's own
+ * coordinates for the picture none of those fit.
+ */
+export const DiagramArrangement = z.enum(["free", "row", "column", "cycle", "radial", "compare"]);
+export type DiagramArrangement = z.infer<typeof DiagramArrangement>;
+
 export const GeneratedDiagram = z
   .object({
+    arrangement: DiagramArrangement.default("free"),
     nodes: z.array(DiagramNode).min(1).max(16),
     edges: z.array(DiagramEdge).max(24).default([]),
     stageLabels: z.array(z.string().max(120)).max(4).default([]),
@@ -594,10 +615,142 @@ function arrowHead(
 /* The compiler                                                                */
 /* -------------------------------------------------------------------------- */
 
+/** The proportions each kind of node is drawn at when the composition sizes it. */
+const ASPECT: Record<DiagramNode["kind"], number> = {
+  circle: 1,
+  ring: 1,
+  symbol: 1,
+  blob: 1.15,
+  stack: 1.3,
+  box: 1.35,
+  ellipse: 1.5,
+  cloud: 1.5,
+  pill: 2.2,
+  bar: 3.6,
+};
+
+/** The largest box of a kind's proportions that fits a slot. */
+function fitted(kind: DiagramNode["kind"], slotW: number, slotH: number): { w: number; h: number } {
+  const aspect = ASPECT[kind];
+  let w = Math.min(slotW, slotH * aspect);
+  let h = w / aspect;
+  if (h > slotH) {
+    h = slotH;
+    w = h * aspect;
+  }
+  return { w: Math.round(w), h: Math.round(h) };
+}
+
+/** Clear space kept from the edges by a composition, past the margin. */
+const EDGE = 40;
+/** Air between two nodes a composition places side by side: room for an arrow and its word. */
+const AIR = 56;
+/** Room under a node for its name, where the composition stacks nodes. */
+const NAME_ROOM = 34;
+
+/**
+ * The nodes placed and sized by the arrangement.
+ *
+ * Pure geometry over the node list; `free` returns the nodes as they came.
+ * A node's own stage, accent, fill, hatch, value, symbol and label are never
+ * touched — only where it sits and how big it is.
+ */
+export function arrangeNodes(arrangement: DiagramArrangement, nodes: DiagramNode[]): DiagramNode[] {
+  const n = nodes.length;
+  if (arrangement === "free" || n === 0) return nodes;
+  const at = (node: DiagramNode, x: number, y: number, size: { w: number; h: number }) => ({
+    ...node,
+    x: Math.round(x),
+    y: Math.round(y),
+    w: size.w,
+    h: size.h,
+  });
+
+  switch (arrangement) {
+    case "row": {
+      // Across the middle, a little above it so the names beneath have
+      // room. A lone subject fills the width it is allowed; three share it.
+      // Past the eight the brief allows the air closes up, so a long row is
+      // a row of small things rather than a row of nothing.
+      const air = n > 8 ? 20 : AIR;
+      const slotW = Math.min(320, (DIAGRAM_WIDTH - EDGE * 2 - air * (n - 1)) / n);
+      const slotH = DIAGRAM_HEIGHT - EDGE * 2 - NAME_ROOM;
+      const total = slotW * n + air * (n - 1);
+      const left = (DIAGRAM_WIDTH - total) / 2;
+      const y = (DIAGRAM_HEIGHT - NAME_ROOM) / 2;
+      return nodes.map((node, i) =>
+        at(node, left + slotW / 2 + i * (slotW + air), y, fitted(node.kind, slotW, slotH)),
+      );
+    }
+    case "column": {
+      const slotH = Math.min(150, (DIAGRAM_HEIGHT - EDGE * 2 - NAME_ROOM * (n - 1)) / n);
+      const slotW = DIAGRAM_WIDTH * 0.5;
+      const total = slotH * n + NAME_ROOM * (n - 1);
+      const top = (DIAGRAM_HEIGHT - total) / 2;
+      return nodes.map((node, i) =>
+        at(
+          node,
+          DIAGRAM_WIDTH / 2,
+          top + slotH / 2 + i * (slotH + NAME_ROOM),
+          fitted(node.kind, slotW, slotH),
+        ),
+      );
+    }
+    case "cycle":
+    case "radial": {
+      // A ring, clockwise from the top. `radial` keeps its first node for
+      // the hub at the centre and puts the rest on the ring.
+      const hub = arrangement === "radial" ? nodes[0] : null;
+      const ring = hub ? nodes.slice(1) : nodes;
+      const cx = DIAGRAM_WIDTH / 2;
+      const cy = (DIAGRAM_HEIGHT - NAME_ROOM / 2) / 2;
+      // Sized to the arc each one gets, within reason: a ring of three is
+      // three big things, a ring of eight is eight small ones — and smaller
+      // around a hub, which is the subject. Then the ring is pulled in just
+      // far enough that the top and the sides clear the edge.
+      const arc = ring.length ? (2 * Math.PI * DIAGRAM_HEIGHT * 0.27) / ring.length : 0;
+      const size = Math.max(90, Math.min(hub ? 110 : 170, arc * 0.6));
+      const rx = Math.min(DIAGRAM_WIDTH * 0.34, DIAGRAM_WIDTH / 2 - EDGE - size / 2);
+      const ry = Math.min(DIAGRAM_HEIGHT * 0.3, cy - EDGE - size / 2);
+      const placed = ring.map((node, i) => {
+        const angle = -Math.PI / 2 + (2 * Math.PI * i) / Math.max(1, ring.length);
+        return at(
+          node,
+          cx + Math.cos(angle) * rx,
+          cy + Math.sin(angle) * ry,
+          fitted(node.kind, size, size),
+        );
+      });
+      return hub ? [at(hub, cx, cy, fitted(hub.kind, 160, 140)), ...placed] : placed;
+    }
+    case "compare": {
+      // Two columns, the first half of the nodes on the left, the rest on
+      // the right, each column stacked from the top.
+      const split = Math.ceil(n / 2);
+      const columns = [nodes.slice(0, split), nodes.slice(split)];
+      const slotW = DIAGRAM_WIDTH * 0.36;
+      return columns.flatMap((column, c) => {
+        const count = column.length;
+        if (!count) return [];
+        const slotH = Math.min(150, (DIAGRAM_HEIGHT - EDGE * 2 - NAME_ROOM * (count - 1)) / count);
+        const total = slotH * count + NAME_ROOM * (count - 1);
+        const top = (DIAGRAM_HEIGHT - total) / 2;
+        const x = DIAGRAM_WIDTH * (c === 0 ? 0.27 : 0.73);
+        return column.map((node, i) =>
+          at(node, x, top + slotH / 2 + i * (slotH + NAME_ROOM), fitted(node.kind, slotW, slotH)),
+        );
+      });
+    }
+  }
+}
+
 /** A node's box, clamped so the whole shape sits inside the picture's margin. */
 function boxOf(node: DiagramNode): Box {
-  const w = Math.min(node.w, DIAGRAM_WIDTH - MARGIN * 2);
-  const h = Math.min(node.h, DIAGRAM_HEIGHT - MARGIN * 2);
+  // A free node the model left unsized — zero, the schema's default — is
+  // given a box rather than a point. Only zero: a small size is a size, and
+  // a fitted bar of seven in a row is fifteen tall on purpose.
+  const w = Math.min(node.w > 0 ? node.w : 160, DIAGRAM_WIDTH - MARGIN * 2);
+  const h = Math.min(node.h > 0 ? node.h : 120, DIAGRAM_HEIGHT - MARGIN * 2);
   const cx = Math.min(DIAGRAM_WIDTH - MARGIN - w / 2, Math.max(MARGIN + w / 2, node.x));
   const cy = Math.min(DIAGRAM_HEIGHT - MARGIN - h / 2, Math.max(MARGIN + h / 2, node.y));
   return { x: cx - w / 2, y: cy - h / 2, w, h };
@@ -648,8 +801,17 @@ export function compileDiagram(diagram: GeneratedDiagram): CompiledDrawing {
   const paths: DrawnPath[] = [];
   const labels: DrawnLabel[] = [];
   const boxes = new Map<string, { node: DiagramNode; box: Box }>();
+  const nodes = arrangeNodes(diagram.arrangement, diagram.nodes);
+  // On a ring a straight arrow is a chord across the middle; the relation
+  // between neighbours bows around the outside instead.
+  const edges =
+    diagram.arrangement === "cycle"
+      ? diagram.edges.map((edge) =>
+          edge.kind === "arrow" ? { ...edge, kind: "curve" as const } : edge,
+        )
+      : diagram.edges;
 
-  for (const node of diagram.nodes) {
+  for (const node of nodes) {
     const box = boxOf(node);
     boxes.set(node.id, { node, box });
     const ink = node.accent ? ("accent" as const) : undefined;
@@ -778,7 +940,7 @@ export function compileDiagram(diagram: GeneratedDiagram): CompiledDrawing {
     }
   }
 
-  for (const edge of diagram.edges) {
+  for (const edge of edges) {
     const from = boxes.get(edge.from);
     const to = boxes.get(edge.to);
     if (!from || !to || from === to) continue;

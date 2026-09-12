@@ -335,7 +335,7 @@ describe("performing a scene on arrival", () => {
     );
     expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
     // Stage 0 sketches on landing; stage 1 still waits for the presenter.
-    expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
+    expect(container.querySelectorAll("path.dp-path.dp-drawn:not(.dp-under)")).toHaveLength(1);
   });
 
   it("leaves alone an element that was on screen when the flight began", () => {
@@ -359,7 +359,7 @@ describe("performing a scene on arrival", () => {
       />,
     );
     expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
-    expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
+    expect(container.querySelectorAll("path.dp-path.dp-drawn:not(.dp-under)")).toHaveLength(1);
   });
 
   it("never holds anything in the editor", () => {
@@ -482,7 +482,7 @@ describe("performing a scene on arrival", () => {
       />,
     );
     expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
-    expect(container.querySelectorAll(".dp-drawn")).toHaveLength(1);
+    expect(container.querySelectorAll("path.dp-path.dp-drawn:not(.dp-under)")).toHaveLength(1);
   });
 
   it("builds nothing in the distance, even on a scene that was on screen before the flight", () => {
@@ -637,5 +637,67 @@ describe("depth layers", () => {
       expect(layers.length).toBeGreaterThan(1);
       surface.unmount();
     }
+  });
+});
+
+describe("icons by the same hand", () => {
+  const washOf = (root: HTMLElement, name: string) =>
+    root.querySelector<SVGPathElement>(`[data-hand-icon="${name}"] [data-icon-wash]`);
+
+  it("sets every card's icon on a wash in its own colour at the drawings' tint", () => {
+    const { container } = renderStage(
+      composeScene("three-up", {
+        heading: "Three things the room keeps",
+        cards: [
+          { title: "Place", body: "Where it happened.", icon: "target" },
+          { title: "Order", body: "The route.", icon: "arrow_right" },
+          { title: "Pace", body: "The rhythm.", icon: "clock" },
+        ],
+      }),
+    );
+    const washes = [...container.querySelectorAll("[data-icon-wash]")];
+    expect(washes).toHaveLength(3);
+    for (const wash of washes) {
+      expect(wash.getAttribute("fill")).toBe("currentColor");
+      expect(wash.getAttribute("fill-opacity")).toBe("0.14");
+      // Bent by a hand of its own, defined beside it.
+      const filter = wash.getAttribute("filter")!;
+      expect(filter).toMatch(/^url\(#iconwash-/);
+      const id = filter.slice("url(#".length, -1);
+      expect(
+        wash.closest("svg")!.querySelector(`filter[id="${id}"] feDisplacementMap`),
+      ).not.toBeNull();
+    }
+  });
+
+  it("gives the same icon the same shape everywhere, and different icons different ones", () => {
+    const heart = composeScene("takeaway", {
+      eyebrow: "Keep this",
+      heading: "The heart is a pump.",
+      icon: "heart",
+      body: "Everything else follows.",
+    });
+    const a = renderStage(heart);
+    const b = renderStage(heart);
+    expect(washOf(a.container, "heart")!.getAttribute("d")).toBe(
+      washOf(b.container, "heart")!.getAttribute("d"),
+    );
+    const brain = renderStage({ ...heart, elements: heart.elements });
+    expect(washOf(brain.container, "heart")).not.toBeNull();
+    const other = renderStage(composeScene("takeaway", { heading: "x", icon: "brain", body: "y" }));
+    expect(washOf(other.container, "brain")!.getAttribute("d")).not.toBe(
+      washOf(a.container, "heart")!.getAttribute("d"),
+    );
+  });
+
+  it("never bends the glyph itself: the wash is behind a plain icon", () => {
+    const { container } = renderStage(
+      composeScene("takeaway", { heading: "x", icon: "heart", body: "y" }),
+    );
+    const icon = container.querySelector('[data-hand-icon="heart"]')!;
+    const glyph = icon.querySelector("svg.lucide, svg:not([aria-hidden])");
+    expect(glyph).not.toBeNull();
+    expect(glyph!.getAttribute("filter")).toBeNull();
+    expect((glyph as SVGElement).style.filter).toBe("");
   });
 });

@@ -4,7 +4,8 @@ import { createElement, memo, useEffect, useId, useMemo, useRef } from "react";
 import { useReducedMotion } from "motion/react";
 import * as Icons from "lucide-react";
 import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
-import { DrawnPicture } from "./drawn-picture";
+import { DrawnPicture, handWobble } from "./drawn-picture";
+import { blobPath } from "@/lib/drawing/diagram";
 import { GRAIN, coversStage, gradeMatrix, matrixValues } from "@/lib/present/grade";
 import { embedSandbox } from "@/lib/utils/embed";
 import { categoricalHues, resolveColor, type PresentationTheme } from "@/lib/schema/theme";
@@ -170,6 +171,89 @@ function StageIcon({
   strokeWidth?: number;
 }) {
   return createElement(iconFor(name), { className, style, strokeWidth });
+}
+
+/**
+ * An icon by the same hand as the drawings.
+ *
+ * A Lucide glyph on its own is an interface icon: precise, weightless, the
+ * mark a toolbar makes. Every take-home, action step and explainer card
+ * leads with one, so a generated deck was led by toolbar icons. This puts a
+ * wash behind the glyph — a closed organic form in the icon's own colour at
+ * the drawings' tint, bent by the same kind of hand that bends a drawing's
+ * wash, and seeded from the icon's name so the same icon always sits on
+ * the same shape — and the icon reads as a mark somebody made for this
+ * card rather than one it was issued.
+ *
+ * The glyph itself is not bent: at card sizes a displacement is a blur, and
+ * a wash behind a clean line is exactly how an illustrated icon is made.
+ */
+function HandIcon({
+  name,
+  color,
+  size,
+  strokeWidth,
+}: {
+  name: string;
+  color: string;
+  /** The glyph's side, in CSS pixels. The wash fills the same box. */
+  size: number;
+  strokeWidth?: number;
+}) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const filterId = `iconwash-${uid}`;
+  // The wash is drawn on a 100-unit box and scaled to the icon: the blob
+  // recipe wanders its radius in the name, so `heart` is always the same
+  // shape behind every heart in the deck. It fills the icon's own box and
+  // sits a little down and to the right in it, like a drawing's wash — and
+  // stays inside it, because a mark that paints past its box is what the
+  // composition sheet's overflow scan reports as text cut off.
+  return (
+    <span
+      data-hand-icon={name}
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: `${size}px`,
+        height: `${size}px`,
+        flexShrink: 0,
+        color,
+      }}
+    >
+      <svg
+        aria-hidden
+        viewBox="0 0 100 100"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      >
+        <defs>
+          <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency={0.03} numOctaves={1} seed={11} />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="noise"
+              scale={handWobble(100) * 5}
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        </defs>
+        <path
+          data-icon-wash
+          d={blobPath(53, 54, 45, 43, name)}
+          fill="currentColor"
+          fillOpacity={0.14}
+          filter={`url(#${filterId})`}
+        />
+      </svg>
+      <StageIcon
+        name={name}
+        strokeWidth={strokeWidth}
+        style={{ width: "100%", height: "100%", position: "relative" }}
+      />
+    </span>
+  );
 }
 
 // Re-exported so existing importers keep working; the list itself is
@@ -823,16 +907,13 @@ export const ElementView = memo(function ElementView({
             justifyContent: "center",
           }}
         >
-          <StageIcon
+          <HandIcon
             name={element.name}
             strokeWidth={element.strokeWidth}
-            style={{
-              width: "100%",
-              height: "100%",
-              color: element.color
-                ? resolveColor(element.color, theme, "accent")
-                : theme.tokens.accent,
-            }}
+            size={Math.min(boxWidth, boxHeight)}
+            color={
+              element.color ? resolveColor(element.color, theme, "accent") : theme.tokens.accent
+            }
           />
         </div>
       );
@@ -863,10 +944,11 @@ export const ElementView = memo(function ElementView({
       const iconPx = rem * (open ? 3.2 : 1.8);
 
       const icon = (
-        <StageIcon
+        <HandIcon
           name={element.icon}
           strokeWidth={open ? 1.6 : undefined}
-          style={{ width: `${iconPx}px`, height: `${iconPx}px`, color: toneColor, flexShrink: 0 }}
+          size={iconPx}
+          color={toneColor}
         />
       );
       const rule = open && (

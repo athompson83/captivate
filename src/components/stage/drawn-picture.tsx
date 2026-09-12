@@ -33,6 +33,15 @@ import type { DrawingElement } from "@/lib/schema/presentation";
  *    adds can arrive in the accent while the rest stays in ink;
  *  - `fill` lays a soft wash inside a closed path once its stroke has
  *    finished, which gives a shape body without a second colour.
+ *
+ * And two things every drawing gets without being asked, because a single
+ * clean line with a flat tint inside it is a diagram from a manual and not a
+ * picture somebody made: an **underdrawing** — every stroke drawn twice, the
+ * first pass lighter and through a different hand, the way a sketch keeps
+ * the searching line under the committed one — and a **wash** that behaves
+ * like water rather than paint: bled a little past the outline, bent by a
+ * coarser hand than the ink, and set a touch off the line, so the colour
+ * never registers exactly with the stroke that contains it.
  */
 
 const INK: Record<DrawingElement["ink"], string> = {
@@ -63,6 +72,26 @@ export function labelSize(viewBoxWidth: number): number {
 }
 
 /**
+ * How far the wash sits off the line, in the drawing's units.
+ *
+ * Down and to the right, the way a wash laid after the ink settles: a fill
+ * that registers exactly with its outline reads as a vector tint. On 800
+ * wide this is 6 — visible as intent, never as a mistake.
+ */
+export function washOffset(viewBoxWidth: number): number {
+  return viewBoxWidth * 0.0075;
+}
+
+/** How far past its outline a wash bleeds, as a stroke on the fill. */
+export function washBleed(strokeWidth: number): number {
+  return strokeWidth * 2.6;
+}
+
+/** The underdrawing's weight against the ink, and how much of it shows. */
+export const UNDER_WEIGHT = 0.55;
+export const UNDER_OPACITY = 0.42;
+
+/**
  * How much a hand wobbles, in the drawing's units.
  *
  * Proportional to the box for the same reason: a fixed wobble is a tremor on
@@ -84,11 +113,17 @@ export function DrawnPicture({
   /** The theme's sans face, for the labels. */
   fontFamily?: string;
 }) {
-  // One filter per picture, named uniquely so two drawings on a scene do not
-  // share a definition and a thumbnail does not borrow the stage's.
-  const filterId = `hand-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  // One set of filters per picture, named uniquely so two drawings on a
+  // scene do not share a definition and a thumbnail does not borrow the
+  // stage's: the ink's hand, the underdrawing's hand and the wash's.
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const filterId = `hand-${uid}`;
+  const underId = `under-${uid}`;
+  const washId = `wash-${uid}`;
   const wobble = handWobble(element.viewBox.width);
+  const offset = washOffset(element.viewBox.width);
   const size = labelSize(element.viewBox.width);
+  const seed = Math.round(element.viewBox.width + element.viewBox.height) % 97;
 
   // How many paths share each stage, and each path's index within its stage,
   // so a stage's paths split its pace between them in order. Pure arithmetic
@@ -125,71 +160,115 @@ export function DrawnPicture({
           picture's own size so the same drawing wobbles the same way on
           every screen. */}
       <defs>
-        <filter
-          id={filterId}
-          filterUnits="userSpaceOnUse"
-          x={-element.viewBox.width * 0.05}
-          y={-element.viewBox.height * 0.05}
-          width={element.viewBox.width * 1.1}
-          height={element.viewBox.height * 1.1}
-        >
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency={0.012}
-            numOctaves={2}
-            seed={Math.round(element.viewBox.width + element.viewBox.height) % 97}
-            result="noise"
-          />
-          <feDisplacementMap
-            in="SourceGraphic"
-            in2="noise"
-            scale={wobble}
-            xChannelSelector="R"
-            yChannelSelector="G"
-          />
-        </filter>
+        {/* Three hands. The ink's bends each stroke a third of a percent off
+            its geometry; the underdrawing's is a different hand over the same
+            geometry, so the two lines agree everywhere and coincide nowhere;
+            the wash's is coarser and stronger, because water moves further
+            than a pen. All seeded from the picture's own size, so the same
+            drawing is drawn the same way on every screen. */}
+        {(
+          [
+            { id: filterId, frequency: 0.012, octaves: 2, seed, scale: wobble },
+            { id: underId, frequency: 0.016, octaves: 2, seed: seed + 31, scale: wobble * 1.5 },
+            { id: washId, frequency: 0.02, octaves: 1, seed: seed + 67, scale: wobble * 5 },
+          ] as const
+        ).map((hand) => (
+          <filter
+            key={hand.id}
+            id={hand.id}
+            filterUnits="userSpaceOnUse"
+            x={-element.viewBox.width * 0.05}
+            y={-element.viewBox.height * 0.05}
+            width={element.viewBox.width * 1.1}
+            height={element.viewBox.height * 1.1}
+          >
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency={hand.frequency}
+              numOctaves={hand.octaves}
+              seed={hand.seed}
+              result="noise"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="noise"
+              scale={hand.scale}
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        ))}
       </defs>
-      <g filter={`url(#${filterId})`}>
+      {/* The washes, under everything: water goes down before the ink. Each
+          waits for its own stroke — its delay is the stroke's delay plus its
+          duration — so a shape fills the moment its outline closes rather
+          than before it exists. Bled past the line by a wide stroke of the
+          same colour, and set off it. */}
+      <g filter={`url(#${washId})`} transform={`translate(${offset} ${offset})`}>
         {element.paths.map((path, i) => {
+          if (!path.fill) return null;
           const siblings = perStage.get(path.stage) ?? 1;
           const duration = element.paceSeconds / siblings;
           const drawn = path.stage <= step;
           const colour = INK[path.ink ?? element.ink];
-          const timing = {
-            "--dp-dur": `${duration}s`,
-            "--dp-del": `${slots[i] * duration}s`,
-          } as React.CSSProperties;
           return (
-            <g key={i}>
-              {/* The wash goes under the stroke and waits for it: its delay is
-                the stroke's own delay plus its duration, so the shape fills
-                the moment its outline closes rather than before it exists. */}
-              {path.fill && (
-                <path
-                  d={path.d}
-                  className={drawn ? "dp-fill dp-drawn" : "dp-fill"}
-                  fill={colour}
-                  style={
-                    {
-                      "--dp-del": `${slots[i] * duration + duration}s`,
-                    } as React.CSSProperties
-                  }
-                />
-              )}
+            <path
+              key={i}
+              d={path.d}
+              className={drawn ? "dp-fill dp-drawn" : "dp-fill"}
+              fill={colour}
+              stroke={colour}
+              strokeWidth={washBleed(element.strokeWidth)}
+              strokeLinejoin="round"
+              style={
+                {
+                  "--dp-del": `${slots[i] * duration + duration}s`,
+                } as React.CSSProperties
+              }
+            />
+          );
+        })}
+      </g>
+      {/* The underdrawing, then the ink, both sketched on the same clock: the
+          searching line and the committed one arrive together, as they do
+          when a hand goes over its own first pass. */}
+      {(
+        [
+          {
+            id: underId,
+            className: "dp-path dp-under",
+            weight: UNDER_WEIGHT,
+            opacity: UNDER_OPACITY,
+          },
+          { id: filterId, className: "dp-path", weight: 1, opacity: 1 },
+        ] as const
+      ).map((pass) => (
+        <g key={pass.id} filter={`url(#${pass.id})`} opacity={pass.opacity}>
+          {element.paths.map((path, i) => {
+            const siblings = perStage.get(path.stage) ?? 1;
+            const duration = element.paceSeconds / siblings;
+            const drawn = path.stage <= step;
+            const colour = INK[path.ink ?? element.ink];
+            const timing = {
+              "--dp-dur": `${duration}s`,
+              "--dp-del": `${slots[i] * duration}s`,
+            } as React.CSSProperties;
+            return (
               <path
+                key={i}
                 ref={measureDrawnPath}
                 d={path.d}
-                className={drawn ? "dp-path dp-drawn" : "dp-path"}
+                className={drawn ? `${pass.className} dp-drawn` : pass.className}
                 stroke={colour}
-                strokeWidth={element.strokeWidth * (path.weight ?? 1)}
+                strokeWidth={element.strokeWidth * (path.weight ?? 1) * pass.weight}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 style={timing}
               />
-            </g>
-          );
-        })}
-      </g>
+            );
+          })}
+        </g>
+      ))}
       {/* Labels sit outside the hand: a word bent by the pen's wobble reads
           as a rendering fault, not as handwriting. They arrive after their
           stage's last stroke has closed. */}

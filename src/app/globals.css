@@ -333,9 +333,11 @@
   /* A drawing's soft fills: invisible until the stroke around them has
      closed, then a low wash in the path's own ink. Not fitted to --dp-len,
      because a fill has no length to sketch; it simply arrives. */
+  /* A wash: the fill at a tint, and its stroke — the bleed past the line —
+     fainter still, so the colour thins toward its edge the way water does. */
   .dp-fill {
-    stroke: none;
     fill-opacity: 0;
+    stroke-opacity: 0;
   }
   .dp-fill.dp-drawn {
     animation: dp-wash 0.5s ease-out var(--dp-del, 0s) both;
@@ -343,9 +345,11 @@
   @keyframes dp-wash {
     from {
       fill-opacity: 0;
+      stroke-opacity: 0;
     }
     to {
       fill-opacity: 0.14;
+      stroke-opacity: 0.07;
     }
   }
   @media (prefers-reduced-motion: reduce) {
