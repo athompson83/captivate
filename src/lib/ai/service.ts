@@ -325,6 +325,8 @@ export interface MaterialisedScene {
   speakerNotes: string;
   imagePrompt: string;
   photoQuery: string;
+  /** What to diagram, where the picture should be drawn; empty for a photograph. */
+  drawingBrief: string;
   /** A composed aside, ready to be woven in as a detail scene. */
   detail: { label: string; title: string; content: SceneContent; speakerNotes: string } | null;
 }
@@ -465,6 +467,8 @@ Each layout draws a fixed set of fields and shows nothing else, so write into th
 - figure — heading (the claim), figure, body
 - explainer — heading (the plain-language sentence), exactly three cards (what, why, what follows), imagePrompt
 
+Drawings: some pictures should be drawn, not photographed — a mechanism, a pathway, a comparison of amounts, a before-and-after, the parts of a thing and how they relate. For a split-left, split-right or explainer scene whose picture is one of those, write a drawingBrief: one sentence naming the parts, what each is called, and how they relate ("The heart, the vessel and the tissue in a row; blood flows heart to tissue; the vessel narrows in stage two and the flow arrow turns red"). Leave drawingBrief empty where a photograph is the right picture — a face, a place, a moment. A scene with a drawingBrief still carries its imagePrompt, for the deployment that cannot draw.
+
 Pictures: every cover, split-left, split-right, explainer and media-full scene MUST carry an imagePrompt — the picture is half the scene, and an empty half is a broken scene. The imagePrompt describes the one image that would teach or land the moment — a mechanism, a scene, a before-and-after — concretely enough to photograph or sketch. Also give those scenes a photoQuery: two to five plain search words for a stock photo of the same subject. The cover is composed differently, and the difference is *composition* rather than abstraction. Name the one image that is this talk's hero — the subject itself is allowed and often right — but describe it as a photographer would frame it for a title: a clear focal subject somewhere off-centre, real depth behind it, and a quiet region of sky, wall, shadow or ground where a display line can sit without fighting anything. What a cover must not be is the generic establishing shot that could open any talk on the subject, or a busy frame with readable detail across all of it. An atmospheric place-and-light image is one good answer to that and not the only one; a single arresting subject with air around it is usually better.
 
 Asides: for two to four scenes in the deck — the ones hiding a definition, a worked example, or the data behind a claim — add an aside: a small detail scene the presenter opens by clicking, off the main path. Its label names what the click reveals ("See the mechanism"). Give it a real title and either bullets or a short body, and one or two sentences of speaker notes. Most scenes have no aside; use them only where depth-on-demand genuinely helps.
@@ -577,7 +581,13 @@ ${referenceBlock(context.reference ?? null)}`,
  * stripped so no deck opens on a full-screen placeholder.
  */
 async function dressScenes(
-  scenes: { title: string; content: SceneContent; imagePrompt: string; photoQuery?: string }[],
+  scenes: {
+    title: string;
+    content: SceneContent;
+    imagePrompt: string;
+    photoQuery?: string;
+    drawingBrief?: string;
+  }[],
   presentationId: string | null,
   totalSeconds: number,
   {
@@ -622,7 +632,18 @@ async function dressScenes(
   // which is stock search alone.
   const stockAvailable = isStockSearchConfigured();
   const photosAvailable = isPhotoFillConfigured();
-  const drawings = drawableScenes(scenes, drawingCap(totalSeconds, !stockAvailable));
+  // What a scene would draw. A drawing brief names a mechanism; a photograph's
+  // prompt names a scene, and handing the second to the diagram compiler is
+  // how a talk about paramedics got a stick figure beside a box. So where
+  // photographs are available, only scenes briefed for a drawing get one;
+  // where drawings are the only pictures there are, a scene without a brief
+  // is drawn from its photograph's prompt, which is better than a grey box.
+  const briefFor = (scene: { imagePrompt: string; drawingBrief?: string }) =>
+    scene.drawingBrief?.trim() || (stockAvailable ? "" : scene.imagePrompt);
+  const drawings = drawableScenes(
+    scenes.map((scene) => ({ scene, content: scene.content, imagePrompt: briefFor(scene) })),
+    drawingCap(totalSeconds, !stockAvailable),
+  ).map((entry) => entry.scene);
   const drawn = new Set<unknown>(drawings);
   const photos = photosAvailable
     ? scenes.filter(
@@ -637,9 +658,10 @@ async function dressScenes(
 
   const jobs: Promise<void>[] = [
     ...drawings.map(async (scene) => {
-      const result = await generateDrawing(scene.imagePrompt, presentationId);
+      const brief = briefFor(scene);
+      const result = await generateDrawing(brief, presentationId);
       if (!result.ok) return;
-      const replaced = replaceMediaWithDrawing(scene.content, result.drawing, scene.imagePrompt);
+      const replaced = replaceMediaWithDrawing(scene.content, result.drawing, brief);
       if (replaced) scene.content = replaced;
     }),
     ...photos.map(async (scene) => {
@@ -822,6 +844,7 @@ function materialise(
     speakerNotes: scene.speakerNotes,
     imagePrompt,
     photoQuery: scene.photoQuery,
+    drawingBrief: scene.drawingBrief,
     detail,
   };
 }
@@ -995,22 +1018,25 @@ export async function generateDrawing(
         "Compose one explainer diagram from shapes, symbols and arrows, staged in the order a person would build it at a whiteboard.",
       system: `${BASE_SYSTEM}
 
-You compose one clear explainer diagram. It is drawn by the application from your composition and sketched stroke by stroke in front of a room, one stage per press of "next". It sits beside the scene's text at about half the width of the screen and is read from the back of a lecture theatre.
+You compose one teaching diagram: the kind a good lecturer draws on a whiteboard while explaining. It is drawn by the application from your composition and sketched stroke by stroke in front of a room, one stage per press of "next". It sits beside the scene's text at about half the width of the screen and is read from the back of a lecture theatre.
+
+Draw the mechanism, never the photograph. If the brief describes a scene — a person, a place, a moment — draw what it stands for: the parts, the relation, the change. A stick figure beside a box teaches nothing.
 
 The canvas is 800 wide and 500 tall. Positions are centres. Keep everything at least 40 from the edges.
 
 What you place:
-- Nodes. A node is a shape (circle, ellipse, box, pill, cloud) or a symbol — a named pictogram from the list the schema gives you (a heart, a brain, a person, a syringe, a building, a cloud, a clock ...). Use a symbol for a thing with a name; use a shape for a container, a state, a stage, a group or an abstract quantity. A cloud is for something diffuse — an environment, a population, an idea.
-- Edges. An arrow says "leads to" or "causes"; a line says "is connected to"; a curve is an arrow that bends, for a return path or a loop; both is an exchange. Edges are drawn from the edge of one node to the edge of the next, so nodes should not overlap.
+- Nodes. A node is a shape or a symbol. Shapes: circle, ellipse, box, pill (a container, a state, a stage); cloud (something diffuse); blob (anything organic — an organ, a population, a region); ring (a hub, a target, the centre of a cycle); bar (an amount — set value 0 to 1 for how much of it is filled); stack (several of a thing, or layers). A symbol is a named pictogram from the list the schema gives you (a heart, a brain, a person, a syringe, a building, a clock ...) for a thing with a name.
+- Labels. Name what needs naming: give a node a label of one to three words, and an edge a label where the relation needs a word ("blocks", "×3", "after 90 s"). Labels are drawn beside their node in the room's own type. Most nodes carry one; a diagram with nothing named is a puzzle.
+- Edges. An arrow says "leads to" or "causes"; a line says "is connected to"; a curve is an arrow that bends, for a return path or a loop; both is an exchange; dashed is a weak, indirect or broken relation; leader is a thin line that only points, for a label to a part. Edges are drawn from the edge of one node to the edge of the next, so nodes should not overlap.
 
 Composition:
 - One subject, big. The main node or nodes fill most of the canvas: a lone subject is around 300 to 380 wide, a row of three is about 180 each. Never a scatter of small things. At most 8 nodes and 8 edges.
-- Read left to right or top to bottom, the way the room reads. A flow is a row; a hierarchy is a column; a cycle is a ring of three or four with curves.
-- Weight carries meaning: mark at most two shapes with fill (the thing the picture is about — never a symbol) and mark the idea a stage adds with accent (the arrow that shows the flow, the part that changes). At most a quarter of the elements are accent.
-- No words. There is no text in a diagram; say what a label would be in the stage label.
+- Read left to right or top to bottom, the way the room reads. A flow is a row; a hierarchy is a column; a cycle is a ring of three or four with curves; a comparison is two columns; an amount is bars side by side; a before-and-after is the same shape twice with the change marked.
+- Weight carries meaning: mark at most two shapes with fill (the thing the picture is about — never a symbol), mark a part that is damaged, blocked or absent with hatch, and mark the idea a stage adds with accent (the arrow that shows the flow, the part that changes). At most a quarter of the elements are accent.
+- Words belong in labels, not in the picture: there is no other text.
 
 Staging:
-- 2 to 4 stages, numbered from 0. Stage 0 is the subject as the room first sees it — complete enough to recognise. Each later stage adds exactly one idea: a mechanism, a consequence, a comparison. Give every node and edge the stage it first appears in.
+- 2 to 4 stages, numbered from 0. Stage 0 is the subject as the room first sees it — complete enough to recognise, with its labels. Each later stage adds exactly one idea: a mechanism, a consequence, a comparison. Give every node and edge the stage it first appears in.
 - The stage labels name what each stage adds, in a few words each.
 - The alt text describes the finished picture for someone who cannot see it, in one or two sentences.`,
       prompt: `Compose a diagram that explains: ${prompt}`,

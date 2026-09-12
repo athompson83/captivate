@@ -127,3 +127,38 @@ describe("what a stroke may carry beyond its geometry", () => {
     expect(wash.classList.contains("dp-drawn")).toBe(false);
   });
 });
+
+describe("labels on a drawing", () => {
+  const labelled: DrawingElement = {
+    ...element,
+    labels: [
+      { text: "Heart", x: 50, y: 120, stage: 0, size: 1, anchor: "middle" },
+      { text: "Later", x: 150, y: 120, stage: 2, size: 0.8, anchor: "start", ink: "accent" },
+    ],
+  };
+
+  it("are set beside their parts in the theme's face and arrive with their stage", () => {
+    const { container } = render(
+      <DrawnPicture element={labelled} step={0} fontFamily="var(--font-inter)" />,
+    );
+    const texts = [...container.querySelectorAll("text")];
+    expect(texts.map((t) => t.textContent)).toEqual(["Heart", "Later"]);
+    expect(texts[0].classList.contains("dp-drawn")).toBe(true);
+    expect(texts[1].classList.contains("dp-drawn")).toBe(false);
+    expect(texts[0].getAttribute("font-family")).toBe("var(--font-inter)");
+    expect(texts[1].getAttribute("fill")).toBe("var(--stage-accent)");
+    expect(texts[1].getAttribute("text-anchor")).toBe("start");
+    // Outside the hand's filter: a wobbled word reads as a fault.
+    expect(texts[0].closest("g[filter]")).toBeNull();
+    expect(container.querySelector("g[filter]")).not.toBeNull();
+  });
+
+  it("draws every stroke through one hand, defined once per picture", () => {
+    const { container } = render(<DrawnPicture element={labelled} step={2} />);
+    const filters = container.querySelectorAll("filter");
+    expect(filters).toHaveLength(1);
+    expect(container.querySelector("feDisplacementMap")).not.toBeNull();
+    const paths = [...container.querySelectorAll("path")];
+    expect(paths.every((p) => p.closest("g[filter]") !== null)).toBe(true);
+  });
+});

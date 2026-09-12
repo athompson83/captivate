@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ICON_NAMES } from "@/lib/schema/icons";
 import { SceneContent, SceneLayout, DrawnPath } from "@/lib/schema/presentation";
+import { DrawnLabel } from "@/lib/schema/presentation";
 import { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 
 /**
@@ -121,6 +122,14 @@ export const GeneratedScene = z.object({
     .default(null),
   /** A description the app turns into an image search or generation prompt. */
   imagePrompt: z.string().max(240).default(""),
+  /**
+   * What to diagram, where the scene's picture should be drawn rather than
+   * photographed: the parts, their names and how they relate. Empty where
+   * a photograph is the right picture. A photographic prompt handed to the
+   * diagram compiler produced a stick figure beside a box, which is what
+   * "the drawings are basic" looked like.
+   */
+  drawingBrief: z.string().max(300).default(""),
   /** Two to five concrete words for a stock-photo search of the same subject. */
   photoQuery: z.string().max(80).default(""),
   /**
@@ -339,6 +348,7 @@ export const GeneratedDrawing = z.object({
     height: z.number().positive().max(4000),
   }),
   paths: z.array(DrawnPath).min(1).max(400),
+  labels: z.array(DrawnLabel).max(24).default([]),
   stageLabels: z.array(z.string().max(120)).max(20).default([]),
   alt: z.string().max(600).default(""),
 });

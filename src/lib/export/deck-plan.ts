@@ -227,7 +227,17 @@ export function drawingSvg(
       return `${wash}<path d="${path.d}" fill="none" stroke="${colour}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`;
     })
     .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${element.viewBox.width} ${element.viewBox.height}" width="${element.viewBox.width}" height="${element.viewBox.height}">${paths}</svg>`;
+  // The labels, as the stage sets them: a word beside its part.
+  const size = element.viewBox.width * 0.0325;
+  const escape = (text: string) =>
+    text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const labels = (element.labels ?? [])
+    .map((label) => {
+      const colour = inks[label.ink ?? element.ink ?? "ink"];
+      return `<text x="${label.x}" y="${label.y}" fill="${colour}" font-family="sans-serif" font-size="${size * label.size}" font-weight="500" text-anchor="${label.anchor}" dominant-baseline="middle">${escape(label.text)}</text>`;
+    })
+    .join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${element.viewBox.width} ${element.viewBox.height}" width="${element.viewBox.width}" height="${element.viewBox.height}">${paths}${labels}</svg>`;
 }
 
 interface Counter {

@@ -477,6 +477,9 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
       // rectangle beside a heading is a slide; the same photograph feathered
       // into the page is a place.
       edge: "soft",
+      // And is lit like the rest of the deck: a stock photograph in its own
+      // colour beside a themed heading is a scrapbook page.
+      grade: "tint",
       hidden: false,
       locked: false,
       opacity: 1,
@@ -903,6 +906,7 @@ function composeCover(content: LayoutContent): SceneContent {
       radius: 0,
       scrim: 0.45,
       edge: "soft",
+      grade: "tint",
       hidden: false,
       locked: false,
       opacity: 1,

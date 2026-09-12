@@ -104,7 +104,11 @@ fills only the fields that layout uses. Everything else is empty.
 
 Where the model asks for an image via `imagePrompt`, a placeholder image element
 is created in the right slot with the prompt as its alt text. The composition is
-correct; the user only has to drop a picture in.
+correct; the user only has to drop a picture in. A scene whose picture should be
+drawn rather than photographed also carries a `drawingBrief` — the parts, their
+names and how they relate — and the drawing pass draws from that, never from
+the photograph's prompt (see `docs/PRESENTATION_ENGINE.md`, "Briefed for a
+diagram").
 
 ### Composition is a deck decision, and the intent is a suggestion
 

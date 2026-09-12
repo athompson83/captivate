@@ -257,6 +257,7 @@ export function fallbackScene(
     chart: null,
     code: null,
     imagePrompt: "",
+    drawingBrief: "",
     photoQuery: "",
     aside: null,
     speakerNotes:

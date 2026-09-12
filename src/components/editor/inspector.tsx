@@ -384,6 +384,19 @@ function StyleControls({
               ]}
             />
           </Field>
+          <Field label="Grade">
+            <Segmented
+              label="Image grade"
+              size="sm"
+              value={element.grade}
+              onChange={(v) => patch((el: typeof element) => ({ ...el, grade: v }), "Change grade")}
+              options={[
+                { value: "tint", label: "Tint" },
+                { value: "duotone", label: "Duotone" },
+                { value: "none", label: "As shot" },
+              ]}
+            />
+          </Field>
           <Field label="Fit">
             <Segmented
               label="Image fit"

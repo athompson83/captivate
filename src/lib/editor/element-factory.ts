@@ -116,6 +116,9 @@ export function createElement(type: SceneElementType, at?: { x: number; y: numbe
         radius: 1.5,
         scrim: 0,
         edge: "soft",
+        // The deck's light, by default; "As shot" is one click away for a
+        // chart or a screenshot whose own colour is the point.
+        grade: "tint",
       };
 
     case "video":
@@ -235,6 +238,10 @@ export function createElement(type: SceneElementType, at?: { x: number; y: numbe
           { d: "M 84 70 L 148 70", stage: 1 },
           { d: "M 138 62 L 150 70 L 138 78", stage: 1 },
           { d: "M 158 48 L 218 48 L 218 92 L 158 92 Z", stage: 2 },
+        ],
+        labels: [
+          { text: "Start", x: 52, y: 112, stage: 0, size: 1, anchor: "middle" },
+          { text: "Lands here", x: 188, y: 112, stage: 2, size: 1, anchor: "middle" },
         ],
         stageLabels: ["The starting point", "What it leads to", "Where it lands"],
         ink: "ink",

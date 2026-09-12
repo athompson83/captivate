@@ -5,6 +5,7 @@ import { useReducedMotion } from "motion/react";
 import * as Icons from "lucide-react";
 import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
 import { DrawnPicture } from "./drawn-picture";
+import { GRAIN_DATA_URL, GRAIN_TILE_PX, coversStage, gradeCss } from "@/lib/present/grade";
 import { embedSandbox } from "@/lib/utils/embed";
 import { categoricalHues, resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
@@ -573,8 +574,11 @@ export const ElementView = memo(function ElementView({
       // line. Two gradients intersected rather than one radial: a radial
       // feather leaves a full-bleed photograph as an oval, and a picture's
       // corners are the part of it that should go quietly, not its middle.
-      const soft = element.edge === "soft";
+      // Never on a picture that is the whole stage: feathering a veil showed
+      // the title scene through its rim.
+      const soft = element.edge === "soft" && !coversStage(element.frame);
       const radiusPx = Math.max(element.radius, soft ? 2.4 : 0) * rem;
+      const grade = gradeCss(element.grade);
       const feather =
         "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent), linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent)";
       return (
@@ -609,6 +613,7 @@ export const ElementView = memo(function ElementView({
                 objectFit: element.fit,
                 objectPosition: `${element.focalX * 100}% ${element.focalY * 100}%`,
                 display: "block",
+                filter: grade.filter || undefined,
               }}
             />
           ) : (
@@ -617,6 +622,41 @@ export const ElementView = memo(function ElementView({
               rem={rem}
               label={element.alt || "Image"}
               radiusPx={radiusPx}
+            />
+          )}
+          {/* The grade: the deck's own colour laid over the photograph, and
+              grain over that, so a picture from anywhere reads as printed
+              for this deck. Only over a real picture — over a placeholder
+              these are tinted rectangles on the canvas. */}
+          {element.url &&
+            grade.layers.map((layer, i) => (
+              <div
+                key={i}
+                aria-hidden
+                data-grade={element.grade}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: layer.background,
+                  mixBlendMode: layer.mixBlendMode,
+                  opacity: layer.opacity,
+                  pointerEvents: "none",
+                }}
+              />
+            ))}
+          {element.url && grade.grain > 0 && (
+            <div
+              aria-hidden
+              data-grain
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage: GRAIN_DATA_URL,
+                backgroundSize: `${GRAIN_TILE_PX}px ${GRAIN_TILE_PX}px`,
+                mixBlendMode: "overlay",
+                opacity: grade.grain,
+                pointerEvents: "none",
+              }}
             />
           )}
           {/* A scrim darkens a photograph so a caption over it stays legible.
@@ -1004,7 +1044,13 @@ export const ElementView = memo(function ElementView({
       // Complete, not animated: this path serves the editor canvas, thumbnails
       // and previews, where the picture is being looked at rather than
       // performed. The stage swaps in the step-driven version while presenting.
-      return <DrawnPicture element={element} step={Number.POSITIVE_INFINITY} />;
+      return (
+        <DrawnPicture
+          element={element}
+          step={Number.POSITIVE_INFINITY}
+          fontFamily={theme.fonts.sans}
+        />
+      );
 
     case "embed":
       return (
