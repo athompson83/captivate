@@ -1197,15 +1197,27 @@ export function richTextAccent(text: string, accent: string): RichText {
 export function richTextMark(text: string, phrase: string): RichText {
   const needle = phrase.trim();
   if (!needle) return richText(text);
-  const at = text.toLowerCase().indexOf(needle.toLowerCase());
-  if (at < 0) return richText(text);
+  // Exact first; then without regard to case, matched *in the original text*
+  // rather than in a lowercased copy — lowercasing can change a string's
+  // length ("İ" becomes two code points), and an index into the copy then
+  // colours the wrong characters of the original.
+  const exact = text.indexOf(needle);
+  const found =
+    exact >= 0
+      ? { at: exact, length: needle.length }
+      : (() => {
+          const match = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "iu").exec(text);
+          return match ? { at: match.index, length: match[0].length } : null;
+        })();
+  if (!found) return richText(text);
+  const { at, length } = found;
   const runs: RichText = [];
   if (at > 0) runs.push({ text: text.slice(0, at) });
   runs.push({
-    text: text.slice(at, at + needle.length),
+    text: text.slice(at, at + length),
     color: { kind: "token", token: ACCENT_TOKEN },
   });
-  if (at + needle.length < text.length) runs.push({ text: text.slice(at + needle.length) });
+  if (at + length < text.length) runs.push({ text: text.slice(at + length) });
   return runs;
 }
 

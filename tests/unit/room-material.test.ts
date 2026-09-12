@@ -75,8 +75,12 @@ describe("the room chosen by the look", () => {
     const deckRoute = readFileSync("src/app/api/ai/scenes-from-map/route.ts", "utf8");
     const createRoute = readFileSync("src/app/api/ai/create-from-map/route.ts", "utf8");
     expect(deckRoute).toContain("roomFor(result.data.look)");
-    // A deck that already had a look keeps the room its author chose since.
-    expect(deckRoute).toMatch(/!current\.look && result\.data\.look \? roomFor/);
+    // A deck that already had a look keeps the room its author chose since,
+    // and so does one whose author changed the room while the route ran.
+    expect(deckRoute).toContain(
+      "const roomUntouched = current.backdrop.graphic === deck.journey.backdrop.graphic;",
+    );
+    expect(deckRoute).toMatch(/!current\.look && result\.data\.look && roomUntouched/);
     expect(createRoute).toContain("roomFor(built.data.look)");
     for (const route of [deckRoute, createRoute]) {
       expect(route).toContain("...room, graphic }");
@@ -116,6 +120,18 @@ describe("the phrase that matters", () => {
     expect(tail.at(-1)!.color).toBeDefined();
     expect(tail).toHaveLength(2);
     expect(richTextMark("the pipe, the pipe", "the pipe")).toHaveLength(2);
+  });
+
+  it("keeps its place in text whose lowercase form is a different length", () => {
+    // Lowercasing "İ" yields two code points; an index into the lowercased
+    // copy landed one character late and coloured "s vivid".
+    const runs = richTextMark("İstanbul is vivid", "is vivid");
+    expect(runs.find((r) => r.color)?.text).toBe("is vivid");
+    expect(runs.map((r) => r.text).join("")).toBe("İstanbul is vivid");
+    const upper = richTextMark("İstanbul IS vivid", "is vivid");
+    expect(upper.find((r) => r.color)?.text).toBe("IS vivid");
+    // Regex characters in a phrase are letters, not operators.
+    expect(richTextMark("1 in 4 (one) die.", "(one)").find((r) => r.color)?.text).toBe("(one)");
   });
 
   it("marks nothing when the phrase is not in the body", () => {

@@ -223,9 +223,15 @@ export async function POST(request: Request) {
       // The drawn room follows the look the first time a deck is given one.
       // A deck that already had a look keeps whatever room its author chose
       // since: the choice is theirs from then on, and a regeneration writes
-      // the same look back anyway.
+      // the same look back anyway. So does a deck whose author changed the
+      // room while this route was running — the journey read now differs
+      // from the one read at the top — because an empty look is no proof
+      // the room was never touched.
+      const roomUntouched = current.backdrop.graphic === deck.journey.backdrop.graphic;
       const graphic =
-        !current.look && result.data.look ? roomFor(result.data.look) : current.backdrop.graphic;
+        !current.look && result.data.look && roomUntouched
+          ? roomFor(result.data.look)
+          : current.backdrop.graphic;
       const journey: JourneyConfig = {
         ...current,
         look: result.data.look || current.look,
