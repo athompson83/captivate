@@ -221,6 +221,35 @@ describe("drawn like an illustrator", () => {
     expect(groups).toHaveLength(3);
   });
 
+  it("lays a wash with no line down at once, taking no slot on the sketch clock", () => {
+    // Two strokes and a line-less wash in one stage: the strokes split the
+    // stage's pace between the two of them, the wash goes down at 0s and
+    // draws no stroke at all.
+    const washed: DrawingElement = {
+      ...element,
+      paceSeconds: 2,
+      paths: [
+        { d: "M 0 0 L 100 0 L 100 100 Z", stage: 0, fill: true, weight: 0 },
+        { d: "M 0 0 L 100 100", stage: 0 },
+        { d: "M 0 100 L 100 0", stage: 0 },
+      ],
+    };
+    const { container } = render(<DrawnPicture element={washed} step={0} />);
+    const strokes = [...container.querySelectorAll("path.dp-path:not(.dp-under)")];
+    expect(strokes).toHaveLength(2);
+    expect(strokes.map((p) => (p as HTMLElement).style.getPropertyValue("--dp-dur"))).toEqual([
+      "1s",
+      "1s",
+    ]);
+    expect(strokes.map((p) => (p as HTMLElement).style.getPropertyValue("--dp-del"))).toEqual([
+      "0s",
+      "1s",
+    ]);
+    const wash = container.querySelector<HTMLElement>("path.dp-fill")!;
+    expect(wash.style.getPropertyValue("--dp-del")).toBe("0s");
+    expect(container.querySelectorAll("path.dp-under")).toHaveLength(2);
+  });
+
   it("is deterministic: the hands are seeded from the picture's size, not the clock", () => {
     const a = render(<DrawnPicture element={filled} step={1} />).container.innerHTML;
     const b = render(<DrawnPicture element={filled} step={1} />).container.innerHTML;

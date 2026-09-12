@@ -459,6 +459,12 @@ export const DrawnPath = z
     // rendered mistake.
     message: "A fill needs a closed path (ending in Z)",
     path: ["fill"],
+  })
+  // A stroke of weight zero is a wash with no line. Without a fill it is
+  // nothing at all, and a drawing of nothing would pass the schema and
+  // render blank.
+  .refine((path) => path.weight !== 0 || path.fill === true, {
+    message: "A stroke of weight zero must be a filled wash",
   });
 export type DrawnPath = z.infer<typeof DrawnPath>;
 

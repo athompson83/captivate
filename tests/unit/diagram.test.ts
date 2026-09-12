@@ -741,6 +741,17 @@ describe("arranged compositions", () => {
   });
 });
 
+describe("a wash with no line", () => {
+  it("is a stroke of weight zero, and only with a fill", () => {
+    expect(
+      DrawnPath.safeParse({ d: "M 0 0 L 10 0 L 10 10 Z", weight: 0, fill: true }).success,
+    ).toBe(true);
+    // Without a fill it is nothing, and a drawing of nothing must not pass.
+    expect(DrawnPath.safeParse({ d: "M 0 0 L 10 0 L 10 10 Z", weight: 0 }).success).toBe(false);
+    expect(DrawnPath.safeParse({ d: "M 0 0 L 10 0", weight: 0, fill: false }).success).toBe(false);
+  });
+});
+
 describe("light on the drawing", () => {
   const square = [
     { x: 0, y: 0 },

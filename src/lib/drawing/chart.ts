@@ -128,7 +128,10 @@ export function compileChart(element: ChartElement): CompiledDrawing {
     const cy = H / 2;
     const outer = 165;
     const inner = 100;
-    const total = data.reduce((s, d) => s + Math.abs(d.value), 0) || 1;
+    // The sum is the whole; the wedges divide by a nonzero stand-in so a
+    // chart of zeros draws nothing rather than dividing by nothing.
+    const sum = data.reduce((s, d) => s + Math.abs(d.value), 0);
+    const total = sum || 1;
     // A breath between wedges, so two the same ink still read as two. A
     // sliver keeps half its own sweep rather than vanishing into the gap,
     // so the ring never contradicts its legend.
@@ -164,9 +167,9 @@ export function compileChart(element: ChartElement): CompiledDrawing {
         angle += sweep;
       });
     }
-    // The whole, in the middle: what the wedges add up to.
-    if (element.showValues) {
-      labels.push(label(valueText(total), cx, cy, { size: 1.5 }));
+    // The whole, in the middle: what the wedges add up to, where there is one.
+    if (element.showValues && sum > 0) {
+      labels.push(label(valueText(sum), cx, cy, { size: 1.5 }));
     }
     const legendX = 480;
     const step = Math.min(46, (H - EDGE * 2) / Math.max(1, n));

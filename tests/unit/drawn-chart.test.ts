@@ -161,6 +161,22 @@ describe("a line and a donut", () => {
         (l) => l.text === "70",
       ),
     ).toBe(false);
+    // A donut of zeros has no whole to write — never the "1" the wedges
+    // divide by — and an empty one neither.
+    const zeroed = compileChart(
+      chart({
+        chart: "donut",
+        data: [
+          { label: "A", value: 0 },
+          { label: "B", value: 0 },
+        ],
+      }),
+    );
+    expect(zeroed.labels.some((l) => l.size === 1.5)).toBe(false);
+    expect(zeroed.labels.some((l) => l.text === "1")).toBe(false);
+    expect(
+      compileChart(chart({ chart: "donut", data: [] })).labels.some((l) => l.size === 1.5),
+    ).toBe(false);
     const wedges = drawing.paths.filter((p) => /A 165 165/.test(p.d));
     expect(wedges).toHaveLength(3);
     expect(wedges.every((w) => w.fill && /Z$/.test(w.d))).toBe(true);
