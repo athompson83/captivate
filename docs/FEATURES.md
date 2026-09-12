@@ -77,8 +77,10 @@ Sign-in errors are deliberately generic: distinguishing "no such user" from
 Implemented: heading, text, quote, list, image, video, audio, shape, divider,
 icon, callout, code, chart, embed.
 
-Charts are a dependency-free renderer covering bar, column, line and donut, with
-a required text description for screen readers. Embeds are sandboxed iframes
+Charts — bar, column, line and donut — are drawn by the same hand as the
+diagrams: compiled at render time into strokes, washes and labels
+(`src/lib/drawing/chart.ts`) and sketched on arrival, with a required text
+description for screen readers. Embeds are sandboxed iframes
 restricted to http and https.
 
 ---

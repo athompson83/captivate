@@ -13,6 +13,7 @@ import { STAGE_BASE_WIDTH, fitScale, stageSize } from "@/lib/present/stage";
 import { STAGE_EASE, entranceFrom, entranceTo, exitTo } from "@/lib/present/motion";
 import { elementDepth } from "@/lib/present/parallax";
 import { DrawnPicture } from "./drawn-picture";
+import { chartDrawing } from "@/lib/drawing/chart";
 import { ElementView } from "./element-view";
 import { cn } from "@/lib/utils/cn";
 
@@ -488,6 +489,17 @@ function StaggeredElement({
   // front of the room, not in the distance.
   if (element.type === "drawing" && play) {
     return <DrawnPicture element={element} step={held ? -1 : step} fontFamily={theme.fonts.sans} />;
+  }
+  // A chart is a drawing by the same hand: sketched on arrival, held for
+  // the camera like one, complete everywhere else.
+  if (element.type === "chart" && play) {
+    return (
+      <DrawnPicture
+        element={chartDrawing(element)}
+        step={held ? -1 : step}
+        fontFamily={theme.fonts.sans}
+      />
+    );
   }
   if (element.type === "list" && element.staggered && play) {
     const visible = Math.max(1, Math.min(element.items.length, step + 1));

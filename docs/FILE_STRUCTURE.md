@@ -128,6 +128,12 @@ captivate/
 │  │  │  ├─ upload.ts              Browser → storage upload
 │  │  │  ├─ upload-limits.ts       Shared constants (not a server module)
 │  │  │  └─ use-debounced-save.ts  Durable debounced save for notes
+│  │  ├─ drawing/                  The diagram language and its compiler
+│  │  │  ├─ diagram.ts             Nodes, edges, arrangements → strokes and labels
+│  │  │  ├─ chart.ts               A chart compiled into the same language: bars,
+│  │  │  │                         columns, a line, a donut
+│  │  │  ├─ symbols.ts             The pictograms a diagram may place (Lucide as paths)
+│  │  │  └─ path-tokens.ts         The path grammar a stored stroke must pass
 │  │  ├─ supabase/                 client, server, admin, config, types
 │  │  ├─ marketing/                The hero's world and flight path; the
 │  │  │                            worked example as a deck the landing

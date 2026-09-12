@@ -11,11 +11,10 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #106 — the MVP-032 closeout, and drawn like an illustrator
-  (an underdrawing and a watercolour wash on every drawing, arranged
-  compositions in the diagram language, icons by the same hand), PR #107,
+  `main` after PR #107 — the MVP-033 closeout, and charts by the same hand
+  (a chart compiled into the drawing language and sketched on arrival),
   awaiting CI, merge and production verification
-- `main`: through PR #106 (merged) — `31bba83`; PR #94 (`01437d0`) fixed the four defects the owner
+- `main`: through PR #107 (merged) — `69cd142`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -152,7 +151,55 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### Charts by the same hand
+
+A chart on the stage was a set of coloured rectangles from a spreadsheet —
+exact, weightless, and in a different visual language from the drawing
+beside it and the icon above it, which after the illustrator round was the
+one thing on a scene still drawn by a machine. A lecturer at a whiteboard
+does not draw that chart; they draw a baseline and a few bars with the
+amounts written over them, and the room reads it as an argument.
+
+**A chart is compiled into the drawing language** (`lib/drawing/chart.ts`,
+`compileChart`): a baseline, each column or bar an outline with a wash
+inside it (from a common floor, in proportion, a floor of two corner radii
+so a zero is still a thing), a line in one stroke through its points with a
+filled mark at each, a donut as closed ring wedges with a breath between
+them and a legend beside the ring so no name is read along a curve; every
+category, value and legend entry a label in the room's type, kept inside
+the canvas. The accent palette draws every series in the accent; the
+categorical and sequential palettes cycle the three inks, since a wash has
+no hue of its own. `chartDrawing` wraps it as the drawing element the
+stage already knows how to sketch, built at render time and never stored:
+the chart element keeps its data, and a change to the recipe reaches every
+chart already in a deck.
+
+**Sketched on arrival like a drawing.** The stage's performed-drawing
+branch takes charts too, so a chart is held for the camera and drawn in
+front of the room stroke by stroke through the three hands, its labels
+arriving after the last stroke. The old renderer — HTML bars growing on a
+transform, a polyline wiped by a clip, arcs swept by a dash — and its CSS
+are gone; the export keeps its own chart path, untouched.
+
+Tests in `drawn-chart` (proportion, labels, the bar floor, twelve columns
+inside the canvas, inks cycled or not, the empty chart, a negative value by
+its size, the line's one stroke and marks, the donut's wedges and legend,
+the wedge recipe, the drawing element's validity, value text) and
+`stage-render` (sketched complete in the editor, on arrival while
+presenting, held for the camera; the summary as the picture's name).
+
 ### Drawn like an illustrator
+
+**Landed and verified.** PR #107 squash-merged as `69cd142`, all six CI
+jobs green on the head; the proxied smoke suite 37 of 37 against
+`www.axtevi.com` after the deploy. Two things found on the PR and fixed
+before merge: the composition sheet's overflow scan caught the icon's wash
+painting past its box on all sixteen icons of the layout sheet — it fills
+the icon's own box now, set a little down and to the right like a
+drawing's wash — and Codex caught the compiler reading any box under 16 as
+unsized, so seven bars fitted in a row stood on end; only zero, the
+schema's default, means unsized now, and a row past eight nodes closes its
+air so eleven still fit without overlapping.
 
 The owner, after the room and the phrase: "presentation graphics and
 drawings still need improvement — go next level." A compiled diagram was a
