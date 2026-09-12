@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { isShade } from "@/lib/drawing/diagram";
 import {
   chartDrawing,
-  compileChart,
+  compileChart as compileWithShade,
   labelText,
   valueText,
   wedgePath,
@@ -18,6 +19,12 @@ import { createElement } from "@/lib/editor/element-factory";
  * line goes through its points, a donut's wedges make a ring, and the whole
  * thing is a drawing the stage can sketch.
  */
+
+/** The chart without its shade: the tests of the forms read the lines. */
+const compileChart: typeof compileWithShade = (element) => {
+  const drawing = compileWithShade(element);
+  return { ...drawing, paths: drawing.paths.filter((p) => !isShade(p)) };
+};
 
 const chart = (over: Partial<ChartElement>): ChartElement => ({
   ...(createElement("chart") as ChartElement),
@@ -194,6 +201,17 @@ describe("a line and a donut", () => {
     expect(d).toMatch(/^M 100 0 A 100 100 0 0 1 0 100 L 0 60 A 60 60 0 0 0 60 0 Z$/);
     // Past a half turn the large-arc flag is set.
     expect(wedgePath(0, 0, 100, 60, 0, Math.PI * 1.5)).toMatch(/A 100 100 0 1 1/);
+  });
+});
+
+describe("light on a chart", () => {
+  it("shades every column and bar on the side away from the light, and nothing else", () => {
+    const columns = compileWithShade(chart({}));
+    expect(columns.paths.filter(isShade).length).toBeGreaterThan(3);
+    const bars = compileWithShade(chart({ chart: "bar" }));
+    expect(bars.paths.filter(isShade).length).toBeGreaterThan(3);
+    expect(compileWithShade(chart({ chart: "line" })).paths.filter(isShade)).toHaveLength(0);
+    expect(compileWithShade(chart({ chart: "donut" })).paths.filter(isShade)).toHaveLength(0);
   });
 });
 

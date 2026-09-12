@@ -11,10 +11,10 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #107 — the MVP-033 closeout, and charts by the same hand
-  (a chart compiled into the drawing language and sketched on arrival),
-  awaiting CI, merge and production verification
-- `main`: through PR #107 (merged) — `69cd142`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #108 — the MVP-034 closeout, and light on the drawing (a
+  shade on the side of every form away from the light), awaiting CI, merge
+  and production verification
+- `main`: through PR #108 (merged) — `ec8bf5b`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -151,7 +151,53 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### Light on the drawing
+
+The fourth round under "graphics and drawings — go next level". A form drawn
+as an outline with a flat wash has no light on it, and a picture with no
+light in it is a diagram however well it is drawn. An illustrator's
+shorthand for light is a run of short parallel lines along the side of a
+form that faces away from it, and that is now part of the compiler
+(`shadeLines`): lines at 45 degrees falling to the right, perpendicular to a
+light from the top left, kept where a step away from the light — the width
+of a band, a fifth of the form's smaller side — leaves the form, and cut to
+the outline even-odd like hatching, at half weight in the muted ink. So a
+box is shaded along its right and bottom faces, a circle in a crescent on
+its far rim, and a ring on its outer far rim and on the near wall of its
+hole, the wall that faces away from the light. The first cut was "the far
+third of the form along the light", and the session's render showed why
+that is wrong: on a tall column it is a triangle in the corner, not a face.
+Every closed form takes the shade — a circle, a box, a blob, a ring, a
+stack's front, a bar's extent — and so do a chart's columns and bars; a
+hatched part is already tone and gets none, and a symbol is a glyph, not a
+form. Drawn after the outline at the form's own stage, so the room watches
+the form appear and then take its light. The shade is the compiler's, not
+the document's, so every drawing already in a deck takes its light the
+moment the deploy lands.
+
+Tests in `diagram` (every shade line inside the form and within a band of
+its right or bottom face, perpendicular to the light, none on the lit side;
+a tall column shaded down its right face and not only in its corner; a
+circle's shade inside its rim and on its far side, a ring's off its hole,
+none on a symbol or a hatched part, and after the outline at the node's
+stage) and `drawn-chart` (columns and bars shaded, lines and donuts not).
+The form tests read the drawing without its shade through one wrapper, so
+they still count lines rather than tone.
+
 ### Charts by the same hand
+
+**Landed and verified.** PR #108 squash-merged as `ec8bf5b`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 35 of 37 on the first run, both failures proxy timeouts
+reaching `/privacy` and `/templates` (`net::ERR_TIMED_OUT`, no response at
+all), and 3 of 3 when re-run with both routes answering in 0.4 s — the
+deployment was never at fault. Codex found three real things on the PR,
+fixed before merge: a category name over the label's limit was cut without
+a sign — it is shortened visibly, with an ellipsis; a donut with one value
+drew nothing, because an arc from a point back to itself is no arc — it is
+two circles now, the diagram language's own ring; and a sliver could vanish
+into the fixed breath between wedges — the breath is capped at half the
+wedge's sweep, so the ring never contradicts its legend.
 
 A chart on the stage was a set of coloured rectangles from a spreadsheet —
 exact, weightless, and in a different visual language from the drawing
