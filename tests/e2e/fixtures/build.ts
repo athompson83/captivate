@@ -160,7 +160,21 @@ export async function bundleFixture(entry: string): Promise<string> {
   const html = join(outDir, "index.html");
   await writeFile(
     html,
-    `<!doctype html><meta charset="utf-8"><title>fixture</title>` +
+    `<!doctype html><meta charset="utf-8">` +
+      /*
+       * The viewport meta the application has and a bare fixture page did not.
+       *
+       * Without it Chromium's mobile emulation falls back to a 980px layout
+       * viewport and scales the page, so a component mounted at a 390px device
+       * width laid out at 980 and resolved `vh` against a viewport that was
+       * not the one the test asked for. In the shared viewer that fed a
+       * measure-write-measure loop: the world remeasured, the root grew, and
+       * the camera slid down the screen at about twenty pixels a second for as
+       * long as the page stayed open — which made a tap on a fixed point land
+       * somewhere different depending on how loaded the machine was.
+       */
+      `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+      `<title>fixture</title>` +
       (styles.length ? `<style>${styles.join("\n")}</style>` : "") +
       `<body style="margin:0;background:#000"><script>${script}</script></body>`,
   );

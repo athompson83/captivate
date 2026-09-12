@@ -1,3 +1,5 @@
+import "@/app/globals.css";
+
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { SharedViewer } from "@/components/present/shared-viewer";

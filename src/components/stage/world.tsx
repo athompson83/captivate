@@ -28,8 +28,22 @@ import {
   type Size,
 } from "@/lib/present/camera";
 import { smoothPath } from "@/lib/present/path";
-import { backdropPlane, backdropTransform } from "@/lib/present/backdrop";
+import {
+  backdropLayer,
+  backdropPlane,
+  backdropTransform,
+  drawnBackdropTransform,
+} from "@/lib/present/backdrop";
+import { graphicBackdrop } from "@/lib/present/graphic-backdrop";
 import { regionParallax } from "@/lib/present/parallax";
+import {
+  LEVEL,
+  approachLean,
+  isSettled,
+  leanCamera,
+  pointerLean,
+  type Lean,
+} from "@/lib/present/lean";
 import { measureDrawnPath } from "./drawn-picture";
 import { ambientAt, paletteOf, scenePalettes } from "@/lib/present/ambient";
 import { oklabCss } from "@/lib/utils/color";
@@ -80,6 +94,14 @@ const Atmosphere = dynamic(() => import("./atmosphere").then((m) => m.Atmosphere
 export type Focus =
   { kind: "scene"; index: number } | { kind: "world" } | { kind: "section"; sectionId: string };
 
+/** Whether two focuses name the same destination. */
+function sameFocus(a: Focus, b: Focus): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "scene" && b.kind === "scene") return a.index === b.index;
+  if (a.kind === "section" && b.kind === "section") return a.sectionId === b.sectionId;
+  return true;
+}
+
 /** On-screen width, in px, below which a scene is drawn as a marker. */
 const DETAIL_THRESHOLD = 132;
 
@@ -108,7 +130,28 @@ export interface WorldProps {
    * or with an empty url, the atmosphere is the ground.
    */
   backdrop?: JourneyBackdrop;
+  /**
+   * The room answers the hand: the backdrop and the air follow a mouse over
+   * the world a little, the scene stays exactly where it is. For the audience
+   * surfaces a visitor holds a pointer over — the shared viewer, the landing
+   * page's demo — and not the projector, whose pointer is nobody's hand.
+   * Never on touch, never under reduced motion.
+   */
+  lean?: boolean;
   showPath?: boolean;
+  /**
+   * Whether to draw the air — the WebGL depth field behind the scenes.
+   *
+   * On by default, because it is the world's own light. Off is a presenting
+   * mode for a device that cannot afford a WebGL context: iOS terminates a web
+   * content process under memory pressure and a live GL context is the most
+   * expensive thing on the page by a distance, so an author whose phone keeps
+   * dying while presenting has somewhere to go that is not "buy a better
+   * phone". The component is not rendered at all rather than paused — a
+   * context that exists still costs — and everything else about the world is
+   * unchanged, including the colour wash that reads as light without it.
+   */
+  air?: boolean;
   /**
    * Viewport pixels on the left the camera must treat as occupied — the
    * movement rail overlays the world there, and without this the camera
@@ -149,7 +192,9 @@ export const World = memo(function World({
   pace,
   depth,
   backdrop,
+  lean = false,
   showPath = false,
+  air = true,
   safeInsetLeft = 0,
   className,
   chrome,
@@ -174,6 +219,8 @@ export const World = memo(function World({
   const worldRef = useRef<HTMLDivElement>(null);
   /** The picture behind the show, moved from the same loop as the world. */
   const backdropRef = useRef<HTMLDivElement>(null);
+  /** The drawn backdrop, which translates rather than scaling — see `drawnBackdropTransform`. */
+  const drawnRef = useRef<HTMLDivElement>(null);
   /** The full-viewport wash whose colour tracks where the camera is. */
   const ambientRef = useRef<HTMLDivElement>(null);
   /**
@@ -221,6 +268,21 @@ export const World = memo(function World({
    */
   const frameRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * The room's lean: where it is, where the hand is asking it to be, and when
+   * it was last advanced. Eased in its own frame loop, which runs only while
+   * the two differ; the flight's own frames read it and never step it.
+   */
+  const leanRef = useRef<{ current: Lean; target: Lean; at: number }>({
+    current: LEVEL,
+    target: LEVEL,
+    at: 0,
+  });
+  const leanFrameRef = useRef(0);
+  /** The latest `apply`, so a late-arriving atmosphere or a lean can paint with this render's plane and viewport. */
+  const applyRef = useRef<((camera: Camera) => void) | null>(null);
+  /** The room half of `apply` alone — what a lean frame repaints. */
+  const roomRef = useRef<((camera: Camera) => void) | null>(null);
   const arriveRef = useRef(onArrive);
   // Kept current in an effect, not during render: the flight loop below must
   // not restart when only the callback identity changes.
@@ -241,13 +303,23 @@ export const World = memo(function World({
    * still travelling, and the room landed on a finished scene. `onArrive`
    * was fired and nothing listened; this is what it was for.
    *
-   * Derived from the camera last landed on rather than flipped by the flight
-   * effect: the destination mounts in the very render that changes the
+   * Derived from what the camera last landed *on* rather than flipped by the
+   * flight effect: the destination mounts in the very render that changes the
    * target, and an element decides at mount whether it is held. A flag set
    * in an effect arrives one render too late, and that render is the one
    * that matters.
+   *
+   * The focus, not the camera. This used to hold the camera last landed on
+   * and compare it to the one being aimed at, which asks a question about
+   * geometry when the one that matters is about intent: a viewport that
+   * changes size — a phone hiding its address bar — recomputes the framing of
+   * the very scene the camera is already sitting on, the two cameras stop
+   * being equal, and the world reports that it has never landed. Nothing
+   * looks wrong until you notice that every drawing is missing, because a
+   * held drawing renders as a stroke of zero length. A resize does not change
+   * which scene the presenter is on, so it no longer changes the answer.
    */
-  const [landedOn, setLandedOn] = useState<Camera | null>(null);
+  const [landedFocus, setLandedFocus] = useState<Focus | null>(null);
 
   const measureRef = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
@@ -279,7 +351,7 @@ export const World = memo(function World({
     () => cameraFor(focus, scenes, placements, stage, aspectRatio),
     [focus, scenes, placements, stage, aspectRatio],
   );
-  const landed = landedOn !== null && camerasEqual(landedOn, target);
+  const landed = landedFocus !== null && sameFocus(landedFocus, focus);
   /**
    * Landed on a *scene*, which is the only landing a scene performs for. The
    * establishing shot over a new section and the overview are landings too,
@@ -288,7 +360,16 @@ export const World = memo(function World({
    */
   const onScene = landed && focus.kind === "scene" ? focus.index : -1;
 
-  const hasBackdrop = Boolean(backdrop?.url);
+  // A picture, a drawn backdrop, or both. The drawn one is the default, so a
+  // deck nobody has touched still has a designed room behind it rather than a
+  // flat field; a photograph, where the author set one, covers it.
+  const picture = Boolean(backdrop?.url);
+  // A picture covers the whole plane, so a drawn backdrop under one is paint
+  // nobody can see. Only ever one of the two is built.
+  const graphic = useMemo(
+    () => (picture ? null : graphicBackdrop(backdrop?.graphic ?? "aurora", basePalette)),
+    [picture, backdrop?.graphic, basePalette],
+  );
   const backdropDistance = backdrop?.distance ?? 0.5;
   const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
   // The viewport's own aspect, not the inset one: the picture covers the
@@ -323,6 +404,62 @@ export const World = memo(function World({
     const node = worldRef.current;
     if (!node || viewport.width === 0) return;
 
+    /**
+     * The room — backdrop, wash and air — seen from a camera leaned toward
+     * the hand; the content is not. A scene being read stays registered, and
+     * what is behind it shifts, which is what depth looks like from a viewer
+     * who moves. Its own function because a lean frame repaints only this:
+     * the world and every region's depth are unchanged by a lean, and
+     * rewriting them sixty times a second for no visible change is the most
+     * expensive way to do nothing.
+     */
+    const paintRoom = (camera: Camera) => {
+      const room = lean ? leanCamera(camera, leanRef.current.current, aspectRatio) : camera;
+
+      // The picture behind the show, at its distance. Same loop, same frame,
+      // so the parallax is never a frame behind the content.
+      if (backdropRef.current) {
+        backdropRef.current.style.transform = backdropTransform(
+          room,
+          viewport,
+          plane,
+          stage,
+          backdropDistance,
+        );
+      }
+
+      // The drawn one moves on its own, translate-only transform.
+      if (drawnRef.current) {
+        drawnRef.current.style.transform = drawnBackdropTransform(
+          room,
+          viewport,
+          plane,
+          stage,
+          backdropDistance,
+        );
+      }
+
+      // The room's colour follows the camera. Written as custom properties on
+      // one element rather than through React: this runs sixty times a second.
+      //
+      // Skipped entirely while the WebGL field is live, because the field is
+      // opaque and sits over it: recomputing a blend and restarting a
+      // full-viewport gradient transition every frame, for something nobody
+      // can see, is the most expensive way to do nothing.
+      const wash = atmospherePaintedRef.current ? null : ambientRef.current;
+      if (wash) {
+        const ambient = ambientAt(room, placements, palettes, stage, basePalette);
+        wash.style.setProperty("--world-canvas", ambient.canvas);
+        wash.style.setProperty("--world-surface", ambient.surface);
+        wash.style.setProperty("--world-glow", ambient.glow);
+      }
+
+      // The same colour, per pixel, where the GPU can draw it. Deliberately
+      // after the wash rather than instead of it: the wash is what shows if
+      // this never initialises.
+      if (atmosphereRef.current?.draw(room)) atmospherePaintedRef.current = true;
+    };
+
     const apply = (camera: Camera) => {
       cameraRef.current = camera;
       // Prepending the inset shifts the frame's centre into the clear area;
@@ -343,38 +480,10 @@ export const World = memo(function World({
         }
       }
 
-      // The picture behind the show, at its distance. Same loop, same frame,
-      // so the parallax is never a frame behind the content.
-      if (backdropRef.current) {
-        backdropRef.current.style.transform = backdropTransform(
-          camera,
-          viewport,
-          plane,
-          stage,
-          backdropDistance,
-        );
-      }
-
-      // The room's colour follows the camera. Written as custom properties on
-      // one element rather than through React: this runs sixty times a second.
-      //
-      // Skipped entirely while the WebGL field is live, because the field is
-      // opaque and sits over it: recomputing a blend and restarting a
-      // full-viewport gradient transition every frame, for something nobody
-      // can see, is the most expensive way to do nothing.
-      const wash = atmospherePaintedRef.current ? null : ambientRef.current;
-      if (wash) {
-        const ambient = ambientAt(camera, placements, palettes, stage, basePalette);
-        wash.style.setProperty("--world-canvas", ambient.canvas);
-        wash.style.setProperty("--world-surface", ambient.surface);
-        wash.style.setProperty("--world-glow", ambient.glow);
-      }
-
-      // The same colour, per pixel, where the GPU can draw it. Deliberately
-      // after the wash rather than instead of it: the wash is what shows if
-      // this never initialises.
-      if (atmosphereRef.current?.draw(camera)) atmospherePaintedRef.current = true;
+      paintRoom(camera);
     };
+    applyRef.current = apply;
+    roomRef.current = paintRoom;
 
     // Re-rendering with an equal destination must not restart a flight, and
     // the memo above cannot promise referential stability across every parent.
@@ -407,7 +516,7 @@ export const World = memo(function World({
      */
     const arrive = () => {
       setOrigin(target);
-      setLandedOn(target);
+      setLandedFocus(focus);
       arriveRef.current?.();
     };
 
@@ -465,6 +574,7 @@ export const World = memo(function World({
     frameRef.current = requestAnimationFrame(tick);
   }, [
     target,
+    focus,
     viewport,
     inset,
     effective,
@@ -480,7 +590,71 @@ export const World = memo(function World({
     plane,
     backdropDistance,
     play,
+    lean,
+    aspectRatio,
   ]);
+
+  /* ---------------------------------------------------------------------- */
+  /* The lean                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!lean || reduced || !node) return;
+
+    /** Paints the room for the current lean — unless a flight is, this frame. */
+    const paint = () => {
+      const camera = cameraRef.current;
+      if (camera && frameRef.current === 0 && !timerRef.current) roomRef.current?.(camera);
+    };
+
+    const tick = (now: number) => {
+      const state = leanRef.current;
+      // A first frame, or one after a long pause, steps by a frame's worth
+      // rather than by the whole gap: a lean that jumped to its target after
+      // a hidden tab is a pop.
+      const dt = state.at > 0 ? Math.min(0.1, (now - state.at) / 1000) : 1 / 60;
+      state.current = approachLean(state.current, state.target, dt);
+      state.at = now;
+      paint();
+      if (isSettled(state.current, state.target)) {
+        leanFrameRef.current = 0;
+        state.at = 0;
+        return;
+      }
+      leanFrameRef.current = requestAnimationFrame(tick);
+    };
+
+    const aim = (target: Lean) => {
+      leanRef.current.target = target;
+      if (leanFrameRef.current === 0 && !isSettled(leanRef.current.current, target)) {
+        leanFrameRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      // A finger on the stage is a swipe, not a lean.
+      if (event.pointerType === "touch") return;
+      // Read, not cached: the box moves when the page scrolls, which no
+      // ResizeObserver sees, and every write here happens in a frame callback,
+      // so at pointer time layout is clean and this forces nothing.
+      aim(pointerLean(event.clientX, event.clientY, node.getBoundingClientRect()));
+    };
+    const onPointerLeave = () => aim(LEVEL);
+
+    node.addEventListener("pointermove", onPointerMove);
+    node.addEventListener("pointerleave", onPointerLeave);
+    return () => {
+      node.removeEventListener("pointermove", onPointerMove);
+      node.removeEventListener("pointerleave", onPointerLeave);
+      if (leanFrameRef.current) cancelAnimationFrame(leanFrameRef.current);
+      leanFrameRef.current = 0;
+      // Level again, and painted so: a preference that flipped mid-lean must
+      // not leave the room standing a little to one side.
+      leanRef.current = { current: LEVEL, target: LEVEL, at: 0 };
+      paint();
+    };
+  }, [lean, reduced]);
 
   /* ---------------------------------------------------------------------- */
   /* What to render                                                          */
@@ -604,7 +778,7 @@ export const World = memo(function World({
         the whole claim the world makes and the one thing a single CSS gradient
         cannot say.
       */}
-      {viewport.width > 0 && (
+      {air && viewport.width > 0 && (
         <Atmosphere
           onReady={registerAtmosphere}
           placements={placements}
@@ -623,19 +797,56 @@ export const World = memo(function World({
         scenes and a zoom grows it less, and on a scene it is perfectly still.
         Dimmed toward the theme's canvas so the scenes' text stays legible.
       */}
-      {hasBackdrop && backdrop && (
+      {/*
+        The room, drawn. Its own layer and its own transform: a paint this
+        large may translate every frame but must never be re-rasterised by a
+        changing scale — see `drawnBackdropTransform`.
+      */}
+      {graphic && (
+        /*
+          Sized in CSS, never from the measured viewport.
+
+          The layer reaches a fifth of the screen past every edge so the
+          parallax shift below never brings an edge into frame — and it says so
+          as a percentage of its containing block, because a size computed from
+          the world's own `ResizeObserver` measurement changed that
+          measurement, and the two chased each other until React gave up and
+          the demo mounted to a blank page. `DRAWN_MARGIN` mirrors this inset
+          for the clamp; the two belong together.
+        */
+        <div
+          ref={drawnRef}
+          aria-hidden
+          data-backdrop
+          data-backdrop-graphic={backdrop?.graphic ?? "aurora"}
+          className="pointer-events-none absolute inset-[-20%]"
+          style={{
+            willChange: "transform",
+            backgroundColor: graphic.backgroundColor,
+            backgroundImage: graphic.backgroundImage,
+          }}
+        />
+      )}
+
+      {picture && backdrop && (
         <div
           ref={backdropRef}
           aria-hidden
           data-backdrop
+          data-backdrop-picture
           className="pointer-events-none absolute top-0 left-0 origin-top-left"
-          style={{ width: plane.width, height: plane.height, willChange: "transform" }}
+          // Laid out at the layer's size, not the plane's: the plane is world
+          // units and a world is thousands of them across. See `backdropLayer`.
+          style={{ ...backdropLayer(viewport), willChange: "transform" }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- a signed private asset in a transformed layer; see element-view */}
           <img
             src={backdrop.url}
             alt=""
             draggable={false}
+            /* Decoded off the main thread: this one covers the whole layer and
+               is the largest single bitmap in the world. See `stage.tsx`. */
+            decoding="async"
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           />
           {backdrop.dim > 0 && (

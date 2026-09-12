@@ -178,7 +178,14 @@ export function MomentCard({
                 </span>
                 <select
                   value={moment.visualIntent}
-                  onChange={(e) => onChange({ visualIntent: e.target.value as VisualIntent })}
+                  // Choosing here is an instruction, not a suggestion: the
+                  // composer stops second-guessing an intent the author set.
+                  onChange={(e) =>
+                    onChange({
+                      visualIntent: e.target.value as VisualIntent,
+                      intentAuthored: true,
+                    })
+                  }
                   className="border-line text-ink-2 focus:border-accent w-full rounded-[var(--radius-md)] border bg-[var(--surface-inset)] px-2 py-1.5 text-[12px] outline-none"
                 >
                   {Object.entries(VISUAL_INTENT_META).map(([value, meta]) => (

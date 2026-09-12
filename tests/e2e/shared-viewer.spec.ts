@@ -42,6 +42,43 @@ async function open(
 const status = (page: Page) => page.locator('[aria-live="polite"]');
 const view = (page: Page) => page.locator("[data-view]").getAttribute("data-view");
 
+/**
+ * Waits until the camera has stopped moving.
+ *
+ * The announcement changes when the *state* does, which is the start of a
+ * flight rather than the end of it — the world writes `style.transform`
+ * straight to one promoted layer for as long as the travel lasts. A tap
+ * dispatched in that window lands on whatever is passing under the point.
+ *
+ * This suite failed in CI on a commit that changed only documentation, and
+ * passed every time locally. The cause was not the timing: this fixture never
+ * imported `globals.css`, so the viewer mounted with *none* of its layout —
+ * `h-screen`, `w-screen` and `overflow-hidden` were inert strings, the root
+ * was `position: static` with a content-driven height, and the world grew it
+ * by about twenty pixels a second for as long as the page stayed open. The
+ * camera never settled, so what sat under a fixed screen point depended on how
+ * loaded the machine was. `build.ts` warns about exactly this.
+ *
+ * With the stylesheet the root is 390x844, `overflow: hidden`, and the camera
+ * lands in under a second. This stays as the guard that says so: two
+ * consecutive equal reads, one frame apart, is the landing.
+ */
+async function settle(page: Page) {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(async () => {
+          const layer = document.querySelector("[data-world]") as HTMLElement | null;
+          if (!layer) return "gone";
+          const before = layer.style.transform;
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          return before === layer.style.transform ? "still" : "moving";
+        }),
+      { timeout: 15_000, message: "the camera never stopped moving" },
+    )
+    .not.toBe("moving");
+}
+
 test.describe("shared viewer", () => {
   test.beforeAll(async () => {
     test.setTimeout(240_000);
@@ -119,7 +156,9 @@ test.describe("shared viewer", () => {
       }
       await expect(status(page)).toContainText("Scene 2 of");
 
-      // A real tap on the left edge is the way back.
+      // A real tap on the left edge is the way back — once the camera has
+      // arrived. Mid-flight the point is over whatever is travelling past it.
+      await settle(page);
       await page.touchscreen.tap(30, 422);
       await expect(status(page)).toContainText("Scene 1 of");
       expect(problems).toEqual([]);

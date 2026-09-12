@@ -173,6 +173,17 @@ export const Stage = memo(function Stage({
             <img
               src={content.background.url}
               alt={content.background.alt}
+              /* A scene background is the largest picture on the page, and a
+                 synchronous decode of one happens on the main thread — during
+                 a camera flight, which is sixty transform writes a second.
+                 Measured at a phone viewport, the world holds three live
+                 photographs and 28 MB of decoded bitmap whatever the deck's
+                 length; the cost is real and the decode is worth keeping off
+                 the thread that is flying. The element images already do
+                 this. */
+              loading="lazy"
+              decoding="async"
+              draggable={false}
               style={{
                 position: "absolute",
                 inset: 0,
@@ -371,8 +382,18 @@ function ElementLayer({
       {/* Depth: the world writes --px/--py on the region once a frame; this
           layer multiplies them by the element's depth in CSS. Only while
           presenting — in the editor an element sits exactly where it was put. */}
+      {/*
+        Two things, and only one of them is about presenting. `pxl` is the
+        wrapper's *height*: it sits between the frame and the element, so
+        without it every `height: 100%` element inside — a drawing, a picture —
+        measures against an auto-height box and collapses to its content. That
+        is structural and belongs on every surface, including the editor and
+        thumbnails, where this div was previously left unstyled and drawings
+        rendered short. `pxl-depth` is the parallax, and stays presenting-only:
+        in the editor an element sits exactly where it was put.
+      */}
       <div
-        className={play ? "pxl" : undefined}
+        className={play ? "pxl pxl-depth" : "pxl"}
         style={
           play ? ({ "--depth": elementDepth(element.type) } as React.CSSProperties) : undefined
         }

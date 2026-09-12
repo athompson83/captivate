@@ -642,6 +642,25 @@ export type ArrangePreset = z.infer<typeof ArrangePreset>;
  * image — and it is dimmed toward the theme's canvas so text stays legible
  * over it. An empty `url` means there is none.
  */
+/**
+ * The backdrops that are drawn rather than photographed.
+ *
+ * A photograph is the right answer when the author has one, and most decks do
+ * not have one — so the room behind the scenes was nothing but the air. These
+ * are compositions in the presentation's own palette, on the same plane and at
+ * the same depth as a picture. `src/lib/present/graphic-backdrop.ts` draws
+ * them; this is only the name of the choice.
+ */
+export const BackdropGraphic = z.enum(["none", "aurora", "strata", "halo"]);
+export type BackdropGraphic = z.infer<typeof BackdropGraphic>;
+
+export const BACKDROP_GRAPHIC_META: Record<BackdropGraphic, { label: string; plain: string }> = {
+  none: { label: "None", plain: "The air alone, blended from the scenes around the camera." },
+  aurora: { label: "Aurora", plain: "Wide washes of the theme's light, crossing and pooling." },
+  strata: { label: "Strata", plain: "Soft bands, like distance seen through air." },
+  halo: { label: "Halo", plain: "One bloom off-centre, and the room falling away from it." },
+};
+
 export const JourneyBackdrop = z.object({
   url: MediaSource.default(""),
   assetId: z.string().max(64).nullable().default(null),
@@ -650,6 +669,17 @@ export const JourneyBackdrop = z.object({
   distance: z.number().min(0).max(1).default(0.5),
   /** How much of the theme's canvas colour is laid over the picture. */
   dim: z.number().min(0).max(1).default(0.35),
+  /**
+   * A drawn backdrop, behind the picture and shown on its own when there is
+   * no picture.
+   *
+   * `aurora` by default, so a deck nobody has touched still has a designed
+   * room rather than a flat field — the reported gap was "there still isn't a
+   * nice graphic background", and a default nobody has to find is the only
+   * kind that fixes that. Stored decks that predate the field parse straight
+   * into it, and `none` is one click away.
+   */
+  graphic: BackdropGraphic.default("aurora"),
 });
 export type JourneyBackdrop = z.infer<typeof JourneyBackdrop>;
 
@@ -789,6 +819,14 @@ export const PresentationRecord = z.object({
    * windows — the shared route resolves it server-side and never echoes it.
    */
   shareToken: z.string().uuid().nullable().default(null),
+  /**
+   * Where the deck's generation got to, so it can say so after the author has
+   * closed the tab. Defaulted, because every deck written before the column
+   * existed is finished, however it finished. See `generation-state.ts` — the
+   * `generating` claim expires rather than spinning for ever.
+   */
+  generationStatus: z.enum(["ready", "generating", "partial", "failed"]).default("ready"),
+  generationStartedAt: z.string().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
   lastOpenedAt: z.string().nullable(),
@@ -911,6 +949,103 @@ function stripSelfTargets(
  * The element survives; only the broken link is cleared. Returns the input
  * array unchanged when nothing needed repair, so callers can skip work.
  */
+/**
+ * Which element of a scene carries a dive into an aside.
+ *
+ * The most specific thing wins: a card is a named idea someone would poke at,
+ * a chart is the claim's evidence, filled media is the thing being looked at.
+ * The heading is the fallback — every composed scene has one, so an aside is
+ * never silently unreachable. Returns -1 where nothing can carry it.
+ *
+ * Here rather than beside the weave because both the composing of an aside and
+ * the repairing of a broken one need the same answer, and only one of them
+ * runs inside a generation.
+ */
+export function hotspotIndex(elements: SceneElement[]): number {
+  const byPriority: ((el: SceneElement) => boolean)[] = [
+    (el) => el.type === "callout",
+    (el) => el.type === "chart",
+    (el) => el.type === "drawing",
+    (el) => el.type === "image" && Boolean(el.url || el.assetId),
+    (el) => el.type === "heading",
+  ];
+  for (const matches of byPriority) {
+    const index = elements.findIndex((el) => !el.hidden && matches(el) && el.hotspot === null);
+    if (index !== -1) return index;
+  }
+  return -1;
+}
+
+/**
+ * A detail scene nothing points at, wired back to the scene it sits behind.
+ *
+ * The mirror of `repairDanglingHotspots`, and the half that a regeneration
+ * produces every time. An aside is two rows: a parent whose best element
+ * carries the hotspot, and the detail scene it dives to. Regenerating replaces
+ * the parent's whole content — hotspot included — while the detail scene
+ * survives untouched, because it has no `momentId` and so nothing overwrites
+ * it. It is `flowRole: "detail"`, so it is invisible to the running order too.
+ * The author's aside is gone with no error anywhere and the row still in the
+ * database.
+ *
+ * The relationship is positional and always was — the weave emits parent then
+ * detail, and a detail scene lands immediately after its parent — so it can be
+ * restored from what is stored. The label comes from the aside's own title,
+ * because the words that were on the hotspot went with the content.
+ *
+ * Deliberately timid about the parent. A scene whose element already dives
+ * somewhere is left exactly as it is: re-pointing it would silently replace a
+ * link the author made, which is a worse outcome than the orphan.
+ */
+export function relinkOrphanedDetails(scenes: Scene[]): {
+  scenes: Scene[];
+  repaired: string[];
+} {
+  const reached = new Set<string>();
+  for (const scene of scenes) {
+    for (const element of scene.content.elements) {
+      if (element.hotspot?.targetSceneId) reached.add(element.hotspot.targetSceneId);
+    }
+  }
+
+  const orphans = scenes.filter((scene) => scene.flowRole === "detail" && !reached.has(scene.id));
+  if (orphans.length === 0) return { scenes, repaired: [] };
+
+  const next = [...scenes];
+  const repaired: string[] = [];
+
+  for (const orphan of orphans) {
+    const at = next.findIndex((scene) => scene.id === orphan.id);
+    let parentAt = -1;
+    for (let i = at - 1; i >= 0; i--) {
+      if (next[i].flowRole === "main") {
+        parentAt = i;
+        break;
+      }
+    }
+    // Nothing in front of it: a detail scene stored first belongs to no
+    // parent, and inventing one would put a dive on a scene that never had an
+    // aside.
+    if (parentAt === -1) continue;
+
+    const parent = next[parentAt];
+    if (parent.content.elements.some((element) => element.hotspot)) continue;
+
+    const index = hotspotIndex(parent.content.elements);
+    if (index === -1) continue;
+
+    const elements = parent.content.elements.map((element, i) =>
+      i === index
+        ? { ...element, hotspot: { targetSceneId: orphan.id, label: orphan.title } }
+        : element,
+    );
+    next[parentAt] = { ...parent, content: { ...parent.content, elements } };
+    if (!repaired.includes(parent.id)) repaired.push(parent.id);
+  }
+
+  return repaired.length ? { scenes: next, repaired } : { scenes, repaired };
+}
+
 export function repairDanglingHotspots(scenes: Scene[]): {
   scenes: Scene[];
   repaired: string[];

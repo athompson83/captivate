@@ -47,6 +47,10 @@ export type PresentationRow = Timestamps & {
   target_seconds: number;
   /** View-only link token. Null = not shared. */
   share_token: string | null;
+  /** ready | generating | partial | failed — see `generation-state.ts`. */
+  generation_status: string;
+  /** When `generation_status` became `generating`; the claim expires from it. */
+  generation_started_at: string | null;
 };
 
 export type SectionRow = Timestamps & {
@@ -71,6 +75,8 @@ export type MomentRow = Timestamps & {
   estimated_seconds: number;
   evidence: Json;
   visual_intent: string;
+  /** True where the author chose the intent; false where a model proposed it. */
+  intent_authored: boolean;
   instructions: string;
   locked: boolean;
 };

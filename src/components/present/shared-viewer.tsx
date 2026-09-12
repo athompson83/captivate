@@ -298,6 +298,7 @@ export function SharedViewer({ deck }: { deck: SharedDeck }) {
         pace={journey.pace}
         depth={journey.depth}
         backdrop={journey.backdrop}
+        lean
         showPath={journey.showPath && wide}
         safeInsetLeft={railShown ? MOVEMENT_RAIL_WIDTH : 0}
         className="absolute inset-0"

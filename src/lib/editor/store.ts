@@ -169,6 +169,8 @@ const emptyDocument: EditorDocument = {
     thumbnailUrl: null,
     schemaVersion: 1,
     shareToken: null,
+    generationStatus: "ready" as const,
+    generationStartedAt: null,
     createdAt: "",
     updatedAt: "",
     lastOpenedAt: null,
