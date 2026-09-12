@@ -528,3 +528,23 @@ describe("the drawing's SVG", () => {
     expect(svg).toContain('fill="none"');
   });
 });
+
+describe("a graded picture in a slide", () => {
+  it("is exported as shot, and the plan says so rather than changing its colour silently", () => {
+    const graded = element({
+      type: "image",
+      url: "https://example.com/i.jpg",
+      grade: "tint",
+    } as never);
+    const shot = element({
+      type: "image",
+      url: "https://example.com/j.jpg",
+      grade: "none",
+    } as never);
+    const plan = planDeck(DECK, [scene({ id: id(), elements: [graded, shot] })], THEME);
+    const omission = plan.omissions.find((o) => o.kind === "grade");
+    expect(omission).toBeTruthy();
+    expect(omission?.count).toBe(1);
+    expect(plan.slides[0].shapes.filter((s) => s.kind === "image")).toHaveLength(2);
+  });
+});

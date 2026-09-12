@@ -10,6 +10,7 @@ import {
   transformPath,
   type DiagramNode,
 } from "@/lib/drawing/diagram";
+import { keptInside, outline, hatchLines } from "@/lib/drawing/diagram";
 import { DIAGRAM_SYMBOLS, symbolNode } from "@/lib/drawing/symbols";
 import { tokenizePath } from "@/lib/drawing/path-tokens";
 import { GeneratedDrawing } from "@/lib/ai/schemas";
@@ -445,5 +446,99 @@ describe("labels", () => {
     expect(normalised.labels).toHaveLength(1);
     // The only stage is 3; renumbered onto the first press.
     expect(normalised.labels[0].stage).toBe(0);
+  });
+});
+
+describe("hatching matched to what is drawn", () => {
+  it("hatches the band of a ring and not its hole", () => {
+    const out = compileDiagram({
+      nodes: [node({ id: "r", kind: "ring", x: 400, y: 250, w: 200, h: 200, hatch: true })],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    const hatch = out.paths.filter((p) => p.ink === "muted");
+    expect(hatch.length).toBeGreaterThan(6);
+    for (const line of hatch) {
+      const [x1, y1, x2, y2] = line.d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+      for (const [x, y] of [
+        [x1, y1],
+        [x2, y2],
+      ]) {
+        const r = Math.hypot(x - 400, y - 250);
+        expect(r).toBeLessThanOrEqual(101);
+        expect(r).toBeGreaterThanOrEqual(57);
+      }
+    }
+  });
+
+  it("hatches a stack's front box only, and a cloud its own bumps", () => {
+    const stack = node({ id: "s", kind: "stack", x: 400, y: 250, w: 200, h: 120, hatch: true });
+    const [front] = outline(stack, { x: 300, y: 190, w: 200, h: 120 });
+    // The front box sits down and to the left of the stack's box.
+    expect(Math.min(...front.map((p) => p.y))).toBeGreaterThan(190 + 20);
+    expect(Math.max(...front.map((p) => p.x))).toBeLessThan(500 - 20);
+    const cloud = node({ id: "c", kind: "cloud", w: 200, h: 120 });
+    expect(outline(cloud, { x: 300, y: 190, w: 200, h: 120 })[0]).toHaveLength(9);
+    // Even-odd across two polygons: a square with a square hole hatches the frame.
+    const framed = hatchLines(
+      [
+        [
+          { x: 0, y: 0 },
+          { x: 100, y: 0 },
+          { x: 100, y: 100 },
+          { x: 0, y: 100 },
+        ],
+        [
+          { x: 30, y: 30 },
+          { x: 70, y: 30 },
+          { x: 70, y: 70 },
+          { x: 30, y: 70 },
+        ],
+      ],
+      10,
+    );
+    expect(framed.some((d) => d.includes("M 30 30") || d.includes("L 30 30"))).toBe(true);
+    expect(framed.every((d) => !d.includes("M 50 50"))).toBe(true);
+  });
+});
+
+describe("labels stay inside the picture", () => {
+  it("move a name at the margin inward by its own width, and a low one up", () => {
+    const wide = keptInside({
+      text: "Oxygen delivered to tissue",
+      x: 20,
+      y: 250,
+      stage: 0,
+      size: 1,
+      anchor: "middle",
+    });
+    expect(wide.x).toBeGreaterThan(150);
+    const right = keptInside({
+      text: "Heart",
+      x: 795,
+      y: 495,
+      stage: 0,
+      size: 1,
+      anchor: "middle",
+    });
+    expect(right.x).toBeLessThan(760);
+    expect(right.y).toBeLessThan(490);
+    const fine = keptInside({ text: "Heart", x: 400, y: 250, stage: 0, size: 1, anchor: "middle" });
+    expect(fine).toEqual({ text: "Heart", x: 400, y: 250, stage: 0, size: 1, anchor: "middle" });
+  });
+
+  it("apply to a node at the edge of the canvas", () => {
+    const out = compileDiagram({
+      nodes: [
+        node({ id: "e", kind: "circle", x: 780, y: 480, w: 60, h: 60, label: "The far corner" }),
+      ],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    const label = out.labels[0];
+    expect(label.x + (label.text.length * 0.56 * 26) / 2).toBeLessThanOrEqual(800);
+    expect(label.y).toBeLessThan(490);
   });
 });
