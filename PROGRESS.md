@@ -11,10 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #110 — the MVP-036 closeout, and a drawing that fills its
-  frame with names on clear ground, awaiting CI, merge and production
-  verification
-- `main`: through PR #110 (merged) — `535412f`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #111 — the MVP-037 closeout, and the phrase that matters
+  underlined by hand, awaiting CI, merge and production verification
+- `main`: through PR #111 (merged) — `ccda82d`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -151,6 +150,39 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### The phrase that matters, underlined by hand
+
+The seventh round under "graphics and drawings — go next level", and the
+first to touch the words. A phrase set in the accent is a phrase in a
+different colour; a phrase with a line drawn under it by hand is one
+somebody chose — the mark a lecturer makes on a handout, the one the room
+copies down. The run the writer marked (`bodyAccent`, and a heading's
+closing clause: the accent token, never any accent-coloured run) now
+carries an underline by the same hand as the drawings.
+
+`HandMarks` (`element-view.tsx`; the geometry in `lib/present/hand-mark.ts`)
+renders an SVG over the text's block and, from an effect after layout,
+draws one stroke per line fragment the marked run occupies — measured from
+the DOM, in the host's own pixels whatever the stage is scaled to, a tenth
+of the size above the line through the descenders, a little uphill on one
+line and downhill on the next, bent by a displacement filter like every
+drawn stroke — and re-measures on resize and once the fonts are in. While
+the scene performs each stroke sketches on the drawings' own classes and
+clock after the words have arrived; it is hidden while the scene is held
+before the camera lands, so the mark is never seen complete and then
+sketched; in the editor, a thumbnail and under reduced motion it is simply
+there. Nothing is stored. A slide export underlines the phrase, the only
+way a slide can.
+
+Tests in `hand-mark` (the marked run is the accent token and no other; the
+stroke runs its line's width just above its bottom and never level),
+`stage-render` (the accent run is marked and hosts its strokes inside the
+text, a body with nothing marked carries no mark), `deck-export` (the
+phrase is underlined in the plan) and, in a real browser,
+`tests/e2e/hand-mark.spec.ts` (one stroke per line a long phrase wraps
+onto, each under its own line at the stroke's weight, sketched from its
+full length when performed and simply there when not).
+
 ### A drawing fills its frame, and a name finds clear ground
 
 The sixth round under "graphics and drawings — go next level", and the
@@ -203,6 +235,22 @@ one leader at the part's stage, from just above the name to the part's
 edge, when there is not), `drawn-picture` (the SVG's viewBox is the frame,
 the label's size and the hand's region the canvas's) and `deck-export`
 (the slide's SVG is framed as the stage frames it).
+
+**Landed and verified.** PR #111 squash-merged as `ccda82d`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 37 of 37 on the first run — the first clean run in five
+deploys, the proxy having dropped one or two page loads on each of the
+previous four. Codex found two real things on the PR, fixed before merge:
+`inkBounds` measured a smooth curve (`S`, `T`) from the numbers it is
+written with and missed the control point SVG reflects from the previous
+curve, so a path that bent well past its written coordinates was cut off by
+the frame where the old full-canvas viewBox had shown it — the walker now
+carries the last control and sees the reflection; and a label was measured
+at 0.56 em per UTF-16 code unit, so a twenty-eight-character East Asian name
+was estimated at 423 units against the 728 its glyphs take and the frame
+clipped both ends — `textEms` counts a glyph at a full em for East Asian,
+full-width and emoji glyphs, one glyph per code point, and `keptInside`
+reads the same box.
 
 ### Symbols on a wash, the area under a line, the whole in the middle
 
