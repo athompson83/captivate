@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   chartDrawing,
   compileChart,
+  labelText,
   valueText,
   wedgePath,
   type ChartElement,
@@ -145,6 +146,47 @@ describe("a line and a donut", () => {
     expect(drawing.labels.filter((l) => l.anchor === "start").map((l) => l.text)).toEqual(
       expect.arrayContaining(["Q1", "Q2", "Q3", "10", "40", "20"]),
     );
+  });
+
+  it("draws one thing as the whole ring, and never loses a sliver to the gap", () => {
+    // An arc from a point back to itself draws nothing: a single value was
+    // a legend beside an empty space.
+    const one = compileChart(chart({ chart: "donut", data: [{ label: "All", value: 5 }] }));
+    const ring = one.paths.filter((p) => /A 165 165|A 100 100/.test(p.d));
+    expect(ring).toHaveLength(2);
+    expect(ring[0].fill).toBe(true);
+    expect(ring.every((p) => /^M/.test(p.d) && /Z$/.test(p.d))).toBe(true);
+    // The same when the others are zero.
+    const zeros = compileChart(
+      chart({
+        chart: "donut",
+        data: [
+          { label: "None", value: 0 },
+          { label: "All", value: 5 },
+        ],
+      }),
+    );
+    expect(zeros.paths.filter((p) => /A 165 165|A 100 100/.test(p.d))).toHaveLength(2);
+    // A sliver of one in a thousand still gets its wedge.
+    const sliver = compileChart(
+      chart({
+        chart: "donut",
+        data: [
+          { label: "Rare", value: 1 },
+          { label: "Common", value: 1000 },
+        ],
+      }),
+    );
+    expect(sliver.paths.filter((p) => /A 165 165/.test(p.d))).toHaveLength(2);
+  });
+
+  it("shortens a long name visibly rather than cutting it", () => {
+    expect(labelText("Short")).toBe("Short");
+    const long = "Patients presenting after twelve hours";
+    expect(labelText(long)).toHaveLength(28);
+    expect(labelText(long).endsWith("…")).toBe(true);
+    const drawing = compileChart(chart({ data: [{ label: long, value: 1 }] }));
+    expect(drawing.labels.some((l) => l.text.endsWith("…"))).toBe(true);
   });
 
   it("a wedge is the outer arc, a step in, the inner arc back, and home", () => {

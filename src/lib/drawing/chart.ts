@@ -58,9 +58,15 @@ function inkFor(element: ChartElement, i: number): DrawnPath["ink"] {
   return SERIES_INKS[i % SERIES_INKS.length];
 }
 
+/** A label's text within the room's limit, shortened visibly rather than cut. */
+export function labelText(text: string): string {
+  const limit = 28;
+  return text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text;
+}
+
 function label(text: string, x: number, y: number, over: Partial<DrawnLabel> = {}): DrawnLabel {
   return keptInside({
-    text: text.slice(0, 28),
+    text: labelText(text),
     x,
     y,
     stage: 0,
@@ -114,14 +120,31 @@ export function compileChart(element: ChartElement): CompiledDrawing {
     const outer = 165;
     const inner = 100;
     const total = data.reduce((s, d) => s + Math.abs(d.value), 0) || 1;
-    // A breath between wedges, so two the same ink still read as two.
+    // A breath between wedges, so two the same ink still read as two. A
+    // sliver keeps half its own sweep rather than vanishing into the gap,
+    // so the ring never contradicts its legend.
     const gap = n > 1 ? (2.5 * Math.PI) / 180 : 0;
-    let angle = -Math.PI / 2;
-    data.forEach((d, i) => {
-      const sweep = (Math.abs(d.value) / total) * Math.PI * 2;
-      const a0 = angle + gap / 2;
-      const a1 = angle + sweep - gap / 2;
-      if (a1 > a0) {
+    const whole = data.filter((d) => Math.abs(d.value) > 0);
+    if (whole.length === 1 || n === 1) {
+      // One thing is the whole ring. An arc from a point back to itself
+      // draws nothing, so the ring is two circles, as a diagram's is.
+      const i = whole.length === 1 ? data.indexOf(whole[0]) : 0;
+      paths.push({
+        d: circlePath(cx, cy, outer),
+        weight: 1.4,
+        ink: inkFor(element, i),
+        fill: true,
+        stage: 0,
+      });
+      paths.push({ d: circlePath(cx, cy, inner), weight: 1.2, ink: inkFor(element, i), stage: 0 });
+    } else {
+      let angle = -Math.PI / 2;
+      data.forEach((d, i) => {
+        const sweep = (Math.abs(d.value) / total) * Math.PI * 2;
+        if (sweep <= 0) return;
+        const breath = Math.min(gap, sweep / 2);
+        const a0 = angle + breath / 2;
+        const a1 = angle + sweep - breath / 2;
         paths.push({
           d: wedgePath(cx, cy, outer, inner, a0, a1),
           weight: 1.4,
@@ -129,9 +152,9 @@ export function compileChart(element: ChartElement): CompiledDrawing {
           fill: true,
           stage: 0,
         });
-      }
-      angle += sweep;
-    });
+        angle += sweep;
+      });
+    }
     const legendX = 480;
     const step = Math.min(46, (H - EDGE * 2) / Math.max(1, n));
     const top = cy - (step * (n - 1)) / 2;
