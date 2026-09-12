@@ -119,7 +119,10 @@ talk on trauma care and a talk on brand strategy do not share one. It is
 kept on the journey (`journey.look`, editable in the journey panel) and
 folded into every prompt an image model is given for the deck, with the
 theme's own palette put into words (`lib/ai/look.ts`: a hue and a lightness
-per token, from OKLab). Which pictures are made rather than found is a pure
+per token, from OKLab). A look the deck already has — the author's edit, or
+a previous run's — wins over what the writer would set when scenes are
+regenerated, and a picture generated from the picker for a deck follows it
+too; a prompt with no deck behind it is the author's alone. Which pictures are made rather than found is a pure
 decision (`lib/ai/picture-plan.ts`): the cover, then a full-bleed backdrop,
 then side scenes, at most `GENERATED_PER_DECK`, and only photographic scenes
 — a scene with a drawing brief is drawn. A tall slot asks for a tall
@@ -129,8 +132,12 @@ that fails.
 The room behind the show is made last (`dressRoom`): one picture to the
 same look, empty at the centre and out of focus, written onto the journey's
 backdrop far back and dimmed, only where the deck had no picture there, and
-bounded so a slow provider never holds the route. A deck without a room
-keeps the drawn one it had.
+given only what the route has left of its ceiling and aborted at that
+deadline, so a slow provider never holds the route and nothing is paid for
+and left unattached. The journey is read again before the look and the room
+are written, and only those two fields are merged, so an author's edits
+during the minutes a generation takes are never written over. A deck
+without a room keeps the drawn one it had.
 
 ### Composition is a deck decision, and the intent is a suggestion
 

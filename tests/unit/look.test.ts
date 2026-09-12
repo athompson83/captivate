@@ -122,3 +122,41 @@ describe("the look is kept", () => {
     expect(single![1]).not.toContain("mayGenerate");
   });
 });
+
+describe("what the review found", () => {
+  const service = readFileSync("src/lib/ai/service.ts", "utf8");
+  const deckRoute = readFileSync("src/app/api/ai/scenes-from-map/route.ts", "utf8");
+  const createRoute = readFileSync("src/app/api/ai/create-from-map/route.ts", "utf8");
+
+  it("writes the journey from a fresh read, only the two fields it owns, with the saved look winning", () => {
+    // Read again after the minutes the scene call takes, so an author's edits
+    // meanwhile are not written over by the snapshot from the top.
+    const afterScenes = deckRoute.slice(deckRoute.indexOf("const readJourney"));
+    expect(afterScenes).toContain("const before = await readJourney()");
+    expect(afterScenes).toContain("const current = await readJourney()");
+    expect(afterScenes).toContain("...current,");
+    expect(afterScenes).toContain("room && !current.backdrop.url");
+    // The author's saved look goes into the generation and wins there.
+    expect(deckRoute).toContain('look: deck?.journey.look ?? ""');
+    expect(service).toMatch(/const look = fixedLook\.trim\(\) \|\| result\.data\.look\.trim\(\);/);
+  });
+
+  it("gives the room only what the route has left, and aborts it at the deadline", () => {
+    for (const route of [deckRoute, createRoute]) {
+      expect(route).toContain("const started = Date.now()");
+      expect(route).toMatch(/maxDuration \* 1000 - \(Date\.now\(\) - started\) - ROUTE_RESERVE_MS/);
+      expect(route).toContain("budgetMs: Math.min(ROOM_BUDGET_MS, remaining)");
+    }
+    const room = service.slice(service.indexOf("export async function dressRoom"));
+    expect(room).toContain("if (budget < ROOM_MIN_MS) return null");
+    expect(room).toContain("const deadline = AbortSignal.timeout(budget)");
+    expect(room).toContain("signal: deadline");
+    expect(room).toContain("if (!generated.ok || deadline.aborted) return null");
+    expect(room).not.toContain("Promise.race");
+  });
+
+  it("applies the saved look to a picture generated from the picker", () => {
+    const generate = readFileSync("src/app/api/ai/visuals/generate/route.ts", "utf8");
+    expect(generate).toContain("pictureBrief(prompt, look, paletteWords(getTheme(deck.theme_id)))");
+  });
+});

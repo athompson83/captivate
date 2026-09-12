@@ -289,10 +289,22 @@ function decodeBase64(payload: string): Uint8Array | null {
 export async function generateImage(
   prompt: string,
   presentationId: string | null = null,
-  { shape = "wide" }: { shape?: ImageShape } = {},
+  {
+    shape = "wide",
+    signal,
+  }: {
+    shape?: ImageShape;
+    /**
+     * A caller's own deadline. Checked before anything is reserved, and it
+     * aborts the provider call itself: a picture nobody will be there to
+     * receive is not worth paying for.
+     */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<Sourced<GeneratedImage>> {
   const key = imageKey();
   if (!key) return { ok: false, error: "Image generation isn't configured on this deployment." };
+  if (signal?.aborted) return { ok: false, error: "There was no time left to make the picture." };
 
   // Checked before the reservation: a refusal must not consume budget, and the
   // reason a free caller cannot do this is not "the deployment is out of
@@ -353,7 +365,9 @@ export async function generateImage(
           : {}),
       },
       body: JSON.stringify(imageRequestBody(trimmed, shape)),
-      signal: AbortSignal.timeout(90_000),
+      signal: signal
+        ? AbortSignal.any([AbortSignal.timeout(90_000), signal])
+        : AbortSignal.timeout(90_000),
     });
 
     if (!response.ok) {

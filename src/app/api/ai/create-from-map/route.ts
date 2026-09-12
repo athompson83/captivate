@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
-import { buildScenesFromMap, dressRoom } from "@/lib/ai/service";
+import { ROOM_BUDGET_MS, buildScenesFromMap, dressRoom } from "@/lib/ai/service";
 import { ProposedMap } from "@/lib/ai/schemas";
 import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
 import { briefsFor, draftFromProposal } from "@/lib/narrative/generate";
@@ -18,6 +18,8 @@ import { JourneyConfig } from "@/lib/schema/presentation";
 // drawing pass is minutes of model time, and a duration cap that fires
 // mid-generation bills the tokens and saves nothing.
 export const maxDuration = 300;
+/** What the room may have of the route's ceiling, after everything else. */
+const ROUTE_RESERVE_MS = 20_000;
 
 const Input = z
   .object({
@@ -53,6 +55,7 @@ export async function POST(request: Request) {
   if (!guarded.ok) return guarded.response;
 
   return keepAlive(async () => {
+    const started = Date.now();
     const { prompt, map, totalSeconds, depth, themeId, folderId, ...context } = guarded.input;
 
     const theme = THEMES.some((t) => t.id === themeId)
@@ -248,11 +251,13 @@ export async function POST(request: Request) {
     // deck can open without, and bounded, because the route cannot wait for
     // ever on a picture that is not coming.
     if (built.data.source === "model") {
+      const remaining = maxDuration * 1000 - (Date.now() - started) - ROUTE_RESERVE_MS;
       const room = await dressRoom({
         title: map.title,
         look: built.data.look,
         themeId: theme ?? null,
         presentationId,
+        budgetMs: Math.min(ROOM_BUDGET_MS, remaining),
       });
       const { data: current } = await supabase
         .from("presentations")

@@ -250,3 +250,40 @@ describe("generateImage", () => {
     expect(settled?.[1]).not.toHaveProperty("p_cost_usd");
   });
 });
+
+describe("a caller's deadline", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    vi.stubEnv("OPENAI_API_KEY", "test-key-not-a-real-one");
+  });
+
+  it("is checked before anything is reserved, so an expired one costs nothing", async () => {
+    const rpc = mockDb({ id: "aaaaaaaa-0000-4000-8000-000000000001", refusal: null });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { generateImage } = await import("@/lib/ai/visual-sourcing");
+    const result = await generateImage("a lighthouse", null, { signal: AbortSignal.abort() });
+    expect(result.ok).toBe(false);
+    expect(rpc.mock.calls.some(([name]) => name === "captivate_reserve_image_generation")).toBe(
+      false,
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("reaches the provider call, so a generation the caller stopped waiting for is cut off", async () => {
+    mockDb({ id: "aaaaaaaa-0000-4000-8000-000000000001", refusal: null });
+    const fetchSpy = vi.fn(async (_url: string, init: RequestInit) => {
+      // The fetch sees a combined signal that follows the caller's.
+      const signal = init.signal as AbortSignal;
+      expect(signal).toBeInstanceOf(AbortSignal);
+      return { ok: true, json: async () => OK_IMAGE } as unknown as Response;
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    const { generateImage } = await import("@/lib/ai/visual-sourcing");
+    const controller = new AbortController();
+    const result = await generateImage("a lighthouse", null, { signal: controller.signal });
+    expect(result.ok).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});

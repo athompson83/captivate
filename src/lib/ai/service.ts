@@ -344,8 +344,19 @@ export async function buildScenesFromMap(
   depth: ContentDepth = "full",
   /** The requested running time; drives how many drawings the deck earns. */
   totalSeconds = 0,
-  /** The deck's theme, so generated pictures carry its palette. */
-  { themeId = null }: { themeId?: string | null } = {},
+  {
+    themeId = null,
+    look: fixedLook = "",
+  }: {
+    /** The deck's theme, so generated pictures carry its palette. */
+    themeId?: string | null;
+    /**
+     * A look the deck already has — the author's, or a previous run's. It
+     * wins over whatever the writer would set, so editing the look in the
+     * journey panel and regenerating gets pictures to the edited look.
+     */
+    look?: string;
+  } = {},
 ): Promise<
   | {
       ok: true;
@@ -495,7 +506,12 @@ ${contextLine(context)}
 
 The accepted narrative map:
 ${plan}
-
+${
+  fixedLook.trim()
+    ? `
+The deck's look is already set, and every picture will follow it; write it back as \`look\` unchanged: ${fixedLook.trim()}`
+    : ""
+}
 ${referenceBlock(context.reference ?? null)}`,
       maxTokens: 14000,
       // Both scene routes run at the 300-second platform ceiling, and this
@@ -565,7 +581,7 @@ ${referenceBlock(context.reference ?? null)}`,
     };
   });
 
-  const look = result.data.look.trim();
+  const look = fixedLook.trim() || result.data.look.trim();
   await dressScenes(scenes, presentationId, totalSeconds, { mayGenerate: true, look, themeId });
 
   return { ok: true, data: { source: "model", scenes, look } };
@@ -744,8 +760,10 @@ async function dressScenes(
   }
 }
 
-/** How long the room may take; the routes have minutes, and this is the last thing they do. */
-const ROOM_BUDGET_MS = 75_000;
+/** The most a room may take; a route with less time left gives it less. */
+export const ROOM_BUDGET_MS = 75_000;
+/** Below this there is not enough time to make one and keep it. */
+const ROOM_MIN_MS = 20_000;
 
 /**
  * The room a deck stands in: one generated picture behind the whole show.
@@ -762,26 +780,32 @@ export async function dressRoom({
   look,
   themeId,
   presentationId,
+  budgetMs = ROOM_BUDGET_MS,
 }: {
   title: string;
   look: string;
   themeId: string | null;
   presentationId: string;
+  /** What the route has left for this, at most `ROOM_BUDGET_MS`. */
+  budgetMs?: number;
 }): Promise<{ url: string; assetId: string; alt: string; distance: number; dim: number } | null> {
   if (!isImageGenerationConfigured()) return null;
+  const budget = Math.min(ROOM_BUDGET_MS, budgetMs);
+  if (budget < ROOM_MIN_MS) return null;
   const prompt = roomBrief(title, look, paletteWords(getTheme(themeId)));
   const alt = `The room behind ${title.trim() || "the presentation"}`;
-  const made = await Promise.race([
-    (async () => {
-      const generated = await generateImage(prompt, presentationId, { shape: "wide" });
-      if (!generated.ok) return null;
-      const saved = await storeGeneratedImage(generated.data, { altText: alt, presentationId });
-      return saved.ok ? saved.data : null;
-    })(),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), ROOM_BUDGET_MS)),
-  ]);
-  if (!made) return null;
-  return { url: made.url, assetId: made.id, alt, distance: 0.85, dim: 0.5 };
+  // The deadline aborts the provider call rather than racing past it: a
+  // generation the route has stopped waiting for is settled as failed and
+  // never stored, so nothing is paid for and left unattached.
+  const deadline = AbortSignal.timeout(budget);
+  const generated = await generateImage(prompt, presentationId, {
+    shape: "wide",
+    signal: deadline,
+  });
+  if (!generated.ok || deadline.aborted) return null;
+  const saved = await storeGeneratedImage(generated.data, { altText: alt, presentationId });
+  if (!saved.ok) return null;
+  return { url: saved.data.url, assetId: saved.data.id, alt, distance: 0.85, dim: 0.5 };
 }
 
 export async function buildSingleScene(

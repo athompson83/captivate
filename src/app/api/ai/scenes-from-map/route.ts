@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
-import { buildScenesFromMap, dressRoom } from "@/lib/ai/service";
+import { ROOM_BUDGET_MS, buildScenesFromMap, dressRoom } from "@/lib/ai/service";
 import { JourneyConfig } from "@/lib/schema/presentation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { planSceneWrites } from "@/lib/narrative/scene-writes";
@@ -12,6 +12,8 @@ import { NarrativeRole, VisualIntent } from "@/lib/schema/narrative";
 // drawing pass is minutes of model time, and a duration cap that fires
 // mid-generation bills the tokens and saves nothing.
 export const maxDuration = 300;
+/** What the room may have of the route's ceiling, after everything else. */
+const ROUTE_RESERVE_MS = 20_000;
 
 /**
  * A brief per moment, validated on the way in.
@@ -64,6 +66,7 @@ export async function POST(request: Request) {
   if (!guarded.ok) return guarded.response;
 
   return keepAlive(async () => {
+    const started = Date.now();
     const { prompt, presentationId, briefs, depth, ...context } = guarded.input;
     // The briefs carry the map's own time distribution; their sum is the talk's
     // length, which decides how many staged drawings the deck earns.
@@ -113,7 +116,7 @@ export async function POST(request: Request) {
       presentationId,
       depth,
       totalSeconds,
-      { themeId: deck?.themeId ?? null },
+      { themeId: deck?.themeId ?? null, look: deck?.journey.look ?? "" },
     );
 
     if (!result.ok) {
@@ -186,20 +189,41 @@ export async function POST(request: Request) {
 
     // The look goes onto the journey, and the room behind the show is made
     // to it — once, for a deck that has no picture there yet. Last, because
-    // it is the one picture the deck can open without.
+    // it is the one picture the deck can open without, and within what the
+    // route has left: the scene call can take minutes, and a room that
+    // crosses the platform's ceiling leaves the deck marked generating.
+    //
+    // The journey is read again here, not taken from the snapshot at the
+    // top: minutes have passed, and an author who moved the camera or chose
+    // a backdrop meanwhile must not have it written over. Only the two
+    // fields this route owns are merged in.
     if (deck && result.data.source === "model") {
-      const room = deck.journey.backdrop.url
+      const readJourney = async () => {
+        const { data: fresh } = await supabase
+          .from("presentations")
+          .select("journey")
+          .eq("id", presentationId)
+          .maybeSingle();
+        const parsed = JourneyConfig.safeParse(fresh?.journey ?? {});
+        return parsed.success ? parsed.data : JourneyConfig.parse({});
+      };
+      const before = await readJourney();
+      const remaining = maxDuration * 1000 - (Date.now() - started) - ROUTE_RESERVE_MS;
+      const room = before.backdrop.url
         ? null
         : await dressRoom({
             title: deck.title,
             look: result.data.look,
             themeId: deck.themeId,
             presentationId,
+            budgetMs: Math.min(ROOM_BUDGET_MS, remaining),
           });
+      const current = await readJourney();
       const journey: JourneyConfig = {
-        ...deck.journey,
-        look: result.data.look || deck.journey.look,
-        backdrop: room ? { ...deck.journey.backdrop, ...room } : deck.journey.backdrop,
+        ...current,
+        look: result.data.look || current.look,
+        backdrop:
+          room && !current.backdrop.url ? { ...current.backdrop, ...room } : current.backdrop,
       };
       await supabase
         .from("presentations")
