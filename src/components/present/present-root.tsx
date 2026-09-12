@@ -29,6 +29,8 @@ import { ConnectPhone } from "./connect-phone";
 import { useRemoteBridge } from "@/lib/present/use-remote-bridge";
 import type { RemoteSession } from "@/lib/data/remote-sessions";
 import { RecordingController } from "@/components/record/recording-controller";
+import { CaptionBand } from "./caption-band";
+import { useCaptionsSupported, useLiveCaptions } from "@/lib/present/captions";
 import {
   PresenterCameraFeed,
   loadCameraFeedSettings,
@@ -167,6 +169,27 @@ export function PresentRoot({
   const [barVisible, setBarVisible] = useState(!audienceOnly);
   /** The keys, over the stage. Presenter-facing; never in audience-only mode. */
   const [helpOpen, setHelpOpen] = useState(false);
+
+  /**
+   * Captions for the room, on one screen: this window has the microphone.
+   *
+   * In two-window presenting the console runs the engine and this window only
+   * renders what it is sent, so nothing here runs in audience-only mode. A
+   * page gets one speech engine, and the recorder's transcript is the other
+   * claimant: while it holds the engine the stage's own stands aside and the
+   * recorder feeds the band instead.
+   */
+  const captionsSupported = useCaptionsSupported();
+  const [captionsOn, setCaptionsOn] = useState(false);
+  const [recorderHoldsSpeech, setRecorderHoldsSpeech] = useState(false);
+  useLiveCaptions(captionsOn && !audienceOnly && !recorderHoldsSpeech, (text) =>
+    session.broadcastCaptions(text),
+  );
+  const toggleCaptions = () => {
+    if (audienceOnly || !captionsSupported) return;
+    if (captionsOn) session.broadcastCaptions(null);
+    setCaptionsOn(!captionsOn);
+  };
   /** Bumped on any presenter activity to restart the auto-hide countdown. */
   const [activity, setActivity] = useState(0);
   /** When the countdown was last restarted, so pointer moves stay cheap. */
@@ -307,6 +330,14 @@ export function PresentRoot({
           e.preventDefault();
           session.clearScene();
           break;
+        case "t":
+        case "T":
+          if (!audienceOnly && captionsSupported) {
+            e.preventDefault();
+            if (captionsOn) session.broadcastCaptions(null);
+            setCaptionsOn(!captionsOn);
+          }
+          break;
         case "?":
           if (!audienceOnly) {
             e.preventDefault();
@@ -340,7 +371,17 @@ export function PresentRoot({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [audienceOnly, fullscreen, helpOpen, presentation.id, scenes.length, session, tool]);
+  }, [
+    audienceOnly,
+    captionsOn,
+    captionsSupported,
+    fullscreen,
+    helpOpen,
+    presentation.id,
+    scenes.length,
+    session,
+    tool,
+  ]);
 
   // The same two moves by hand, for a presenter driving from a tablet. The
   // audience window and the annotation tools own their pointer, as for clicks.
@@ -472,6 +513,8 @@ export function PresentRoot({
           pointer={session.pointer}
           pointerColor={session.pointerColor}
         />
+
+        <CaptionBand text={session.captions} />
       </div>
 
       {/* Blank: takes the room's attention off the screen without stopping. */}
@@ -506,6 +549,7 @@ export function PresentRoot({
             cameraFeed={cameraFeed}
             onCameraFeedChange={updateCameraFeed}
             fullscreen={fullscreen}
+            captions={{ supported: captionsSupported, on: captionsOn, toggle: toggleCaptions }}
             onHelp={() => setHelpOpen(true)}
             remote={
               <ConnectPhone
@@ -526,6 +570,9 @@ export function PresentRoot({
             channel={session.channel}
             cameraFeed={cameraFeed}
             onCameraFeedChange={updateCameraFeed}
+            captions={captionsOn}
+            onCaption={(text) => session.broadcastCaptions(text)}
+            onHoldsSpeech={setRecorderHoldsSpeech}
           />
         </>
       )}

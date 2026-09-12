@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BuildPips } from "./build-pips";
 import Link from "next/link";
 import {
+  Captions,
   ChevronLeft,
   ChevronRight,
   Eraser,
@@ -27,6 +28,7 @@ import type { LectureNote } from "@/lib/data/notes";
 import { getTheme } from "@/lib/schema/theme";
 import { buildStepCount } from "@/lib/present/motion";
 import { usePresentSession, plannedDuration } from "@/lib/present/session";
+import { useCaptionsSupported, useLiveCaptions } from "@/lib/present/captions";
 import { PRESENTER_COLORS, type PresenterTool, type RecordingStatus } from "@/lib/present/protocol";
 import { Stage, StageThumbnail } from "@/components/stage/stage";
 import { AnnotationLayer } from "./annotation-layer";
@@ -81,6 +83,20 @@ export function PresenterConsole({
   );
   const notesRef = useRef<HTMLDivElement>(null);
 
+  /*
+   * Captions for the room. The console has the microphone in two-window
+   * presenting, so the engine runs here and the stage renders what it is
+   * sent; the control exists only where the browser has an engine.
+   */
+  const captionsSupported = useCaptionsSupported();
+  const [captionsOn, setCaptionsOn] = useState(false);
+  useLiveCaptions(captionsOn, (text) => session.broadcastCaptions(text));
+  const toggleCaptions = () => {
+    if (!captionsSupported) return;
+    if (captionsOn) session.broadcastCaptions(null);
+    setCaptionsOn(!captionsOn);
+  };
+
   /* Recording status arrives from the stage window. */
   useEffect(() => {
     const channel = session.channel;
@@ -126,6 +142,14 @@ export function PresenterConsole({
           e.preventDefault();
           session.toggleBlank();
           break;
+        case "t":
+        case "T":
+          if (captionsSupported) {
+            e.preventDefault();
+            if (captionsOn) session.broadcastCaptions(null);
+            setCaptionsOn(!captionsOn);
+          }
+          break;
         // Deliberately not Tab. This listener is on `window`, so binding Tab
         // here cancelled it everywhere outside a text field — which is a
         // keyboard trap, and on the console it also meant every timer, tool
@@ -161,7 +185,7 @@ export function PresenterConsole({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [session]);
+  }, [session, captionsOn, captionsSupported]);
 
   const planned = useMemo(() => plannedDuration(scenes), [scenes]);
   const sceneNotes = session.scene?.speakerNotes ?? "";
@@ -180,6 +204,24 @@ export function PresenterConsole({
         <span className="text-ink truncate text-[13px] font-medium">{presentation.title}</span>
 
         <ConnectionBadge connected={session.peerConnected} presentationId={presentation.id} />
+
+        {captionsSupported && (
+          <button
+            type="button"
+            onClick={toggleCaptions}
+            aria-pressed={captionsOn}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+              captionsOn
+                ? "border-accent text-accent-text bg-[var(--accent-soft)]"
+                : "border-line text-ink-2 hover:border-line-strong hover:text-ink",
+            )}
+          >
+            <Captions className="size-3.5" aria-hidden />
+            {captionsOn ? "Captions on" : "Captions"}
+            <kbd className="text-ink-3 font-sans text-[10px]">T</kbd>
+          </button>
+        )}
 
         {recording && recording.status !== "idle" && (
           <span className="text-record flex items-center gap-1.5 rounded-full bg-[var(--record-soft)] px-2.5 py-1 text-[11px] font-medium">

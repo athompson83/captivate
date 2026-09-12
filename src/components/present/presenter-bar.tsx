@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Camera,
+  Captions,
   ChevronLeft,
   ChevronRight,
   Eraser,
@@ -52,6 +53,7 @@ export function PresenterBar({
   cameraFeed,
   onCameraFeedChange,
   fullscreen,
+  captions,
   onHelp,
   remote,
 }: {
@@ -75,6 +77,8 @@ export function PresenterBar({
     denied: boolean;
     toggle: () => Promise<boolean>;
   };
+  /** Captions for the room; the button exists only where the browser can. */
+  captions: { supported: boolean; on: boolean; toggle: () => void };
   /** Shows the keys over the stage; also on `?`. */
   onHelp: () => void;
   /** The phone-remote control, or null where pairing is not offered. */
@@ -265,6 +269,17 @@ export function PresenterBar({
                 }}
               >
                 <ScanFace className="size-4" aria-hidden />
+              </BarButton>
+            )}
+
+            {captions.supported && (
+              <BarButton
+                label={captions.on ? "Captions off" : "Captions for the room"}
+                shortcut="T"
+                active={captions.on}
+                onClick={captions.toggle}
+              >
+                <Captions className="size-4" aria-hidden />
               </BarButton>
             )}
 

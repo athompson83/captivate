@@ -75,6 +75,13 @@ The consequence worth knowing: **where the presenter puts the feed on the stage
 is where it is in the file.** Dragging it, resizing it and choosing its
 background are the same act as arranging the recording.
 
+**Captions on the stage are already in the file.** `T` during a presentation
+puts the presenter's words on the stage (see `docs/UX.md`), and the stage is
+what is captured, so a recording of a captioned talk contains its captions
+without burning any in; burning them in as well shows them twice. While a
+recording is transcribing, the stage's captions read from the recorder's own
+engine — a page gets one — so they carry on through the take.
+
 The canvas path exists only for burnt-in captions, which have to be drawn into
 the pixels. It sizes itself to the capture's own dimensions — never a fixed
 1920 — and copies once per captured frame via `requestVideoFrameCallback`,

@@ -158,6 +158,20 @@ export const PresentMessage = z.discriminatedUnion("type", [
     annotations: SceneAnnotations,
   }),
 
+  /**
+   * Console → stage, or the stage to itself: what the presenter is saying.
+   *
+   * `text` is the last stretch of what the speech engine has heard — interim
+   * words included, because captions that trail the voice by a sentence are
+   * captions nobody reads — and empty once the room has been quiet a moment.
+   * `null` turns captions off. Additive: a stage from a build that predates
+   * captions drops the message and shows nothing, which is what it did before.
+   */
+  z.object({
+    type: z.literal("captions"),
+    text: z.string().max(600).nullable(),
+  }),
+
   /** Either direction: recording state, so both windows show the same badge. */
   z.object({
     type: z.literal("recording"),
