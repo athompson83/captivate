@@ -101,6 +101,23 @@ teaches the forms. The scene writer separates a `drawingBrief` from the
 photograph's `imagePrompt`, and where photographs are available only scenes
 briefed for a drawing get one.
 
+**Landed and verified.** PR #104 squash-merged as `32bf683`, all six CI jobs
+green on the head. Every deck with a picture or a drawing lives behind
+sign-in, so the production evidence is the deployment: the proxied smoke
+suite 37 of 37 against `www.axtevi.com` after the deploy; the visual
+evidence is the production deck rendered before and after in the session.
+Codex reviewed the merged PR and found five real things, fixed in PR #105:
+the grade was coloured layers over the picture's box, so a contained
+picture's gutters and a PNG's transparent parts were tinted too — it is one
+colour matrix on the picture's own pixels now, grain composited inside its
+alpha; the duotone's `lighten` toward a white canvas was a white rectangle
+on every light theme — the accent takes the shadows there and the canvas
+the highlights; a label at the margin was clipped by its own width — labels
+are kept inside the box; a ring, a stack and a cloud were hatched as a
+rectangle or an ellipse — each is hatched inside what is drawn, a ring's
+hole left alone; and a graded picture was exported as shot without a word
+— the export names the omission.
+
 **A look for every deck** (`lib/ai/look.ts`, `lib/ai/picture-plan.ts`,
 `journey.look`). The scene writer sets one sentence of visual direction for
 the whole talk — medium, light, a motif from the subject, one thing to avoid
