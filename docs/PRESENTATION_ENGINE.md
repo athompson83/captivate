@@ -788,6 +788,23 @@ sits on the same shape. The glyph itself is not bent — at card sizes a
 displacement is a blur, and a wash behind a clean line is how an
 illustrated icon is made.
 
+**Light on the drawing.** A form drawn as an outline with a flat wash has
+no light on it, and a picture with no light in it is a diagram however well
+it is drawn. Every closed form — a circle, a box, a blob, a ring's band, a
+stack's front, a bar's extent, and a chart's columns and bars — carries a
+**shade** (`shadeLines`): short parallel lines at 45 degrees falling to the
+right, perpendicular to a light from the top left, kept where a step away
+from the light — the width of a band, a fifth of the form's smaller side —
+leaves the form, and cut to the form's outline even-odd like hatching, at
+half weight in the muted ink. So a box is shaded along its right and bottom
+faces, a circle in a crescent on its far rim, and a ring both on its outer
+far rim and on the near wall of its hole, which is the wall that faces away
+from the light. Drawn after the outline at the form's own stage, so the
+room watches the form appear and then take its light. A hatched part is
+already tone and gets none; a symbol is a glyph, not a form, and gets none. The shade is the compiler's, not the
+document's: every drawing already in a deck takes its light the moment the
+recipe changes, and the export is untouched.
+
 ### Builds
 
 `buildStepCount` computes how many discrete advances a scene contains: one for

@@ -280,6 +280,22 @@ const rect = (x: number, y: number, w: number, h: number, inset: number): Point[
   { x: x + inset, y: y + h - inset },
 ];
 
+/** A capsule — a pill's outline — as a polygon, inset a little. */
+function capsulePoints(box: Box, inset: number, n = 12): Point[] {
+  const horizontal = box.w >= box.h;
+  const r = (horizontal ? box.h : box.w) / 2 - inset;
+  const c = centre(box);
+  const reach = (horizontal ? box.w : box.h) / 2 - r - inset;
+  const arc = (cx: number, cy: number, from: number): Point[] =>
+    Array.from({ length: n + 1 }, (_, i) => {
+      const t = from + (Math.PI * i) / n;
+      return { x: cx + Math.cos(t) * r, y: cy + Math.sin(t) * r };
+    });
+  return horizontal
+    ? [...arc(c.x + reach, c.y, -Math.PI / 2), ...arc(c.x - reach, c.y, Math.PI / 2)]
+    : [...arc(c.x, c.y + reach, 0), ...arc(c.x, c.y - reach, Math.PI)];
+}
+
 /**
  * The polygons a shape is hatched inside, matched to what is drawn.
  *
@@ -315,6 +331,10 @@ export function outline(node: DiagramNode, box: Box): Point[][] {
       const h = box.h - step * 2;
       return [rect(box.x, box.y + step * 2, w, h, Math.min(w, h) * 0.08)];
     }
+    case "pill":
+      // The capsule that is drawn, not the rectangle around it: a shade cut
+      // to the rectangle ran straight through the rounded ends.
+      return [capsulePoints(box, Math.min(box.w, box.h) * 0.06)];
     default:
       // Boxes, pills and bars: the rectangle, inset a little so the hatching
       // stops short of a rounded corner.
@@ -372,6 +392,134 @@ export function hatchLines(
     }
   }
   return lines;
+}
+
+/** Air between shade lines: closer than hatching, so a shade reads as tone. */
+export const SHADE_SPACING = 9;
+/** How deep the shade reaches in from a form's far edge, as a share of its smaller side. */
+export const SHADE_DEPTH = 0.22;
+
+/** Whether a point is inside a set of polygons, even-odd. */
+function insideEvenOdd(polygons: Point[][], p: Point): boolean {
+  let inside = false;
+  for (const polygon of polygons) {
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+      const a = polygon[i];
+      const b = polygon[j];
+      if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) {
+        inside = !inside;
+      }
+    }
+  }
+  return inside;
+}
+
+/** How far the shade reaches in from a form's far edge, in canvas units. */
+export function shadeBand(shape: Point[] | Point[][]): number {
+  const all = Array.isArray(shape[0]) ? (shape as Point[][]).flat() : (shape as Point[]);
+  const xs = all.map((p) => p.x);
+  const ys = all.map((p) => p.y);
+  const side = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  return Math.min(40, Math.max(10, side * SHADE_DEPTH));
+}
+
+/**
+ * The shade on a form: light from the top left, and the faces away from it
+ * hatched.
+ *
+ * A form drawn as an outline with a flat wash has no light on it, and a
+ * picture with no light in it is a diagram, however well it is drawn. An
+ * illustrator's shorthand for light is a run of short parallel lines along
+ * the side of a form that faces away from it. These lines run at 45 degrees
+ * falling to the right — perpendicular to a light from the top left — and a
+ * point is in shade when a step away from the light, the width of the
+ * band, leaves the form: so a box is shaded along its right and bottom
+ * faces, a circle in a crescent on its far rim, and a ring both on its
+ * outer far rim and on the near wall of its hole, which is the wall that
+ * faces away from the light. Cut to the outline even-odd, like hatching.
+ */
+export function shadeLines(
+  shape: { x: number; y: number }[] | { x: number; y: number }[][],
+  spacing = SHADE_SPACING,
+): string[] {
+  const polygons = (Array.isArray(shape[0]) ? shape : [shape]) as Point[][];
+  const all = polygons.flat();
+  if (all.length < 3) return [];
+  const step = shadeBand(polygons) / Math.SQRT2;
+  const depths = all.map((p) => p.x + p.y);
+  const near = Math.min(...depths);
+  const far = Math.max(...depths);
+  const lines: string[] = [];
+  const shaded = (x: number, y: number) => !insideEvenOdd(polygons, { x: x + step, y: y + step });
+  // Lines x + y = k, from just inside the far rim back toward the light.
+  for (let k = far - spacing * 0.6; k > near; k -= spacing) {
+    const crossings: number[] = [];
+    for (const polygon of polygons) {
+      for (let i = 0; i < polygon.length; i += 1) {
+        const a = polygon[i];
+        const b = polygon[(i + 1) % polygon.length];
+        const da = a.x + a.y - k;
+        const db = b.x + b.y - k;
+        if ((da <= 0 && db > 0) || (da > 0 && db <= 0)) {
+          const t = da / (da - db);
+          crossings.push(a.x + (b.x - a.x) * t);
+        }
+      }
+    }
+    crossings.sort((p, q) => p - q);
+    for (let i = 0; i + 1 < crossings.length; i += 2) {
+      const x1 = crossings[i];
+      const x2 = crossings[i + 1];
+      if (x2 - x1 < 3) continue;
+      // Sampled along the segment; the runs that are in shade are kept,
+      // each reaching from halfway before its first shaded sample to
+      // halfway past its last — or to the segment's own end.
+      const samples = Math.max(2, Math.ceil((x2 - x1) / 4));
+      const at = (j: number) => x1 + ((x2 - x1) * j) / samples;
+      let runStart: number | null = null;
+      for (let j = 0; j <= samples; j += 1) {
+        const on = j <= samples && shaded(at(j), k - at(j));
+        if (on && runStart === null) runStart = j === 0 ? x1 : at(j - 0.5);
+        if ((!on || j === samples) && runStart !== null) {
+          const xEnd = j === samples ? x2 : at(j - 0.5);
+          if (xEnd - runStart >= 3) {
+            lines.push(`M ${f(runStart)} ${f(k - runStart)} L ${f(xEnd)} ${f(k - xEnd)}`);
+          }
+          runStart = null;
+        }
+      }
+    }
+  }
+  return lines;
+}
+
+/**
+ * A form's whole shade as one path.
+ *
+ * Every shade line as its own stroke was dozens of paths per form: six
+ * large boxes breached the document's limit of four hundred and a forty-bar
+ * chart measured three thousand strokes on mount. One compound path per
+ * form is one measured stroke, sketched end to end in one pass of the pen.
+ */
+export function shadePath(
+  shape: { x: number; y: number }[] | { x: number; y: number }[][],
+  spacing = SHADE_SPACING,
+): string | null {
+  const lines = shadeLines(shape, spacing);
+  return lines.length ? lines.join(" ") : null;
+}
+
+/** The weight every shade line is drawn at, in the muted ink. */
+export const SHADE_WEIGHT = 0.45;
+
+/** Whether a stroke is shade rather than drawing: tone, not line. */
+export function isShade(path: DrawnPath): boolean {
+  return path.weight === SHADE_WEIGHT && path.ink === "muted";
+}
+
+/** The four corners of a box, inset a little, as a polygon a shade can be cut to. */
+export function boxPolygon(x: number, y: number, w: number, h: number, inset = 0): Point[] {
+  return rect(x, y, w, h, inset);
 }
 
 /** A straight line as dashes: a weak relation, drawn as one. */
@@ -937,6 +1085,14 @@ export function compileDiagram(diagram: GeneratedDiagram): CompiledDrawing {
           ink,
           fill,
         });
+    }
+
+    // The light, last: a shade on the side away from it, over the wash and
+    // after the outline, so the room watches the form appear and then take
+    // its light. A hatched part is already tone, and gets none.
+    if (!node.hatch) {
+      const d = shadePath(outline(node, box));
+      if (d) paths.push({ d, stage: node.stage, weight: SHADE_WEIGHT, ink: "muted" });
     }
   }
 

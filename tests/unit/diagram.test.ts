@@ -4,7 +4,11 @@ import {
   boundaryPoint,
   circlePath,
   cloudPath,
-  compileDiagram,
+  compileDiagram as compileWithShade,
+  isShade,
+  shadeBand,
+  shadeLines,
+  SHADE_DEPTH,
   roundedBoxPath,
   symbolPaths,
   transformPath,
@@ -27,6 +31,16 @@ import { DrawnPath } from "@/lib/schema/presentation";
  * nothing the compiler emits can leave the picture's box or fail the
  * drawing schema the document stores.
  */
+
+/**
+ * The drawing without its shade. Every closed form carries a shade — see
+ * "light on the drawing" below — and the tests of the forms themselves read
+ * the lines, not the tone.
+ */
+const compileDiagram: typeof compileWithShade = (diagram) => {
+  const drawing = compileWithShade(diagram);
+  return { ...drawing, paths: drawing.paths.filter((p) => !isShade(p)) };
+};
 
 const node = (over: Partial<DiagramNode> & Pick<DiagramNode, "id" | "kind">): DiagramNode => ({
   symbol: null,
@@ -716,5 +730,125 @@ describe("arranged compositions", () => {
       GeneratedDiagram.parse({ nodes: [{ id: "a", kind: "circle" }] }),
     );
     expect(drawing.paths[0].d).toMatch(/A 60 60/);
+  });
+});
+
+describe("light on the drawing", () => {
+  const square = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 100 },
+    { x: 0, y: 100 },
+  ];
+  const points = (d: string) =>
+    [...d.matchAll(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g)].map((m) => ({
+      x: Number(m[1]),
+      y: Number(m[2]),
+    }));
+
+  it("shades the faces of a form away from a top-left light, and only those", () => {
+    const lines = shadeLines(square);
+    expect(lines.length).toBeGreaterThan(4);
+    const reach = shadeBand(square) / Math.SQRT2;
+    expect(shadeBand(square)).toBeCloseTo(100 * SHADE_DEPTH);
+    for (const line of lines) {
+      const [a, b] = points(line);
+      for (const p of [a, b]) {
+        // Inside the square, and within the band of its right or bottom
+        // face: a step away from the light leaves the form.
+        expect(p.x).toBeGreaterThanOrEqual(0);
+        expect(p.x).toBeLessThanOrEqual(100);
+        expect(p.y).toBeGreaterThanOrEqual(0);
+        expect(p.y).toBeLessThanOrEqual(100);
+        expect(Math.max(p.x, p.y) + reach).toBeGreaterThanOrEqual(100 - 4.5);
+      }
+      // Falling to the right: perpendicular to the light.
+      expect(a.x + a.y).toBeCloseTo(b.x + b.y, 5);
+    }
+    // The upper-left of the square, the lit side, carries none.
+    expect(lines.some((l) => points(l).some((p) => p.x < 60 && p.y < 60))).toBe(false);
+    // A tall column is shaded down its right face, not only in its corner.
+    const column = shadeLines([
+      { x: 0, y: 0 },
+      { x: 40, y: 0 },
+      { x: 40, y: 300 },
+      { x: 0, y: 300 },
+    ]);
+    expect(column.some((l) => points(l).every((p) => p.y < 100))).toBe(true);
+  });
+
+  it("is cut to what is drawn: a ring on its band, and nothing on a symbol or a hatched part", () => {
+    const shade = (n: DiagramNode) =>
+      compileWithShade({
+        arrangement: "free",
+        nodes: [n],
+        edges: [],
+        stageLabels: [],
+        alt: "",
+      }).paths.filter(isShade);
+    const circle = shade(node({ id: "c", kind: "circle", fill: true }));
+    // One compound path per form: dozens of strokes per form breached the
+    // document's limit and cost a chart thousands of measurements.
+    expect(circle).toHaveLength(1);
+    expect(points(circle[0].d).length).toBeGreaterThan(6);
+    expect(circle.every((p) => p.weight === 0.45 && p.ink === "muted" && p.stage === 0)).toBe(true);
+    // Every shade line lies inside the circle's far rim.
+    for (const p of circle)
+      for (const q of points(p.d)) {
+        expect(Math.hypot(q.x - 400, q.y - 250)).toBeLessThanOrEqual(100.5);
+        // On the far side of the circle: a step away from the light leaves it.
+        const step = 40 / Math.SQRT2;
+        expect(Math.hypot(q.x + step - 400, q.y + step - 250)).toBeGreaterThan(100 - 4.5);
+      }
+    // A ring is shaded on its band, never in its hole.
+    const ring = shade(node({ id: "r", kind: "ring" }));
+    for (const p of ring)
+      for (const q of points(p.d)) expect(Math.hypot(q.x - 400, q.y - 250)).toBeGreaterThan(57);
+    expect(shade(node({ id: "s", kind: "symbol", symbol: "heart" }))).toHaveLength(0);
+    expect(shade(node({ id: "h", kind: "box", hatch: true }))).toHaveLength(0);
+    // After the outline, at the node's stage, so the form appears and then takes its light.
+    const staged = compileWithShade({
+      arrangement: "free",
+      nodes: [node({ id: "b", kind: "box", stage: 2 })],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(staged.paths[0].weight).toBe(1.6);
+    expect(staged.paths.slice(1).every((p) => isShade(p) && p.stage === 2)).toBe(true);
+  });
+
+  it("stays inside a pill's rounded ends, and inside the document's limit on a big diagram", () => {
+    const pill = node({ id: "p", kind: "pill", x: 400, y: 250, w: 160, h: 120 });
+    const drawing = compileWithShade({
+      arrangement: "free",
+      nodes: [pill],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    // A capsule 160 wide and 120 tall: caps of radius 60 centred 20 either
+    // side of the middle. Every shade point is within a cap or the bar
+    // between them.
+    expect(drawing.paths.filter(isShade)).toHaveLength(1);
+    for (const p of drawing.paths.filter(isShade))
+      for (const q of points(p.d)) {
+        const inBar = Math.abs(q.x - 400) <= 20 && Math.abs(q.y - 250) <= 60;
+        const inCap =
+          Math.min(Math.hypot(q.x - 420, q.y - 250), Math.hypot(q.x - 380, q.y - 250)) <= 60;
+        expect(inBar || inCap).toBe(true);
+      }
+    // Six large boxes: one shade path each, well inside the four hundred.
+    const big = compileWithShade({
+      arrangement: "free",
+      nodes: Array.from({ length: 6 }, (_, i) =>
+        node({ id: `b${i}`, kind: "box", x: 100 + i * 120, y: 250, w: 400, h: 400, fill: true }),
+      ),
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(big.paths.filter(isShade)).toHaveLength(6);
+    expect(big.paths.length).toBeLessThan(400);
   });
 });

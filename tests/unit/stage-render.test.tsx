@@ -409,19 +409,22 @@ describe("performing a scene on arrival", () => {
     // A chart is a drawing by the same hand: a baseline and two columns,
     // sketched complete in the editor, on arrival while presenting, and
     // held for the camera like a drawing.
-    const strokes = (root: HTMLElement) => root.querySelectorAll("path.dp-path:not(.dp-under)");
-    const drawn = (root: HTMLElement) =>
-      root.querySelectorAll("path.dp-path.dp-drawn:not(.dp-under)");
+    // The washes are counted — one per amount — whatever the baseline and
+    // the shade add in strokes.
+    const washes = (root: HTMLElement) => root.querySelectorAll("path.dp-fill");
+    const drawn = (root: HTMLElement) => root.querySelectorAll("path.dp-fill.dp-drawn");
     const still = renderStage(column);
-    expect(strokes(still.container)).toHaveLength(3);
-    expect(drawn(still.container)).toHaveLength(3);
-    expect(still.container.querySelectorAll("path.dp-fill")).toHaveLength(2);
+    expect(washes(still.container)).toHaveLength(2);
+    expect(drawn(still.container)).toHaveLength(2);
+    expect(still.container.querySelectorAll("path.dp-path:not(.dp-under)").length).toBeGreaterThan(
+      3,
+    );
     still.unmount();
 
     const live = render(
       <Stage content={column} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
     );
-    expect(drawn(live.container)).toHaveLength(3);
+    expect(drawn(live.container)).toHaveLength(2);
     live.unmount();
 
     const held = render(
@@ -435,7 +438,7 @@ describe("performing a scene on arrival", () => {
         arrived={false}
       />,
     );
-    expect(strokes(held.container)).toHaveLength(3);
+    expect(washes(held.container)).toHaveLength(2);
     expect(drawn(held.container)).toHaveLength(0);
     held.unmount();
 
@@ -453,8 +456,8 @@ describe("performing a scene on arrival", () => {
     const drawnLine = render(
       <Stage content={line} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
     );
-    // The floor, the line in one stroke, a mark at each of two points.
-    expect(drawn(drawnLine.container)).toHaveLength(4);
+    // A filled mark at each of two points, drawn on arrival.
+    expect(drawn(drawnLine.container)).toHaveLength(2);
     expect(drawnLine.container.querySelector("svg[aria-label='Up.']")).not.toBeNull();
     drawnLine.unmount();
   });
@@ -524,11 +527,11 @@ describe("performing a scene on arrival", () => {
     expect(container.querySelectorAll("[data-held]")).toHaveLength(0);
     // Never held, so its strokes are down before the camera lands, and they
     // stay down when it pulls back: nothing blanks, nothing replays.
-    expect(container.querySelectorAll("path.dp-path.dp-drawn:not(.dp-under)")).toHaveLength(3);
+    expect(container.querySelectorAll("path.dp-fill.dp-drawn")).toHaveLength(2);
     rerender(
       <Stage content={column} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
     );
-    expect(container.querySelectorAll("path.dp-path.dp-drawn:not(.dp-under)")).toHaveLength(3);
+    expect(container.querySelectorAll("path.dp-fill.dp-drawn")).toHaveLength(2);
   });
 });
 
