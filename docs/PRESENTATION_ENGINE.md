@@ -38,6 +38,18 @@ content.**
 - An image element with no image is an outline, not a filled block, and its
   scrim — which exists to keep a caption legible over a photograph — is not
   drawn when there is no photograph.
+- An image element is graded to the deck by composition (`ImageElement.grade`,
+  `lib/present/grade.ts`): `tint` lowers the photograph's own saturation a
+  little and lays the theme's accent over it in `color` blend, with grain over
+  that, so a picture from a stock library or a phone reads as printed for this
+  deck; `duotone` goes the whole way — greyscale, highlights pulled to the
+  accent, shadows lifted to the canvas; `none` is the picture as shot, for a
+  chart or a screenshot whose own colour is the point. Every composed and
+  every inserted picture is tinted; stored rows that predate the field keep
+  what they had, and the inspector switches any of them.
+- A picture that is the whole stage is never feathered: the veil over a
+  cover faded out at its rim and showed the title scene's words through the
+  gap. The stage's own edge is edge enough.
 - An image element is `soft` by composition (`ImageElement.edge`): rounded
   generously and feathered on all four sides by a mask, so a photograph beside
   a heading pools into the page rather than ending at a hard vertical line.
@@ -670,6 +682,40 @@ accent, fills, the editor, the export and the audience boundary are all
 untouched. Stages are capped at four and folded when a model exceeds it
 (`normaliseDrawing`), and the box is widened to hold every stroke rather than
 clipping one.
+
+**Drawn by a hand.** Every drawing passes through one SVG displacement
+filter — low-frequency noise bending each stroke a third of a percent of the
+box off its geometry (`handWobble`) — so a compiled circle is a circle
+somebody drew rather than one a plotter traced. The seed is the box's own
+size, so a drawing wobbles the same way on every screen. Labels sit outside
+the filter: a word bent by the pen reads as a fault, not as handwriting.
+
+**Labels.** A diagram with nothing named is a puzzle, so a node carries a
+`label` of a word or two and an edge a `label` where the relation needs one;
+the compiler places a node's name inside a wide container or beneath anything
+else, and a relation's beside its midpoint, off the line. They are stored on
+the element (`DrawingElement.labels`, in the drawing's own units, each at a
+stage), set in the theme's sans face with a halo in the canvas colour, and
+arrive with their stage once its last stroke has closed. The export carries
+them into the slide.
+
+**Richer forms.** Beyond the containers: `blob` (anything organic, a closed
+curve whose radius wanders deterministically in the node's name, so a
+regenerated liver is the same liver), `ring` (a hub, a target), `bar` (an
+amount, `value` of its width washed in), `stack` (three of a thing, the back
+two lighter). `hatch` marks a part that is damaged, blocked or absent —
+diagonal lines clipped to the shape's outline, even-odd, at half weight in
+the muted ink, never together with a wash. Edges add `dashed` (a weak or
+indirect relation, as real dashes) and `leader` (a thin line that only points).
+
+**Briefed for a diagram.** The scene writer separates a `drawingBrief` — the
+parts, their names and how they relate — from the photograph's `imagePrompt`.
+Where photographs are available only scenes briefed for a drawing get one,
+from that brief; where drawings are the only pictures there are, an unbriefed
+scene is drawn from its photograph's prompt, which is better than a grey box.
+Handing a photographic prompt to the compiler is how a talk about paramedics
+got a stick figure beside a box, and the brief now says so: draw the
+mechanism, never the photograph.
 
 ### Builds
 

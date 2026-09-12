@@ -35,6 +35,9 @@ const node = (over: Partial<DiagramNode> & Pick<DiagramNode, "id" | "kind">): Di
   stage: 0,
   accent: false,
   fill: false,
+  hatch: false,
+  value: null,
+  label: "",
   ...over,
 });
 
@@ -198,7 +201,7 @@ describe("arrows", () => {
   it("draws a shaft and a two-stroke head, and a head at each end for an exchange", () => {
     const one = compileDiagram({
       nodes: [a, b],
-      edges: [{ from: "a", to: "b", kind: "arrow", stage: 1, accent: true }],
+      edges: [{ from: "a", to: "b", kind: "arrow", stage: 1, accent: true, label: "" }],
       stageLabels: [],
       alt: "",
     });
@@ -206,7 +209,7 @@ describe("arrows", () => {
     expect(one.paths.slice(2).every((p) => p.stage === 1 && p.ink === "accent")).toBe(true);
     const both = compileDiagram({
       nodes: [a, b],
-      edges: [{ from: "a", to: "b", kind: "both", stage: 0, accent: false }],
+      edges: [{ from: "a", to: "b", kind: "both", stage: 0, accent: false, label: "" }],
       stageLabels: [],
       alt: "",
     });
@@ -216,7 +219,7 @@ describe("arrows", () => {
   it("ignores an edge to a node that does not exist, rather than drawing to nowhere", () => {
     const out = compileDiagram({
       nodes: [a],
-      edges: [{ from: "a", to: "zz", kind: "arrow", stage: 0, accent: false }],
+      edges: [{ from: "a", to: "zz", kind: "arrow", stage: 0, accent: false, label: "" }],
       stageLabels: [],
       alt: "",
     });
@@ -256,5 +259,191 @@ describe("the compiled picture", () => {
     const filled = compileDiagram(diagram).paths.filter((p) => p.fill);
     expect(filled).toHaveLength(1);
     expect(filled[0].d.trim().endsWith("Z")).toBe(true);
+  });
+});
+
+describe("the richer forms", () => {
+  const inside = (d: string) => {
+    for (const token of tokenizePath(d)) {
+      if (!("number" in token)) continue;
+    }
+    const numbers = d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    return numbers.every((n) => n >= -1 && n <= 801);
+  };
+
+  it("draws a blob as one closed organic curve that follows its name", () => {
+    const a = compileDiagram({
+      nodes: [node({ id: "liver", kind: "blob", w: 240, h: 160 })],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    const b = compileDiagram({
+      nodes: [node({ id: "kidney", kind: "blob", w: 240, h: 160 })],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(a.paths).toHaveLength(1);
+    expect(a.paths[0].d.trim().endsWith("Z")).toBe(true);
+    expect(inside(a.paths[0].d)).toBe(true);
+    expect(a.paths[0].d).not.toBe(b.paths[0].d);
+    expect(
+      compileDiagram({
+        nodes: [node({ id: "liver", kind: "blob", w: 240, h: 160 })],
+        edges: [],
+        stageLabels: [],
+        alt: "",
+      }).paths[0].d,
+    ).toBe(a.paths[0].d);
+  });
+
+  it("draws a ring as two circles, a bar as its extent and its amount, a stack as three", () => {
+    const ring = compileDiagram({
+      nodes: [node({ id: "r", kind: "ring" })],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(ring.paths).toHaveLength(2);
+
+    const bar = compileDiagram({
+      nodes: [node({ id: "b", kind: "bar", w: 400, h: 40, value: 0.25, accent: true })],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(bar.paths).toHaveLength(2);
+    expect(bar.paths[1].fill).toBe(true);
+    expect(bar.paths[1].ink).toBe("accent");
+    const filledWidth = Math.max(...bar.paths[1].d.match(/-?\d+(\.\d+)?/g)!.map(Number));
+    expect(filledWidth).toBeLessThan(400 + 400 * 0.25 - 100);
+
+    const empty = compileDiagram({
+      nodes: [node({ id: "b", kind: "bar", w: 400, h: 40, value: 0 })],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(empty.paths).toHaveLength(1);
+
+    const stack = compileDiagram({
+      nodes: [node({ id: "s", kind: "stack" })],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(stack.paths).toHaveLength(3);
+    expect(stack.paths.filter((p) => p.ink === "muted")).toHaveLength(2);
+    expect(stack.paths[2].weight).toBe(1.6);
+  });
+
+  it("hatches a damaged part with light muted lines that stay inside it, and never washes it too", () => {
+    const out = compileDiagram({
+      nodes: [node({ id: "v", kind: "ellipse", w: 300, h: 160, hatch: true, fill: true })],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    const hatch = out.paths.filter((p) => p.ink === "muted");
+    expect(hatch.length).toBeGreaterThan(8);
+    for (const line of hatch) {
+      expect(line.weight).toBe(0.5);
+      const [x1, y1, x2, y2] = line.d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+      // Inside the ellipse, both ends.
+      for (const [x, y] of [
+        [x1, y1],
+        [x2, y2],
+      ]) {
+        expect(((x - 400) / 150) ** 2 + ((y - 250) / 80) ** 2).toBeLessThanOrEqual(1.02);
+      }
+    }
+    expect(out.paths.some((p) => p.fill)).toBe(false);
+  });
+
+  it("draws a dashed relation as dashes and a leader as one thin line, neither with a head", () => {
+    const a = node({ id: "a", kind: "circle", x: 150, w: 120, h: 120 });
+    const b = node({ id: "b", kind: "circle", x: 650, w: 120, h: 120 });
+    const dashed = compileDiagram({
+      nodes: [a, b],
+      edges: [{ from: "a", to: "b", kind: "dashed", stage: 0, accent: false, label: "" }],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(dashed.paths).toHaveLength(3);
+    expect((dashed.paths[2].d.match(/M /g) ?? []).length).toBeGreaterThan(10);
+    const leader = compileDiagram({
+      nodes: [a, b],
+      edges: [{ from: "a", to: "b", kind: "leader", stage: 0, accent: false, label: "" }],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(leader.paths).toHaveLength(3);
+    expect(leader.paths[2].weight).toBe(0.7);
+  });
+});
+
+describe("labels", () => {
+  it("name a node beside it, inside a wide container, and take its stage and accent", () => {
+    const out = compileDiagram({
+      nodes: [
+        node({
+          id: "h",
+          kind: "symbol",
+          symbol: "heart",
+          x: 150,
+          y: 250,
+          w: 160,
+          h: 160,
+          label: "Heart",
+          stage: 1,
+          accent: true,
+        }),
+        node({ id: "box", kind: "box", x: 500, y: 250, w: 300, h: 120, label: "The vessel" }),
+        node({ id: "none", kind: "circle", x: 700, y: 400, w: 60, h: 60 }),
+      ],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(out.labels).toHaveLength(2);
+    const heart = out.labels.find((l) => l.text === "Heart")!;
+    expect(heart.y).toBeGreaterThan(250 + 80);
+    expect(heart.stage).toBe(1);
+    expect(heart.ink).toBe("accent");
+    const vessel = out.labels.find((l) => l.text === "The vessel")!;
+    expect(vessel.y).toBe(250);
+    expect(vessel.x).toBe(500);
+  });
+
+  it("name a relation beside its midpoint, off the line", () => {
+    const out = compileDiagram({
+      nodes: [
+        node({ id: "a", kind: "circle", x: 150, y: 250, w: 100, h: 100 }),
+        node({ id: "b", kind: "circle", x: 650, y: 250, w: 100, h: 100 }),
+      ],
+      edges: [{ from: "a", to: "b", kind: "arrow", stage: 2, accent: false, label: "blocks" }],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(out.labels).toHaveLength(1);
+    expect(out.labels[0].x).toBeCloseTo(400, 0);
+    expect(Math.abs(out.labels[0].y - 250)).toBeGreaterThan(8);
+    expect(out.labels[0].stage).toBe(2);
+    expect(out.labels[0].ink).toBe("muted");
+  });
+
+  it("are stored by the document and folded with the stages", () => {
+    const out = compileDiagram({
+      nodes: [node({ id: "a", kind: "circle", label: "A", stage: 3 })],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(GeneratedDrawing.safeParse(out).success).toBe(true);
+    const normalised = normaliseDrawing(out);
+    expect(normalised.labels).toHaveLength(1);
+    // The only stage is 3; renumbered onto the first press.
+    expect(normalised.labels[0].stage).toBe(0);
   });
 });

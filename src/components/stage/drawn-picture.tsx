@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import type { DrawingElement } from "@/lib/schema/presentation";
 
 /**
@@ -50,14 +51,45 @@ export function measureDrawnPath(el: SVGGeometryElement | null): void {
   }
 }
 
+/**
+ * The base size of a label, in the drawing's own units.
+ *
+ * Sized against the width so a label is the same fraction of the picture
+ * whatever box the model drew in: on the 800-wide canvas this is 26, which is
+ * a caption's height on a half-stage drawing and legible from the back.
+ */
+export function labelSize(viewBoxWidth: number): number {
+  return viewBoxWidth * 0.0325;
+}
+
+/**
+ * How much a hand wobbles, in the drawing's units.
+ *
+ * Proportional to the box for the same reason: a fixed wobble is a tremor on
+ * a small drawing and invisible on a large one. On 800 wide this is 2.4 —
+ * about a third of a percent, which is what a pen does and a plotter does not.
+ */
+export function handWobble(viewBoxWidth: number): number {
+  return viewBoxWidth * 0.003;
+}
+
 export function DrawnPicture({
   element,
   step,
+  fontFamily,
 }: {
   element: DrawingElement;
   /** Current advance step; paths with `stage <= step` are drawn. Pass Infinity for the finished picture. */
   step: number;
+  /** The theme's sans face, for the labels. */
+  fontFamily?: string;
 }) {
+  // One filter per picture, named uniquely so two drawings on a scene do not
+  // share a definition and a thumbnail does not borrow the stage's.
+  const filterId = `hand-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const wobble = handWobble(element.viewBox.width);
+  const size = labelSize(element.viewBox.width);
+
   // How many paths share each stage, and each path's index within its stage,
   // so a stage's paths split its pace between them in order. Pure arithmetic
   // over props — fine in render.
@@ -87,43 +119,109 @@ export function DrawnPicture({
       preserveAspectRatio="xMidYMid meet"
       style={{ width: "100%", height: "100%", overflow: "hidden" }}
     >
-      {element.paths.map((path, i) => {
-        const siblings = perStage.get(path.stage) ?? 1;
-        const duration = element.paceSeconds / siblings;
-        const drawn = path.stage <= step;
-        const colour = INK[path.ink ?? element.ink];
-        const timing = {
-          "--dp-dur": `${duration}s`,
-          "--dp-del": `${slots[i] * duration}s`,
-        } as React.CSSProperties;
-        return (
-          <g key={i}>
-            {/* The wash goes under the stroke and waits for it: its delay is
+      {/* The hand. A displacement through low-frequency noise bends every
+          stroke a little off its geometry, so a compiled circle is a circle
+          somebody drew rather than one a plotter traced. Seeded from the
+          picture's own size so the same drawing wobbles the same way on
+          every screen. */}
+      <defs>
+        <filter
+          id={filterId}
+          filterUnits="userSpaceOnUse"
+          x={-element.viewBox.width * 0.05}
+          y={-element.viewBox.height * 0.05}
+          width={element.viewBox.width * 1.1}
+          height={element.viewBox.height * 1.1}
+        >
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency={0.012}
+            numOctaves={2}
+            seed={Math.round(element.viewBox.width + element.viewBox.height) % 97}
+            result="noise"
+          />
+          <feDisplacementMap
+            in="SourceGraphic"
+            in2="noise"
+            scale={wobble}
+            xChannelSelector="R"
+            yChannelSelector="G"
+          />
+        </filter>
+      </defs>
+      <g filter={`url(#${filterId})`}>
+        {element.paths.map((path, i) => {
+          const siblings = perStage.get(path.stage) ?? 1;
+          const duration = element.paceSeconds / siblings;
+          const drawn = path.stage <= step;
+          const colour = INK[path.ink ?? element.ink];
+          const timing = {
+            "--dp-dur": `${duration}s`,
+            "--dp-del": `${slots[i] * duration}s`,
+          } as React.CSSProperties;
+          return (
+            <g key={i}>
+              {/* The wash goes under the stroke and waits for it: its delay is
                 the stroke's own delay plus its duration, so the shape fills
                 the moment its outline closes rather than before it exists. */}
-            {path.fill && (
+              {path.fill && (
+                <path
+                  d={path.d}
+                  className={drawn ? "dp-fill dp-drawn" : "dp-fill"}
+                  fill={colour}
+                  style={
+                    {
+                      "--dp-del": `${slots[i] * duration + duration}s`,
+                    } as React.CSSProperties
+                  }
+                />
+              )}
               <path
+                ref={measureDrawnPath}
                 d={path.d}
-                className={drawn ? "dp-fill dp-drawn" : "dp-fill"}
-                fill={colour}
-                style={
-                  {
-                    "--dp-del": `${slots[i] * duration + duration}s`,
-                  } as React.CSSProperties
-                }
+                className={drawn ? "dp-path dp-drawn" : "dp-path"}
+                stroke={colour}
+                strokeWidth={element.strokeWidth * (path.weight ?? 1)}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={timing}
               />
-            )}
-            <path
-              ref={measureDrawnPath}
-              d={path.d}
-              className={drawn ? "dp-path dp-drawn" : "dp-path"}
-              stroke={colour}
-              strokeWidth={element.strokeWidth * (path.weight ?? 1)}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={timing}
-            />
-          </g>
+            </g>
+          );
+        })}
+      </g>
+      {/* Labels sit outside the hand: a word bent by the pen's wobble reads
+          as a rendering fault, not as handwriting. They arrive after their
+          stage's last stroke has closed. */}
+      {element.labels.map((label, i) => {
+        const siblings = perStage.get(label.stage) ?? 1;
+        const drawn = label.stage <= step;
+        return (
+          <text
+            key={`label-${i}`}
+            x={label.x}
+            y={label.y}
+            className={drawn ? "dp-label dp-drawn" : "dp-label"}
+            fill={INK[label.ink ?? element.ink]}
+            fontFamily={fontFamily}
+            fontSize={size * label.size}
+            fontWeight={500}
+            textAnchor={label.anchor}
+            dominantBaseline="middle"
+            // A halo in the canvas colour, so a word that lands on a line is
+            // still a word.
+            stroke="var(--stage-canvas)"
+            strokeWidth={size * 0.28}
+            strokeLinejoin="round"
+            paintOrder="stroke"
+            style={
+              {
+                "--dp-del": `${siblings * (element.paceSeconds / siblings)}s`,
+              } as React.CSSProperties
+            }
+          >
+            {label.text}
+          </text>
         );
       })}
     </svg>

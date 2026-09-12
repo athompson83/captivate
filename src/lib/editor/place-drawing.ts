@@ -1,4 +1,5 @@
 import type { DrawnPath, SceneContent, SceneElement, SceneLayout } from "@/lib/schema/presentation";
+import type { DrawnLabel } from "@/lib/schema/presentation";
 import { elementId, layoutSlots } from "./layouts";
 import { tokenizePath } from "@/lib/drawing/path-tokens";
 
@@ -278,6 +279,7 @@ export function normaliseDrawing<
   T extends {
     viewBox: { width: number; height: number };
     paths: DrawnPath[];
+    labels?: DrawnLabel[];
     stageLabels: string[];
   },
 >(drawing: T): T {
@@ -337,6 +339,12 @@ export function normaliseDrawing<
     ...drawing,
     viewBox,
     paths: drawing.paths.map((path) => ({ ...path, stage: foldedTo.get(path.stage) ?? 0 })),
+    // Labels fold with the strokes they name; one at a stage no stroke has
+    // lands on the first press rather than never.
+    labels: (drawing.labels ?? []).map((label) => ({
+      ...label,
+      stage: foldedTo.get(label.stage) ?? 0,
+    })),
     stageLabels: labels.map((label) => label.slice(0, 120)),
   };
 }
@@ -360,6 +368,7 @@ export function replaceMediaWithDrawing(
   drawing: {
     viewBox: { width: number; height: number };
     paths: DrawnPath[];
+    labels?: DrawnLabel[];
     stageLabels: string[];
     alt: string;
   },
@@ -380,6 +389,7 @@ export function replaceMediaWithDrawing(
     frame: placeholder.frame,
     viewBox: safe.viewBox,
     paths: safe.paths,
+    labels: safe.labels ?? [],
     stageLabels: safe.stageLabels,
     ink: "ink",
     // 3, up from 2. The drawing's box is about half the stage, so a unit of

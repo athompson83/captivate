@@ -301,6 +301,19 @@ export const ImageElement = z.object({
    * that reason. Stored rows that predate the field keep the edge they had.
    */
   edge: z.enum(["hard", "soft"]).default("hard"),
+  /**
+   * How the picture is coloured to belong to the deck.
+   *
+   * A photograph arrives in its own colour world — a stock library's, a
+   * phone's — and a deck of them reads as a scrapbook. `tint` pulls the
+   * picture toward the theme's accent and lays a little grain on it, so every
+   * picture in a deck shares one light; `duotone` goes the whole way, the
+   * picture in the theme's canvas and accent alone. `none` leaves the
+   * photograph as it was, which is right for a chart, a screenshot or a
+   * picture whose own colour is the point. Stored rows that predate the field
+   * keep what they had; every composed picture is tinted.
+   */
+  grade: z.enum(["none", "tint", "duotone"]).default("none"),
 });
 
 export const VideoElement = z.object({
@@ -457,6 +470,26 @@ export type DrawnPath = z.infer<typeof DrawnPath>;
  * Captivate supplies the ink, so a drawing reads correctly in every theme and
  * a generation cannot smuggle colour in.
  */
+/**
+ * A word or two on a drawing, in the ink, at a stage.
+ *
+ * A diagram with nothing named is a puzzle: the room sees a heart, a pipe and
+ * a cloud and is left to guess which is which. Labels are short by
+ * construction, positioned in the drawing's own units, and arrive with the
+ * stage they belong to like any stroke.
+ */
+export const DrawnLabel = z.object({
+  text: z.string().min(1).max(28),
+  x: z.number().min(-4000).max(4000),
+  y: z.number().min(-4000).max(4000),
+  stage: z.number().int().min(0).max(19).default(0),
+  ink: z.enum(["ink", "accent", "muted"]).optional(),
+  /** Multiple of the drawing's base label size. */
+  size: z.number().min(0.5).max(3).default(1),
+  anchor: z.enum(["start", "middle", "end"]).default("middle"),
+});
+export type DrawnLabel = z.infer<typeof DrawnLabel>;
+
 export const DrawingElement = z.object({
   ...elementBase,
   type: z.literal("drawing"),
@@ -465,6 +498,7 @@ export const DrawingElement = z.object({
     height: z.number().positive().max(4000),
   }),
   paths: z.array(DrawnPath).min(1).max(400),
+  labels: z.array(DrawnLabel).max(24).default([]),
   /** Authoring aid naming what each stage adds. Never sent to the audience. */
   stageLabels: z.array(z.string().max(120)).max(20).default([]),
   ink: z.enum(["ink", "accent", "muted"]).default("ink"),

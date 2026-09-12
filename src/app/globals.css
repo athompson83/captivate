@@ -353,6 +353,22 @@
       animation-delay: 0s;
     }
   }
+  /* A drawing's labels: a word or two in the ink, arriving with their
+     stage once its strokes are down. Reduced motion drops only the wait. */
+  .dp-label {
+    opacity: 0;
+  }
+  /* dp-fade declares only its `from`: the `to` is the element's own
+     opacity, so a drawn label must be opaque for the fade to go anywhere. */
+  .dp-label.dp-drawn {
+    opacity: 1;
+    animation: dp-fade 0.45s ease-out var(--dp-del, 0s) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dp-label.dp-drawn {
+      animation-delay: 0s;
+    }
+  }
   /* The journey route's direction dots, arriving after the path has drawn. */
   .dp-fade {
     animation: dp-fade 0.6s ease-out both;

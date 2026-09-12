@@ -96,6 +96,8 @@ restricted to http and https.
 | Replace media                   | Implemented | Upload, library or URL                                                                                          |
 | Cropping beyond focal point     | Partial     | Focal point and fit only; no free crop                                                                          |
 | AI image generation             | Implemented | Paid plans only, from the picker's Generate tab; the first real picture came back from production on 2026-09-02 |
+| Pictures graded to the deck     | Implemented | Every composed or inserted picture is tinted to the theme with grain; duotone and as-shot in the inspector      |
+| Drawings by hand, with labels   | Implemented | A pen's wobble on every stroke; a word or two on each part; blobs, rings, bars, stacks, hatching, dashed lines  |
 
 ---
 

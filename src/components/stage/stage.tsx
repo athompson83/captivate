@@ -487,7 +487,7 @@ function StaggeredElement({
   // camera, no stage has been reached yet — the first stroke is drawn in
   // front of the room, not in the distance.
   if (element.type === "drawing" && play) {
-    return <DrawnPicture element={element} step={held ? -1 : step} />;
+    return <DrawnPicture element={element} step={held ? -1 : step} fontFamily={theme.fonts.sans} />;
   }
   if (element.type === "list" && element.staggered && play) {
     const visible = Math.max(1, Math.min(element.items.length, step + 1));

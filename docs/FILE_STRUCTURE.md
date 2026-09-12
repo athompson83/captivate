@@ -84,6 +84,7 @@ captivate/
 │  │  │  ├─ opening.ts             The opening beat: hold wide, then dive
 │  │  │  ├─ swipe.ts               Moving by hand: the swipe recogniser
 │  │  │  ├─ captions.ts            Captions for the room: the speech engine, the tail of what was said
+│  │  │  ├─ grade.ts               Pictures graded to the deck: tint, duotone, grain, in the theme's tokens
 │  │  │  ├─ protocol.ts            Cross-window messages, Zod-validated
 │  │  │  ├─ motion.ts              Entrance and emphasis presets
 │  │  │  ├─ camera.ts              Optimal zoom-and-pan flight (Van Wijk & Nuij)
