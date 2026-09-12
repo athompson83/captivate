@@ -813,6 +813,36 @@ strokes — exactly as the stage's icons do, so a heart in a diagram and a
 heart on a take-home card are the same kind of mark. The wash is a stroke
 of weight zero: tone with no line, which `DrawnPath.weight` now allows.
 
+**A drawing fills its frame.** A drawing is composed on a canvas — 800 by
+500 for a diagram or a chart — and a row of three parts uses a band across
+the middle of it. Shown as its canvas, the picture was a small thing in a
+large slot beside its text, with air above and below it that nobody had
+drawn. The stage and the export now show the **frame** (`frameOf`, in
+`lib/drawing/frame.ts`): the box the ink and the names actually occupy,
+measured from the path data itself — an arc by the whole of its turn, a
+name by its anchor and its halo — with a margin of air, and never closer
+than twice the canvas would show it, so a lone symbol is not blown up into
+ropes and puddles. The frame is computed from the stored strokes every time
+and never stored: the canvas stays the author's coordinate system, the
+labels and the hand's wobble are still sized against it (so a name grows
+with the part it names), and every drawing already in a deck is framed the
+moment the recipe exists. Ink a model drew outside its declared box is
+inside the frame too, where it used to be clipped.
+
+**A name finds clear ground.** A diagram's names went below their parts,
+and a small part inside a big one — the clot in the artery — had its name
+written across the artery's outline. A name now steps to the clear side of
+its part (`nameFor`): below, then above, then to the right, then to the
+left, the first place that lands on no other part and on no name already
+placed; a name inside a container the part itself sits in is clear ground.
+A container wide enough to carry its own name keeps it at its centre, and
+is named first so everything else steps around it. When nothing beside the
+part is clear — a clot filling its artery — the name stands outside
+whatever encloses the part, below it or above it, with a thin leader in the
+muted ink from the name to the part's own edge, which is how an illustrator
+names the small thing inside the big one. Failing even that it goes below
+as it always did: a name on a line is still a name.
+
 ### Builds
 
 `buildStepCount` computes how many discrete advances a scene contains: one for

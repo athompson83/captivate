@@ -264,3 +264,26 @@ describe("drawn like an illustrator", () => {
     expect(new Set(seeds).size).toBe(3);
   });
 });
+
+describe("framed to its ink", () => {
+  it("shows the box the ink and the names occupy, not the canvas, at the canvas's hand and type", () => {
+    // A stroke in the middle of an 800 × 500 canvas, named: the picture was
+    // that canvas, a small thing in a large slot. The frame closes to the
+    // ink with air — no closer than twice — and the label's size and the
+    // hand's wobble are still the canvas's, so they grow with the part.
+    const framed: DrawingElement = {
+      ...element,
+      viewBox: { width: 800, height: 500 },
+      strokeWidth: 3,
+      paths: [{ d: "M 300 200 L 500 300", stage: 0 }],
+      labels: [{ text: "Here", x: 400, y: 330, stage: 0, size: 1, anchor: "middle" }],
+    };
+    const { container } = render(<DrawnPicture element={framed} step={Infinity} />);
+    const svg = container.querySelector("svg")!;
+    expect(svg.getAttribute("viewBox")).toBe("197 145.5 406 256");
+    expect(container.querySelector("text")!.getAttribute("font-size")).toBe("26");
+    const filter = container.querySelector("filter")!;
+    expect(Number(filter.getAttribute("x"))).toBeCloseTo(180, 5);
+    expect(Number(filter.getAttribute("width"))).toBeCloseTo(440, 5);
+  });
+});

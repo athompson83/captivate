@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { frameOf } from "@/lib/drawing/frame";
 import { getTheme } from "@/lib/schema/theme";
 import { SceneElement, type Scene } from "@/lib/schema/presentation";
 import { bulletRuns } from "@/lib/export/pptx";
@@ -523,7 +524,18 @@ describe("the drawing's SVG", () => {
       "#ABCDEF",
     );
     expect(svg).toContain('xmlns="http://www.w3.org/2000/svg"');
-    expect(svg).toContain('viewBox="0 0 100 50"');
+    // Framed to the ink as the stage frames it — never closer than the zoom
+    // allows, so a stroke in the corner of a wide canvas is not a slide of
+    // one stroke.
+    const frame = frameOf({
+      viewBox: { width: 100, height: 50 },
+      paths: [{ d: "M0 0 L10 10" }],
+      strokeWidth: 2,
+    });
+    expect(frame.width).toBe(50);
+    expect(svg).toContain(
+      `viewBox="${frame.x} ${frame.y} ${frame.width} ${frame.height}" width="${frame.width}" height="${frame.height}"`,
+    );
     expect(svg).toContain('stroke="#ABCDEF"');
     expect(svg).toContain('fill="none"');
   });

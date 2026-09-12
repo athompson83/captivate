@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { DrawnLabel, DrawnPath } from "@/lib/schema/presentation";
 import { tokenizePath } from "./path-tokens";
+import { contains, overlaps, type Bounds } from "./bounds";
+import { labelBox, labelSize } from "./frame";
 import { DIAGRAM_SYMBOLS, symbolNode, type DiagramSymbol, type SymbolNode } from "./symbols";
 
 /**
@@ -905,7 +907,7 @@ function boxOf(node: DiagramNode): Box {
 }
 
 /** A label's base size on this canvas, as the renderer sets it. */
-const LABEL_SIZE = DIAGRAM_WIDTH * 0.0325;
+const LABEL_SIZE = labelSize(DIAGRAM_WIDTH);
 
 /**
  * A label moved to sit wholly inside the picture.
@@ -927,22 +929,104 @@ export function keptInside(label: DrawnLabel): DrawnLabel {
   return { ...label, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
 }
 
-/** Where a node's name goes: inside a wide container, below anything else. */
-function labelFor(node: DiagramNode, box: Box): DrawnLabel | null {
+const boundsOf = (b: Box): Bounds => ({ minX: b.x, minY: b.y, maxX: b.x + b.w, maxY: b.y + b.h });
+
+/** A container wide enough to carry its own name inside it. */
+const isContainer = (node: DiagramNode, box: Box) =>
+  (node.kind === "box" || node.kind === "pill") && box.w >= 120 && box.h >= 44;
+
+/** How far a name stands off the part it names. */
+const NAME_GAP = 20;
+const NAME_SIDE_GAP = 12;
+/** Further, when the name stands outside an enclosure: a leader has to be long enough to read as one. */
+const LEADER_GAP = 30;
+
+/**
+ * Where a node's name goes, and the leader that points to it when it cannot
+ * go beside its part.
+ *
+ * A container wide enough carries its name inside. Anything else is named
+ * below it — unless the name would land on another part, or on a name
+ * already placed, in which case it tries above, then to the right, then to
+ * the left, and takes the first clear ground. A name inside a container the
+ * part itself sits in is clear ground: the clot's name beside the clot,
+ * inside the artery.
+ *
+ * When nothing beside the part is clear — a clot filling its artery — the
+ * name stands outside whatever encloses the part, below it or above it, and
+ * a thin leader in the muted ink points from the name to the part, which is
+ * how an illustrator names the small thing inside the big one. Failing even
+ * that, the name goes below as it always did: a name on a line is still a
+ * name, and a part with no name is a puzzle.
+ */
+function nameFor(
+  node: DiagramNode,
+  box: Box,
+  others: readonly { node: DiagramNode; box: Box }[],
+  placed: readonly Bounds[],
+): { label: DrawnLabel; leader?: DrawnPath } | null {
   const text = node.label.trim();
   if (!text) return null;
   const c = centre(box);
-  const wide = (node.kind === "box" || node.kind === "pill") && box.w >= 120 && box.h >= 44;
-  const y = wide ? c.y : box.y + box.h + 20;
-  return keptInside({
+  const base = {
     text,
-    x: c.x,
-    y,
     stage: node.stage,
-    ink: node.accent ? "accent" : undefined,
+    ink: node.accent ? ("accent" as const) : undefined,
     size: 1,
-    anchor: "middle",
-  });
+  };
+  if (isContainer(node, box)) {
+    return { label: keptInside({ ...base, x: c.x, y: c.y, anchor: "middle" }) };
+  }
+
+  const own = boundsOf(box);
+  const clear = (label: DrawnLabel) => {
+    const b = labelBox(label, LABEL_SIZE);
+    if (b.minX < 0 || b.minY < 0 || b.maxX > DIAGRAM_WIDTH || b.maxY > DIAGRAM_HEIGHT) return false;
+    if (placed.some((p) => overlaps(b, p))) return false;
+    return others.every(({ box: other }) => {
+      const ob = boundsOf(other);
+      return !overlaps(b, ob) || (contains(ob, b) && contains(ob, own));
+    });
+  };
+
+  const beside: DrawnLabel[] = [
+    { ...base, x: c.x, y: box.y + box.h + NAME_GAP, anchor: "middle" },
+    { ...base, x: c.x, y: box.y - NAME_GAP, anchor: "middle" },
+    { ...base, x: box.x + box.w + NAME_SIDE_GAP, y: c.y, anchor: "start" },
+    { ...base, x: box.x - NAME_SIDE_GAP, y: c.y, anchor: "end" },
+  ];
+  for (const label of beside) {
+    if (clear(label)) return { label };
+  }
+
+  // The largest thing the part sits inside, if any.
+  const enclosure = others
+    .filter(({ box: other }) => contains(boundsOf(other), own))
+    .sort((a, b) => b.box.w * b.box.h - a.box.w * a.box.h)[0];
+  if (enclosure) {
+    const e = enclosure.box;
+    const outside: DrawnLabel[] = [
+      { ...base, x: c.x, y: e.y + e.h + LEADER_GAP, anchor: "middle" },
+      { ...base, x: c.x, y: e.y - LEADER_GAP, anchor: "middle" },
+    ];
+    for (const label of outside) {
+      if (!clear(label)) continue;
+      const b = labelBox(label, LABEL_SIZE);
+      const from = { x: c.x, y: label.y > c.y ? b.minY - 2 : b.maxY + 2 };
+      const to = boundaryPoint(node, box, from);
+      return {
+        label,
+        leader: {
+          d: `M ${f(from.x)} ${f(from.y)} L ${f(to.x)} ${f(to.y)}`,
+          stage: node.stage,
+          weight: 0.7,
+          ink: "muted",
+        },
+      };
+    }
+  }
+
+  return { label: keptInside(beside[0]) };
 }
 
 export function compileDiagram(diagram: GeneratedDiagram): CompiledDrawing {
@@ -959,12 +1043,28 @@ export function compileDiagram(diagram: GeneratedDiagram): CompiledDrawing {
         )
       : diagram.edges;
 
+  for (const node of nodes) boxes.set(node.id, { node, box: boxOf(node) });
+
+  // The names, containers first: a container's name is always at its centre,
+  // and every other name steps around it and around every other part.
+  const named: (typeof nodes)[number][] = [
+    ...nodes.filter((n) => isContainer(n, boxes.get(n.id)!.box)),
+    ...nodes.filter((n) => !isContainer(n, boxes.get(n.id)!.box)),
+  ];
+  const placed: Bounds[] = [];
+  for (const node of named) {
+    const { box } = boxes.get(node.id)!;
+    const others = [...boxes.values()].filter((entry) => entry.node !== node);
+    const name = nameFor(node, box, others, placed);
+    if (!name) continue;
+    labels.push(name.label);
+    placed.push(labelBox(name.label, LABEL_SIZE));
+    if (name.leader) paths.push(name.leader);
+  }
+
   for (const node of nodes) {
-    const box = boxOf(node);
-    boxes.set(node.id, { node, box });
+    const { box } = boxes.get(node.id)!;
     const ink = node.accent ? ("accent" as const) : undefined;
-    const label = labelFor(node, box);
-    if (label) labels.push(label);
 
     if (node.kind === "symbol") {
       // On a wash in its own ink, as the stage's icons are: a glyph on its

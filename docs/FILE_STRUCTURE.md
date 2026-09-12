@@ -133,6 +133,9 @@ captivate/
 │  │  │  ├─ chart.ts               A chart compiled into the same language: bars,
 │  │  │  │                         columns, a line, a donut
 │  │  │  ├─ symbols.ts             The pictograms a diagram may place (Lucide as paths)
+│  │  │  ├─ frame.ts               The frame a drawing is shown in: its ink and
+│  │  │  │                         names with air, never closer than twice
+│  │  │  ├─ bounds.ts              Where the ink is, measured from the path data
 │  │  │  └─ path-tokens.ts         The path grammar a stored stroke must pass
 │  │  ├─ supabase/                 client, server, admin, config, types
 │  │  ├─ marketing/                The hero's world and flight path; the

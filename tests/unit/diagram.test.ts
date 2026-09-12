@@ -18,6 +18,8 @@ import {
 import { keptInside, outline, hatchLines } from "@/lib/drawing/diagram";
 import { DIAGRAM_SYMBOLS, symbolNode } from "@/lib/drawing/symbols";
 import { tokenizePath } from "@/lib/drawing/path-tokens";
+import { labelBox } from "@/lib/drawing/frame";
+import { overlaps } from "@/lib/drawing/bounds";
 import { GeneratedDrawing } from "@/lib/ai/schemas";
 import { normaliseDrawing } from "@/lib/editor/place-drawing";
 import { DrawnPath } from "@/lib/schema/presentation";
@@ -580,8 +582,90 @@ describe("labels stay inside the picture", () => {
       alt: "",
     });
     const label = out.labels[0];
-    expect(label.x + (label.text.length * 0.56 * 26) / 2).toBeLessThanOrEqual(800);
-    expect(label.y).toBeLessThan(490);
+    const box = labelBox(label, 26);
+    expect(box.maxX).toBeLessThanOrEqual(800);
+    expect(box.maxY).toBeLessThanOrEqual(500);
+  });
+});
+
+describe("a name finds clear ground", () => {
+  const free = (nodes: DiagramNode[]) =>
+    compileDiagram({ arrangement: "free", nodes, edges: [], stageLabels: [], alt: "" });
+  const leaders = (paths: DrawnPath[]) =>
+    paths.filter((p) => p.weight === 0.7 && p.ink === "muted" && /^M [\d.]+ [\d.]+ L /.test(p.d));
+
+  it("goes below its part when nothing is there, as it always did", () => {
+    const out = free([
+      node({ id: "a", kind: "circle", x: 400, y: 250, w: 100, h: 100, label: "Heart" }),
+    ]);
+    expect(out.labels[0]).toMatchObject({ text: "Heart", x: 400, y: 320, anchor: "middle" });
+    expect(leaders(out.paths)).toHaveLength(0);
+  });
+
+  it("steps above a part whose name would land on the part beneath it", () => {
+    const out = free([
+      node({ id: "a", kind: "circle", x: 400, y: 200, w: 100, h: 100, label: "Above" }),
+      node({ id: "b", kind: "circle", x: 400, y: 320, w: 100, h: 100, label: "Below" }),
+    ]);
+    const above = out.labels.find((l) => l.text === "Above")!;
+    const below = out.labels.find((l) => l.text === "Below")!;
+    expect(above.y).toBe(130);
+    expect(below.y).toBe(390);
+    expect(overlaps(labelBox(above, 26), { minX: 350, minY: 270, maxX: 450, maxY: 370 })).toBe(
+      false,
+    );
+  });
+
+  it("names the small thing inside the big one beside it when there is room, inside the container", () => {
+    const out = free([
+      node({ id: "artery", kind: "pill", x: 400, y: 250, w: 360, h: 160, label: "Artery" }),
+      node({ id: "clot", kind: "blob", x: 300, y: 250, w: 50, h: 40, label: "Clot", stage: 1 }),
+    ]);
+    const clot = out.labels.find((l) => l.text === "Clot")!;
+    expect(clot).toMatchObject({ x: 300, y: 290, anchor: "middle" });
+    expect(leaders(out.paths)).toHaveLength(0);
+  });
+
+  it("names the small thing that fills the big one from outside, with a leader pointing in", () => {
+    // The clot's name landed on the artery's outline: below, above and to
+    // either side of the clot all crossed the artery's line or its name.
+    const out = free([
+      node({ id: "artery", kind: "pill", x: 400, y: 250, w: 240, h: 90, label: "Artery" }),
+      node({
+        id: "clot",
+        kind: "blob",
+        x: 470,
+        y: 250,
+        w: 70,
+        h: 56,
+        label: "Clot",
+        stage: 1,
+        accent: true,
+      }),
+    ]);
+    const artery = out.labels.find((l) => l.text === "Artery")!;
+    expect(artery).toMatchObject({ x: 400, y: 250 });
+    const clot = out.labels.find((l) => l.text === "Clot")!;
+    const box = labelBox(clot, 26);
+    // Wholly below the artery, and off its name.
+    expect(box.minY).toBeGreaterThan(295);
+    expect(clot.ink).toBe("accent");
+    expect(overlaps(box, labelBox(artery, 26))).toBe(false);
+    // One leader, at the clot's stage, from just above the name to the
+    // clot's own edge — never from its centre, where it would vanish under
+    // the hatching.
+    const [leader, ...rest] = leaders(out.paths);
+    expect(rest).toHaveLength(0);
+    expect(leader.stage).toBe(1);
+    const [, fromX, fromY, toX, toY] = leader.d
+      .match(/^M ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+)$/)!
+      .map(Number);
+    expect(fromX).toBe(470);
+    expect(fromY).toBeLessThan(box.minY);
+    expect(fromY).toBeGreaterThan(295);
+    expect(toX).toBe(470);
+    expect(toY).toBeGreaterThan(250);
+    expect(toY).toBeLessThanOrEqual(278 + 4);
   });
 });
 
