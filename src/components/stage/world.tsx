@@ -824,6 +824,7 @@ export const World = memo(function World({
             willChange: "transform",
             backgroundColor: graphic.backgroundColor,
             backgroundImage: graphic.backgroundImage,
+            backgroundBlendMode: graphic.backgroundBlendMode,
           }}
         />
       )}

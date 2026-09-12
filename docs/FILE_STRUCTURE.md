@@ -95,7 +95,7 @@ captivate/
 │  │  │  ├─ parallax.ts            Depth inside a scene: words nearer, pictures farther
 │  │  │  ├─ backdrop.ts            One picture behind the show, on a plane at a distance
 │  │  │  ├─ lean.ts                The room answers the hand: backdrop and air follow a mouse
-│  │  │  ├─ graphic-backdrop.ts    The room, drawn: aurora, strata, halo, from the palette
+│  │  │  ├─ graphic-backdrop.ts    The room, drawn: aurora, strata, halo, from the palette, with a grain
 │  │  │  └─ audience.ts            What the projector window is allowed to load
 │  │  ├─ narrative/
 │  │  │  ├─ map.ts                 Assemble, derive, reorder, diff the map
@@ -109,7 +109,7 @@ captivate/
 │  │  ├─ record/recorder.ts        MediaRecorder state machine, compositing
 │  │  ├─ record/countdown.ts       Three, two, one: the count before capture
 │  │  ├─ ai/
-│  │  │  ├─ look.ts                A look for every deck: the palette in words, the briefs
+│  │  │  ├─ look.ts                A look for every deck: the palette in words, the briefs, the room it chooses
 │  │  │  ├─ picture-plan.ts        Which pictures are made and which are found
 │  │  │  ├─ schemas.ts             Output schemas — the wall
 │  │  │  ├─ provider.ts            The only door to a model

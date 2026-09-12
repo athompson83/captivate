@@ -11,10 +11,11 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #104 — the MVP-030 closeout, and a look for every deck
-  (generated pictures and a room to one visual direction), awaiting CI,
-  merge and production verification
-- `main`: through PR #103 (merged) — `79d933f`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #105 — the MVP-031 closeout, and a room with material and
+  the phrase that matters (a grain on every drawn room, the room chosen by
+  the look, an accented phrase inside body text), awaiting CI, merge and
+  production verification
+- `main`: through PR #105 (merged) — `d4f0194`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -133,12 +134,65 @@ out of focus, far back and dimmed, only where the deck had none, and bounded
 so a slow provider never holds the route. Every picture passes the same
 reserve-before-spend gate the picker uses; free plans generate nothing.
 
+**Landed and verified.** PR #105 squash-merged as `d4f0194`, all six CI
+jobs green on the head; the proxied smoke suite 37 of 37 against
+`www.axtevi.com` after the deploy. Codex found four real things on the PR,
+fixed before merge: the room could outlive the route's ceiling — it is
+given only what the route has left and aborted at that deadline, and a
+picture that arrives after the abort is never stored; the journey was
+written from a snapshot taken at the top of the route — it is read again
+before the look and the room are merged in; a regeneration let the writer
+replace a look the author had edited — the saved look wins; and a picture
+generated from the picker ignored the deck's look — it follows it.
+
 Unverified from here, and worth saying so: this environment has no provider
 key and the session's Vercel token cannot read the project, so whether
 production carries an image key is unknown. The ledger says no image has
 ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
+
+### A room with material, and the phrase that matters
+
+The third answer to "the presentations still feel basic", and the one that
+needs no key. Two of the four things the owner named were the background and
+the content, and what a deck with no room picture stands in front of — every
+deck on a deployment without an image key, and every deck whose room a
+provider refused — was three washes of colour on a flat field: a gradient,
+which is what every slide tool has painted since one first could.
+
+**The room has a material** (`lib/present/graphic-backdrop.ts`). Every drawn
+room carries a grain: one small tile of monochrome fractal noise the browser
+rasterises from an SVG filter in a data URI — no bitmap in the repository,
+nothing fetched, seeded so it is the same on every render — stitched so the
+repeat has no seam, repeated across the layer and laid over the washes away
+from the canvas: screened onto a dark room, where it is film, multiplied
+into a light one, where it is the tooth of paper. The first version used
+soft-light for both and the render proved it invisible on a near-black
+ground, which is where most rooms are; the session rendered all three rooms
+on a dark and a light theme and looked at them at 1:1 before settling the
+mode and the strength. It sits on the drawn layer, so it moves with the
+wall under the parallax. `none` has no room and so no grain.
+
+**The room is chosen by the look** (`roomFor` in `lib/ai/look.ts`). The look
+already says what the pictures are made of, so it says what the wall behind
+them is: a printed medium — ink, wash, paper, a plan — stands in front of
+`strata`, a lit one — film, lamplight, a single source — in front of `halo`,
+anything else keeps the aurora. Matched on words, not understood; applied by
+both deck routes the first time a deck is given a look, and never again, so
+a room the author chose since is theirs.
+
+**The phrase that matters** (`bodyAccent`, `richTextMark`). A heading could
+already carry its closing clause in the accent; a body's one phrase the room
+should leave with is somewhere inside a sentence, so the writer copies it
+verbatim into `bodyAccent` and the composer colours it in place, in the
+accent token, leaving the words around it alone. A phrase the body does not
+contain marks nothing — appending it would put a fragment after the full
+stop. `extractContent` reads the mark back, so a re-layout keeps it, and
+re-theming moves it with the accent. `tests/unit/room-material.test.ts`
+covers the tile, the blend per canvas, the determinism, the chooser and its
+first-time-only application in both routes, the mark's placement, case,
+first occurrence, ends and absence, and the round trip through the composer.
 
 ### Captions for the room
 

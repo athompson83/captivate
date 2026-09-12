@@ -1183,6 +1183,53 @@ export function richTextAccent(text: string, accent: string): RichText {
   return [{ text: `${lead} ` }, { text: tail, color: { kind: "token", token: ACCENT_TOKEN } }];
 }
 
+/**
+ * A body with the phrase that matters carried in the accent.
+ *
+ * A heading's accent is its closing clause; a body's is a phrase somewhere
+ * inside a sentence — "the tissue is not diseased, *it is unsupplied*" — so
+ * the mark is found in the text and coloured in place, and the words around
+ * it are untouched. Matched without regard to case, on the first occurrence.
+ * A phrase the text does not contain marks nothing: appending it would put a
+ * fragment after the full stop, and a model that paraphrased its own body
+ * has not earned a second sentence.
+ */
+export function richTextMark(text: string, phrase: string): RichText {
+  const needle = phrase.trim();
+  if (!needle) return richText(text);
+  // Exact first; then without regard to case, matched *in the original text*
+  // rather than in a lowercased copy — lowercasing can change a string's
+  // length ("İ" becomes two code points), and an index into the copy then
+  // colours the wrong characters of the original.
+  const exact = text.indexOf(needle);
+  const found =
+    exact >= 0
+      ? { at: exact, length: needle.length }
+      : (() => {
+          const match = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "iu").exec(text);
+          return match ? { at: match.index, length: match[0].length } : null;
+        })();
+  if (!found) return richText(text);
+  const { at, length } = found;
+  const runs: RichText = [];
+  if (at > 0) runs.push({ text: text.slice(0, at) });
+  runs.push({
+    text: text.slice(at, at + length),
+    color: { kind: "token", token: ACCENT_TOKEN },
+  });
+  if (at + length < text.length) runs.push({ text: text.slice(at + length) });
+  return runs;
+}
+
+/** The accented phrase inside a body, or nothing, so a re-layout keeps it. */
+export function markedPhrase(runs: RichText): string {
+  return runs
+    .filter((run) => run.color?.kind === "token" && run.color.token === ACCENT_TOKEN)
+    .map((run) => run.text)
+    .join("")
+    .trim();
+}
+
 /** Splits an accented heading back into its two halves. */
 export function splitAccent(runs: RichText): { text: string; accent: string } {
   const accented = runs.filter(

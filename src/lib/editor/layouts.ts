@@ -4,6 +4,8 @@ import {
   STAGE_WIDTH,
   richText,
   richTextAccent,
+  richTextMark,
+  markedPhrase,
   splitAccent,
   type Frame,
   type RichText,
@@ -259,6 +261,8 @@ export interface LayoutContent {
   headingAccent?: string;
   subheading?: string;
   body?: string;
+  /** A phrase inside the body, carried in the theme's accent colour. */
+  bodyAccent?: string;
   bullets?: string[];
   bulletsB?: string[];
   quote?: string;
@@ -664,13 +668,15 @@ function build(layout: SceneLayout, slots: LayoutSlots, content: LayoutContent):
     // Always left, even on a centred layout: see the closing slots above.
     elements.push(listElement(content.bullets, slots.body, "left", nextDelay()));
   } else if (content.body && slots.body && layout !== "code") {
-    elements.push(
-      textElement(content.body, slots.body, align, nextDelay(), {
-        size: 0.58,
-        lineHeight: 1.5,
-        muted: layout !== "statement",
-      }),
-    );
+    const prose = textElement(content.body, slots.body, align, nextDelay(), {
+      size: 0.58,
+      lineHeight: 1.5,
+      muted: layout !== "statement",
+    });
+    if (content.bodyAccent && prose.type === "text") {
+      prose.content = richTextMark(content.body, content.bodyAccent);
+    }
+    elements.push(prose);
   }
 
   if (content.bulletsB?.length && slots.bodyB) {
@@ -1137,7 +1143,13 @@ export function extractContent(content: SceneContent): LayoutContent {
         } else if (el.id.startsWith("figurelabel_")) {
           out.figure = { value: out.figure?.value ?? "", label: t };
         } else if (el.style.uppercase && !out.eyebrow) out.eyebrow = t;
-        else texts.push(t);
+        else {
+          // The phrase that matters travels with its prose, or a re-layout
+          // would flatten the one thing the writer chose to colour.
+          const marked = markedPhrase(el.content);
+          if (marked && !out.bodyAccent) out.bodyAccent = marked;
+          texts.push(t);
+        }
         break;
       }
       case "icon":

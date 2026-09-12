@@ -1,3 +1,4 @@
+import type { BackdropGraphic } from "@/lib/schema/presentation";
 import type { PresentationTheme } from "@/lib/schema/theme";
 import { toOklab } from "@/lib/utils/color";
 
@@ -84,4 +85,29 @@ export function roomBrief(title: string, look: string, palette: string): string 
     0,
     1000,
   );
+}
+
+/**
+ * The drawn room that suits a look.
+ *
+ * A deck with no room picture — every deck on a deployment without an image
+ * key, and every deck whose room the provider refused — stands in front of a
+ * drawn room, and it was always the same one: `aurora`, whatever the talk.
+ * The look already says what the pictures are made of, so it can say what
+ * the wall behind them is too. A printed medium — ink, wash, paper, a plan —
+ * stands in front of `strata`, bands like distance seen through air; a
+ * photographic or lit one — film, lamplight, a single source — in front of
+ * `halo`, one light and the room falling away from it; anything else keeps
+ * the aurora. Matched on words, not understood, so a look that names neither
+ * gets the default rather than a guess.
+ */
+export function roomFor(look: string): BackdropGraphic {
+  const words = look.toLowerCase();
+  const printed =
+    /\b(ink|wash|watercolou?r|gouache|paper|print|linocut|woodcut|etching|engraving|charcoal|pencil|drafting|blueprint|architectural|schematic|diagram|map|atlas|cartograph)/;
+  const lit =
+    /\b(photograph|documentary|film|cinema|cinematic|noir|lamplight|lamp|torch|candle|spotlight|studio|window light|single light|one light|low light|dusk|dawn|night|neon)/;
+  if (printed.test(words)) return "strata";
+  if (lit.test(words)) return "halo";
+  return "aurora";
 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
 import { ROOM_BUDGET_MS, buildScenesFromMap, dressRoom } from "@/lib/ai/service";
+import { roomFor } from "@/lib/ai/look";
 import { ProposedMap } from "@/lib/ai/schemas";
 import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
 import { briefsFor, draftFromProposal } from "@/lib/narrative/generate";
@@ -266,13 +267,18 @@ export async function POST(request: Request) {
         .maybeSingle();
       const parsed = JourneyConfig.safeParse(current?.journey ?? {});
       const journey = parsed.success ? parsed.data : JourneyConfig.parse({});
+      // A new deck: the drawn room behind it is chosen by the look, so the
+      // wall matches the pictures from the first opening.
+      const graphic = built.data.look ? roomFor(built.data.look) : journey.backdrop.graphic;
       await supabase
         .from("presentations")
         .update({
           journey: {
             ...journey,
             look: built.data.look,
-            backdrop: room ? { ...journey.backdrop, ...room } : journey.backdrop,
+            backdrop: room
+              ? { ...journey.backdrop, ...room, graphic }
+              : { ...journey.backdrop, graphic },
           } as never,
         })
         .eq("id", presentationId);

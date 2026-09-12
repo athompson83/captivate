@@ -257,6 +257,31 @@ It is CSS on a layer the compositor already has to move for the parallax,
 rather than a second WebGL context on a device that may only grant the page
 one — and it therefore renders identically where WebGL is unavailable.
 
+**It has a material.** Three washes on a flat field are a gradient, and a
+gradient is what every slide tool has painted since one first could; what
+separates a room from a screen is that a wall has a surface. Every drawn room
+carries a **grain**: one small tile of monochrome fractal noise the browser
+rasterises from an SVG filter in a data URI (no bitmap in the repository,
+nothing fetched, seeded so it is the same on every render), stitched so the
+repeat has no seam, repeated across the layer and laid over the washes away
+from the canvas, the rule every form in the file follows: screened onto a
+dark room, where it is film — the light specks a projector puts on black —
+and multiplied into a light one, where it is the tooth of paper. (Soft-light
+would have been one mode for both, and does nothing on a near-black ground,
+which is where most rooms are; the first render proved it invisible.) It
+sits on the drawn layer, so it moves with the wall under the parallax: a
+wall's texture belongs to the wall, not to the glass in front of it. `none`
+has no room and so no grain.
+
+**It is chosen by the look.** When the scene writer gives a deck its look
+(`roomFor` in `src/lib/ai/look.ts`), the drawn room follows it: a printed
+medium — ink, wash, paper, a plan — stands in front of `strata`, a
+photographic or lit one — film, lamplight, a single source — in front of
+`halo`, anything else keeps `aurora`. Matched on words, not understood, so a
+look that names neither gets the default rather than a guess; applied by both
+deck routes the first time a deck is given a look, and never again, so the
+room an author chose since is theirs.
+
 ### What the picture is rasterised on
 
 The plane is measured in world units and a world is thousands of them across.

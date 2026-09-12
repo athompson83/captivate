@@ -57,6 +57,12 @@ export const GeneratedScene = z.object({
   subheading: z.string().max(220).default(""),
   eyebrow: z.string().max(48).default(""),
   body: z.string().max(320).default(""),
+  /**
+   * The phrase inside `body` the room should remember, copied from it exactly
+   * and carried in the accent. Capped like `headingAccent`, and for the same
+   * reason: emphasis is a phrase, not a sentence.
+   */
+  bodyAccent: z.string().max(60).default(""),
   bullets: z.array(z.string().min(1).max(140)).max(6).default([]),
   bulletsB: z.array(z.string().min(1).max(140)).max(6).default([]),
   quote: z.string().max(300).default(""),
