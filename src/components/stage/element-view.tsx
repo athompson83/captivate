@@ -1285,7 +1285,7 @@ export const ElementView = memo(function ElementView({
         <DrawnPicture
           element={chartDrawing(element)}
           step={Number.POSITIVE_INFINITY}
-          fontFamily={theme.fonts.sans}
+          fontFamily={theme.fonts.hand}
         />
       );
 
@@ -1297,7 +1297,7 @@ export const ElementView = memo(function ElementView({
         <DrawnPicture
           element={element}
           step={Number.POSITIVE_INFINITY}
-          fontFamily={theme.fonts.sans}
+          fontFamily={theme.fonts.hand}
         />
       );
 

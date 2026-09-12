@@ -726,8 +726,9 @@ the filter: a word bent by the pen reads as a fault, not as handwriting.
 the compiler places a node's name inside a wide container or beneath anything
 else, and a relation's beside its midpoint, off the line. They are stored on
 the element (`DrawingElement.labels`, in the drawing's own units, each at a
-stage), set in the theme's sans face with a halo in the canvas colour, and
-arrive with their stage once its last stroke has closed. The export carries
+stage), lettered in the theme's hand (see "Lettered by the same hand") with
+a halo in the canvas colour, and arrive with their stage once its last
+stroke has closed. The export carries
 them into the slide.
 
 **Richer forms.** Beyond the containers: `blob` (anything organic, a closed
@@ -858,6 +859,18 @@ sight while the scene is held before the camera lands; in the editor, a
 thumbnail and under reduced motion it is simply there. Nothing is stored:
 the mark is the accent run's, on every stage, re-measured on resize and once
 the fonts are in.
+
+**Lettered by the same hand.** A diagram drawn by hand and named in the
+interface face is half a machine. Every drawing's labels — a diagram's
+names and relations, a chart's categories, values and legend — are set in
+a print hand (`theme.fonts.hand`, Patrick Hand, loaded with the other faces
+in `app/layout.tsx` as `--font-hand`), at the drawings' own label size and
+a regular weight, so the names read as written beside the parts rather
+than typeset over them. It is a print hand and not a script for the same
+reason the labels are the size they are: they are read from the back of a
+room. The hand is the drawings' alone — headings, body and captions keep
+the theme's faces — and a stored theme without one parses to it. The slide
+export keeps a plain sans, since a slide cannot carry the face.
 
 ### Builds
 

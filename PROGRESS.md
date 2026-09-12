@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #111 — the MVP-037 closeout, and the phrase that matters
-  underlined by hand, awaiting CI, merge and production verification
-- `main`: through PR #111 (merged) — `ccda82d`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #112 — the MVP-038 closeout, and the drawings lettered by
+  the same hand, awaiting CI, merge and production verification
+- `main`: through PR #112 (merged) — `569b9b2`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -150,6 +150,32 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### Lettered by the same hand
+
+The eighth round under "graphics and drawings — go next level". With the
+forms drawn, washed, shaded and framed, the one thing in a drawing that
+still said "machine" was its labels: names lettered by hand beside the
+parts read as part of the drawing; the same names in the interface face
+read as typeset over it. Every drawing's labels — a diagram's names and
+relations, a chart's categories, values and legend — are now set in a print
+hand: Patrick Hand, loaded with the other faces in `app/layout.tsx` as
+`--font-hand`, carried by every theme as `theme.fonts.hand` (defaulted in
+the schema, so a stored theme without one parses to it) and published to
+the stage as `--stage-font-hand`; the labels take it at their own size and
+a regular weight. The hand is the drawings' alone — headings, body and
+captions keep the theme's faces — and the diagram brief now says the
+labels are lettered by hand. The slide export keeps a plain sans.
+
+Three faces were rendered on the worked example, the cycle and the column
+chart in the session and compared — Patrick Hand, Kalam and Caveat — and
+Patrick Hand chosen: an upright print hand that stays legible at the size a
+chart's values are set, where the other two slant and shrink.
+
+Tests in `hand-lettering` (every theme letters in the same hand and
+publishes it; a stored theme without one parses to it) and `stage-render`
+(a diagram's and a chart's labels take the theme's hand at weight 400, not
+its sans).
+
 ### The phrase that matters, underlined by hand
 
 The seventh round under "graphics and drawings — go next level", and the
@@ -182,6 +208,20 @@ phrase is underlined in the plan) and, in a real browser,
 `tests/e2e/hand-mark.spec.ts` (one stroke per line a long phrase wraps
 onto, each under its own line at the stroke's weight, sketched from its
 full length when performed and simply there when not).
+
+**Landed and verified.** PR #112 squash-merged as `569b9b2`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 37 of 37 on the first run. Codex found one real thing on
+the PR, fixed before merge: the mark was measured on mount and on resize,
+so an author editing the phrase in place on the canvas — or a theme
+changing the face — moved the lines under it without resizing the host and
+left the stroke where the old words had been. A `MutationObserver` on the
+text's own span and the host's attributes redraws it, never on the SVG the
+effect itself writes; the browser regression edits the phrase in place with
+stable element ids (what the canvas does — a fresh composition remounts
+the element and never exercised the bug), and was confirmed to fail without
+the fix. Rendered under headings on both themes as well and looked at: the
+mark holds at display size.
 
 ### A drawing fills its frame, and a name finds clear ground
 
