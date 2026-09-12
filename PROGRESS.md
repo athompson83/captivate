@@ -11,11 +11,11 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #93 — the MVP-028 closeout, and captions for the room (the
-  presenter's words on the stage, from the browser's own speech engine, sent
-  from whichever window has the microphone), awaiting CI, merge and
-  production verification
-- `main`: through PR #93 (merged) — `92b1ffd`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #103 — the MVP-029 closeout, and a deck with a look
+  (pictures graded to the theme, drawings drawn by a hand with labels and
+  richer forms, a drawing brief distinct from the photograph's), awaiting
+  CI, merge and production verification
+- `main`: through PR #103 (merged) — `79d933f`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -55,7 +55,59 @@
 
 ## Latest Session
 
+### A deck with a look
+
+The owner's verdict on the shipped product: the presentations feel basic —
+the pictures, the drawings, the content, the background. Before changing
+anything, the deck that had been generated most recently was read out of
+production and drawn with the real renderer, and the verdict held. Three
+findings, each with evidence rather than an impression:
+
+- **No image has ever been generated in production.** Zero `generated`
+  assets, no `image` row in the ledger. Every picture in every deck is a
+  stock photograph found by two to five search words — "an empty conference
+  room featuring red seats, a stage, and Turkish flags" on a talk about AI in
+  healthcare — in its own colour world beside a themed heading. The paid
+  cover fallback only fires when stock fails, and stock never fails.
+- **The drawings were illustrating photographs.** The diagram compiler was
+  handed the same `imagePrompt` the photo search used, so "a paramedic
+  standing beside an ambulance, natural daylight" became a stick figure in
+  the accent beside a filled box, under a sun symbol, on a ground line. The
+  language had five containers and a symbol set, and no way to name a part.
+- **The cover showed the title scene through its rim.** A full-bleed veil
+  with a soft edge is feathered like any other picture, and the ten-percent
+  feather on each side let the eyebrow, heading and body beneath show as
+  ghost letters down the left of every generated cover.
+
+This round fixes what the stage can fix on its own; the next puts a visual
+direction into generation itself.
+
+**Pictures graded to the deck** (`lib/present/grade.ts`, `ImageElement.grade`).
+`tint` lowers the photograph's own saturation a little and lays the theme's
+accent over it in `color` blend, with grain over that; `duotone` goes the
+whole way, greyscale with highlights pulled to the accent and shadows lifted
+to the canvas; `none` is the picture as shot. Every composed and inserted
+picture is tinted, stored rows keep what they had, and the inspector switches
+any of them. A picture that is the whole stage is never feathered.
+
+**Drawings drawn by a hand.** One SVG displacement filter per picture bends
+every stroke a third of a percent of the box off its geometry, seeded from the
+box's size so it is the same on every screen. Labels (`DrawingElement.labels`)
+are a word or two per part, set in the theme's face with a halo, arriving with
+their stage; the export carries them. The diagram language gains `blob`,
+`ring`, `bar` (with `value`), `stack`, `hatch` (diagonal lines clipped to the
+outline, even-odd), `dashed` and `leader` edges, and a `label` on every node
+and edge; the brief now says "draw the mechanism, never the photograph" and
+teaches the forms. The scene writer separates a `drawingBrief` from the
+photograph's `imagePrompt`, and where photographs are available only scenes
+briefed for a drawing get one.
+
 ### Captions for the room
+
+**Landed and verified.** PR #103 squash-merged as `79d933f`, all six CI jobs
+green on the head. The stage lives behind sign-in and the band only renders
+where a presenter speaks, so the production evidence is the deployment: the
+proxied smoke suite 37 of 37 against `www.axtevi.com` after the deploy.
 
 A lecture theatre has people at the back, people whose first language is not
 the presenter's, and people who simply hear less well than the presenter
