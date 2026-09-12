@@ -131,8 +131,15 @@ describe("columns and bars", () => {
 describe("a line and a donut", () => {
   it("draws the line in one stroke through its points, with a mark at each", () => {
     const drawing = compileChart(chart({ chart: "line" }));
-    const [floor, line, ...marks] = drawing.paths;
+    const [floor, area, line, ...marks] = drawing.paths;
     expect(floor.ink).toBe("muted");
+    // The area under the line, washed with no line of its own, closed
+    // down to the floor at either end.
+    expect(area.fill).toBe(true);
+    expect(area.weight).toBe(0);
+    expect(area.ink).toBe("accent");
+    expect(area.d).toMatch(/Z$/);
+    expect(area.d.startsWith(`M ${line.d.split(" ")[1]} `)).toBe(true);
     expect(line.d.split(" L ")).toHaveLength(3);
     expect(line.ink).toBe("accent");
     expect(marks).toHaveLength(3);
@@ -142,8 +149,18 @@ describe("a line and a donut", () => {
     expect(Math.min(...ys)).toBe(ys[1]);
   });
 
-  it("draws a donut as closed wedges around one ring, with a legend beside it", () => {
+  it("draws a donut as closed wedges around one ring, with a legend beside it and the whole in the middle", () => {
     const drawing = compileChart(chart({ chart: "donut", palette: "categorical" }));
+    // The wedges add up to 70, written in the hole; not when values are off.
+    const whole = drawing.labels.find((l) => l.text === "70")!;
+    expect(whole).toBeDefined();
+    expect(whole.x).toBe(250);
+    expect(whole.size).toBe(1.5);
+    expect(
+      compileChart(chart({ chart: "donut", showValues: false })).labels.some(
+        (l) => l.text === "70",
+      ),
+    ).toBe(false);
     const wedges = drawing.paths.filter((p) => /A 165 165/.test(p.d));
     expect(wedges).toHaveLength(3);
     expect(wedges.every((w) => w.fill && /Z$/.test(w.d))).toBe(true);

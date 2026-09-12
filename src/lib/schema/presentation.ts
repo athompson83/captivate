@@ -440,7 +440,8 @@ export const DrawnPath = z
      * detail, and construction lighter than both, is what makes line art read
      * as a drawing rather than as a plot of coordinates.
      */
-    weight: z.number().min(0.25).max(4).optional(),
+    /** Zero is a wash with no line: tone laid down without an outline. */
+    weight: z.number().min(0).max(4).optional(),
     /** Overrides the element's ink for this stroke; the accent marks the idea a stage adds. */
     ink: z.enum(["ink", "accent", "muted"]).optional(),
     /**

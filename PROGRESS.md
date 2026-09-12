@@ -11,10 +11,10 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #108 — the MVP-034 closeout, and light on the drawing (a
-  shade on the side of every form away from the light), awaiting CI, merge
-  and production verification
-- `main`: through PR #108 (merged) — `ec8bf5b`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #109 — the MVP-035 closeout, and symbols on a wash, the
+  area under a line, the whole in the middle, awaiting CI, merge and
+  production verification
+- `main`: through PR #109 (merged) — `2b33eb3`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -151,7 +151,42 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### Symbols on a wash, the area under a line, the whole in the middle
+
+Three small things the illustrator rounds left undone, each a place where
+the drawing language still showed a machine. A symbol in a diagram was a
+bare glyph beside washed and shaded forms, while the same glyph on a
+take-home card sat on a wash — it sits on one in the diagram now, in its
+own ink, seeded from the node's name, laid down before the glyph's strokes.
+That wash is a stroke of weight zero — tone with no line — which
+`DrawnPath.weight` now allows (it was floored at a quarter), and the export
+draws it the same way. A line chart's line was a wire in the air; the area
+under it is washed, closed down to the floor at either end, so the line
+reads as the edge of something. And a donut with values showed the parts
+and never the whole; the total is written in its hole.
+
+Tests in `diagram` (a symbol's wash is the one filled, line-less stroke
+under its glyph, and the glyph's own strokes are never filled),
+`drawn-chart` (the area is washed with no line, closed, and starts where
+the line starts; the whole is in the middle at its size and absent with
+values off) and `stage-render` (the line chart's area and marks drawn on
+arrival).
+
 ### Light on the drawing
+
+**Landed and verified.** PR #109 squash-merged as `2b33eb3`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 35 of 37 on the first run, both failures proxy timeouts
+reaching `/update-password` and `/reset-password` (`net::ERR_TIMED_OUT`, no
+response at all), and 4 of 4 when re-run, both routes answering 200 in
+0.4 s — the third deploy in a row where the proxy, not the deployment,
+dropped two page loads. Codex found three real things on the PR, fixed
+before merge: every shade line as its own stroke was dozens of paths per
+form, so six large boxes breached the document's limit of four hundred and
+a forty-column chart measured thousands of strokes on mount — a form's
+shade is one compound path now; and a pill's shade was cut to the rectangle
+around it and ran through the rounded ends — `outline()` gives a pill its
+capsule, so the shade and the hatching both stop where the ink does.
 
 The fourth round under "graphics and drawings — go next level". A form drawn
 as an outline with a flat wash has no light on it, and a picture with no

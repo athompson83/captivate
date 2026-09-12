@@ -649,9 +649,10 @@ the editor, a thumbnail, or a scene the camera is passing:
   each intermediate value is written.
 - **A chart is drawn.** A chart is compiled into the drawing language at
   render time (`src/lib/drawing/chart.ts`) — a baseline, each column or bar
-  an outline with a wash, a line in one stroke with a mark at every point, a
-  donut as wedges, and every category, value and legend entry as a label in
-  the room's type — and sketched on arrival exactly as a drawing is: through
+  an outline with a wash, a line in one stroke with a mark at every point
+  and the area under it washed, a donut as wedges with the whole written in
+  its hole, and every category, value and legend entry as a label in the
+  room's type — and sketched on arrival exactly as a drawing is: through
   the three hands, stroke after stroke, held for the camera. The chart element
   keeps its data; a change to the recipe reaches every chart already in a deck.
   A chart drawn from a spreadsheet and a diagram drawn by a hand on one scene
@@ -804,6 +805,13 @@ room watches the form appear and then take its light. A hatched part is
 already tone and gets none; a symbol is a glyph, not a form, and gets none. The shade is the compiler's, not the
 document's: every drawing already in a deck takes its light the moment the
 recipe changes, and the export is untouched.
+
+**Symbols on a wash.** A symbol in a diagram is a glyph and takes no shade,
+but it is not left bare either: it sits on a wash in its own ink — a closed
+organic form seeded from the node's name, laid down before the glyph's
+strokes — exactly as the stage's icons do, so a heart in a diagram and a
+heart on a take-home card are the same kind of mark. The wash is a stroke
+of weight zero: tone with no line, which `DrawnPath.weight` now allows.
 
 ### Builds
 
