@@ -135,9 +135,20 @@ backdrop far back and dimmed, only where the deck had no picture there, and
 given only what the route has left of its ceiling and aborted at that
 deadline, so a slow provider never holds the route and nothing is paid for
 and left unattached. The journey is read again before the look and the room
-are written, and only those two fields are merged, so an author's edits
+are written, and only those fields are merged, so an author's edits
 during the minutes a generation takes are never written over. A deck
-without a room keeps the drawn one it had.
+without a room keeps a drawn one — chosen by the look the first time the
+deck is given one (`roomFor`: a printed medium in front of `strata`, a lit
+one in front of `halo`, otherwise `aurora`), and the author's from then on.
+
+**The phrase that matters.** Alongside `headingAccent`, a scene may carry a
+`bodyAccent`: three to eight words copied verbatim from its body — the turn
+of the sentence, the number, the word that changes the picture — which the
+composer colours in place, in the theme's accent token, leaving the words
+around it alone (`richTextMark`). A phrase the body does not contain marks
+nothing: appending it would put a fragment after the full stop. The mark
+travels with its prose through a re-layout (`extractContent` reads it back),
+and re-theming moves it with the accent.
 
 ### Composition is a deck decision, and the intent is a suggestion
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
 import { ROOM_BUDGET_MS, buildScenesFromMap, dressRoom } from "@/lib/ai/service";
+import { roomFor } from "@/lib/ai/look";
 import { JourneyConfig } from "@/lib/schema/presentation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { planSceneWrites } from "@/lib/narrative/scene-writes";
@@ -219,11 +220,19 @@ export async function POST(request: Request) {
             budgetMs: Math.min(ROOM_BUDGET_MS, remaining),
           });
       const current = await readJourney();
+      // The drawn room follows the look the first time a deck is given one.
+      // A deck that already had a look keeps whatever room its author chose
+      // since: the choice is theirs from then on, and a regeneration writes
+      // the same look back anyway.
+      const graphic =
+        !current.look && result.data.look ? roomFor(result.data.look) : current.backdrop.graphic;
       const journey: JourneyConfig = {
         ...current,
         look: result.data.look || current.look,
         backdrop:
-          room && !current.backdrop.url ? { ...current.backdrop, ...room } : current.backdrop,
+          room && !current.backdrop.url
+            ? { ...current.backdrop, ...room, graphic }
+            : { ...current.backdrop, graphic },
       };
       await supabase
         .from("presentations")

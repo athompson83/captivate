@@ -278,7 +278,15 @@ theme's palette, empty at the centre and out of focus, far back and dimmed so
 it is a place rather than a picture. The look — one sentence of visual
 direction the writer sets for the whole talk — is on the journey panel, and
 every picture Captivate makes for the deck follows it; a talk on trauma care
-and a talk on brand strategy do not share one.
+and a talk on brand strategy do not share one. A deck with no room picture
+stands in front of a drawn room that the look chooses too, and every drawn
+room has a material — a grain that reads as film on a dark theme and as
+paper on a light one — so the wall behind a talk is a wall and not a screen.
+
+**The phrase that matters is in colour.** Where a scene's body carries the
+one phrase the room should leave with, the writer names it and it is set in
+the theme's accent inside the sentence, the way a heading's closing clause
+already is. The words around it are untouched.
 
 **The frame before the stage is black.** Both audience routes await the deck
 on the server; until it arrives they show a black frame rather than the site's

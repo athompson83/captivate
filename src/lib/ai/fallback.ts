@@ -246,6 +246,7 @@ export function fallbackScene(
     subheading: takeaway.length <= 220 ? takeaway : "",
     eyebrow: "",
     body: "",
+    bodyAccent: "",
     bullets: [],
     bulletsB: [],
     quote: "",

@@ -468,6 +468,8 @@ Every scene's body text is at most two sentences. If an explanation needs more, 
 
 Use the whole instrument. An eyebrow situates ("Module 2 · Airway"), a headingAccent carries the clause the claim turns on, cards give a three-up its three ideas, a chart's data uses the evidence's real magnitudes. A scene that uses only heading and bullets when its layout offers more reads as a form letter.
 
+The phrase that matters: where a scene's body carries one phrase the room should leave with — the turn of the sentence, the number, the word that changes the picture — copy it exactly into \`bodyAccent\`, and it is set in the theme's accent inside the prose. Three to eight words, taken verbatim from \`body\`, on most scenes that have a body; never a whole sentence, and nothing on a scene whose body is all of equal weight.
+
 Every scene also carries a \`title\`: three to six words naming it in the presenter's own navigator. It is the only field never drawn on stage — it is how an author finds one scene in a list of thirty — so write it on every scene and keep it short.
 
 Each layout draws a fixed set of fields and shows nothing else, so write into the ones its layout has. A statement whose words are in \`body\` is a blank screen:
@@ -912,6 +914,7 @@ function materialise(
     headingAccent: scene.headingAccent || undefined,
     subheading: scene.subheading || undefined,
     body: scene.body || undefined,
+    bodyAccent: scene.bodyAccent || undefined,
     bullets: scene.bullets.length ? scene.bullets : undefined,
     bulletsB: scene.bulletsB.length ? scene.bulletsB : undefined,
     quote: scene.quote || undefined,
