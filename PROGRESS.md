@@ -10,11 +10,12 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, reconciled with
-  `main` through PR #100 — the MVP-024 closeout, and the worked example never
-  hidden (first in the creation grid, a line away on home, the structures
-  counted honestly), awaiting CI, merge and production verification
-- `main`: through PR #100 (merged) — `215bd03`; PR #94 (`01437d0`) fixed the four defects the owner
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #93 — the MVP-028 closeout, and captions for the room (the
+  presenter's words on the stage, from the browser's own speech engine, sent
+  from whichever window has the microphone), awaiting CI, merge and
+  production verification
+- `main`: through PR #93 (merged) — `92b1ffd`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -54,7 +55,49 @@
 
 ## Latest Session
 
+### Captions for the room
+
+A lecture theatre has people at the back, people whose first language is not
+the presenter's, and people who simply hear less well than the presenter
+assumes; a recording already gets a transcript from the browser's own speech
+engine, and the room got nothing. Now `T` puts captions on the stage: the
+last stretch of what is being said, low on the frame where subtitles live,
+two lines at most, interim words included because captions that trail the
+voice by a sentence are captions nobody reads. Nothing is uploaded and
+nothing is kept.
+
+The engine runs in the window that has the microphone — the console in
+two-window presenting, the stage itself on one screen — and the stage renders
+what it is sent over the channel as a `captions` message, additive to the
+protocol so a stage from an earlier build drops it and shows nothing. The
+projector never listens: the hook is gated on the presenter's window, and a
+test reads the source to hold it there. The control exists only where the
+browser has an engine (`useCaptionsSupported`, read the way full screen is,
+so the server renders no button). A page gets one speech engine, and the
+recorder's transcript is the other claimant: from the moment a transcribing
+recording asks for the microphone until it releases it, the stage's own
+listener stands down and the recorder feeds the band from the same text it
+would burn in (`captionText()`), so captions carry on through the take. The
+band sits inside the capture surface, so a recording of a captioned talk
+already contains its captions; the docs say not to burn them in as well.
+
+Tests: the tail keeps whole words from the end within the limit; the engine
+starts once, hands over each change and not the same words twice, is
+stopped and takes the words down when turned off, does nothing where there
+is no engine, and is not restarted because the handler changed; the message
+parses and is bounded; a stage shows what it is sent and a console keeps its
+own; the band paints nothing for nothing and wraps to two lines as a live
+region; the source gates the hook on the presenter's window, lists `T`, and
+keeps the band inside the capture surface.
+
 ### The worked example is never hidden
+
+**Landed and verified.** PR #93 squash-merged as `92b1ffd`, all six CI jobs
+green on the head that merged, the signed-in journeys included — the job that
+had failed on the eyebrow. The grid and the home page live behind sign-in, so
+the production evidence is the deployment: the proxied smoke suite 36 of 37
+against `www.axtevi.com` after the deploy, the one failure a proxy timeout on
+`/sign-up` that passed on re-run.
 
 The one finished talk — "Hold the room" — was offered in the empty state and
 then never again: a second deck buried it. In the creation grid it sat
