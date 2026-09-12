@@ -414,8 +414,9 @@ function FigureText({ text, perform }: { text: string; perform: boolean }) {
  * the DOM after layout: one per line fragment the marked run occupies, in the
  * host's own pixels (the stage may be scaled by a transform, so screen rects
  * are divided back by the host's scale). Written straight to the SVG from an
- * effect, as `FigureText` writes its number, and re-measured on resize and
- * once the fonts are in. While the scene performs each stroke sketches on the
+ * effect, as `FigureText` writes its number, and re-measured on resize, when
+ * the words or their face change, and once the fonts are in. While the scene
+ * performs each stroke sketches on the
  * drawings' clock after the words have arrived; otherwise — the editor, a
  * thumbnail, reduced motion — the mark is simply there.
  */
@@ -473,11 +474,29 @@ function HandMarks({ perform }: { perform: boolean }) {
     };
 
     draw();
-    const observer =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => draw());
-    observer?.observe(host);
+    const resized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => draw());
+    resized?.observe(host);
+    // The words themselves: an author editing the phrase in place, or a
+    // theme changing the face, moves the lines under the mark without
+    // resizing the host. Watched on the text's own span and on the host's
+    // attributes — never on the SVG, which `draw` itself writes.
+    const words = host.querySelector(":scope > span");
+    const reworded =
+      typeof MutationObserver === "undefined" ? null : new MutationObserver(() => draw());
+    if (words) {
+      reworded?.observe(words, {
+        subtree: true,
+        characterData: true,
+        childList: true,
+        attributes: true,
+      });
+    }
+    reworded?.observe(host, { attributes: true, attributeFilter: ["style", "class"] });
     document.fonts?.ready.then(draw).catch(() => {});
-    return () => observer?.disconnect();
+    return () => {
+      resized?.disconnect();
+      reworded?.disconnect();
+    };
   }, [perform, reduced]);
 
   return (

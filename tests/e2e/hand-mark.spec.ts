@@ -63,6 +63,26 @@ test.describe("the phrase that matters, underlined by hand", () => {
     }
   });
 
+  test("follows the words when they change under it", async ({ page }) => {
+    // Codex, reviewing the PR: the mark was measured on mount and on resize,
+    // so an author editing the phrase in place — or a theme changing the
+    // face — left the stroke where the old words had been.
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await page.goto(await fixtureUrl());
+    await page.evaluate(() => window.handMark.mount(false));
+    await page.waitForSelector("svg.hm path");
+    const before = await measure(page);
+    expect(before.rects.length).toBeGreaterThanOrEqual(2);
+    await page.evaluate(() => window.handMark.reword("Reassess"));
+    await page.waitForFunction(() => document.querySelectorAll("svg.hm path").length === 1);
+    const after = await measure(page);
+    expect(after.rects).toHaveLength(1);
+    expect(after.paths).toHaveLength(1);
+    expect(Math.abs(after.paths[0].x - after.rects[0].x)).toBeLessThan(3);
+    expect(Math.abs(after.paths[0].width - after.rects[0].width)).toBeLessThan(4);
+    expect(after.paths[0].width).toBeLessThan(before.paths[0].width);
+  });
+
   test("is simply there when the scene is not performed", async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.goto(await fixtureUrl());
