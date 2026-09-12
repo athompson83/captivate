@@ -6,7 +6,7 @@ import { createElement } from "@/lib/editor/element-factory";
 import { ImageElement, parseSceneContent } from "@/lib/schema/presentation";
 import { getTheme } from "@/lib/schema/theme";
 import { Stage } from "@/components/stage/stage";
-import { GRAIN_DATA_URL, coversStage, gradeCss } from "@/lib/present/grade";
+import { GRAIN, applyGrade, coversStage, gradeMatrix } from "@/lib/present/grade";
 
 /**
  * Pictures graded to the theme.
@@ -43,14 +43,54 @@ const stage = (elements: unknown[]) =>
   ).container;
 
 describe("the grade", () => {
-  it("is in the theme's tokens and nothing else", () => {
+  it("is one colour matrix in the theme's tokens, and nothing for a picture left as shot", () => {
     for (const grade of ["tint", "duotone"] as const) {
-      const css = gradeCss(grade);
-      expect(css.layers.length).toBeGreaterThan(0);
-      for (const layer of css.layers) expect(layer.background).toMatch(/^var\(--stage-/);
-      expect(css.grain).toBeGreaterThan(0);
+      const matrix = gradeMatrix(grade, "#0F1117", "#F0B858");
+      expect(matrix).toHaveLength(20);
+      // Alpha is untouched, so a PNG's transparent parts stay transparent.
+      expect(matrix!.slice(15)).toEqual([0, 0, 0, 1, 0]);
+      expect(GRAIN[grade]).toBeGreaterThan(0);
     }
-    expect(gradeCss("none")).toEqual({ filter: "", layers: [], grain: 0 });
+    expect(gradeMatrix("none", "#0F1117", "#F0B858")).toBeNull();
+    expect(GRAIN.none).toBe(0);
+  });
+
+  it("tints toward the accent while keeping the picture's own light", () => {
+    const matrix = gradeMatrix("tint", "#0F1117", "#F0B858")!;
+    const [r, g, b] = applyGrade(matrix, [0.5, 0.5, 0.5]);
+    // A mid grey warms toward an amber accent: red up, blue down.
+    expect(r).toBeGreaterThan(g);
+    expect(g).toBeGreaterThan(b);
+    // Black stays dark and white stays light: a tint is not a wash.
+    expect(applyGrade(matrix, [0, 0, 0]).every((v) => v < 0.05)).toBe(true);
+    expect(applyGrade(matrix, [1, 1, 1]).every((v) => v > 0.75)).toBe(true);
+  });
+
+  it("puts a duotone between the canvas and the accent, whichever is the darker", () => {
+    const dark = gradeMatrix("duotone", "#0F1117", "#F0B858")!;
+    const [sr, sg, sb] = applyGrade(dark, [0, 0, 0]);
+    // Shadows are the canvas on a dark theme.
+    expect(sr).toBeLessThan(0.1);
+    expect(sg).toBeLessThan(0.1);
+    expect(sb).toBeLessThan(0.15);
+    const [hr, hg, hb] = applyGrade(dark, [1, 1, 1]);
+    // Highlights reach the accent, not white.
+    expect(hr).toBeGreaterThan(0.85);
+    expect(hb).toBeLessThan(0.5);
+    expect(hg).toBeLessThan(hr);
+
+    // On a white canvas the accent takes the shadows and white the highlights,
+    // so the picture is never a white rectangle.
+    const light = gradeMatrix("duotone", "#FFFFFF", "#0F6FCB")!;
+    const shadow = applyGrade(light, [0, 0, 0]);
+    expect(shadow[2]).toBeGreaterThan(shadow[0]);
+    expect(shadow[0]).toBeLessThan(0.2);
+    const highlight = applyGrade(light, [1, 1, 1]);
+    expect(highlight.every((v) => v > 0.9)).toBe(true);
+    const mid = applyGrade(light, [0.5, 0.5, 0.5]);
+    expect(mid[2]).toBeGreaterThan(mid[0]);
+    expect(mid[0]).toBeGreaterThan(0.2);
+    expect(mid[0]).toBeLessThan(0.9);
   });
 
   it("is a tint on every composed picture, and none on a stored row that predates it", () => {
@@ -80,25 +120,32 @@ describe("the grade", () => {
     expect(inserted.type === "image" && inserted.grade).toBe("tint");
   });
 
-  it("lays the accent and grain over a real picture, and nothing over a placeholder", () => {
+  it("filters the picture's own pixels, defines the filter beside it, and touches nothing without a picture", () => {
     const container = stage([
       picture({ id: "tinted", grade: "tint" }),
       picture({ id: "duo", grade: "duotone" }),
       picture({ id: "plain", grade: "none" }),
       { ...createElement("image"), id: "empty", url: "", grade: "tint" },
     ]);
-    const boxes = [...container.querySelectorAll("img")].map((img) => img.parentElement!);
-    const [tinted, duo, plain] = boxes;
-    expect(tinted.querySelectorAll("[data-grade='tint']")).toHaveLength(1);
-    expect(tinted.querySelector("[data-grain]")).not.toBeNull();
-    expect((tinted.querySelector("[data-grain]") as HTMLElement).style.backgroundImage).toBe(
-      GRAIN_DATA_URL,
-    );
-    expect(tinted.querySelector("img")!.style.filter).toContain("saturate");
-    expect(duo.querySelectorAll("[data-grade='duotone']")).toHaveLength(2);
-    expect(plain.querySelector("[data-grade]")).toBeNull();
-    expect(plain.querySelector("[data-grain]")).toBeNull();
-    expect(container.querySelectorAll("[data-grade]")).toHaveLength(3);
+    const images = [...container.querySelectorAll("img")];
+    const [tinted, duo, plain] = images;
+    expect(tinted.style.filter).toMatch(/^url\("?#grade-/);
+    expect(duo.style.filter).toMatch(/^url\("?#grade-/);
+    expect(tinted.style.filter).not.toBe(duo.style.filter);
+    expect(plain.style.filter).toBe("");
+    // The filter is an SVG definition next to its picture: a colour matrix,
+    // then grain composited inside the picture's alpha.
+    const filters = [...container.querySelectorAll("filter")];
+    expect(filters).toHaveLength(2);
+    for (const filter of filters) {
+      expect(filter.querySelector("feColorMatrix")).not.toBeNull();
+      expect(filter.querySelector("feComposite")?.getAttribute("in2")).toBe("SourceGraphic");
+      expect(filter.querySelector("feBlend")?.getAttribute("mode")).toBe("overlay");
+    }
+    // No coloured layer over the box: a contained picture's gutters and a
+    // PNG's transparent parts are left alone.
+    expect(container.querySelector("[data-grain]")).toBeNull();
+    expect(container.querySelectorAll("img[data-grade]")).toHaveLength(3);
   });
 });
 

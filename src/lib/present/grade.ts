@@ -1,70 +1,110 @@
+import { parseHex, toOklab } from "@/lib/utils/color";
+
 /**
  * How a picture is coloured to belong to the deck.
  *
- * Pure: the CSS for each grade, so the renderer, a thumbnail and a test all
- * describe the same treatment. Everything here is a blend of the theme's own
- * tokens over the photograph — no colour that is not the deck's.
+ * A photograph arrives in its own colour world — a stock library's, a
+ * phone's — and a deck of them reads as a scrapbook. A grade lays the deck's
+ * own light over the photograph, in the theme's tokens and nothing else.
  *
- * A tint is the colourist's oldest move: the picture loses a little of its
- * own saturation and the theme's accent is laid over it in `color` blend, so
- * its hues lean the deck's way while its light stays photographic. A duotone
- * goes the whole way: greyscale, the highlights pulled to the accent by a
- * `multiply` and the shadows lifted to the canvas by a `lighten`, which is
- * the two-ink print art directors have reached for since the Sixties. Grain
- * over both, because a photograph without grain against a designed ground
- * looks like a screen; with it, it looks like a print.
+ * It is one colour matrix applied to the picture's pixels (an SVG
+ * `feColorMatrix`, with grain composited inside the picture's own alpha),
+ * not a coloured layer over the picture's box: a layer paints the gutters
+ * of a contained picture and the transparent parts of a PNG, and a logo on
+ * the bare canvas would have arrived with an accent-coloured rectangle
+ * behind it. The matrix touches only what the picture painted.
+ *
+ * A tint is the colourist's oldest move: a little of the picture's own
+ * saturation traded for the accent laid into its light. A duotone goes the
+ * whole way — every pixel is somewhere between two inks. Which two depends on
+ * the theme: on a dark theme the shadows are the canvas and the highlights
+ * the accent; on a light theme the accent takes the shadows and the canvas
+ * the highlights, because a `lighten` toward a white canvas is a white
+ * rectangle, which is what the first cut did on every light theme.
  */
 
 export type ImageGrade = "none" | "tint" | "duotone";
 
-/** A grain field: fractal noise, black on transparent, tiled small. */
-export const GRAIN_TILE_PX = 180;
+/** Grain over a graded picture, as an alpha: a print, not a screen. */
+export const GRAIN: Record<ImageGrade, number> = { none: 0, tint: 0.16, duotone: 0.2 };
 
-const GRAIN_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='${GRAIN_TILE_PX}' height='${GRAIN_TILE_PX}'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(#g)'/></svg>`;
+/** How much of the accent a tint lays into the light. */
+const TINT = 0.3;
+/** A tint's colourised light is brighter than the accent's own value. */
+const TINT_LIFT = 1.55;
+/** How much of its own saturation a tinted picture gives up. */
+const DESATURATE = 0.22;
+/** A duotone's contrast, around the middle grey. */
+const DUOTONE_CONTRAST = 1.12;
 
-export const GRAIN_DATA_URL = `url("data:image/svg+xml;utf8,${encodeURIComponent(GRAIN_SVG)}")`;
+const LUM = [0.2126, 0.7152, 0.0722] as const;
 
-export interface GradeLayer {
-  background: string;
-  mixBlendMode: "color" | "multiply" | "lighten";
-  opacity: number;
-}
+type Rgb = [number, number, number];
 
-export interface GradeCss {
-  /** The filter on the photograph itself; empty for none. */
-  filter: string;
-  /** Colour layers over it, in order, each blended. */
-  layers: GradeLayer[];
-  /** Grain over everything, at this opacity; 0 for none. */
-  grain: number;
+function rgb(hex: string): Rgb {
+  // `parseHex` already answers in 0–1.
+  const { r, g, b } = parseHex(hex);
+  return [r, g, b];
 }
 
 /**
- * The treatment for a grade, in the theme's tokens.
+ * The 4×5 colour matrix for a grade, row-major as `feColorMatrix` takes it,
+ * or null for a picture left as shot.
  *
- * The tint is deliberately light: a room should feel that every picture
- * belongs and never notice why. The duotone is what it is.
+ * Every row is linear in the source pixel, so the tint's desaturation, its
+ * colourised light and the duotone's contrast all fold into one matrix and
+ * one pass. Alpha is untouched.
  */
-export function gradeCss(grade: ImageGrade): GradeCss {
-  switch (grade) {
-    case "tint":
-      return {
-        filter: "saturate(0.78) contrast(1.05)",
-        layers: [{ background: "var(--stage-accent)", mixBlendMode: "color", opacity: 0.3 }],
-        grain: 0.16,
-      };
-    case "duotone":
-      return {
-        filter: "grayscale(1) contrast(1.12)",
-        layers: [
-          { background: "var(--stage-accent)", mixBlendMode: "multiply", opacity: 1 },
-          { background: "var(--stage-canvas)", mixBlendMode: "lighten", opacity: 1 },
-        ],
-        grain: 0.2,
-      };
-    default:
-      return { filter: "", layers: [], grain: 0 };
+export function gradeMatrix(
+  grade: ImageGrade,
+  canvasHex: string,
+  accentHex: string,
+): number[] | null {
+  if (grade === "none") return null;
+  const accent = rgb(accentHex);
+  const canvas = rgb(canvasHex);
+  const rows: number[] = [];
+
+  if (grade === "tint") {
+    // R' = (1-k)·[(1-s)·R + s·lum] + k·lift·accent_r·lum
+    for (let channel = 0; channel < 3; channel += 1) {
+      for (let source = 0; source < 3; source += 1) {
+        const own = source === channel ? (1 - TINT) * (1 - DESATURATE) : 0;
+        const light = LUM[source] * ((1 - TINT) * DESATURATE + TINT * TINT_LIFT * accent[channel]);
+        rows.push(own + light);
+      }
+      rows.push(0, 0);
+    }
+  } else {
+    // R' = shadow_r + lum'·(highlight_r - shadow_r), lum' contrast-stretched.
+    const lightTheme = toOklab(canvasHex).L > 0.5;
+    const shadow = lightTheme ? accent : canvas;
+    const highlight = lightTheme ? canvas : accent;
+    for (let channel = 0; channel < 3; channel += 1) {
+      const span = highlight[channel] - shadow[channel];
+      for (let source = 0; source < 3; source += 1) {
+        rows.push(LUM[source] * DUOTONE_CONTRAST * span);
+      }
+      rows.push(0, shadow[channel] + (0.5 - 0.5 * DUOTONE_CONTRAST) * span);
+    }
   }
+  rows.push(0, 0, 0, 1, 0);
+  return rows;
+}
+
+/** A matrix applied to one pixel, clamped — what the browser will paint. */
+export function applyGrade(matrix: number[], pixel: Rgb): Rgb {
+  const out = [0, 1, 2].map((channel) => {
+    const row = matrix.slice(channel * 5, channel * 5 + 5);
+    const value = row[0] * pixel[0] + row[1] * pixel[1] + row[2] * pixel[2] + row[4];
+    return Math.min(1, Math.max(0, value));
+  });
+  return out as Rgb;
+}
+
+/** `feColorMatrix` wants its twenty numbers as one string. */
+export function matrixValues(matrix: number[]): string {
+  return matrix.map((n) => Number(n.toFixed(4))).join(" ");
 }
 
 /**

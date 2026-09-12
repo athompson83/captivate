@@ -1,11 +1,11 @@
 "use client";
 
-import { createElement, memo, useEffect, useMemo, useRef } from "react";
+import { createElement, memo, useEffect, useId, useMemo, useRef } from "react";
 import { useReducedMotion } from "motion/react";
 import * as Icons from "lucide-react";
 import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
 import { DrawnPicture } from "./drawn-picture";
-import { GRAIN_DATA_URL, GRAIN_TILE_PX, coversStage, gradeCss } from "@/lib/present/grade";
+import { GRAIN, coversStage, gradeMatrix, matrixValues } from "@/lib/present/grade";
 import { embedSandbox } from "@/lib/utils/embed";
 import { categoricalHues, resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
@@ -369,6 +369,9 @@ export const ElementView = memo(function ElementView({
 }: Props) {
   const rem = stageRem(stageWidth);
   const scale = theme.scale;
+  // One grade filter per picture, named so two pictures on a scene keep
+  // their own and a thumbnail never borrows the stage's.
+  const gradeId = `grade-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   // The element's box in stage pixels, used to shrink over-long text so it
   // never spills onto whatever sits below it.
@@ -578,7 +581,7 @@ export const ElementView = memo(function ElementView({
       // the title scene through its rim.
       const soft = element.edge === "soft" && !coversStage(element.frame);
       const radiusPx = Math.max(element.radius, soft ? 2.4 : 0) * rem;
-      const grade = gradeCss(element.grade);
+      const matrix = gradeMatrix(element.grade, theme.tokens.canvas, theme.tokens.accent);
       const feather =
         "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent), linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent)";
       return (
@@ -607,13 +610,14 @@ export const ElementView = memo(function ElementView({
               loading="lazy"
               decoding="async"
               draggable={false}
+              data-grade={element.grade}
               style={{
                 width: "100%",
                 height: "100%",
                 objectFit: element.fit,
                 objectPosition: `${element.focalX * 100}% ${element.focalY * 100}%`,
                 display: "block",
-                filter: grade.filter || undefined,
+                filter: matrix ? `url(#${gradeId})` : undefined,
               }}
             />
           ) : (
@@ -624,40 +628,32 @@ export const ElementView = memo(function ElementView({
               radiusPx={radiusPx}
             />
           )}
-          {/* The grade: the deck's own colour laid over the photograph, and
-              grain over that, so a picture from anywhere reads as printed
-              for this deck. Only over a real picture — over a placeholder
-              these are tinted rectangles on the canvas. */}
-          {element.url &&
-            grade.layers.map((layer, i) => (
-              <div
-                key={i}
-                aria-hidden
-                data-grade={element.grade}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background: layer.background,
-                  mixBlendMode: layer.mixBlendMode,
-                  opacity: layer.opacity,
-                  pointerEvents: "none",
-                }}
-              />
-            ))}
-          {element.url && grade.grain > 0 && (
-            <div
-              aria-hidden
-              data-grain
-              style={{
-                position: "absolute",
-                inset: 0,
-                backgroundImage: GRAIN_DATA_URL,
-                backgroundSize: `${GRAIN_TILE_PX}px ${GRAIN_TILE_PX}px`,
-                mixBlendMode: "overlay",
-                opacity: grade.grain,
-                pointerEvents: "none",
-              }}
-            />
+          {/* The grade: the deck's own colour laid into the photograph's
+              pixels — its own alpha, so a contained picture's gutters and a
+              PNG's transparent parts stay untouched — and grain composited
+              inside the same alpha. One filter, defined beside the picture
+              it colours. */}
+          {element.url && matrix && (
+            <svg width={0} height={0} aria-hidden style={{ position: "absolute" }}>
+              <filter id={gradeId} colorInterpolationFilters="sRGB">
+                <feColorMatrix type="matrix" values={matrixValues(matrix)} result="graded" />
+                <feTurbulence
+                  type="fractalNoise"
+                  baseFrequency={0.9}
+                  numOctaves={2}
+                  stitchTiles="stitch"
+                  result="noise"
+                />
+                <feColorMatrix
+                  in="noise"
+                  type="matrix"
+                  values={`0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 ${GRAIN[element.grade]} 0`}
+                  result="grain"
+                />
+                <feComposite in="grain" in2="SourceGraphic" operator="in" result="grainIn" />
+                <feBlend in="grainIn" in2="graded" mode="overlay" />
+              </filter>
+            </svg>
           )}
           {/* A scrim darkens a photograph so a caption over it stays legible.
               With no photograph it is a dark rectangle over nothing — which on

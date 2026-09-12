@@ -154,6 +154,8 @@ export type GeneratedScene = z.infer<typeof GeneratedScene>;
 
 export const GeneratedScenes = z.object({
   scenes: z.array(GeneratedScene).min(1).max(24),
+  /** The deck's visual direction, one sentence for every picture. */
+  look: z.string().max(400).default(""),
 });
 
 /**

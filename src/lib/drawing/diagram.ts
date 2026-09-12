@@ -188,9 +188,14 @@ export function smoothClosedPath(points: { x: number; y: number }[]): string {
   return parts.join(" ");
 }
 
-export function cloudPath(cx: number, cy: number, rx: number, ry: number): string {
+export function cloudPoints(
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+): { x: number; y: number }[] {
   const bumps = 9;
-  const points = Array.from({ length: bumps }, (_, i) => {
+  return Array.from({ length: bumps }, (_, i) => {
     const t = (i / bumps) * Math.PI * 2 - Math.PI / 2;
     // Alternating radii make the bumps; a slightly flatter underside makes it
     // a cloud rather than a flower.
@@ -198,7 +203,10 @@ export function cloudPath(cx: number, cy: number, rx: number, ry: number): strin
     const under = Math.sin(t) > 0 ? 0.92 : 1;
     return { x: cx + Math.cos(t) * rx * scale * under, y: cy + Math.sin(t) * ry * scale * under };
   });
-  return smoothClosedPath(points);
+}
+
+export function cloudPath(cx: number, cy: number, rx: number, ry: number): string {
+  return smoothClosedPath(cloudPoints(cx, cy, rx, ry));
 }
 
 /** A small deterministic hash, so a blob's shape follows its name. */
@@ -242,10 +250,25 @@ export function blobPath(cx: number, cy: number, rx: number, ry: number, seed: s
   return smoothClosedPath(blobPoints(cx, cy, rx, ry, seed));
 }
 
-/** A polygon's vertices for a shape, for hatching and nothing else. */
-function outline(node: DiagramNode, box: Box): { x: number; y: number }[] {
+type Point = { x: number; y: number };
+
+const rect = (x: number, y: number, w: number, h: number, inset: number): Point[] => [
+  { x: x + inset, y: y + inset },
+  { x: x + w - inset, y: y + inset },
+  { x: x + w - inset, y: y + h - inset },
+  { x: x + inset, y: y + h - inset },
+];
+
+/**
+ * The polygons a shape is hatched inside, matched to what is drawn.
+ *
+ * More than one for a ring: its hole is a second polygon, and the even-odd
+ * clip leaves the band between them. A stack hatches its front box only; a
+ * cloud its own bumps rather than the ellipse they sit on.
+ */
+export function outline(node: DiagramNode, box: Box): Point[][] {
   const c = centre(box);
-  const ring = (rx: number, ry: number, n = 40) =>
+  const ring = (rx: number, ry: number, n = 40): Point[] =>
     Array.from({ length: n }, (_, i) => {
       const t = (i / n) * Math.PI * 2;
       return { x: c.x + Math.cos(t) * rx, y: c.y + Math.sin(t) * ry };
@@ -253,24 +276,28 @@ function outline(node: DiagramNode, box: Box): { x: number; y: number }[] {
   switch (node.kind) {
     case "circle": {
       const r = Math.min(box.w, box.h) / 2;
-      return ring(r, r);
+      return [ring(r, r)];
+    }
+    case "ring": {
+      const r = Math.min(box.w, box.h) / 2;
+      return [ring(r, r), ring(r * 0.58, r * 0.58)];
     }
     case "ellipse":
+      return [ring(box.w / 2, box.h / 2)];
     case "cloud":
-      return ring(box.w / 2, box.h / 2);
+      return [cloudPoints(c.x, c.y, box.w / 2, box.h / 2)];
     case "blob":
-      return blobPoints(c.x, c.y, box.w / 2, box.h / 2, node.id);
-    default: {
-      // Boxes, pills, bars and stacks: the rectangle, inset a little so the
-      // hatching stops short of a rounded corner.
-      const inset = Math.min(box.w, box.h) * 0.08;
-      return [
-        { x: box.x + inset, y: box.y + inset },
-        { x: box.x + box.w - inset, y: box.y + inset },
-        { x: box.x + box.w - inset, y: box.y + box.h - inset },
-        { x: box.x + inset, y: box.y + box.h - inset },
-      ];
+      return [blobPoints(c.x, c.y, box.w / 2, box.h / 2, node.id)];
+    case "stack": {
+      const step = Math.min(14, box.w * 0.08, box.h * 0.12);
+      const w = box.w - step * 2;
+      const h = box.h - step * 2;
+      return [rect(box.x, box.y + step * 2, w, h, Math.min(w, h) * 0.08)];
     }
+    default:
+      // Boxes, pills and bars: the rectangle, inset a little so the hatching
+      // stops short of a rounded corner.
+      return [rect(box.x, box.y, box.w, box.h, Math.min(box.w, box.h) * 0.08)];
   }
 }
 
@@ -285,10 +312,15 @@ export const HATCH_SPACING = 13;
  * the runs that lie inside. Even-odd, so a concave blob hatches correctly
  * and nothing is drawn across a bay.
  */
-export function hatchLines(polygon: { x: number; y: number }[], spacing = HATCH_SPACING): string[] {
-  if (polygon.length < 3) return [];
-  const xs = polygon.map((p) => p.x);
-  const ys = polygon.map((p) => p.y);
+export function hatchLines(
+  shape: { x: number; y: number }[] | { x: number; y: number }[][],
+  spacing = HATCH_SPACING,
+): string[] {
+  const polygons = (Array.isArray(shape[0]) ? shape : [shape]) as { x: number; y: number }[][];
+  const all = polygons.flat();
+  if (all.length < 3) return [];
+  const xs = all.map((p) => p.x);
+  const ys = all.map((p) => p.y);
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const minY = Math.min(...ys);
@@ -297,15 +329,17 @@ export function hatchLines(polygon: { x: number; y: number }[], spacing = HATCH_
   // Lines of the form x - y = k, at 45 degrees, rising to the right.
   for (let k = minX - maxY; k <= maxX - minY; k += spacing) {
     const crossings: number[] = [];
-    for (let i = 0; i < polygon.length; i += 1) {
-      const a = polygon[i];
-      const b = polygon[(i + 1) % polygon.length];
-      // Solve for the point on segment ab where x - y = k.
-      const da = a.x - a.y - k;
-      const db = b.x - b.y - k;
-      if ((da <= 0 && db > 0) || (da > 0 && db <= 0)) {
-        const s = da / (da - db);
-        crossings.push(a.x + (b.x - a.x) * s);
+    for (const polygon of polygons) {
+      for (let i = 0; i < polygon.length; i += 1) {
+        const a = polygon[i];
+        const b = polygon[(i + 1) % polygon.length];
+        // Solve for the point on segment ab where x - y = k.
+        const da = a.x - a.y - k;
+        const db = b.x - b.y - k;
+        if ((da <= 0 && db > 0) || (da > 0 && db <= 0)) {
+          const s = da / (da - db);
+          crossings.push(a.x + (b.x - a.x) * s);
+        }
       }
     }
     crossings.sort((p, q) => p - q);
@@ -569,14 +603,37 @@ function boxOf(node: DiagramNode): Box {
   return { x: cx - w / 2, y: cy - h / 2, w, h };
 }
 
+/** A label's base size on this canvas, as the renderer sets it. */
+const LABEL_SIZE = DIAGRAM_WIDTH * 0.0325;
+
+/**
+ * A label moved to sit wholly inside the picture.
+ *
+ * The renderer clips to the box, so a name centred on a node at the margin
+ * lost its first or last word. The width is estimated from the glyph count
+ * — a sans face runs a little over half its size per character — with the
+ * halo counted; a label wider than the whole canvas is left centred.
+ */
+export function keptInside(label: DrawnLabel): DrawnLabel {
+  const size = LABEL_SIZE * label.size;
+  const halfWidth = (label.text.length * 0.56 * size) / 2 + size * 0.3;
+  const halfHeight = size * 0.65;
+  const x =
+    halfWidth * 2 >= DIAGRAM_WIDTH
+      ? label.x
+      : Math.min(DIAGRAM_WIDTH - halfWidth, Math.max(halfWidth, label.x));
+  const y = Math.min(DIAGRAM_HEIGHT - halfHeight, Math.max(halfHeight, label.y));
+  return { ...label, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+}
+
 /** Where a node's name goes: inside a wide container, below anything else. */
 function labelFor(node: DiagramNode, box: Box): DrawnLabel | null {
   const text = node.label.trim();
   if (!text) return null;
   const c = centre(box);
   const wide = (node.kind === "box" || node.kind === "pill") && box.w >= 120 && box.h >= 44;
-  const y = wide ? c.y : Math.min(DIAGRAM_HEIGHT - 12, box.y + box.h + 20);
-  return {
+  const y = wide ? c.y : box.y + box.h + 20;
+  return keptInside({
     text,
     x: c.x,
     y,
@@ -584,7 +641,7 @@ function labelFor(node: DiagramNode, box: Box): DrawnLabel | null {
     ink: node.accent ? "accent" : undefined,
     size: 1,
     anchor: "middle",
-  };
+  });
 }
 
 export function compileDiagram(diagram: GeneratedDiagram): CompiledDrawing {
@@ -738,15 +795,17 @@ export function compileDiagram(diagram: GeneratedDiagram): CompiledDrawing {
     // not sit on the line it describes.
     const relation = edge.label.trim();
     if (relation) {
-      labels.push({
-        text: relation,
-        x: (start.x + end.x) / 2 - (dy / length) * 14,
-        y: (start.y + end.y) / 2 + (dx / length) * 14,
-        stage: edge.stage,
-        ink: edge.accent ? "accent" : "muted",
-        size: 0.85,
-        anchor: "middle",
-      });
+      labels.push(
+        keptInside({
+          text: relation,
+          x: (start.x + end.x) / 2 - (dy / length) * 14,
+          y: (start.y + end.y) / 2 + (dx / length) * 14,
+          stage: edge.stage,
+          ink: edge.accent ? "accent" : "muted",
+          size: 0.85,
+          anchor: "middle",
+        }),
+      );
     }
 
     if (edge.kind === "dashed" || edge.kind === "leader") {

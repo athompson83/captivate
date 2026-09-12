@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
-import { getCurrentUser } from "@/lib/supabase/server";
+import { getCurrentUser, supabaseServer } from "@/lib/supabase/server";
 import { generateImage, isImageGenerationConfigured } from "@/lib/ai/visual-sourcing";
+import { paletteWords, pictureBrief } from "@/lib/ai/look";
+import { JourneyConfig } from "@/lib/schema/presentation";
+import { getTheme } from "@/lib/schema/theme";
 
 export const maxDuration = 120;
 
@@ -36,7 +39,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Describe the image you want." }, { status: 400 });
 
   return keepAlive(async () => {
-    const result = await generateImage(parsed.data.prompt, parsed.data.presentationId ?? null);
+    const presentationId = parsed.data.presentationId ?? null;
+    // A picture made for a deck follows the deck's look and palette, the way
+    // every picture generation makes for it does; the journey panel says so.
+    // Without a deck, the prompt is the author's alone.
+    let prompt = parsed.data.prompt;
+    if (presentationId) {
+      const supabase = await supabaseServer();
+      const { data: deck } = await supabase
+        .from("presentations")
+        .select("theme_id, journey")
+        .eq("id", presentationId)
+        .maybeSingle();
+      if (deck) {
+        const journey = JourneyConfig.safeParse(deck.journey ?? {});
+        const look = journey.success ? journey.data.look : "";
+        prompt = pictureBrief(prompt, look, paletteWords(getTheme(deck.theme_id)));
+      }
+    }
+    const result = await generateImage(prompt, presentationId);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
     return NextResponse.json({ image: result.data });
   });

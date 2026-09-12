@@ -272,6 +272,14 @@ transcript rather than fighting it for the microphone — which also means a
 recording of a captioned talk already contains its captions, and burning
 them in as well would show them twice.
 
+**The room is made for the subject.** A generated deck stands in a room of
+its own: one picture behind the whole show, made to the deck's look and the
+theme's palette, empty at the centre and out of focus, far back and dimmed so
+it is a place rather than a picture. The look — one sentence of visual
+direction the writer sets for the whole talk — is on the journey panel, and
+every picture Captivate makes for the deck follows it; a talk on trauma care
+and a talk on brand strategy do not share one.
+
 **The frame before the stage is black.** Both audience routes await the deck
 on the server; until it arrives they show a black frame rather than the site's
 light body, so a projector never flashes white before the first scene.

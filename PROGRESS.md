@@ -11,10 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #103 — the MVP-029 closeout, and a deck with a look
-  (pictures graded to the theme, drawings drawn by a hand with labels and
-  richer forms, a drawing brief distinct from the photograph's), awaiting
-  CI, merge and production verification
+  `main` after PR #104 — the MVP-030 closeout, and a look for every deck
+  (generated pictures and a room to one visual direction), awaiting CI,
+  merge and production verification
 - `main`: through PR #103 (merged) — `79d933f`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -79,8 +78,8 @@ findings, each with evidence rather than an impression:
   feather on each side let the eyebrow, heading and body beneath show as
   ghost letters down the left of every generated cover.
 
-This round fixes what the stage can fix on its own; the next puts a visual
-direction into generation itself.
+The stage's half and generation's half are both in this branch: the stage
+fixes below, and a look for every deck after them.
 
 **Pictures graded to the deck** (`lib/present/grade.ts`, `ImageElement.grade`).
 `tint` lowers the photograph's own saturation a little and lays the theme's
@@ -101,6 +100,45 @@ and edge; the brief now says "draw the mechanism, never the photograph" and
 teaches the forms. The scene writer separates a `drawingBrief` from the
 photograph's `imagePrompt`, and where photographs are available only scenes
 briefed for a drawing get one.
+
+**Landed and verified.** PR #104 squash-merged as `32bf683`, all six CI jobs
+green on the head. Every deck with a picture or a drawing lives behind
+sign-in, so the production evidence is the deployment: the proxied smoke
+suite 37 of 37 against `www.axtevi.com` after the deploy; the visual
+evidence is the production deck rendered before and after in the session.
+Codex reviewed the merged PR and found five real things, fixed in PR #105:
+the grade was coloured layers over the picture's box, so a contained
+picture's gutters and a PNG's transparent parts were tinted too — it is one
+colour matrix on the picture's own pixels now, grain composited inside its
+alpha; the duotone's `lighten` toward a white canvas was a white rectangle
+on every light theme — the accent takes the shadows there and the canvas
+the highlights; a label at the margin was clipped by its own width — labels
+are kept inside the box; a ring, a stack and a cloud were hatched as a
+rectangle or an ellipse — each is hatched inside what is drawn, a ring's
+hole left alone; and a graded picture was exported as shot without a word
+— the export names the omission.
+
+**A look for every deck** (`lib/ai/look.ts`, `lib/ai/picture-plan.ts`,
+`journey.look`). The scene writer sets one sentence of visual direction for
+the whole talk — medium, light, a motif from the subject, one thing to avoid
+— chosen as an art director would. It is written onto the journey, editable
+in the journey panel, and folded into every prompt an image model is given
+for the deck with the theme's palette in words (a hue and a lightness per
+token, from OKLab). Up to four photographic pictures are generated to it,
+the cover first, then a full-bleed backdrop, then side scenes, a tall slot
+asking for a tall picture; a scene briefed for a drawing is drawn; the rest
+are stock, and stock is the fallback for every generation that fails. The
+room behind the show is made last, to the same look, empty at the centre and
+out of focus, far back and dimmed, only where the deck had none, and bounded
+so a slow provider never holds the route. Every picture passes the same
+reserve-before-spend gate the picker uses; free plans generate nothing.
+
+Unverified from here, and worth saying so: this environment has no provider
+key and the session's Vercel token cannot read the project, so whether
+production carries an image key is unknown. The ledger says no image has
+ever been generated there. If the key is absent, this round changes nothing
+in production until it is set; if present, the next generated deck is the
+evidence.
 
 ### Captions for the room
 

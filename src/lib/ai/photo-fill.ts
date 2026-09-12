@@ -5,6 +5,7 @@ import {
   isImageGenerationConfigured,
   isStockSearchConfigured,
   searchStockPhotos,
+  type ImageShape,
 } from "./visual-sourcing";
 import { chooseStockPhoto } from "./choose-photo";
 import { saveStockPhoto } from "@/lib/data/sourced-assets";
@@ -101,19 +102,20 @@ export async function fillWithStockPhoto(
 export async function fillWithGeneratedImage(
   prompt: string,
   presentationId: string | null,
+  { shape = "wide", alt }: { shape?: ImageShape; alt?: string } = {},
 ): Promise<FilledPhoto | null> {
   if (!isImageGenerationConfigured()) return null;
   const trimmed = prompt.trim();
   if (!trimmed) return null;
 
-  const generated = await generateImage(
-    `${trimmed}. Cinematic, photographic, no text or lettering anywhere in the image.`,
-    presentationId,
-  );
+  // The prompt arrives composed — the scene's picture, the deck's look and
+  // its palette (`lib/ai/look.ts`) — so nothing is appended here.
+  const generated = await generateImage(trimmed, presentationId, { shape });
   if (!generated.ok) return null;
 
-  const saved = await storeGeneratedImage(generated.data, { altText: trimmed, presentationId });
+  const altText = (alt ?? trimmed).slice(0, 600);
+  const saved = await storeGeneratedImage(generated.data, { altText, presentationId });
   if (!saved.ok) return null;
 
-  return { url: saved.data.url, assetId: saved.data.id, alt: trimmed };
+  return { url: saved.data.url, assetId: saved.data.id, alt: altText };
 }

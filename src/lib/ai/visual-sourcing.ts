@@ -249,11 +249,16 @@ const IMAGE_MODEL =
  * choice, but changing the shape in the same step as the gateway is how a
  * difference becomes unattributable.
  */
-function imageRequestBody(prompt: string): Record<string, unknown> {
+export type ImageShape = "wide" | "tall";
+
+function imageRequestBody(prompt: string, shape: ImageShape): Record<string, unknown> {
   const common = { model: IMAGE_MODEL, prompt, n: 1, quality: "medium" };
+  // The same picture turned on its side for a tall slot: the half of a split
+  // scene reaches the room at about 8:9, and a landscape generated for it
+  // keeps a third of what the model composed.
   return IMAGE_PROVIDER === "openrouter"
-    ? { ...common, aspect_ratio: "3:2" }
-    : { ...common, size: "1536x1024" };
+    ? { ...common, aspect_ratio: shape === "tall" ? "2:3" : "3:2" }
+    : { ...common, size: shape === "tall" ? "1024x1536" : "1536x1024" };
 }
 
 /**
@@ -284,9 +289,22 @@ function decodeBase64(payload: string): Uint8Array | null {
 export async function generateImage(
   prompt: string,
   presentationId: string | null = null,
+  {
+    shape = "wide",
+    signal,
+  }: {
+    shape?: ImageShape;
+    /**
+     * A caller's own deadline. Checked before anything is reserved, and it
+     * aborts the provider call itself: a picture nobody will be there to
+     * receive is not worth paying for.
+     */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<Sourced<GeneratedImage>> {
   const key = imageKey();
   if (!key) return { ok: false, error: "Image generation isn't configured on this deployment." };
+  if (signal?.aborted) return { ok: false, error: "There was no time left to make the picture." };
 
   // Checked before the reservation: a refusal must not consume budget, and the
   // reason a free caller cannot do this is not "the deployment is out of
@@ -346,8 +364,10 @@ export async function generateImage(
             }
           : {}),
       },
-      body: JSON.stringify(imageRequestBody(trimmed)),
-      signal: AbortSignal.timeout(90_000),
+      body: JSON.stringify(imageRequestBody(trimmed, shape)),
+      signal: signal
+        ? AbortSignal.any([AbortSignal.timeout(90_000), signal])
+        : AbortSignal.timeout(90_000),
     });
 
     if (!response.ok) {

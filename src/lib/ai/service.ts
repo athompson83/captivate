@@ -14,7 +14,7 @@ import {
   settleCover,
 } from "@/lib/editor/place-drawing";
 import { fillWithGeneratedImage, fillWithStockPhoto, isPhotoFillConfigured } from "./photo-fill";
-import { isStockSearchConfigured } from "./visual-sourcing";
+import { isImageGenerationConfigured, isStockSearchConfigured } from "./visual-sourcing";
 import type { SceneContent } from "@/lib/schema/presentation";
 import { BASE_SYSTEM, generateStructured, isAiConfigured, type StructuredResult } from "./provider";
 import {
@@ -35,6 +35,11 @@ import { deriveTitle, fallbackRewrite, fallbackScene, subjectOf } from "./fallba
 import { fallbackMap } from "./narrative-fallback";
 import { layoutsForDeck, type AvailableEvidence, type MomentBrief } from "@/lib/narrative/generate";
 import { GeneratedDiagram, compileDiagram } from "@/lib/drawing/diagram";
+import { GENERATED_PER_DECK, paletteWords, pictureBrief, roomBrief } from "./look";
+import { pickGenerated, shapeFor } from "./picture-plan";
+import { getTheme } from "@/lib/schema/theme";
+import { storeGeneratedImage } from "@/lib/data/sourced-store";
+import { generateImage } from "./visual-sourcing";
 
 /**
  * Application-level AI operations.
@@ -339,11 +344,26 @@ export async function buildScenesFromMap(
   depth: ContentDepth = "full",
   /** The requested running time; drives how many drawings the deck earns. */
   totalSeconds = 0,
+  {
+    themeId = null,
+    look: fixedLook = "",
+  }: {
+    /** The deck's theme, so generated pictures carry its palette. */
+    themeId?: string | null;
+    /**
+     * A look the deck already has — the author's, or a previous run's. It
+     * wins over whatever the writer would set, so editing the look in the
+     * journey panel and regenerating gets pictures to the edited look.
+     */
+    look?: string;
+  } = {},
 ): Promise<
   | {
       ok: true;
       data: {
         scenes: ({ momentId: string } & MaterialisedScene)[];
+        /** The deck's visual direction, for the journey; empty from a fallback. */
+        look: string;
         source: "model" | "fallback";
         notice?: string;
       };
@@ -376,6 +396,7 @@ export async function buildScenesFromMap(
             ),
           ),
         })),
+        look: "",
         source: "fallback",
         notice:
           "No language model is configured, so these scenes are structural placeholders. The argument behind them is real.",
@@ -467,6 +488,8 @@ Each layout draws a fixed set of fields and shows nothing else, so write into th
 - figure — heading (the claim), figure, body
 - explainer — heading (the plain-language sentence), exactly three cards (what, why, what follows), imagePrompt
 
+The look: write \`look\`, once for the whole deck — one sentence of visual direction every generated picture will follow: the medium (documentary photography, cut paper, ink and wash, a museum diorama, an architectural model ...), the light, a recurring motif drawn from this subject, and one thing to avoid. Choose it for this talk and this audience the way an art director would, so a talk on trauma care and a talk on brand strategy do not share a look. It is the deck's, not a scene's: no scene subject in it.
+
 Drawings: some pictures should be drawn, not photographed — a mechanism, a pathway, a comparison of amounts, a before-and-after, the parts of a thing and how they relate. For a split-left, split-right or explainer scene whose picture is one of those, write a drawingBrief: one sentence naming the parts, what each is called, and how they relate ("The heart, the vessel and the tissue in a row; blood flows heart to tissue; the vessel narrows in stage two and the flow arrow turns red"). Leave drawingBrief empty where a photograph is the right picture — a face, a place, a moment. A scene with a drawingBrief still carries its imagePrompt, for the deployment that cannot draw.
 
 Pictures: every cover, split-left, split-right, explainer and media-full scene MUST carry an imagePrompt — the picture is half the scene, and an empty half is a broken scene. The imagePrompt describes the one image that would teach or land the moment — a mechanism, a scene, a before-and-after — concretely enough to photograph or sketch. Also give those scenes a photoQuery: two to five plain search words for a stock photo of the same subject. The cover is composed differently, and the difference is *composition* rather than abstraction. Name the one image that is this talk's hero — the subject itself is allowed and often right — but describe it as a photographer would frame it for a title: a clear focal subject somewhere off-centre, real depth behind it, and a quiet region of sky, wall, shadow or ground where a display line can sit without fighting anything. What a cover must not be is the generic establishing shot that could open any talk on the subject, or a busy frame with readable detail across all of it. An atmospheric place-and-light image is one good answer to that and not the only one; a single arresting subject with air around it is usually better.
@@ -483,7 +506,12 @@ ${contextLine(context)}
 
 The accepted narrative map:
 ${plan}
-
+${
+  fixedLook.trim()
+    ? `
+The deck's look is already set, and every picture will follow it; write it back as \`look\` unchanged: ${fixedLook.trim()}`
+    : ""
+}
 ${referenceBlock(context.reference ?? null)}`,
       maxTokens: 14000,
       // Both scene routes run at the 300-second platform ceiling, and this
@@ -517,6 +545,7 @@ ${referenceBlock(context.reference ?? null)}`,
             ),
           ),
         })),
+        look: "",
         source: "fallback",
         notice: `${result.error} Captivate built structural scenes from your map instead.`,
       },
@@ -552,9 +581,10 @@ ${referenceBlock(context.reference ?? null)}`,
     };
   });
 
-  await dressScenes(scenes, presentationId, totalSeconds, { mayGenerateCover: true });
+  const look = fixedLook.trim() || result.data.look.trim();
+  await dressScenes(scenes, presentationId, totalSeconds, { mayGenerate: true, look, themeId });
 
-  return { ok: true, data: { source: "model", scenes } };
+  return { ok: true, data: { source: "model", scenes, look } };
 }
 
 /**
@@ -598,18 +628,23 @@ async function dressScenes(
      */
     budgetMs = 55_000,
     /**
-     * Whether an unfilled cover may fall back to one *paid* generated image.
+     * Whether this pass may spend on generated pictures.
      *
-     * A property of the caller, not of the layout. It was written as "this
-     * scene's layout is `cover`", and the single-scene route can produce a
-     * cover: `GeneratedLayout` excludes only `custom`, so an author asking for
-     * a title scene could have had money spent on a picture they never asked
-     * for. The rule this implements is "one paid image for the first thing a
-     * room sees, once per deck" — which is about generating a deck, so the
-     * deck route says so and nothing else does.
+     * A property of the caller, not of the layout: the single-scene route can
+     * produce a cover (`GeneratedLayout` excludes only `custom`), and an author
+     * asking for a title scene must not have money spent on a picture they
+     * never asked for. Generating a deck is the one thing that claims this.
+     * With it, up to `GENERATED_PER_DECK` photographic scenes are generated
+     * to the deck's look — the cover first — and the rest are found in stock;
+     * a generation that fails falls back to stock, and stock never fails to
+     * generate. Without it, every picture is stock.
      */
-    mayGenerateCover = false,
-  }: { budgetMs?: number; mayGenerateCover?: boolean } = {},
+    mayGenerate = false,
+    /** The deck's visual direction; empty takes the default look. */
+    look = "",
+    /** The deck's theme, for the palette in words. */
+    themeId = null as string | null,
+  }: { budgetMs?: number; mayGenerate?: boolean; look?: string; themeId?: string | null } = {},
 ): Promise<void> {
   const hasEmptySlot = (content: SceneContent) =>
     content.elements.some(
@@ -656,6 +691,19 @@ async function dressScenes(
   // not offered again, however well it matches.
   const taken = new Set<string>();
 
+  // Which pictures are made rather than found. Photographic scenes only —
+  // anything with a drawing brief is in `drawings` already — and only the
+  // caller that may spend. The look and the palette go into every prompt.
+  const palette = paletteWords(getTheme(themeId));
+  const generated = new Set(
+    mayGenerate && isImageGenerationConfigured()
+      ? pickGenerated(
+          photos.map((scene) => ({ index: scenes.indexOf(scene), layout: scene.content.layout })),
+          GENERATED_PER_DECK,
+        ).map((index) => scenes[index])
+      : [],
+  );
+
   const jobs: Promise<void>[] = [
     ...drawings.map(async (scene) => {
       const brief = briefFor(scene);
@@ -665,17 +713,34 @@ async function dressScenes(
       if (replaced) scene.content = replaced;
     }),
     ...photos.map(async (scene) => {
-      let photo = await fillWithStockPhoto(
-        scene.photoQuery ?? "",
-        scene.imagePrompt,
-        presentationId,
-        {
-          slotAspect: mediaSlotAspect(scene.content.layout) ?? 16 / 9,
-          taken,
-        },
-      );
-      if (!photo && mayGenerateCover && scene.content.layout === "cover") {
-        photo = await fillWithGeneratedImage(scene.imagePrompt, presentationId);
+      const slotAspect = mediaSlotAspect(scene.content.layout) ?? 16 / 9;
+      let photo = generated.has(scene)
+        ? await fillWithGeneratedImage(
+            pictureBrief(scene.imagePrompt, look, palette),
+            presentationId,
+            { shape: shapeFor(slotAspect), alt: scene.imagePrompt },
+          )
+        : null;
+      if (!photo) {
+        photo = await fillWithStockPhoto(
+          scene.photoQuery ?? "",
+          scene.imagePrompt,
+          presentationId,
+          {
+            slotAspect,
+            taken,
+          },
+        );
+      }
+      // The cover is the one picture a deck must not open without: a cover
+      // stock found nothing for is generated even when the plan above did
+      // not reach it.
+      if (!photo && mayGenerate && scene.content.layout === "cover" && !generated.has(scene)) {
+        photo = await fillWithGeneratedImage(
+          pictureBrief(scene.imagePrompt, look, palette),
+          presentationId,
+          { alt: scene.imagePrompt },
+        );
       }
       if (!photo) return;
       const replaced = replaceMediaWithPhoto(scene.content, photo);
@@ -693,6 +758,54 @@ async function dressScenes(
   for (const scene of scenes) {
     scene.content = settleCover(scene.content);
   }
+}
+
+/** The most a room may take; a route with less time left gives it less. */
+export const ROOM_BUDGET_MS = 75_000;
+/** Below this there is not enough time to make one and keep it. */
+const ROOM_MIN_MS = 20_000;
+
+/**
+ * The room a deck stands in: one generated picture behind the whole show.
+ *
+ * Made to the deck's look and the theme's palette, empty at the centre and
+ * out of focus (`roomBrief`), and returned as the backdrop fields the route
+ * writes onto the journey — far back and dimmed, so it is a place rather
+ * than a picture. Null where generation is not configured, refused, or too
+ * slow: a deck without a room keeps the drawn one it had, and nothing waits
+ * for a picture that is not coming.
+ */
+export async function dressRoom({
+  title,
+  look,
+  themeId,
+  presentationId,
+  budgetMs = ROOM_BUDGET_MS,
+}: {
+  title: string;
+  look: string;
+  themeId: string | null;
+  presentationId: string;
+  /** What the route has left for this, at most `ROOM_BUDGET_MS`. */
+  budgetMs?: number;
+}): Promise<{ url: string; assetId: string; alt: string; distance: number; dim: number } | null> {
+  if (!isImageGenerationConfigured()) return null;
+  const budget = Math.min(ROOM_BUDGET_MS, budgetMs);
+  if (budget < ROOM_MIN_MS) return null;
+  const prompt = roomBrief(title, look, paletteWords(getTheme(themeId)));
+  const alt = `The room behind ${title.trim() || "the presentation"}`;
+  // The deadline aborts the provider call rather than racing past it: a
+  // generation the route has stopped waiting for is settled as failed and
+  // never stored, so nothing is paid for and left unattached.
+  const deadline = AbortSignal.timeout(budget);
+  const generated = await generateImage(prompt, presentationId, {
+    shape: "wide",
+    signal: deadline,
+  });
+  if (!generated.ok || deadline.aborted) return null;
+  const saved = await storeGeneratedImage(generated.data, { altText: alt, presentationId });
+  if (!saved.ok) return null;
+  return { url: saved.data.url, assetId: saved.data.id, alt, distance: 0.85, dim: 0.5 };
 }
 
 export async function buildSingleScene(

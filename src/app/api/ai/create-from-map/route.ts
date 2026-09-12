@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
-import { buildScenesFromMap } from "@/lib/ai/service";
+import { ROOM_BUDGET_MS, buildScenesFromMap, dressRoom } from "@/lib/ai/service";
 import { ProposedMap } from "@/lib/ai/schemas";
 import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
 import { briefsFor, draftFromProposal } from "@/lib/narrative/generate";
@@ -12,11 +12,14 @@ import { createPresentation } from "@/lib/data/actions";
 import { supabaseServer } from "@/lib/supabase/server";
 import { THEMES } from "@/lib/schema/theme";
 import type { MomentRow, SceneRow } from "@/lib/supabase/database.types";
+import { JourneyConfig } from "@/lib/schema/presentation";
 
 // The platform ceiling: one scenes call at full depth plus the parallel
 // drawing pass is minutes of model time, and a duration cap that fires
 // mid-generation bills the tokens and saves nothing.
 export const maxDuration = 300;
+/** What the room may have of the route's ceiling, after everything else. */
+const ROUTE_RESERVE_MS = 20_000;
 
 const Input = z
   .object({
@@ -52,6 +55,7 @@ export async function POST(request: Request) {
   if (!guarded.ok) return guarded.response;
 
   return keepAlive(async () => {
+    const started = Date.now();
     const { prompt, map, totalSeconds, depth, themeId, folderId, ...context } = guarded.input;
 
     const theme = THEMES.some((t) => t.id === themeId)
@@ -150,6 +154,7 @@ export async function POST(request: Request) {
       presentationId,
       depth,
       totalSeconds,
+      { themeId: theme },
     );
 
     // The map survives a failed generation: the author lands in the map view
@@ -239,6 +244,38 @@ export async function POST(request: Request) {
         notice:
           "Your narrative map was saved, but the scenes couldn't be written. Open the map and generate them again.",
       });
+    }
+
+    // The look the scene writer set goes onto the journey, and the room
+    // behind the show is made to it. Last, because it is the one picture the
+    // deck can open without, and bounded, because the route cannot wait for
+    // ever on a picture that is not coming.
+    if (built.data.source === "model") {
+      const remaining = maxDuration * 1000 - (Date.now() - started) - ROUTE_RESERVE_MS;
+      const room = await dressRoom({
+        title: map.title,
+        look: built.data.look,
+        themeId: theme ?? null,
+        presentationId,
+        budgetMs: Math.min(ROOM_BUDGET_MS, remaining),
+      });
+      const { data: current } = await supabase
+        .from("presentations")
+        .select("journey")
+        .eq("id", presentationId)
+        .maybeSingle();
+      const parsed = JourneyConfig.safeParse(current?.journey ?? {});
+      const journey = parsed.success ? parsed.data : JourneyConfig.parse({});
+      await supabase
+        .from("presentations")
+        .update({
+          journey: {
+            ...journey,
+            look: built.data.look,
+            backdrop: room ? { ...journey.backdrop, ...room } : journey.backdrop,
+          } as never,
+        })
+        .eq("id", presentationId);
     }
 
     // `fallback` means no model wrote these scenes: the deck exists and is

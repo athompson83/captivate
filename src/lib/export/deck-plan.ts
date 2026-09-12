@@ -411,6 +411,15 @@ function planSlide(
           lost.bump("image", "An image placeholder had no picture in it yet.");
           break;
         }
+        // The picture's own bytes, as shot: the grade is a filter the stage
+        // applies at paint time, and a slide has no such thing. Said, rather
+        // than silently exported in a different colour to the room's.
+        if (element.grade !== "none") {
+          lost.bump(
+            "grade",
+            "A picture graded to the theme on the stage is exported as shot; the slide has no grade.",
+          );
+        }
         shapes.push({
           kind: "image",
           box,

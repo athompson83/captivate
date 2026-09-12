@@ -150,13 +150,13 @@ describe("a scene added on its own gets its picture too", () => {
     // `custom`: an author asking this route for a title scene could have had
     // money spent on a picture they never asked for. It is the caller's
     // affordance now, and only the deck route claims it.
-    expect(service).toMatch(/mayGenerateCover && scene\.content\.layout === "cover"/);
+    expect(service).toMatch(/mayGenerate && scene\.content\.layout === "cover"/);
     expect(service).toMatch(
-      /await dressScenes\(scenes, presentationId, totalSeconds, \{\s*mayGenerateCover: true,?\s*\}\)/,
+      /await dressScenes\(scenes, presentationId, totalSeconds, \{\s*mayGenerate: true, look, themeId\s*\}\)/,
     );
     const single = service.match(/await dressScenes\(\[scene\], presentationId, 0, \{([^}]*)\}\)/);
     expect(single, "the single-scene route should name its own options").not.toBeNull();
-    expect(single![1]).not.toContain("mayGenerateCover");
+    expect(single![1]).not.toContain("mayGenerate");
   });
 
   it("asks for less time than the route it runs inside has left", () => {
