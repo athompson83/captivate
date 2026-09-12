@@ -280,6 +280,22 @@ const rect = (x: number, y: number, w: number, h: number, inset: number): Point[
   { x: x + inset, y: y + h - inset },
 ];
 
+/** A capsule — a pill's outline — as a polygon, inset a little. */
+function capsulePoints(box: Box, inset: number, n = 12): Point[] {
+  const horizontal = box.w >= box.h;
+  const r = (horizontal ? box.h : box.w) / 2 - inset;
+  const c = centre(box);
+  const reach = (horizontal ? box.w : box.h) / 2 - r - inset;
+  const arc = (cx: number, cy: number, from: number): Point[] =>
+    Array.from({ length: n + 1 }, (_, i) => {
+      const t = from + (Math.PI * i) / n;
+      return { x: cx + Math.cos(t) * r, y: cy + Math.sin(t) * r };
+    });
+  return horizontal
+    ? [...arc(c.x + reach, c.y, -Math.PI / 2), ...arc(c.x - reach, c.y, Math.PI / 2)]
+    : [...arc(c.x, c.y + reach, 0), ...arc(c.x, c.y - reach, Math.PI)];
+}
+
 /**
  * The polygons a shape is hatched inside, matched to what is drawn.
  *
@@ -315,6 +331,10 @@ export function outline(node: DiagramNode, box: Box): Point[][] {
       const h = box.h - step * 2;
       return [rect(box.x, box.y + step * 2, w, h, Math.min(w, h) * 0.08)];
     }
+    case "pill":
+      // The capsule that is drawn, not the rectangle around it: a shade cut
+      // to the rectangle ran straight through the rounded ends.
+      return [capsulePoints(box, Math.min(box.w, box.h) * 0.06)];
     default:
       // Boxes, pills and bars: the rectangle, inset a little so the hatching
       // stops short of a rounded corner.
@@ -471,6 +491,22 @@ export function shadeLines(
     }
   }
   return lines;
+}
+
+/**
+ * A form's whole shade as one path.
+ *
+ * Every shade line as its own stroke was dozens of paths per form: six
+ * large boxes breached the document's limit of four hundred and a forty-bar
+ * chart measured three thousand strokes on mount. One compound path per
+ * form is one measured stroke, sketched end to end in one pass of the pen.
+ */
+export function shadePath(
+  shape: { x: number; y: number }[] | { x: number; y: number }[][],
+  spacing = SHADE_SPACING,
+): string | null {
+  const lines = shadeLines(shape, spacing);
+  return lines.length ? lines.join(" ") : null;
 }
 
 /** The weight every shade line is drawn at, in the muted ink. */
@@ -1055,9 +1091,8 @@ export function compileDiagram(diagram: GeneratedDiagram): CompiledDrawing {
     // after the outline, so the room watches the form appear and then take
     // its light. A hatched part is already tone, and gets none.
     if (!node.hatch) {
-      for (const d of shadeLines(outline(node, box))) {
-        paths.push({ d, stage: node.stage, weight: SHADE_WEIGHT, ink: "muted" });
-      }
+      const d = shadePath(outline(node, box));
+      if (d) paths.push({ d, stage: node.stage, weight: SHADE_WEIGHT, ink: "muted" });
     }
   }
 

@@ -206,10 +206,16 @@ describe("a line and a donut", () => {
 
 describe("light on a chart", () => {
   it("shades every column and bar on the side away from the light, and nothing else", () => {
+    // One shade path per amount, so forty columns are forty strokes of
+    // tone rather than thousands.
     const columns = compileWithShade(chart({}));
-    expect(columns.paths.filter(isShade).length).toBeGreaterThan(3);
+    expect(columns.paths.filter(isShade)).toHaveLength(3);
     const bars = compileWithShade(chart({ chart: "bar" }));
-    expect(bars.paths.filter(isShade).length).toBeGreaterThan(3);
+    expect(bars.paths.filter(isShade)).toHaveLength(3);
+    const forty = compileWithShade(
+      chart({ data: Array.from({ length: 40 }, (_, i) => ({ label: `d${i}`, value: 40 })) }),
+    );
+    expect(forty.paths.length).toBeLessThan(120);
     expect(compileWithShade(chart({ chart: "line" })).paths.filter(isShade)).toHaveLength(0);
     expect(compileWithShade(chart({ chart: "donut" })).paths.filter(isShade)).toHaveLength(0);
   });

@@ -12,7 +12,7 @@ import {
   keptInside,
   roundedBoxPath,
   SHADE_WEIGHT,
-  shadeLines,
+  shadePath,
 } from "./diagram";
 import type { CompiledDrawing } from "./diagram";
 
@@ -248,8 +248,8 @@ export function compileChart(element: ChartElement): CompiledDrawing {
         fill: true,
         stage: 0,
       });
-      for (const s of shadeLines(boxPolygon(left, y - thickness / 2, length, thickness, k * 0.6)))
-        paths.push({ d: s, weight: SHADE_WEIGHT, ink: "muted", stage: 0 });
+      const shade = shadePath(boxPolygon(left, y - thickness / 2, length, thickness, k * 0.6));
+      if (shade) paths.push({ d: shade, weight: SHADE_WEIGHT, ink: "muted", stage: 0 });
       labels.push(label(d.label, left - 14, y, { anchor: "end", size: 0.9 }));
       if (element.showValues)
         labels.push(
@@ -288,8 +288,8 @@ export function compileChart(element: ChartElement): CompiledDrawing {
       stage: 0,
     });
     // The light on a column, as on any form: shade on the side away from it.
-    for (const s of shadeLines(boxPolygon(x - width / 2, base - height, width, height, k * 0.6)))
-      paths.push({ d: s, weight: SHADE_WEIGHT, ink: "muted", stage: 0 });
+    const shade = shadePath(boxPolygon(x - width / 2, base - height, width, height, k * 0.6));
+    if (shade) paths.push({ d: shade, weight: SHADE_WEIGHT, ink: "muted", stage: 0 });
     labels.push(label(d.label, x, base + 26, { ink: "muted", size: 0.85 }));
     if (element.showValues)
       labels.push(label(valueText(d.value), x, base - height - 20, { size: 0.9 }));

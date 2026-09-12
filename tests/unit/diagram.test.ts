@@ -787,7 +787,10 @@ describe("light on the drawing", () => {
         alt: "",
       }).paths.filter(isShade);
     const circle = shade(node({ id: "c", kind: "circle", fill: true }));
-    expect(circle.length).toBeGreaterThan(2);
+    // One compound path per form: dozens of strokes per form breached the
+    // document's limit and cost a chart thousands of measurements.
+    expect(circle).toHaveLength(1);
+    expect(points(circle[0].d).length).toBeGreaterThan(6);
     expect(circle.every((p) => p.weight === 0.45 && p.ink === "muted" && p.stage === 0)).toBe(true);
     // Every shade line lies inside the circle's far rim.
     for (const p of circle)
@@ -813,5 +816,39 @@ describe("light on the drawing", () => {
     });
     expect(staged.paths[0].weight).toBe(1.6);
     expect(staged.paths.slice(1).every((p) => isShade(p) && p.stage === 2)).toBe(true);
+  });
+
+  it("stays inside a pill's rounded ends, and inside the document's limit on a big diagram", () => {
+    const pill = node({ id: "p", kind: "pill", x: 400, y: 250, w: 160, h: 120 });
+    const drawing = compileWithShade({
+      arrangement: "free",
+      nodes: [pill],
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    // A capsule 160 wide and 120 tall: caps of radius 60 centred 20 either
+    // side of the middle. Every shade point is within a cap or the bar
+    // between them.
+    expect(drawing.paths.filter(isShade)).toHaveLength(1);
+    for (const p of drawing.paths.filter(isShade))
+      for (const q of points(p.d)) {
+        const inBar = Math.abs(q.x - 400) <= 20 && Math.abs(q.y - 250) <= 60;
+        const inCap =
+          Math.min(Math.hypot(q.x - 420, q.y - 250), Math.hypot(q.x - 380, q.y - 250)) <= 60;
+        expect(inBar || inCap).toBe(true);
+      }
+    // Six large boxes: one shade path each, well inside the four hundred.
+    const big = compileWithShade({
+      arrangement: "free",
+      nodes: Array.from({ length: 6 }, (_, i) =>
+        node({ id: `b${i}`, kind: "box", x: 100 + i * 120, y: 250, w: 400, h: 400, fill: true }),
+      ),
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    expect(big.paths.filter(isShade)).toHaveLength(6);
+    expect(big.paths.length).toBeLessThan(400);
   });
 });
