@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
-import { DrawnPicture } from "@/components/stage/drawn-picture";
+import {
+  DrawnPicture,
+  UNDER_OPACITY,
+  UNDER_WEIGHT,
+  washBleed,
+  washOffset,
+} from "@/components/stage/drawn-picture";
 import { createElement } from "@/lib/editor/element-factory";
 import type { DrawingElement } from "@/lib/schema/presentation";
 
@@ -15,7 +21,10 @@ import type { DrawingElement } from "@/lib/schema/presentation";
 
 const element = createElement("drawing") as DrawingElement; // stages 0, 1, 2
 
-const pathsIn = (container: HTMLElement) => [...container.querySelectorAll("path")];
+/** The ink: the committed strokes, not the underdrawing beneath them nor the washes. */
+const pathsIn = (container: HTMLElement) => [
+  ...container.querySelectorAll("path.dp-path:not(.dp-under)"),
+];
 const drawn = (p: Element) => p.classList.contains("dp-drawn");
 
 describe("DrawnPicture", () => {
@@ -95,14 +104,14 @@ describe("what a stroke may carry beyond its geometry", () => {
 
   it("scales the stroke by the path's weight", () => {
     const { container } = render(<DrawnPicture element={picture} step={1} />);
-    const strokes = [...container.querySelectorAll("path.dp-path")];
+    const strokes = [...container.querySelectorAll("path.dp-path:not(.dp-under)")];
     expect(strokes[0].getAttribute("stroke-width")).toBe(String(3 * 1.6));
     expect(strokes[1].getAttribute("stroke-width")).toBe("3");
   });
 
   it("lets one stroke take the accent while the element stays in ink", () => {
     const { container } = render(<DrawnPicture element={picture} step={1} />);
-    const strokes = [...container.querySelectorAll("path.dp-path")];
+    const strokes = [...container.querySelectorAll("path.dp-path:not(.dp-under)")];
     expect(strokes[0].getAttribute("stroke")).toBe("var(--stage-ink)");
     expect(strokes[1].getAttribute("stroke")).toBe("var(--stage-accent)");
   });
@@ -153,12 +162,76 @@ describe("labels on a drawing", () => {
     expect(container.querySelector("g[filter]")).not.toBeNull();
   });
 
-  it("draws every stroke through one hand, defined once per picture", () => {
+  it("draws every stroke through a hand, three of them defined once per picture", () => {
     const { container } = render(<DrawnPicture element={labelled} step={2} />);
-    const filters = container.querySelectorAll("filter");
-    expect(filters).toHaveLength(1);
-    expect(container.querySelector("feDisplacementMap")).not.toBeNull();
+    const filters = [...container.querySelectorAll("filter")];
+    expect(filters.map((f) => f.id.split("-")[0])).toEqual(["hand", "under", "wash"]);
+    expect(container.querySelectorAll("feDisplacementMap")).toHaveLength(3);
     const paths = [...container.querySelectorAll("path")];
     expect(paths.every((p) => p.closest("g[filter]") !== null)).toBe(true);
+  });
+});
+
+describe("drawn like an illustrator", () => {
+  const filled: DrawingElement = {
+    ...element,
+    strokeWidth: 3,
+    paths: [
+      { d: "M 0 0 L 100 0 L 100 100 Z", stage: 0, fill: true, weight: 1.6 },
+      { d: "M 0 0 L 50 50", stage: 1 },
+    ],
+  };
+
+  it("draws every stroke twice: a lighter underdrawing through its own hand, then the ink", () => {
+    const { container } = render(<DrawnPicture element={filled} step={1} />);
+    const under = [...container.querySelectorAll("path.dp-under")];
+    const ink = [...container.querySelectorAll("path.dp-path:not(.dp-under)")];
+    expect(under).toHaveLength(filled.paths.length);
+    expect(ink).toHaveLength(filled.paths.length);
+    // Same geometry, same stage, lighter weight, and its own hand.
+    expect(under[0].getAttribute("d")).toBe(ink[0].getAttribute("d"));
+    expect(under.map((p) => p.classList.contains("dp-drawn"))).toEqual(
+      ink.map((p) => p.classList.contains("dp-drawn")),
+    );
+    expect(Number(under[0].getAttribute("stroke-width"))).toBeCloseTo(3 * 1.6 * UNDER_WEIGHT);
+    expect(Number(ink[0].getAttribute("stroke-width"))).toBeCloseTo(3 * 1.6);
+    const underGroup = under[0].closest("g[filter]")!;
+    const inkGroup = ink[0].closest("g[filter]")!;
+    expect(underGroup).not.toBe(inkGroup);
+    expect(underGroup.getAttribute("filter")).toMatch(/^url\(#under-/);
+    expect(inkGroup.getAttribute("filter")).toMatch(/^url\(#hand-/);
+    expect(Number(underGroup.getAttribute("opacity"))).toBe(UNDER_OPACITY);
+  });
+
+  it("lays a wash that bleeds past its line, off it, through a coarser hand, under the ink", () => {
+    const { container } = render(<DrawnPicture element={filled} step={1} />);
+    const washes = [...container.querySelectorAll("path.dp-fill")];
+    expect(washes).toHaveLength(1);
+    const wash = washes[0];
+    // The bleed: a wide stroke of the wash's own colour, faded by the CSS.
+    expect(wash.getAttribute("stroke")).toBe(wash.getAttribute("fill"));
+    expect(Number(wash.getAttribute("stroke-width"))).toBeCloseTo(washBleed(3));
+    const group = wash.closest("g[filter]")!;
+    expect(group.getAttribute("filter")).toMatch(/^url\(#wash-/);
+    const offset = washOffset(filled.viewBox.width);
+    expect(group.getAttribute("transform")).toBe(`translate(${offset} ${offset})`);
+    // Under everything: the wash group precedes both stroke passes.
+    const groups = [...container.querySelectorAll("svg > g[filter]")];
+    expect(groups.indexOf(group)).toBe(0);
+    expect(groups).toHaveLength(3);
+  });
+
+  it("is deterministic: the hands are seeded from the picture's size, not the clock", () => {
+    const a = render(<DrawnPicture element={filled} step={1} />).container.innerHTML;
+    const b = render(<DrawnPicture element={filled} step={1} />).container.innerHTML;
+    // Ids differ per mount; everything else is identical.
+    const anon = (html: string) => html.replace(/(hand|under|wash)-[a-zA-Z0-9]+/g, "$1");
+    expect(anon(a)).toBe(anon(b));
+    const seeds = [
+      ...render(<DrawnPicture element={filled} step={1} />).container.querySelectorAll(
+        "feTurbulence",
+      ),
+    ].map((t) => t.getAttribute("seed"));
+    expect(new Set(seeds).size).toBe(3);
   });
 });

@@ -8,6 +8,7 @@ import {
   roundedBoxPath,
   symbolPaths,
   transformPath,
+  arrangeNodes,
   type DiagramNode,
 } from "@/lib/drawing/diagram";
 import { keptInside, outline, hatchLines } from "@/lib/drawing/diagram";
@@ -158,6 +159,7 @@ describe("symbols in boxes", () => {
     // 24 units become 240, so a 2-unit stroke wants 20 units: weight 20/3 capped at 4.
     expect(strokes[0].weight).toBe(4);
     const compiled = compileDiagram({
+      arrangement: "free",
       nodes: [
         node({ id: "h", kind: "symbol", symbol: "heart-pulse", x: 220, y: 170, w: 240, h: 240 }),
       ],
@@ -201,6 +203,7 @@ describe("arrows", () => {
 
   it("draws a shaft and a two-stroke head, and a head at each end for an exchange", () => {
     const one = compileDiagram({
+      arrangement: "free",
       nodes: [a, b],
       edges: [{ from: "a", to: "b", kind: "arrow", stage: 1, accent: true, label: "" }],
       stageLabels: [],
@@ -209,6 +212,7 @@ describe("arrows", () => {
     expect(one.paths).toHaveLength(4);
     expect(one.paths.slice(2).every((p) => p.stage === 1 && p.ink === "accent")).toBe(true);
     const both = compileDiagram({
+      arrangement: "free",
       nodes: [a, b],
       edges: [{ from: "a", to: "b", kind: "both", stage: 0, accent: false, label: "" }],
       stageLabels: [],
@@ -219,6 +223,7 @@ describe("arrows", () => {
 
   it("ignores an edge to a node that does not exist, rather than drawing to nowhere", () => {
     const out = compileDiagram({
+      arrangement: "free",
       nodes: [a],
       edges: [{ from: "a", to: "zz", kind: "arrow", stage: 0, accent: false, label: "" }],
       stageLabels: [],
@@ -274,12 +279,14 @@ describe("the richer forms", () => {
 
   it("draws a blob as one closed organic curve that follows its name", () => {
     const a = compileDiagram({
+      arrangement: "free",
       nodes: [node({ id: "liver", kind: "blob", w: 240, h: 160 })],
       edges: [],
       stageLabels: [],
       alt: "",
     });
     const b = compileDiagram({
+      arrangement: "free",
       nodes: [node({ id: "kidney", kind: "blob", w: 240, h: 160 })],
       edges: [],
       stageLabels: [],
@@ -291,6 +298,7 @@ describe("the richer forms", () => {
     expect(a.paths[0].d).not.toBe(b.paths[0].d);
     expect(
       compileDiagram({
+        arrangement: "free",
         nodes: [node({ id: "liver", kind: "blob", w: 240, h: 160 })],
         edges: [],
         stageLabels: [],
@@ -301,6 +309,7 @@ describe("the richer forms", () => {
 
   it("draws a ring as two circles, a bar as its extent and its amount, a stack as three", () => {
     const ring = compileDiagram({
+      arrangement: "free",
       nodes: [node({ id: "r", kind: "ring" })],
       edges: [],
       stageLabels: [],
@@ -309,6 +318,7 @@ describe("the richer forms", () => {
     expect(ring.paths).toHaveLength(2);
 
     const bar = compileDiagram({
+      arrangement: "free",
       nodes: [node({ id: "b", kind: "bar", w: 400, h: 40, value: 0.25, accent: true })],
       edges: [],
       stageLabels: [],
@@ -321,6 +331,7 @@ describe("the richer forms", () => {
     expect(filledWidth).toBeLessThan(400 + 400 * 0.25 - 100);
 
     const empty = compileDiagram({
+      arrangement: "free",
       nodes: [node({ id: "b", kind: "bar", w: 400, h: 40, value: 0 })],
       edges: [],
       stageLabels: [],
@@ -329,6 +340,7 @@ describe("the richer forms", () => {
     expect(empty.paths).toHaveLength(1);
 
     const stack = compileDiagram({
+      arrangement: "free",
       nodes: [node({ id: "s", kind: "stack" })],
       edges: [],
       stageLabels: [],
@@ -341,6 +353,7 @@ describe("the richer forms", () => {
 
   it("hatches a damaged part with light muted lines that stay inside it, and never washes it too", () => {
     const out = compileDiagram({
+      arrangement: "free",
       nodes: [node({ id: "v", kind: "ellipse", w: 300, h: 160, hatch: true, fill: true })],
       edges: [],
       stageLabels: [],
@@ -366,6 +379,7 @@ describe("the richer forms", () => {
     const a = node({ id: "a", kind: "circle", x: 150, w: 120, h: 120 });
     const b = node({ id: "b", kind: "circle", x: 650, w: 120, h: 120 });
     const dashed = compileDiagram({
+      arrangement: "free",
       nodes: [a, b],
       edges: [{ from: "a", to: "b", kind: "dashed", stage: 0, accent: false, label: "" }],
       stageLabels: [],
@@ -374,6 +388,7 @@ describe("the richer forms", () => {
     expect(dashed.paths).toHaveLength(3);
     expect((dashed.paths[2].d.match(/M /g) ?? []).length).toBeGreaterThan(10);
     const leader = compileDiagram({
+      arrangement: "free",
       nodes: [a, b],
       edges: [{ from: "a", to: "b", kind: "leader", stage: 0, accent: false, label: "" }],
       stageLabels: [],
@@ -387,6 +402,7 @@ describe("the richer forms", () => {
 describe("labels", () => {
   it("name a node beside it, inside a wide container, and take its stage and accent", () => {
     const out = compileDiagram({
+      arrangement: "free",
       nodes: [
         node({
           id: "h",
@@ -419,6 +435,7 @@ describe("labels", () => {
 
   it("name a relation beside its midpoint, off the line", () => {
     const out = compileDiagram({
+      arrangement: "free",
       nodes: [
         node({ id: "a", kind: "circle", x: 150, y: 250, w: 100, h: 100 }),
         node({ id: "b", kind: "circle", x: 650, y: 250, w: 100, h: 100 }),
@@ -436,6 +453,7 @@ describe("labels", () => {
 
   it("are stored by the document and folded with the stages", () => {
     const out = compileDiagram({
+      arrangement: "free",
       nodes: [node({ id: "a", kind: "circle", label: "A", stage: 3 })],
       edges: [],
       stageLabels: [],
@@ -452,6 +470,7 @@ describe("labels", () => {
 describe("hatching matched to what is drawn", () => {
   it("hatches the band of a ring and not its hole", () => {
     const out = compileDiagram({
+      arrangement: "free",
       nodes: [node({ id: "r", kind: "ring", x: 400, y: 250, w: 200, h: 200, hatch: true })],
       edges: [],
       stageLabels: [],
@@ -530,6 +549,7 @@ describe("labels stay inside the picture", () => {
 
   it("apply to a node at the edge of the canvas", () => {
     const out = compileDiagram({
+      arrangement: "free",
       nodes: [
         node({ id: "e", kind: "circle", x: 780, y: 480, w: 60, h: 60, label: "The far corner" }),
       ],
@@ -540,5 +560,121 @@ describe("labels stay inside the picture", () => {
     const label = out.labels[0];
     expect(label.x + (label.text.length * 0.56 * 26) / 2).toBeLessThanOrEqual(800);
     expect(label.y).toBeLessThan(490);
+  });
+});
+
+describe("arranged compositions", () => {
+  const kinds = ["circle", "box", "symbol", "pill"] as const;
+  const four = kinds.map((kind, i) =>
+    node({ id: `n${i}`, kind, symbol: kind === "symbol" ? "heart" : null, x: 0, y: 0, w: 0, h: 0 }),
+  );
+  const inside = (n: DiagramNode) =>
+    n.x - n.w / 2 >= 24 && n.x + n.w / 2 <= 776 && n.y - n.h / 2 >= 24 && n.y + n.h / 2 <= 476;
+  const overlap = (a: DiagramNode, b: DiagramNode) =>
+    Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2;
+
+  it("leaves a free composition exactly as the model placed it", () => {
+    const placed = [node({ id: "a", kind: "circle", x: 100, y: 100, w: 120, h: 120 })];
+    expect(arrangeNodes("free", placed)).toEqual(placed);
+  });
+
+  it("reads a row left to right and a column top to bottom, nothing overlapping, all inside", () => {
+    const row = arrangeNodes("row", four);
+    expect(row.map((n) => n.x)).toEqual([...row.map((n) => n.x)].sort((a, b) => a - b));
+    expect(new Set(row.map((n) => n.y)).size).toBe(1);
+    const column = arrangeNodes("column", four);
+    expect(column.map((n) => n.y)).toEqual([...column.map((n) => n.y)].sort((a, b) => a - b));
+    expect(new Set(column.map((n) => n.x)).size).toBe(1);
+    for (const nodes of [row, column]) {
+      expect(nodes.every(inside)).toBe(true);
+      for (let i = 0; i < nodes.length; i += 1)
+        for (let j = i + 1; j < nodes.length; j += 1)
+          expect(overlap(nodes[i], nodes[j])).toBe(false);
+    }
+  });
+
+  it("sizes each kind to its own proportions: a pill is wide, a circle is square", () => {
+    const row = arrangeNodes("row", four);
+    expect(row[0].w).toBe(row[0].h);
+    expect(row[3].w).toBeGreaterThan(row[3].h * 2);
+    // A lone subject is big.
+    const [alone] = arrangeNodes("row", [four[1]]);
+    expect(alone.w).toBeGreaterThanOrEqual(300);
+  });
+
+  it("puts a cycle on a ring from the top, clockwise, and bows its arrows around it", () => {
+    const ring = arrangeNodes("cycle", four);
+    expect(ring[0].x).toBe(400);
+    expect(ring[0].y).toBeLessThan(ring[2].y);
+    expect(ring[1].x).toBeGreaterThan(ring[3].x);
+    expect(ring.every(inside)).toBe(true);
+    const drawing = compileDiagram({
+      arrangement: "cycle",
+      nodes: four,
+      edges: [{ from: "n0", to: "n1", kind: "arrow", stage: 0, accent: false, label: "" }],
+      stageLabels: [],
+      alt: "",
+    });
+    // A curve is a quadratic; a straight arrow would be a line.
+    expect(drawing.paths.some((p) => /Q /.test(p.d))).toBe(true);
+  });
+
+  it("keeps the first node of a radial composition at the centre as the hub", () => {
+    const radial = arrangeNodes("radial", four);
+    expect(radial[0].x).toBe(400);
+    expect(radial[0].w).toBeGreaterThan(radial[1].w);
+    // Around it, never over it.
+    expect(radial.slice(1).every((n) => !overlap(n, radial[0]))).toBe(true);
+    expect(radial.every(inside)).toBe(true);
+  });
+
+  it("compares in two columns, the first half left and the rest right", () => {
+    const compare = arrangeNodes("compare", four);
+    expect(compare[0].x).toBe(compare[1].x);
+    expect(compare[2].x).toBe(compare[3].x);
+    expect(compare[0].x).toBeLessThan(400);
+    expect(compare[2].x).toBeGreaterThan(400);
+    expect(compare.every(inside)).toBe(true);
+  });
+
+  it("never touches what a node means — stage, accent, fill, hatch, value, symbol, label", () => {
+    const meaning = node({
+      id: "m",
+      kind: "bar",
+      stage: 2,
+      accent: true,
+      fill: true,
+      hatch: false,
+      value: 0.3,
+      label: "Oxygen",
+    });
+    const [placed] = arrangeNodes("row", [meaning]);
+    expect(placed).toMatchObject({
+      stage: 2,
+      accent: true,
+      fill: true,
+      value: 0.3,
+      label: "Oxygen",
+    });
+  });
+
+  it("is the model's to choose, defaults to free, and lets an arranged node leave its box at zero", () => {
+    const parsed = GeneratedDiagram.parse({
+      arrangement: "row",
+      nodes: [
+        { id: "a", kind: "circle" },
+        { id: "b", kind: "box" },
+      ],
+    });
+    expect(parsed.arrangement).toBe("row");
+    expect(parsed.nodes[0]).toMatchObject({ x: 0, y: 0, w: 0, h: 0 });
+    expect(GeneratedDiagram.parse({ nodes: [{ id: "a", kind: "circle" }] }).arrangement).toBe(
+      "free",
+    );
+    // A free node left unsized is still drawn at a visible size.
+    const drawing = compileDiagram(
+      GeneratedDiagram.parse({ nodes: [{ id: "a", kind: "circle" }] }),
+    );
+    expect(drawing.paths[0].d).toMatch(/A 60 60/);
   });
 });

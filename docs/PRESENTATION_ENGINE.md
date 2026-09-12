@@ -742,6 +742,47 @@ Handing a photographic prompt to the compiler is how a talk about paramedics
 got a stick figure beside a box, and the brief now says so: draw the
 mechanism, never the photograph.
 
+**Drawn like an illustrator.** A single clean line with a flat tint inside
+it is a diagram from a manual, not a picture somebody made, so every drawing
+gets two things without being asked. An **underdrawing**: every stroke is
+drawn twice, the first pass at half weight and less than half opacity
+through a different hand — a second displacement seeded apart from the
+ink's — so the two lines agree everywhere and coincide nowhere, the way a
+sketch keeps the searching line under the committed one; both sketch on
+the same clock. And a **wash** that behaves like water rather than paint:
+the fill is bled past its outline by a wide stroke of its own colour that
+fades toward the edge, bent by a coarser and stronger hand than the ink
+(water moves further than a pen), and set down and to the right of the
+line by three quarters of a percent of the box, so the colour never
+registers exactly with the stroke that contains it. Washes go down before
+any ink. All three hands are seeded from the picture's size, so a drawing
+is drawn the same way on every screen and in every thumbnail.
+
+**Arranged compositions.** A model can say what a picture is of and what
+relates to what; asked for coordinates it scatters, overlaps, or lines six
+things up along one edge. So the diagram names its `arrangement` and the
+compiler lays the nodes out itself (`arrangeNodes`): `row` reads left to
+right across the middle, a lone subject filling the width it is allowed;
+`column` top to bottom with room under each for its name; `cycle` is a
+ring from the top, clockwise, sized to the arc each node gets, with its
+arrows bowed around the outside rather than drawn as chords; `radial`
+keeps its first node at the centre as the hub; `compare` is two columns,
+the first half of the nodes on the left; `free` is the model's own
+coordinates for the picture none of those fit. Each kind is sized to its
+own proportions — a pill wide, a circle square, a bar wider still — and
+nothing about a node's meaning is touched. Under any arrangement but free
+a node's box may be left at zero, and a free node left unsized is drawn at
+a visible size rather than refused.
+
+**Icons by the same hand.** Every take-home, action step and explainer
+card leads with an icon, and a Lucide glyph on its own is a toolbar's mark.
+On the stage each one now sits on a wash: a closed organic form in the
+icon's own colour at the drawings' tint, bent by the same kind of hand as a
+drawing's wash and seeded from the icon's name, so every `heart` in a deck
+sits on the same shape. The glyph itself is not bent — at card sizes a
+displacement is a blur, and a wash behind a clean line is how an
+illustrated icon is made.
+
 ### Builds
 
 `buildStepCount` computes how many discrete advances a scene contains: one for

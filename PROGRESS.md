@@ -10,11 +10,11 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #105 — the MVP-031 closeout, and a room with material and
-  the phrase that matters (a grain on every drawn room, the room chosen by
-  the look, an accented phrase inside body text), awaiting CI, merge and
-  production verification
+- Branch: `claude/presentation-experience-redesign-r10l4q` — PR #106 (a room
+  with material and the phrase that matters) awaiting merge and production
+  verification; drawn like an illustrator (an underdrawing and a watercolour
+  wash on every drawing, arranged compositions in the diagram language,
+  icons by the same hand) built on top and awaiting its own PR
 - `main`: through PR #105 (merged) — `d4f0194`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -151,6 +151,59 @@ production carries an image key is unknown. The ledger says no image has
 ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
+
+### Drawn like an illustrator
+
+The owner, after the room and the phrase: "presentation graphics and
+drawings still need improvement — go next level." A compiled diagram was a
+clean line at one weight with a flat tint inside it, which is a diagram from
+a manual; and however well it was briefed the model placed its nodes badly —
+scattered, overlapping, or six along one edge — because a language model can
+say what relates to what and cannot lay out a page.
+
+**Every drawing is drawn like an illustrator draws** (`drawn-picture.tsx`).
+An underdrawing: every stroke twice, the first at half weight and under half
+opacity through a different hand — a second displacement seeded apart from
+the ink's — so the two lines agree everywhere and coincide nowhere, the way
+a sketch keeps its searching line under the committed one; both sketch on
+the same clock. A wash that behaves like water: the fill bled past its
+outline by a wide stroke of its own colour that fades toward the edge, bent
+by a coarser and stronger hand than the ink, and set down and to the right
+of the line by three quarters of a percent of the box, so the colour never
+registers exactly with the stroke that contains it. Washes go down before
+any ink. Every existing drawing in production gets this the moment the
+deploy lands; nothing in the document changed.
+
+**The composition lays the diagram out** (`arrangeNodes`). The diagram
+names its `arrangement` — `row`, `column`, `cycle`, `radial`, `compare` or
+`free` — and for every arrangement but free the compiler places and sizes
+the nodes itself: a row across the middle with a lone subject filling the
+width it is allowed; a column with room under each node for its name; a
+cycle on a ring from the top, clockwise, sized to the arc each node gets and
+pulled in to clear the edges, with its arrows bowed around the outside
+rather than drawn as chords; a radial with the first node as the hub; two
+columns for a comparison. Each kind is sized to its own proportions and
+nothing about a node's meaning is touched. Under any arrangement but free a
+node's box may be left at zero, and a free node left unsized is drawn at a
+visible size rather than refused; the brief tells the model to prefer a
+named arrangement.
+
+**Icons by the same hand** (`HandIcon`). Every take-home, action step and
+explainer card leads with a Lucide glyph, which on its own is a toolbar's
+mark; on the stage each one now sits on a wash in its own colour at the
+drawings' tint, bent by the same kind of hand as a drawing's wash and seeded
+from the icon's name, so every heart in a deck sits on the same shape. The
+glyph itself is not bent.
+
+The session rendered a free diagram, a cycle and a row inside an explainer
+on a dark and a light theme and looked at them at projector size before
+settling the weights, opacities and the ring's radius. Tests in
+`drawn-picture` (the two passes, the wash's bleed, offset and order, the
+seeding), `diagram` (every arrangement inside the canvas with nothing
+overlapping, kinds sized to their proportions, the cycle's bowed arrows, the
+hub, the schema's default and the unsized free node) and `stage-render`
+(the wash behind every card's icon, the same icon on the same shape, the
+glyph unbent).
 
 ### A room with material, and the phrase that matters
 

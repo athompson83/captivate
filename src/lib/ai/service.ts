@@ -1138,7 +1138,7 @@ You compose one teaching diagram: the kind a good lecturer draws on a whiteboard
 
 Draw the mechanism, never the photograph. If the brief describes a scene — a person, a place, a moment — draw what it stands for: the parts, the relation, the change. A stick figure beside a box teaches nothing.
 
-The canvas is 800 wide and 500 tall. Positions are centres. Keep everything at least 40 from the edges.
+First choose the arrangement, and the application lays the nodes out for you: row (a flow or a sequence, read left to right), column (a hierarchy or a chain, top to bottom), cycle (a loop — three or four things in a ring, joined by arrows that bend around it), radial (a hub with its parts around it: the first node is the hub), compare (two columns: the first half of the nodes on the left, the rest on the right), or free (your own coordinates, for the picture none of those fit). Under any arrangement but free, leave x, y, w and h at 0; the order of the nodes is the order they are placed. Under free the canvas is 800 wide and 500 tall, positions are centres, and everything stays at least 40 from the edges.
 
 What you place:
 - Nodes. A node is a shape or a symbol. Shapes: circle, ellipse, box, pill (a container, a state, a stage); cloud (something diffuse); blob (anything organic — an organ, a population, a region); ring (a hub, a target, the centre of a cycle); bar (an amount — set value 0 to 1 for how much of it is filled); stack (several of a thing, or layers). A symbol is a named pictogram from the list the schema gives you (a heart, a brain, a person, a syringe, a building, a clock ...) for a thing with a name.
@@ -1147,7 +1147,7 @@ What you place:
 
 Composition:
 - One subject, big. The main node or nodes fill most of the canvas: a lone subject is around 300 to 380 wide, a row of three is about 180 each. Never a scatter of small things. At most 8 nodes and 8 edges.
-- Read left to right or top to bottom, the way the room reads. A flow is a row; a hierarchy is a column; a cycle is a ring of three or four with curves; a comparison is two columns; an amount is bars side by side; a before-and-after is the same shape twice with the change marked.
+- Read left to right or top to bottom, the way the room reads. A flow is a row; a hierarchy is a column; a cycle is a ring of three or four; a comparison is two columns; an amount is bars in a row; a before-and-after is the same shape twice with the change marked. Prefer a named arrangement to free: it is laid out better than coordinates ever are.
 - Weight carries meaning: mark at most two shapes with fill (the thing the picture is about — never a symbol), mark a part that is damaged, blocked or absent with hatch, and mark the idea a stage adds with accent (the arrow that shows the flow, the part that changes). At most a quarter of the elements are accent.
 - Words belong in labels, not in the picture: there is no other text.
 
