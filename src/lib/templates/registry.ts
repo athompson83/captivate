@@ -1484,3 +1484,26 @@ export function templateMovements(
 export function getTemplate(id: string | null | undefined): Template | undefined {
   return TEMPLATES.find((t) => t.id === id);
 }
+
+/**
+ * What kind of thing a template is: the one finished talk, a structure with
+ * prompts, or the clear stage. The registry keeps all three in one list
+ * because creation treats them alike; the places that show the list should
+ * not, and the count on the home page is of structures, not of entries.
+ */
+export type TemplateKind = "example" | "structure" | "blank";
+
+export function templateKind(template: Pick<Template, "id">): TemplateKind {
+  if (template.id === "example") return "example";
+  if (template.id === "blank") return "blank";
+  return "structure";
+}
+
+/** How many structures there are to choose from — what the home page says. */
+export const STRUCTURE_COUNT = TEMPLATES.filter((t) => templateKind(t) === "structure").length;
+
+/** The list as it should be shown: the finished talk first, the clear stage last. */
+export function orderedTemplates(): Template[] {
+  const rank: Record<TemplateKind, number> = { example: 0, structure: 1, blank: 2 };
+  return [...TEMPLATES].sort((a, b) => rank[templateKind(a)] - rank[templateKind(b)]);
+}

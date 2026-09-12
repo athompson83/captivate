@@ -126,7 +126,12 @@ async function createTemplateDeck(page: Page, template: string): Promise<string>
 /** Creates a deck from the blank template and returns its editor URL. */
 async function createDeck(page: Page, title: string): Promise<string> {
   await page.goto("/new");
-  await page.getByRole("button", { name: /^Blank/ }).click();
+  // By the template's exact name, as above: the card carries an eyebrow ("A
+  // clear stage") before the name, so nothing on it *starts* with "Blank".
+  await page
+    .getByRole("button")
+    .filter({ has: page.getByText("Blank", { exact: true }) })
+    .click();
   await page.getByLabel("Title").fill(title);
   await page.getByRole("button", { name: /Create presentation/i }).click();
   await page.waitForURL(/\/edit\//, { timeout: 30_000 });

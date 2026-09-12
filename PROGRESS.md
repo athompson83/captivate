@@ -10,9 +10,11 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/captivate-3d-graphics-5ypuvx`, restarted from `main` after
-  PR #94 — the closeout for MVP-026, which is merged and deployed
-- `main`: through PR #94 (merged) — `01437d0`, the four defects the owner
+- Branch: `claude/presentation-experience-redesign-r10l4q`, reconciled with
+  `main` through PR #100 — the MVP-024 closeout, and the worked example never
+  hidden (first in the creation grid, a line away on home, the structures
+  counted honestly), awaiting CI, merge and production verification
+- `main`: through PR #100 (merged) — `215bd03`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -51,6 +53,34 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The worked example is never hidden
+
+The one finished talk — "Hold the room" — was offered in the empty state and
+then never again: a second deck buried it. In the creation grid it sat
+undifferentiated among twelve structures, and the home page counted "one of
+{TEMPLATES.length - 2} structures", a subtraction that only made sense to
+someone who knew two entries were not structures. The registry now names
+what each entry is (`templateKind`: the finished talk, a structure, the
+clear stage), counts the structures for the home page (`STRUCTURE_COUNT`),
+and orders the grid (`orderedTemplates`): the finished talk first and the
+clear stage last, each with an eyebrow saying what it is. The home page keeps
+a line to the worked example once decks exist, and a link that arrives with a
+template chosen scrolls to it — an optional call, because jsdom has no
+`scrollIntoView` and a test that renders the flow is not a test of scrolling.
+
+CI caught what the eyebrow costs: the whole card is the button, so its
+accessible name now begins "A clear stage" and the journey's `/^Blank/`
+locator waited a minute for a button that no longer exists. The journey picks
+the card by the template's exact visible name, the pattern the same file
+already used for every other template, and a unit test renders the grid and
+asserts the eyebrow precedes the name inside the button — so the next label
+cannot break a locator that never depended on where the name sat.
+
+Tests: the kinds tell the three apart and there is exactly one of each end;
+the structure count is what the home page says and the old subtraction is
+gone from its source; the grid's order and its labels; the eyebrow before the
+name inside the card's button.
 
 ### A generation you can walk away from, and a deck that stops doubling
 
@@ -401,6 +431,15 @@ Tests: `?` opens the editor's list except while typing and is listed among
 the shortcuts it opens; every `case` in the stage's key handler is named in
 the presenter's list; the overlay renders as a dialog that closes on a click
 away; the empty scene offers its third step as a button.
+
+**Landed and verified.** PR #92 squash-merged as `83c2969`, CI green on the
+head. `?` lives behind sign-in on both surfaces, which no probe holds, so the
+production evidence is the deployment: the proxied smoke suite 37 of 37
+against `www.axtevi.com` after the deploy, and the editor route answering (a
+redirect to sign-in for an anonymous request, as designed). The same PR
+rebuilt `docs/FEATURES.md` and `docs/UX.md`, which `main` had been carrying
+with conflict markers since a reconciliation before PR #90; `main` is clean
+of markers now.
 
 ### A share link that looks like something before it is opened
 
