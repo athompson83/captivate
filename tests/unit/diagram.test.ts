@@ -637,6 +637,46 @@ describe("arranged compositions", () => {
     expect(compare.every(inside)).toBe(true);
   });
 
+  it("keeps a small fitted size as a size: only zero means unsized", () => {
+    // Seven bars in a row fit at about 55 × 15. Fifteen is below the old
+    // schema floor, and the compiler read it as "unsized" and drew a
+    // 55 × 120 box — a horizontal amount standing on end.
+    const bars = Array.from({ length: 7 }, (_, i) =>
+      node({ id: `b${i}`, kind: "bar", x: 0, y: 0, w: 0, h: 0, value: 0.5 }),
+    );
+    const row = arrangeNodes("row", bars);
+    expect(row.every((n) => n.h < 16 && n.w > n.h * 3)).toBe(true);
+    const drawing = compileDiagram({
+      arrangement: "row",
+      nodes: bars,
+      edges: [],
+      stageLabels: [],
+      alt: "",
+    });
+    // The outline of each bar is wider than it is tall.
+    const widths = drawing.paths
+      .filter((p) => p.weight === 1.4)
+      .map((p) => {
+        const xs = [...p.d.matchAll(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g)].map((m) => [
+          Number(m[1]),
+          Number(m[2]),
+        ]);
+        const x = xs.map((c) => c[0]);
+        const y = xs.map((c) => c[1]);
+        return [Math.max(...x) - Math.min(...x), Math.max(...y) - Math.min(...y)];
+      });
+    expect(widths).toHaveLength(7);
+    expect(widths.every(([w, h]) => w > h * 3)).toBe(true);
+    // Eleven in a row, the schema's maximum minus five, still do not overlap.
+    const eleven = arrangeNodes(
+      "row",
+      Array.from({ length: 11 }, (_, i) => node({ id: `c${i}`, kind: "circle", w: 0, h: 0 })),
+    );
+    for (let i = 1; i < eleven.length; i += 1)
+      expect(overlap(eleven[i - 1], eleven[i])).toBe(false);
+    expect(eleven.every(inside)).toBe(true);
+  });
+
   it("never touches what a node means — stage, accent, fill, hatch, value, symbol, label", () => {
     const meaning = node({
       id: "m",

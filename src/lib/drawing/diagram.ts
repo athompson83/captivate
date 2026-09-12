@@ -670,13 +670,16 @@ export function arrangeNodes(arrangement: DiagramArrangement, nodes: DiagramNode
     case "row": {
       // Across the middle, a little above it so the names beneath have
       // room. A lone subject fills the width it is allowed; three share it.
-      const slotW = Math.min(320, (DIAGRAM_WIDTH - EDGE * 2 - AIR * (n - 1)) / n);
+      // Past the eight the brief allows the air closes up, so a long row is
+      // a row of small things rather than a row of nothing.
+      const air = n > 8 ? 20 : AIR;
+      const slotW = Math.min(320, (DIAGRAM_WIDTH - EDGE * 2 - air * (n - 1)) / n);
       const slotH = DIAGRAM_HEIGHT - EDGE * 2 - NAME_ROOM;
-      const total = slotW * n + AIR * (n - 1);
+      const total = slotW * n + air * (n - 1);
       const left = (DIAGRAM_WIDTH - total) / 2;
       const y = (DIAGRAM_HEIGHT - NAME_ROOM) / 2;
       return nodes.map((node, i) =>
-        at(node, left + slotW / 2 + i * (slotW + AIR), y, fitted(node.kind, slotW, slotH)),
+        at(node, left + slotW / 2 + i * (slotW + air), y, fitted(node.kind, slotW, slotH)),
       );
     }
     case "column": {
@@ -743,10 +746,11 @@ export function arrangeNodes(arrangement: DiagramArrangement, nodes: DiagramNode
 
 /** A node's box, clamped so the whole shape sits inside the picture's margin. */
 function boxOf(node: DiagramNode): Box {
-  // A free node the model left unsized is given a box rather than a point:
-  // sixteen is the schema's old floor and a shape below it is invisible.
-  const w = Math.min(node.w >= 16 ? node.w : 160, DIAGRAM_WIDTH - MARGIN * 2);
-  const h = Math.min(node.h >= 16 ? node.h : 120, DIAGRAM_HEIGHT - MARGIN * 2);
+  // A free node the model left unsized — zero, the schema's default — is
+  // given a box rather than a point. Only zero: a small size is a size, and
+  // a fitted bar of seven in a row is fifteen tall on purpose.
+  const w = Math.min(node.w > 0 ? node.w : 160, DIAGRAM_WIDTH - MARGIN * 2);
+  const h = Math.min(node.h > 0 ? node.h : 120, DIAGRAM_HEIGHT - MARGIN * 2);
   const cx = Math.min(DIAGRAM_WIDTH - MARGIN - w / 2, Math.max(MARGIN + w / 2, node.x));
   const cy = Math.min(DIAGRAM_HEIGHT - MARGIN - h / 2, Math.max(MARGIN + h / 2, node.y));
   return { x: cx - w / 2, y: cy - h / 2, w, h };
