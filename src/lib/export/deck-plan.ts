@@ -1,4 +1,5 @@
 import type { PresentationTheme } from "@/lib/schema/theme";
+import { frameOf, labelSize } from "@/lib/drawing/frame";
 import { resolveColor } from "@/lib/schema/theme";
 import type { ColorValue, RichText, Scene, SceneElement } from "@/lib/schema/presentation";
 
@@ -228,7 +229,7 @@ export function drawingSvg(
     })
     .join("");
   // The labels, as the stage sets them: a word beside its part.
-  const size = element.viewBox.width * 0.0325;
+  const size = labelSize(element.viewBox.width);
   const escape = (text: string) =>
     text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const labels = (element.labels ?? [])
@@ -237,7 +238,10 @@ export function drawingSvg(
       return `<text x="${label.x}" y="${label.y}" fill="${colour}" font-family="sans-serif" font-size="${size * label.size}" font-weight="500" text-anchor="${label.anchor}" dominant-baseline="middle">${escape(label.text)}</text>`;
     })
     .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${element.viewBox.width} ${element.viewBox.height}" width="${element.viewBox.width}" height="${element.viewBox.height}">${paths}${labels}</svg>`;
+  // Framed to the ink as the stage frames it, so a slide shows the picture
+  // the room saw and not the canvas it was composed on.
+  const frame = frameOf(element);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${frame.x} ${frame.y} ${frame.width} ${frame.height}" width="${frame.width}" height="${frame.height}">${paths}${labels}</svg>`;
 }
 
 interface Counter {

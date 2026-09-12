@@ -2,6 +2,9 @@
 
 import { useId } from "react";
 import type { DrawingElement } from "@/lib/schema/presentation";
+import { frameOf, labelSize } from "@/lib/drawing/frame";
+
+export { labelSize };
 
 /**
  * A picture that sketches itself, one stage per advance.
@@ -61,17 +64,6 @@ export function measureDrawnPath(el: SVGGeometryElement | null): void {
 }
 
 /**
- * The base size of a label, in the drawing's own units.
- *
- * Sized against the width so a label is the same fraction of the picture
- * whatever box the model drew in: on the 800-wide canvas this is 26, which is
- * a caption's height on a half-stage drawing and legible from the back.
- */
-export function labelSize(viewBoxWidth: number): number {
-  return viewBoxWidth * 0.0325;
-}
-
-/**
  * How far the wash sits off the line, in the drawing's units.
  *
  * Down and to the right, the way a wash laid after the ink settles: a fill
@@ -124,6 +116,8 @@ export function DrawnPicture({
   const offset = washOffset(element.viewBox.width);
   const size = labelSize(element.viewBox.width);
   const seed = Math.round(element.viewBox.width + element.viewBox.height) % 97;
+  // The frame is the ink's, not the canvas's: see `frameOf`.
+  const frame = frameOf(element);
 
   // How many strokes share each stage, and each stroke's index within its
   // stage, so a stage's strokes split its pace between them in order. A
@@ -143,18 +137,17 @@ export function DrawnPicture({
     <svg
       role="img"
       aria-label={element.alt || "Drawing"}
-      // Padded by a stroke width so ink sitting exactly on the boundary is not
-      // shaved in half by the clip below, and clipped rather than left to
-      // overflow. `overflow: visible` was letting a model that drew outside the
-      // box it declared paint across whatever else the scene had — the report
-      // was two drawing fragments floating over a bar chart. `normaliseDrawing`
-      // grows the stored box to hold the ink, so for anything drawn from the
-      // origin outwards this clip never reaches real strokes; ink at negative
-      // coordinates is the one case it does, and a picture cropped inside its
-      // own frame is still better than one painted over its neighbours.
-      viewBox={`${-element.strokeWidth} ${-element.strokeWidth} ${
-        element.viewBox.width + element.strokeWidth * 2
-      } ${element.viewBox.height + element.strokeWidth * 2}`}
+      // The frame around the ink, padded by a stroke width so ink sitting
+      // exactly on its boundary is not shaved in half by the clip below, and
+      // clipped rather than left to overflow. `overflow: visible` was letting
+      // a model that drew outside the box it declared paint across whatever
+      // else the scene had — the report was two drawing fragments floating
+      // over a bar chart. The frame is measured from the ink itself, so
+      // nothing real is ever outside it; the clip only ever meets the wash
+      // bled past a line at the margin.
+      viewBox={`${frame.x - element.strokeWidth} ${frame.y - element.strokeWidth} ${
+        frame.width + element.strokeWidth * 2
+      } ${frame.height + element.strokeWidth * 2}`}
       preserveAspectRatio="xMidYMid meet"
       style={{ width: "100%", height: "100%", overflow: "hidden" }}
     >
@@ -181,10 +174,10 @@ export function DrawnPicture({
             key={hand.id}
             id={hand.id}
             filterUnits="userSpaceOnUse"
-            x={-element.viewBox.width * 0.05}
-            y={-element.viewBox.height * 0.05}
-            width={element.viewBox.width * 1.1}
-            height={element.viewBox.height * 1.1}
+            x={frame.x - frame.width * 0.05}
+            y={frame.y - frame.height * 0.05}
+            width={frame.width * 1.1}
+            height={frame.height * 1.1}
           >
             <feTurbulence
               type="fractalNoise"

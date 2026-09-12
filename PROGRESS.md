@@ -11,10 +11,10 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #109 — the MVP-035 closeout, and symbols on a wash, the
-  area under a line, the whole in the middle, awaiting CI, merge and
-  production verification
-- `main`: through PR #109 (merged) — `2b33eb3`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #110 — the MVP-036 closeout, and a drawing that fills its
+  frame with names on clear ground, awaiting CI, merge and production
+  verification
+- `main`: through PR #110 (merged) — `535412f`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -151,6 +151,59 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### A drawing fills its frame, and a name finds clear ground
+
+The sixth round under "graphics and drawings — go next level", and the
+first to come from looking at the renders rather than at the strokes. Two
+things the fresh renders showed. A drawing is composed on an 800 × 500
+canvas and a row of three parts uses a band across the middle of it; shown
+as its canvas the picture was a small thing in a large slot beside its
+text, with air above and below it that nobody had drawn. And a small part
+inside a big one — the clot in the artery of the worked example — had its
+name written across the artery's outline, because every name went below
+its part and nothing looked at what was there.
+
+**The frame** (`lib/drawing/frame.ts`, `frameOf`). The stage and the export
+now show the box the ink and the names actually occupy — the ink measured
+from the path data (`inkBounds`, moved from `place-drawing` to
+`lib/drawing/bounds.ts`, an arc counted by the whole of its turn), a name by
+its anchor and its halo — with a margin of air, and never closer than twice
+the canvas would show it, so a lone symbol is not blown into ropes and
+puddles. Computed from the stored strokes on every render and never stored:
+the canvas stays the author's coordinate system, the labels and the hand's
+wobble are still sized against it so a name grows with the part it names,
+and every drawing already in a deck — and every chart, compiled at render
+time — is framed on deploy. Ink a model drew outside its declared box is
+inside the frame too, where the renderer used to clip it.
+
+**Clear ground** (`nameFor` in `lib/drawing/diagram.ts`). A name steps to
+the clear side of its part — below, then above, then right, then left — the
+first place that lands on no other part and on no name already placed; a
+name inside a container the part itself sits in is clear ground. A
+container wide enough to carry its name keeps it at its centre and is named
+first, so everything else steps around it. When nothing beside the part is
+clear, the name stands outside whatever encloses the part, below or above
+it, with a thin leader in the muted ink from the name to the part's own
+edge — the illustrator's way of naming the small thing inside the big one.
+Failing even that it goes below as it always did.
+
+Rendered on the dark theme in the session and looked at: the cycle and the
+donut larger in their slots, the legacy free composition with its ground
+line at the bottom of its frame rather than floating, and "Clot" below the
+artery with a leader into it. The first leader stand-off was the name's
+usual gap and gave a leader too short to read as one; it stands off thirty.
+
+Tests in `drawing-frame` (the frame is ink and names with air, centred
+where the zoom cap leaves room; no closer than twice; an arc's whole turn;
+a name by its anchor; ink outside the canvas shown; the canvas when there
+is nothing to measure), `diagram` (a name goes below when nothing is there;
+steps above a part whose name would land on the part beneath; sits beside
+the small thing inside the big one when there is room; stands outside with
+one leader at the part's stage, from just above the name to the part's
+edge, when there is not), `drawn-picture` (the SVG's viewBox is the frame,
+the label's size and the hand's region the canvas's) and `deck-export`
+(the slide's SVG is framed as the stage frames it).
+
 ### Symbols on a wash, the area under a line, the whole in the middle
 
 Three small things the illustrator rounds left undone, each a place where
@@ -171,6 +224,21 @@ under its glyph, and the glyph's own strokes are never filled),
 the line starts; the whole is in the middle at its size and absent with
 values off) and `stage-render` (the line chart's area and marks drawn on
 arrival).
+
+**Landed and verified.** PR #110 squash-merged as `535412f`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 36 of 37 on the first run, the one failure a proxy timeout
+reaching `/new` (`net::ERR_TIMED_OUT`, no response at all), and 1 of 1 when
+re-run, the route answering 307 in 0.45 s — the fourth deploy in a row
+where the proxy, not the deployment, dropped a page load. Codex found three
+real things on the PR, fixed before merge: a wash with no line still took a
+slot on the sketch clock, so every stroke after it in its stage waited for
+a stroke that was never drawn — a weight-zero path takes no slot and goes
+down the moment its stage is reached; a donut whose values were all zero
+wrote the `1` its wedges divide by as the whole — the whole is the raw sum,
+written only when there is one; and the schema let a stroke of weight zero
+carry no fill, which is a path that draws nothing — a zero-weight stroke
+must be a wash.
 
 ### Light on the drawing
 
