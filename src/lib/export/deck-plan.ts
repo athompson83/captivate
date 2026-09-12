@@ -1,5 +1,6 @@
 import type { PresentationTheme } from "@/lib/schema/theme";
 import { frameOf, labelSize } from "@/lib/drawing/frame";
+import { isAccentRun } from "@/lib/present/hand-mark";
 import { resolveColor } from "@/lib/schema/theme";
 import type { ColorValue, RichText, Scene, SceneElement } from "@/lib/schema/presentation";
 
@@ -152,7 +153,9 @@ function toRuns(runs: RichText, theme: PresentationTheme, fallbackColor: string)
     text: run.text,
     bold: run.bold,
     italic: run.italic,
-    underline: run.underline,
+    // The stage underlines the phrase the writer marked by hand; a slide
+    // underlines it the only way a slide can.
+    underline: run.underline || isAccentRun(run) || undefined,
     color: run.color ? colorOf(run.color, theme, fallbackColor) : undefined,
     href: run.href,
   }));

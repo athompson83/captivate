@@ -373,6 +373,12 @@
       animation-delay: 0s;
     }
   }
+  /* The phrase that matters, underlined by hand (see HandMarks): out of
+     sight while its scene is held before the camera lands, so the mark is
+     not seen complete and then sketched. */
+  [data-held] .hm {
+    visibility: hidden;
+  }
   /* The journey route's direction dots, arriving after the path has drawn. */
   .dp-fade {
     animation: dp-fade 0.6s ease-out both;

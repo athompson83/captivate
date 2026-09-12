@@ -283,10 +283,14 @@ stands in front of a drawn room that the look chooses too, and every drawn
 room has a material — a grain that reads as film on a dark theme and as
 paper on a light one — so the wall behind a talk is a wall and not a screen.
 
-**The phrase that matters is in colour.** Where a scene's body carries the
-one phrase the room should leave with, the writer names it and it is set in
-the theme's accent inside the sentence, the way a heading's closing clause
-already is. The words around it are untouched.
+**The phrase that matters is in colour, and underlined by hand.** Where a
+scene's body carries the one phrase the room should leave with, the writer
+names it and it is set in the theme's accent inside the sentence, the way a
+heading's closing clause already is — and a line is drawn under it by the
+same hand as the drawings, one stroke per line it wraps onto, sketched once
+the words are in. The mark a lecturer makes on a handout, the one the room
+copies down. The words around it are untouched; a slide export underlines
+the phrase the only way a slide can.
 
 **The frame before the stage is black.** Both audience routes await the deck
 on the server; until it arrives they show a black frame rather than the site's

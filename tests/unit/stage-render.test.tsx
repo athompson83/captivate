@@ -714,3 +714,30 @@ describe("icons by the same hand", () => {
     expect((glyph as SVGElement).style.filter).toBe("");
   });
 });
+
+describe("the phrase that matters, marked by hand", () => {
+  const marked = composeScene("split-left", {
+    heading: "Care is a loop, not a line.",
+    body: "Reassess, or you never hear the answer.",
+    bodyAccent: "Reassess",
+    media: { url: "", alt: "" },
+  });
+
+  it("marks the accent run and hosts its strokes in the text, and nothing else", () => {
+    const { container } = renderStage(marked);
+    const marks = container.querySelectorAll("[data-hand-mark]");
+    expect(marks).toHaveLength(1);
+    expect(marks[0].textContent).toBe("Reassess");
+    const svg = container.querySelector("svg.hm")!;
+    expect(svg).not.toBeNull();
+    expect(svg.parentElement!.contains(marks[0])).toBe(true);
+    expect(svg.querySelector("feDisplacementMap")).not.toBeNull();
+    // A body with nothing marked carries no mark.
+    const plain = composeScene("split-left", {
+      heading: "Care is a loop, not a line.",
+      body: "Reassess, or you never hear the answer.",
+      media: { url: "", alt: "" },
+    });
+    expect(renderStage(plain).container.querySelector("svg.hm")).toBeNull();
+  });
+});

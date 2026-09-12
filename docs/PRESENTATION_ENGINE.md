@@ -843,6 +843,22 @@ muted ink from the name to the part's own edge, which is how an illustrator
 names the small thing inside the big one. Failing even that it goes below
 as it always did: a name on a line is still a name.
 
+**Marked by hand.** A phrase set in the accent is a phrase in a different
+colour; a phrase with a line drawn under it by hand is one somebody chose.
+The run the writer marked (`bodyAccent`, and a heading's closing clause —
+the accent _token_, never any accent-coloured run) carries an underline by
+the same hand as the drawings (`HandMarks`, `lib/present/hand-mark.ts`): one
+stroke per line the phrase wraps onto, measured from where the line
+fragments actually landed, in the host's own pixels whatever the stage is
+scaled to, a tenth of the size above the line through the descenders, a
+little uphill on one line and downhill on the next, bent by a displacement
+filter like every drawn stroke. While the scene performs each stroke
+sketches on the drawings' clock after the words have arrived, and is out of
+sight while the scene is held before the camera lands; in the editor, a
+thumbnail and under reduced motion it is simply there. Nothing is stored:
+the mark is the accent run's, on every stage, re-measured on resize and once
+the fonts are in.
+
 ### Builds
 
 `buildStepCount` computes how many discrete advances a scene contains: one for

@@ -466,6 +466,25 @@ describe("colour", () => {
     expect(shape.color).not.toBe(THEME.tokens.ink);
   });
 
+  it("underlines the phrase the stage marks by hand", () => {
+    const marked = scene({
+      id: id(),
+      elements: [
+        element({
+          type: "text",
+          content: [
+            { text: "Reassess", color: { kind: "token", token: "accent" } },
+            { text: ", or you never hear the answer." },
+          ],
+        }),
+      ],
+    });
+    const shape = planDeck(DECK, [marked], THEME).slides[0].shapes[0];
+    if (shape.kind !== "text") throw new Error("expected text");
+    expect(shape.runs.map((run) => run.underline)).toEqual([true, undefined]);
+    expect(shape.runs[0].color).toBe(THEME.tokens.accent);
+  });
+
   it("takes a literal hex as written", () => {
     const literal = scene({
       id: id(),

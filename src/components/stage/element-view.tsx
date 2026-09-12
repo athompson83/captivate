@@ -12,6 +12,14 @@ import { embedSandbox } from "@/lib/utils/embed";
 import { resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
 import { COUNT_MS, figureAt, formatFigure, parseFigure } from "@/lib/present/count-up";
+import {
+  MARK_DELAY_S,
+  MARK_DURATION_S,
+  MARK_STAGGER_S,
+  MARK_WEIGHT,
+  isAccentRun,
+  underlinePath,
+} from "@/lib/present/hand-mark";
 import { DEFAULT_ICON, ICON_NAMES } from "@/lib/schema/icons";
 import {
   fitListSize,
@@ -399,6 +407,149 @@ function FigureText({ text, perform }: { text: string; perform: boolean }) {
   );
 }
 
+/**
+ * The phrase that matters, underlined by hand — see `lib/present/hand-mark`.
+ *
+ * Rendered inside the text's block, over it. The strokes are measured from
+ * the DOM after layout: one per line fragment the marked run occupies, in the
+ * host's own pixels (the stage may be scaled by a transform, so screen rects
+ * are divided back by the host's scale). Written straight to the SVG from an
+ * effect, as `FigureText` writes its number, and re-measured on resize, when
+ * the words or their face change, and once the fonts are in. While the scene
+ * performs each stroke sketches on the
+ * drawings' clock after the words have arrived; otherwise — the editor, a
+ * thumbnail, reduced motion — the mark is simply there.
+ */
+function HandMarks({ perform }: { perform: boolean }) {
+  const ref = useRef<SVGSVGElement>(null);
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    const svg = ref.current;
+    const host = svg?.parentElement;
+    if (!svg || !host) return;
+    const sketch = perform && !reduced;
+
+    const draw = () => {
+      const group = svg.querySelector("g");
+      const hand = svg.querySelector("feDisplacementMap");
+      if (!group) return;
+      const box = host.getBoundingClientRect();
+      const scale = host.offsetWidth > 0 ? box.width / host.offsetWidth : 1;
+      if (!(scale > 0)) return;
+      group.replaceChildren();
+      let index = 0;
+      for (const mark of host.querySelectorAll<HTMLElement>("[data-hand-mark]")) {
+        const size = parseFloat(getComputedStyle(mark).fontSize) || 16;
+        hand?.setAttribute("scale", String(size * 0.12));
+        for (const rect of mark.getClientRects()) {
+          if (!(rect.width > 0)) continue;
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute(
+            "d",
+            underlinePath(
+              {
+                x: (rect.left - box.left) / scale,
+                y: (rect.bottom - box.top) / scale,
+                width: rect.width / scale,
+              },
+              size,
+              index,
+            ),
+          );
+          path.setAttribute("stroke-width", String(size * MARK_WEIGHT));
+          path.setAttribute("class", sketch ? "dp-path dp-drawn" : "dp-path");
+          group.append(path);
+          if (sketch) {
+            // Measured in the DOM, as a drawing's strokes are; the classes
+            // above sketch it from its full length to nothing.
+            path.style.setProperty("--dp-len", String(path.getTotalLength()));
+            path.style.setProperty("--dp-dur", `${MARK_DURATION_S}s`);
+            path.style.setProperty("--dp-del", `${MARK_DELAY_S + index * MARK_STAGGER_S}s`);
+          }
+          index += 1;
+        }
+      }
+    };
+
+    draw();
+    const resized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => draw());
+    resized?.observe(host);
+    // The words themselves: an author editing the phrase in place, or a
+    // theme changing the face, moves the lines under the mark without
+    // resizing the host. Watched on the text's own span and on the host's
+    // attributes — never on the SVG, which `draw` itself writes.
+    const words = host.querySelector(":scope > span");
+    const reworded =
+      typeof MutationObserver === "undefined" ? null : new MutationObserver(() => draw());
+    if (words) {
+      reworded?.observe(words, {
+        subtree: true,
+        characterData: true,
+        childList: true,
+        attributes: true,
+      });
+    }
+    reworded?.observe(host, { attributes: true, attributeFilter: ["style", "class"] });
+    document.fonts?.ready.then(draw).catch(() => {});
+    return () => {
+      resized?.disconnect();
+      reworded?.disconnect();
+    };
+  }, [perform, reduced]);
+
+  return (
+    <svg
+      ref={ref}
+      className="hm"
+      aria-hidden
+      style={{
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: "100%",
+        height: "100%",
+        overflow: "visible",
+        pointerEvents: "none",
+      }}
+    >
+      <defs>
+        <filter
+          id={`mark-${uid}`}
+          filterUnits="userSpaceOnUse"
+          x="-5%"
+          y="-5%"
+          width="110%"
+          height="110%"
+        >
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.02"
+            numOctaves="2"
+            seed="11"
+            result="noise"
+          />
+          <feDisplacementMap
+            in="SourceGraphic"
+            in2="noise"
+            scale="3"
+            xChannelSelector="R"
+            yChannelSelector="G"
+          />
+        </filter>
+      </defs>
+      <g
+        filter={`url(#mark-${uid})`}
+        fill="none"
+        stroke="var(--stage-accent)"
+        strokeLinecap="round"
+        opacity={0.9}
+      />
+    </svg>
+  );
+}
+
 function Runs({ runs, theme }: { runs: RichText; theme: PresentationTheme }) {
   return (
     <>
@@ -436,7 +587,7 @@ function Runs({ runs, theme }: { runs: RichText; theme: PresentationTheme }) {
           );
         }
         return (
-          <span key={i} style={style}>
+          <span key={i} style={style} data-hand-mark={isAccentRun(run) ? "" : undefined}>
             {text}
           </span>
         );
@@ -501,7 +652,12 @@ export const ElementView = memo(function ElementView({
         "display",
       );
       return (
-        <Tag style={textCss(element.style, theme, base, "display", fitted)}>
+        <Tag
+          style={{
+            ...textCss(element.style, theme, base, "display", fitted),
+            position: "relative",
+          }}
+        >
           <span>
             {perform && isPlainRun(element.content) ? (
               <KineticWords text={plainOf(element.content)} />
@@ -509,6 +665,7 @@ export const ElementView = memo(function ElementView({
               <Runs runs={element.content} theme={theme} />
             )}
           </span>
+          {element.content.some(isAccentRun) && <HandMarks perform={perform} />}
         </Tag>
       );
     }
@@ -516,18 +673,21 @@ export const ElementView = memo(function ElementView({
     case "text":
       return (
         <div
-          style={textCss(
-            element.style,
-            theme,
-            scale.h2 * rem,
-            "sans",
-            fit(
-              plainOf(element.content),
-              scale.h2 * rem * element.style.size,
+          style={{
+            ...textCss(
               element.style,
+              theme,
+              scale.h2 * rem,
               "sans",
+              fit(
+                plainOf(element.content),
+                scale.h2 * rem * element.style.size,
+                element.style,
+                "sans",
+              ),
             ),
-          )}
+            position: "relative",
+          }}
         >
           <span>
             {element.role === "figure" && isPlainRun(element.content) ? (
@@ -536,6 +696,7 @@ export const ElementView = memo(function ElementView({
               <Runs runs={element.content} theme={theme} />
             )}
           </span>
+          {element.content.some(isAccentRun) && <HandMarks perform={perform} />}
         </div>
       );
 
