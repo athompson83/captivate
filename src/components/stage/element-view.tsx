@@ -196,7 +196,7 @@ function HandIcon({
 }: {
   name: string;
   color: string;
-  /** The glyph's side, in CSS pixels. The wash reaches a little past it. */
+  /** The glyph's side, in CSS pixels. The wash fills the same box. */
   size: number;
   strokeWidth?: number;
 }) {
@@ -204,9 +204,10 @@ function HandIcon({
   const filterId = `iconwash-${uid}`;
   // The wash is drawn on a 100-unit box and scaled to the icon: the blob
   // recipe wanders its radius in the name, so `heart` is always the same
-  // shape behind every heart in the deck.
-  const reach = 1.42;
-  const box = size * reach;
+  // shape behind every heart in the deck. It fills the icon's own box and
+  // sits a little down and to the right in it, like a drawing's wash — and
+  // stays inside it, because a mark that paints past its box is what the
+  // composition sheet's overflow scan reports as text cut off.
   return (
     <span
       data-hand-icon={name}
@@ -224,14 +225,7 @@ function HandIcon({
       <svg
         aria-hidden
         viewBox="0 0 100 100"
-        style={{
-          position: "absolute",
-          left: `${(size - box) / 2}px`,
-          top: `${(size - box) / 2}px`,
-          width: `${box}px`,
-          height: `${box}px`,
-          overflow: "visible",
-        }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
       >
         <defs>
           <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
@@ -247,7 +241,7 @@ function HandIcon({
         </defs>
         <path
           data-icon-wash
-          d={blobPath(52, 53, 44, 41, name)}
+          d={blobPath(53, 54, 45, 43, name)}
           fill="currentColor"
           fillOpacity={0.14}
           filter={`url(#${filterId})`}

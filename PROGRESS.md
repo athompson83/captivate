@@ -10,12 +10,12 @@
   2026-09-03
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
-- Branch: `claude/presentation-experience-redesign-r10l4q` — PR #106 (a room
-  with material and the phrase that matters) awaiting merge and production
-  verification; drawn like an illustrator (an underdrawing and a watercolour
-  wash on every drawing, arranged compositions in the diagram language,
-  icons by the same hand) built on top and awaiting its own PR
-- `main`: through PR #105 (merged) — `d4f0194`; PR #94 (`01437d0`) fixed the four defects the owner
+- Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
+  `main` after PR #106 — the MVP-032 closeout, and drawn like an illustrator
+  (an underdrawing and a watercolour wash on every drawing, arranged
+  compositions in the diagram language, icons by the same hand), PR #107,
+  awaiting CI, merge and production verification
+- `main`: through PR #106 (merged) — `31bba83`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -206,6 +206,21 @@ hub, the schema's default and the unsized free node) and `stage-render`
 glyph unbent).
 
 ### A room with material, and the phrase that matters
+
+**Landed and verified.** PR #106 squash-merged as `31bba83`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 36 of 37 on the first run, the one failure a proxy
+timeout reaching `/presentations` (`net::ERR_TIMED_OUT`, no response at
+all), and 20 of 20 on the public surface when re-run, the route answering
+its 307 in 0.4 s — the deployment was never at fault. Codex found two real
+things on the PR, fixed before merge: the deck route let the look choose the
+drawn room whenever the deck had no look yet, which would have overwritten
+a room the author chose while the generation was running — it now compares
+the room read before the write with the one read at the top of the request;
+and the body mark found its phrase in a lowercased copy of the text, whose
+length can differ from the original's ("İ" lowercases to two code points),
+so it coloured the neighbour of the phrase — it matches exactly first, then
+case-insensitively against the original text, with a regression for each.
 
 The third answer to "the presentations still feel basic", and the one that
 needs no key. Two of the four things the owner named were the background and
