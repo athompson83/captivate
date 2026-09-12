@@ -4,6 +4,8 @@ import { Stage } from "@/components/stage/stage";
 import { getTheme } from "@/lib/schema/theme";
 import { composeScene } from "@/lib/editor/layouts";
 import { SceneContent } from "@/lib/schema/presentation";
+import { compileDiagram } from "@/lib/drawing/diagram";
+import { replaceMediaWithDrawing } from "@/lib/editor/place-drawing";
 
 const theme = getTheme("midnight");
 
@@ -739,5 +741,60 @@ describe("the phrase that matters, marked by hand", () => {
       media: { url: "", alt: "" },
     });
     expect(renderStage(plain).container.querySelector("svg.hm")).toBeNull();
+  });
+});
+
+describe("lettered by the same hand", () => {
+  it("sets a drawing's and a chart's labels in the theme's hand, not its sans", () => {
+    const drawn = composeScene("split-left", {
+      heading: "Care is a loop, not a line.",
+      body: "Every treatment is a question.",
+      media: { url: "", alt: "" },
+    });
+    const drawing = replaceMediaWithDrawing(
+      drawn,
+      compileDiagram({
+        arrangement: "row",
+        nodes: [
+          {
+            id: "a",
+            kind: "circle",
+            symbol: null,
+            x: 0,
+            y: 0,
+            w: 0,
+            h: 0,
+            stage: 0,
+            accent: false,
+            fill: false,
+            hatch: false,
+            value: null,
+            label: "Heart",
+          },
+        ],
+        edges: [],
+        stageLabels: [],
+        alt: "",
+      }),
+      "the mechanism",
+    )!;
+    const { container } = renderStage(drawing);
+    const label = container.querySelector("text.dp-label")!;
+    expect(label.textContent).toBe("Heart");
+    expect(label.getAttribute("font-family")).toBe(theme.fonts.hand);
+    expect(label.getAttribute("font-weight")).toBe("400");
+    expect(theme.fonts.hand).not.toBe(theme.fonts.sans);
+
+    const chart = composeScene("chart", {
+      heading: "Door to needle",
+      chart: {
+        chart: "column",
+        data: [{ label: "Q1", value: 42 }],
+        summary: "Falling.",
+      },
+    });
+    const labels = [...renderStage(chart).container.querySelectorAll("text.dp-label")];
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.every((l) => l.getAttribute("font-family") === theme.fonts.hand)).toBe(true);
   });
 });

@@ -1142,7 +1142,7 @@ First choose the arrangement, and the application lays the nodes out for you: ro
 
 What you place:
 - Nodes. A node is a shape or a symbol. Shapes: circle, ellipse, box, pill (a container, a state, a stage); cloud (something diffuse); blob (anything organic — an organ, a population, a region); ring (a hub, a target, the centre of a cycle); bar (an amount — set value 0 to 1 for how much of it is filled); stack (several of a thing, or layers). A symbol is a named pictogram from the list the schema gives you (a heart, a brain, a person, a syringe, a building, a clock ...) for a thing with a name.
-- Labels. Name what needs naming: give a node a label of one to three words, and an edge a label where the relation needs a word ("blocks", "×3", "after 90 s"). Labels are drawn beside their node in the room's own type. Most nodes carry one; a diagram with nothing named is a puzzle.
+- Labels. Name what needs naming: give a node a label of one to three words, and an edge a label where the relation needs a word ("blocks", "×3", "after 90 s"). Labels are lettered by hand beside their node. Most nodes carry one; a diagram with nothing named is a puzzle.
 - Edges. An arrow says "leads to" or "causes"; a line says "is connected to"; a curve is an arrow that bends, for a return path or a loop; both is an exchange; dashed is a weak, indirect or broken relation; leader is a thin line that only points, for a label to a part. Edges are drawn from the edge of one node to the edge of the next, so nodes should not overlap.
 
 Composition:

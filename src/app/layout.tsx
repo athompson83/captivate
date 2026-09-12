@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { siteUrl } from "@/lib/site";
-import { Inter, Manrope, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Inter, Manrope, Space_Grotesk, JetBrains_Mono, Patrick_Hand } from "next/font/google";
 import { ReducedMotionProvider } from "@/components/ui/reduced-motion";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { ToastProvider } from "@/components/ui/toast";
@@ -34,6 +34,18 @@ const grotesk = Space_Grotesk({
 const mono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
+  display: "swap",
+});
+
+/*
+ * The hand that letters the drawings. A diagram drawn by hand and labelled in
+ * the interface face is half a machine; its names are set in a print hand,
+ * legible from the back of a room, and only ever on a drawing.
+ */
+const hand = Patrick_Hand({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-hand",
   display: "swap",
 });
 
@@ -113,7 +125,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body
-        className={`${inter.variable} ${manrope.variable} ${grotesk.variable} ${mono.variable} antialiased`}
+        className={`${inter.variable} ${manrope.variable} ${grotesk.variable} ${mono.variable} ${hand.variable} antialiased`}
       >
         <ReducedMotionProvider>
           <ThemeProvider>

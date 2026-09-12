@@ -281,7 +281,7 @@ export function DrawnPicture({
             fill={INK[label.ink ?? element.ink]}
             fontFamily={fontFamily}
             fontSize={size * label.size}
-            fontWeight={500}
+            fontWeight={400}
             textAnchor={label.anchor}
             dominantBaseline="middle"
             // A halo in the canvas colour, so a word that lands on a line is

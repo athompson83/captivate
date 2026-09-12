@@ -488,7 +488,7 @@ function StaggeredElement({
   // camera, no stage has been reached yet — the first stroke is drawn in
   // front of the room, not in the distance.
   if (element.type === "drawing" && play) {
-    return <DrawnPicture element={element} step={held ? -1 : step} fontFamily={theme.fonts.sans} />;
+    return <DrawnPicture element={element} step={held ? -1 : step} fontFamily={theme.fonts.hand} />;
   }
   // A chart is a drawing by the same hand: sketched on arrival, held for
   // the camera like one, complete everywhere else.
@@ -497,7 +497,7 @@ function StaggeredElement({
       <DrawnPicture
         element={chartDrawing(element)}
         step={held ? -1 : step}
-        fontFamily={theme.fonts.sans}
+        fontFamily={theme.fonts.hand}
       />
     );
   }
