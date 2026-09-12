@@ -39,15 +39,40 @@ export function labelSize(viewBoxWidth: number): number {
 }
 
 /**
- * The box a label occupies, by its anchor, with its halo.
+ * How wide a label runs, in ems.
  *
- * Estimated from the glyph count — a sans face runs a little over half its
- * size per character — because the compiler and the export have no text
- * measurement, and the stage cannot wait for one.
+ * Estimated glyph by glyph, because the compiler and the export have no
+ * text measurement and the stage cannot wait for one. A sans face runs a
+ * little over half its size per Latin letter; an East Asian glyph, a
+ * full-width form or an emoji is a full em, and is one glyph however many
+ * code units it takes. The estimate errs wide: a frame closed around a
+ * name it under-measured clips the name at both ends.
+ */
+export function textEms(text: string): number {
+  let ems = 0;
+  for (const glyph of text) {
+    const code = glyph.codePointAt(0) ?? 0;
+    const wide =
+      (code >= 0x1100 && code <= 0x115f) ||
+      (code >= 0x2e80 && code <= 0xa4cf) ||
+      (code >= 0xac00 && code <= 0xd7a3) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0xfe30 && code <= 0xfe4f) ||
+      (code >= 0xff00 && code <= 0xff60) ||
+      (code >= 0xffe0 && code <= 0xffe6) ||
+      code >= 0x1f000 ||
+      (code >= 0x20000 && code <= 0x3fffd);
+    ems += wide ? 1 : 0.56;
+  }
+  return ems;
+}
+
+/**
+ * The box a label occupies, by its anchor, with its halo.
  */
 export function labelBox(label: DrawnLabel, base: number): Bounds {
   const size = base * label.size;
-  const width = label.text.length * 0.56 * size + size * 0.6;
+  const width = textEms(label.text) * size + size * 0.6;
   const halfHeight = size * 0.65;
   const left =
     label.anchor === "start"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FRAME_ZOOM, frameOf, labelBox, labelSize } from "@/lib/drawing/frame";
+import { FRAME_ZOOM, frameOf, labelBox, labelSize, textEms } from "@/lib/drawing/frame";
 import { inkBounds } from "@/lib/drawing/bounds";
 
 /**
@@ -55,6 +55,30 @@ describe("the frame", () => {
     expect(frame.height).toBe(260);
   });
 
+  it("counts the control point a smooth curve does not write", () => {
+    // Codex, reviewing the PR: `S` and `T` reflect the previous curve's last
+    // control through the current point, and the curve bends towards it.
+    // Measured from the written numbers alone this path is 300–700 wide;
+    // its second half bends out to about 163, and the frame cut it off.
+    const smooth = "M 700 250 C 700 250 700 250 300 250 S 500 250 500 250";
+    expect(inkBounds([{ d: smooth }])!.minX).toBeLessThanOrEqual(163);
+    const quad = "M 100 100 Q 200 0 300 100 T 500 100";
+    expect(inkBounds([{ d: quad }])!.maxY).toBeGreaterThanOrEqual(150);
+    // Relative forms reflect the same way.
+    const rel = "M 700 250 c 0 0 0 0 -400 0 s 200 0 200 0";
+    expect(inkBounds([{ d: rel }])!.minX).toBeLessThanOrEqual(163);
+    // With nothing to reflect, the current point is the control: no bend.
+    expect(inkBounds([{ d: "M 100 100 S 200 200 300 100" }])).toEqual({
+      minX: 100,
+      minY: 100,
+      maxX: 300,
+      maxY: 200,
+    });
+    // A line between two curves breaks the chain.
+    const broken = "M 700 250 C 700 250 700 250 300 250 L 300 250 S 500 250 500 250";
+    expect(inkBounds([{ d: broken }])!.minX).toBe(300);
+  });
+
   it("counts a name by its anchor", () => {
     const start = frameOf({
       viewBox: canvas,
@@ -94,6 +118,21 @@ describe("the frame", () => {
 });
 
 describe("a name's box", () => {
+  it("counts a wide glyph as a full em, however many code units it takes", () => {
+    // Codex, reviewing the PR: twenty-eight CJK characters at 0.56 em were
+    // measured at 423 units and set at about 728, and the frame closed
+    // around the estimate and clipped both ends.
+    const cjk = "血栓は配管の問題である".repeat(3).slice(0, 28);
+    expect(cjk).toHaveLength(28);
+    expect(textEms(cjk)).toBe(28);
+    const box = labelBox(label({ text: cjk }), 26);
+    expect(box.maxX - box.minX).toBeGreaterThanOrEqual(728);
+    expect(textEms("Heart")).toBeCloseTo(5 * 0.56, 5);
+    // A surrogate pair is one glyph, and a wide one.
+    expect(textEms("❤️🫀")).toBeGreaterThanOrEqual(2);
+    expect(textEms("🫀")).toBe(1);
+  });
+
   it("is set by its anchor, a little over half its size a glyph, with its halo", () => {
     const base = labelSize(800);
     expect(base).toBe(26);

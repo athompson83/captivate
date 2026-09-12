@@ -177,6 +177,8 @@ export function inkBounds(paths: readonly { d: string }[]): Bounds | null {
     let startY = 0;
     let command = "";
     let args: number[] = [];
+    // The last control point of the last curve, for a smooth command to reflect.
+    let control: { kind: "c" | "q"; x: number; y: number } | null = null;
 
     const flush = () => {
       if (!command) return;
@@ -220,22 +222,47 @@ export function inkBounds(paths: readonly { d: string }[]): Bounds | null {
         } else {
           // Everything else ends at its last pair; the pairs before it are
           // control points, which bound the curve and so are worth seeing.
+          const points: { x: number; y: number }[] = [];
           for (let j = 0; j + 1 < group.length; j += 2) {
-            const px = relative ? cursorX + group[j] : group[j];
-            const py = relative ? cursorY + group[j + 1] : group[j + 1];
-            see(px, py);
+            points.push({
+              x: relative ? cursorX + group[j] : group[j],
+              y: relative ? cursorY + group[j + 1] : group[j + 1],
+            });
           }
-          const endX = relative ? cursorX + group[arity - 2] : group[arity - 2];
-          const endY = relative ? cursorY + group[arity - 1] : group[arity - 1];
-          cursorX = endX;
-          cursorY = endY;
+          // A smooth curve (`S`, `T`) has a control point it does not write:
+          // the previous curve's last control, reflected through the current
+          // point — or the current point itself when nothing precedes it.
+          // The curve bends towards it, so it is seen with the rest; a path
+          // measured without it lost the whole of a bend to the frame.
+          if (lower === "s" || lower === "t") {
+            const wants = lower === "s" ? "c" : "q";
+            const reflected =
+              control && control.kind === wants
+                ? { x: 2 * cursorX - control.x, y: 2 * cursorY - control.y }
+                : { x: cursorX, y: cursorY };
+            see(reflected.x, reflected.y);
+            if (lower === "t") points.unshift(reflected);
+          }
+          for (const point of points) see(point.x, point.y);
+          // What the next smooth command would reflect: the last control
+          // point of a cubic or a quadratic, nothing after anything else.
+          control =
+            lower === "c" || lower === "s"
+              ? { kind: "c", ...points[points.length - 2] }
+              : lower === "q" || lower === "t"
+                ? { kind: "q", ...points[points.length - 2] }
+                : null;
+          const end = points[points.length - 1];
+          cursorX = end.x;
+          cursorY = end.y;
           if (lower === "m" && i === 0) {
-            startX = endX;
-            startY = endY;
+            startX = end.x;
+            startY = end.y;
           }
         }
         see(cursorX, cursorY);
       }
+      if (lower === "h" || lower === "v" || lower === "a") control = null;
       args = [];
     };
 

@@ -913,14 +913,14 @@ const LABEL_SIZE = labelSize(DIAGRAM_WIDTH);
  * A label moved to sit wholly inside the picture.
  *
  * The renderer clips to the box, so a name centred on a node at the margin
- * lost its first or last word. The width is estimated from the glyph count
- * — a sans face runs a little over half its size per character — with the
- * halo counted; a label wider than the whole canvas is left centred.
+ * lost its first or last word. The width is the label's estimated box
+ * (`labelBox`), halo counted; a label wider than the whole canvas is left
+ * centred.
  */
 export function keptInside(label: DrawnLabel): DrawnLabel {
-  const size = LABEL_SIZE * label.size;
-  const halfWidth = (label.text.length * 0.56 * size) / 2 + size * 0.3;
-  const halfHeight = size * 0.65;
+  const box = labelBox(label, LABEL_SIZE);
+  const halfWidth = (box.maxX - box.minX) / 2;
+  const halfHeight = (box.maxY - box.minY) / 2;
   const x =
     halfWidth * 2 >= DIAGRAM_WIDTH
       ? label.x
