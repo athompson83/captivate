@@ -11,9 +11,10 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #119 — the MVP-045 closeout and the next round, awaiting
-  CI, merge and production verification
-- `main`: through PR #119 (merged) — `2c302f6`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #120 — the MVP-046 closeout and the writer's rooms,
+  awaiting CI, merge and production verification
+- `main`: through PR #120 (merged) — `c486660`; migration
+  `0034_shared_movement_rooms.sql` applied to production; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -150,6 +151,31 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### Rooms of their own, from the writer
+
+A movement's room was the author's to choose, and the writer, who knows
+where the argument goes, said nothing about it. Now the scene writer names
+the movements that take the audience somewhere else (`movementRooms` in
+`GeneratedScenes`: the movement by its label as the brief lists it, and
+two to five search words for that place — a different place, not a
+different topic; at most one per movement; empty for the many talks that
+stand in one room throughout). After the show's room, and with what the
+route has left, `dressMovementRooms` finds each in stock in the deck's
+order — found, never made: a made room is a generation the deck waits a
+minute for, and a deck of six movements cannot wait six of them — and each
+gets what is left, so a slow search costs the movements after it their
+room and never the route its ceiling; a search that finds nothing leaves
+the movement in the show's room. Both deck routes map the label to the
+movement's section (a new deck's movements were saved under those labels;
+an existing deck's briefs carry the label and the moment's movement is the
+server's fact) and merge the found rooms into `journey.rooms` under the
+author's, never over one they chose.
+
+Tests in `look` ("rooms of their own": the brief asks and the schema
+defaults; found in stock, never made, each with what is left, stopping
+under the minimum; both routes dress them after the show's room, by label,
+never over the author's).
+
 ### A room per movement
 
 A talk moves, and the corridor of the first movement is not the ward of the
@@ -206,6 +232,11 @@ the show's),
 show's), and four RLS probes (a movement's room resolves for a link-holder
 on the shared deck and its object is readable; one on an unshared deck is
 nobody's; one whose movement is gone is nobody's).
+
+**Landed and verified.** PR #120 squash-merged as `c486660`, all six CI
+jobs green on the head, the RLS suite over `0034` among them; the
+migration applied to production the same minute. The proxied smoke suite
+against `www.axtevi.com` after the deploy: 34 of 37 on the first run, the three failures proxy `net::ERR_TIMED_OUT` on `/` and `/reset-password` that re-ran green with the routes answering in 0.4 s.
 
 ### The room on the deck card
 

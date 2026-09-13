@@ -15,7 +15,7 @@ import {
 } from "@/lib/editor/place-drawing";
 import { fillWithGeneratedImage, fillWithStockPhoto, isPhotoFillConfigured } from "./photo-fill";
 import { isImageGenerationConfigured, isStockSearchConfigured } from "./visual-sourcing";
-import type { SceneContent } from "@/lib/schema/presentation";
+import type { MovementRoom, SceneContent } from "@/lib/schema/presentation";
 import { BASE_SYSTEM, generateStructured, isAiConfigured, type StructuredResult } from "./provider";
 import {
   GeneratedScene,
@@ -366,6 +366,8 @@ export async function buildScenesFromMap(
         look: string;
         /** Search words for the place the show stands in; empty from a fallback. */
         roomQuery: string;
+        /** Movements that stand somewhere else, by label, with the place's search words. */
+        movementRooms: { movement: string; roomQuery: string }[];
         source: "model" | "fallback";
         notice?: string;
       };
@@ -400,6 +402,7 @@ export async function buildScenesFromMap(
         })),
         look: "",
         roomQuery: "",
+        movementRooms: [],
         source: "fallback",
         notice:
           "No language model is configured, so these scenes are structural placeholders. The argument behind them is real.",
@@ -497,6 +500,8 @@ The look: write \`look\`, once for the whole deck — one sentence of visual dir
 
 The room: write \`roomQuery\`, two to five plain search words for one wide photograph of the place this talk stands in — an environment, never a subject and never a person: a hospital corridor at night, a coastline at dusk, a workshop bench, a lecture theatre empty — with nothing in the middle and quiet enough to sit dimmed behind every scene. It is found in stock and stands behind the whole show.
 
+Rooms of their own: where a movement takes the audience somewhere else — a different place, not a different topic: the talk leaves the ward for the roadside, the lab for the field — add one entry to \`movementRooms\` naming that movement by its label exactly as the list above shows it, with two to five plain search words for one wide photograph of that place, under the same rules as the room. The show crossfades into it as the argument arrives there. At most one per movement, and only where the place genuinely changes; most talks stand in one room throughout, and then \`movementRooms\` is empty.
+
 Drawings: some pictures should be drawn, not photographed — a mechanism, a pathway, a comparison of amounts, a before-and-after, the parts of a thing and how they relate. For a split-left, split-right or explainer scene whose picture is one of those, write a drawingBrief: one sentence naming the parts, what each is called, and how they relate ("The heart, the vessel and the tissue in a row; blood flows heart to tissue; the vessel narrows in stage two and the flow arrow turns red"). Leave drawingBrief empty where a photograph is the right picture — a face, a place, a moment. A scene with a drawingBrief still carries its imagePrompt, for the deployment that cannot draw.
 
 Pictures: every cover, split-left, split-right, explainer and media-full scene MUST carry an imagePrompt — the picture is half the scene, and an empty half is a broken scene. The imagePrompt describes the one image that would teach or land the moment — a mechanism, a scene, a before-and-after — concretely enough to photograph or sketch. Also give those scenes a photoQuery: two to five plain search words for a stock photo of the same subject. The cover is composed differently, and the difference is *composition* rather than abstraction. Name the one image that is this talk's hero — the subject itself is allowed and often right — but describe it as a photographer would frame it for a title: a clear focal subject somewhere off-centre, real depth behind it, and a quiet region of sky, wall, shadow or ground where a display line can sit without fighting anything. What a cover must not be is the generic establishing shot that could open any talk on the subject, or a busy frame with readable detail across all of it. An atmospheric place-and-light image is one good answer to that and not the only one; a single arresting subject with air around it is usually better.
@@ -554,6 +559,7 @@ ${referenceBlock(context.reference ?? null)}`,
         })),
         look: "",
         roomQuery: "",
+        movementRooms: [],
         source: "fallback",
         notice: `${result.error} Captivate built structural scenes from your map instead.`,
       },
@@ -591,9 +597,12 @@ ${referenceBlock(context.reference ?? null)}`,
 
   const look = fixedLook.trim() || result.data.look.trim();
   const roomQuery = result.data.roomQuery.trim();
+  const movementRooms = result.data.movementRooms
+    .map((room) => ({ movement: room.movement.trim(), roomQuery: room.roomQuery.trim() }))
+    .filter((room) => room.movement && room.roomQuery);
   await dressScenes(scenes, presentationId, totalSeconds, { mayGenerate: true, look, themeId });
 
-  return { ok: true, data: { source: "model", scenes, look, roomQuery } };
+  return { ok: true, data: { source: "model", scenes, look, roomQuery, movementRooms } };
 }
 
 /**
@@ -820,6 +829,49 @@ export async function dressRoom({
   // had: a search after a slow generation is a search past the deadline.
   const left = budget - (Date.now() - started);
   return roomFromStock(roomQuery, presentationId, alt, left);
+}
+
+/**
+ * Rooms of their own: a picture behind each movement the writer sent
+ * somewhere else, found in stock from the writer's words.
+ *
+ * Found, never made: a made room is a generation the deck waits a minute
+ * for, and a deck of six movements cannot wait six of them. Dressed in the
+ * deck's order after the show's room, each with what the route has left,
+ * so a slow search costs the movements after it their room and never the
+ * route its ceiling; a movement whose search finds nothing, or whose turn
+ * comes with too little left, stands in the show's room as it always did.
+ * Returns only the rooms found, by the movement's section id, for the route
+ * to merge into `journey.rooms` — never over one the author chose.
+ */
+export async function dressMovementRooms({
+  rooms,
+  presentationId,
+  budgetMs,
+}: {
+  rooms: readonly { sectionId: string; name: string; roomQuery: string }[];
+  presentationId: string;
+  /** What the route has left for all of them together. */
+  budgetMs: number;
+}): Promise<Record<string, MovementRoom>> {
+  const found: Record<string, MovementRoom> = {};
+  if (!rooms.length || !isStockSearchConfigured()) return found;
+  const started = Date.now();
+  for (const room of rooms) {
+    const left = budgetMs - (Date.now() - started);
+    if (left < ROOM_STOCK_MIN_MS) break;
+    const alt = `The room of ${room.name.trim() || "a movement"}`;
+    const picture = await roomFromStock(room.roomQuery, presentationId, alt, left);
+    if (!picture) continue;
+    found[room.sectionId] = {
+      url: picture.url,
+      assetId: picture.assetId,
+      alt: picture.alt,
+      dim: picture.dim,
+      grade: "tint",
+    };
+  }
+  return found;
 }
 
 /** The made room: one generated picture, or null where that is not possible. */

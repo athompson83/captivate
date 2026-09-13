@@ -366,7 +366,7 @@ the veil the loop lifts is that room's dim. Deleting a movement takes its
 room with it. The export stands a movement's scenes in its room
 (`planDeck`), and the share resolver serves a movement's room as it serves
 the show's — only under a key that is still a movement of the deck
-(`0034_shared_movement_rooms.sql`).
+(`0034_shared_movement_rooms.sql`). The writer can give a movement its room too (`movementRooms`, found in stock; see `AI_ARCHITECTURE.md`).
 
 ### Presenting without it
 

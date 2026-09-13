@@ -167,6 +167,16 @@ export const GeneratedScenes = z.object({
    * stands in, for a deployment that cannot make one — see `dressRoom`.
    */
   roomQuery: z.string().max(80).default(""),
+  /**
+   * Rooms of their own: a movement that takes the audience somewhere else,
+   * named by its label as the brief lists it, with search words for the
+   * place — see `dressMovementRooms`. Empty for most talks, which stand in
+   * one room throughout.
+   */
+  movementRooms: z
+    .array(z.object({ movement: z.string().max(48), roomQuery: z.string().max(80) }))
+    .max(8)
+    .default([]),
 });
 
 /**

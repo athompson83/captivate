@@ -7,6 +7,7 @@ import {
   paletteWords,
   pictureBrief,
   roomBrief,
+  roomsForMovements,
 } from "@/lib/ai/look";
 import { pickGenerated, shapeFor } from "@/lib/ai/picture-plan";
 import { GeneratedScenes } from "@/lib/ai/schemas";
@@ -208,7 +209,128 @@ describe("a room from stock", () => {
     expect(deckRoute).toContain("roomQuery: result.data.roomQuery");
     expect(service).toContain("const roomQuery = result.data.roomQuery.trim();");
     expect(service).toMatch(
-      /return \{ ok: true, data: \{ source: "model", scenes, look, roomQuery \} \};/,
+      /return \{ ok: true, data: \{ source: "model", scenes, look, roomQuery, movementRooms \} \};/,
     );
+  });
+});
+
+describe("rooms of their own", () => {
+  const service = readFileSync("src/lib/ai/service.ts", "utf8");
+  const deckRoute = readFileSync("src/app/api/ai/scenes-from-map/route.ts", "utf8");
+  const createRoute = readFileSync("src/app/api/ai/create-from-map/route.ts", "utf8");
+
+  it("asks the writer for the movements that stand somewhere else, defaulted to none", () => {
+    expect(service).toContain(
+      "Rooms of their own: where a movement takes the audience somewhere else",
+    );
+    expect(service).toContain(
+      "naming that movement by its label exactly as the list above shows it",
+    );
+    const parsed = GeneratedScenes.parse({ scenes: [{ layout: "title", heading: "A" }] });
+    expect(parsed.movementRooms).toEqual([]);
+    expect(
+      GeneratedScenes.parse({
+        scenes: [{ layout: "title", heading: "A" }],
+        movementRooms: [{ movement: "Roadside", roomQuery: "highway shoulder dusk" }],
+      }).movementRooms,
+    ).toEqual([{ movement: "Roadside", roomQuery: "highway shoulder dusk" }]);
+    // Trimmed, and an entry with nothing to search for is dropped.
+    expect(service).toContain(".filter((room) => room.movement && room.roomQuery);");
+    expect(service).toMatch(
+      /return \{ ok: true, data: \{ source: "model", scenes, look, roomQuery, movementRooms \} \};/,
+    );
+  });
+
+  it("finds each movement's room in stock, never makes one, and gives each what is left", () => {
+    const rooms = service.slice(
+      service.indexOf("export async function dressMovementRooms"),
+      service.indexOf("/** The made room:"),
+    );
+    expect(rooms).not.toContain("generateRoom(");
+    expect(rooms).not.toContain("generateImage(");
+    expect(rooms).toContain("if (!rooms.length || !isStockSearchConfigured()) return found;");
+    expect(rooms).toContain("const left = budgetMs - (Date.now() - started);");
+    expect(rooms).toContain("if (left < ROOM_STOCK_MIN_MS) break;");
+    expect(rooms).toContain("await roomFromStock(room.roomQuery, presentationId, alt, left);");
+    // A room that could not be found leaves the movement in the show's.
+    expect(rooms).toContain("if (!picture) continue;");
+    expect(rooms).toContain('grade: "tint"');
+  });
+
+  it("is dressed by both deck routes after the show's room, by the movement's label, never over the author's", () => {
+    for (const route of [createRoute, deckRoute]) {
+      expect(route).toContain("dressMovementRooms({");
+      expect(route.indexOf("dressMovementRooms({")).toBeGreaterThan(
+        route.indexOf("await dressRoom({"),
+      );
+      expect(route).toContain("maxDuration * 1000 - (Date.now() - started) - ROUTE_RESERVE_MS");
+    }
+    // Both through the one resolver: a new deck by the movements it just
+    // saved, an existing one by the sections the server has, in their order.
+    expect(createRoute).toContain("rooms: roomsForMovements(");
+    expect(createRoute).toContain("rooms: { ...rooms, ...journey.rooms },");
+    expect(deckRoute).toContain("rooms: roomsForMovements(");
+    expect(deckRoute).toContain('.select("id, label, title, position")');
+    expect(deckRoute).toContain(".filter((room) => !before.rooms[room.sectionId]?.url)");
+    expect(deckRoute).toContain("rooms: { ...rooms, ...current.rooms },");
+  });
+
+  const movements = [
+    { sectionId: "s1", label: "Roadside", title: "The call", position: 0 },
+    { sectionId: "s2", label: "Ward", title: "The handover", position: 1 },
+    { sectionId: "s3", label: "Home", title: "Discharge", position: 2 },
+  ];
+
+  it("resolves the writer's labels to movements, in the deck's order whatever the writer's", () => {
+    // The budget is spent down the list, so the order it is spent in is the
+    // deck's, not the order the model happened to write the entries in.
+    expect(
+      roomsForMovements(
+        [
+          { movement: "Home", roomQuery: "front door morning" },
+          { movement: "Roadside", roomQuery: "highway shoulder dusk" },
+        ],
+        movements,
+      ),
+    ).toEqual([
+      { sectionId: "s1", name: "The call", roomQuery: "highway shoulder dusk" },
+      { sectionId: "s3", name: "Discharge", roomQuery: "front door morning" },
+    ]);
+  });
+
+  it("names nothing by a label two movements share, or by one none carries", () => {
+    // A room on the wrong movement is worse than none: a label the author
+    // gave twice (labels are free text, and a deck may well have two
+    // "Case" movements) names neither.
+    const twice = [...movements, { sectionId: "s4", label: "Ward", title: "Return", position: 3 }];
+    expect(
+      roomsForMovements(
+        [
+          { movement: "Ward", roomQuery: "hospital ward night" },
+          { movement: "Lobby", roomQuery: "hotel lobby" },
+          { movement: " Home ", roomQuery: "front door morning" },
+        ],
+        twice,
+      ),
+    ).toEqual([{ sectionId: "s3", name: "Discharge", roomQuery: "front door morning" }]);
+  });
+
+  it("gives a movement one room, the writer's first word on it, by its title", () => {
+    expect(
+      roomsForMovements(
+        [
+          { movement: "Ward", roomQuery: "hospital ward night" },
+          { movement: "Ward", roomQuery: "corridor" },
+        ],
+        movements,
+      ),
+    ).toEqual([{ sectionId: "s2", name: "The handover", roomQuery: "hospital ward night" }]);
+    // A movement with no title of its own is named by its label.
+    expect(
+      roomsForMovements(
+        [{ movement: "Ward", roomQuery: "hospital ward night" }],
+        [{ sectionId: "s2", label: "Ward", title: "", position: 0 }],
+      ),
+    ).toEqual([{ sectionId: "s2", name: "Ward", roomQuery: "hospital ward night" }]);
   });
 });

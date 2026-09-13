@@ -154,6 +154,25 @@ first time the deck is given one (`roomFor`: a printed medium in front of
 `strata`, a lit one in front of `halo`, otherwise `aurora`), and the
 author's from then on.
 
+**Rooms of their own.** The writer also names the movements that take the
+audience somewhere else — a different place, not a different topic — in
+`movementRooms`: the movement by its label as the brief lists it, and two
+to five search words for that place. After the show's room, and with what
+the route has left, `dressMovementRooms` finds each in stock in the deck's
+order — found, never made, because a made room is a generation the deck
+waits a minute for and a deck of six movements cannot wait six of them —
+and each gets what is left, so a slow search costs the movements after it
+their room and never the route its ceiling. Both routes resolve the labels
+through `roomsForMovements` (`lib/ai/look.ts`) against the deck's own
+movements — a new deck's as just saved, an existing deck's as the server
+has them — which puts the list in the deck's order whatever order the
+writer wrote it in, gives a movement one room, and names nothing by a
+label two movements share (labels are the author's free text; a room on
+the wrong movement is worse than none) or by one no movement carries. The
+found rooms merge into `journey.rooms` under the author's, never over one
+they chose. Most talks stand in one room throughout, and then the list is
+empty.
+
 **The phrase that matters.** Alongside `headingAccent`, a scene may carry a
 `bodyAccent`: three to eight words copied verbatim from its body — the turn
 of the sentence, the number, the word that changes the picture — which the

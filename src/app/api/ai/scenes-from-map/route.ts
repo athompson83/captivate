@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
-import { ROOM_BUDGET_MS, buildScenesFromMap, dressRoom } from "@/lib/ai/service";
-import { roomFor } from "@/lib/ai/look";
+import {
+  ROOM_BUDGET_MS,
+  buildScenesFromMap,
+  dressMovementRooms,
+  dressRoom,
+} from "@/lib/ai/service";
+import { roomFor, roomsForMovements } from "@/lib/ai/look";
 import { JourneyConfig } from "@/lib/schema/presentation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { planSceneWrites } from "@/lib/narrative/scene-writes";
@@ -143,12 +148,16 @@ export async function POST(request: Request) {
     if (!presentationId) return NextResponse.json(result.data);
 
     const supabase = await supabaseServer();
-    const [{ data: sceneRows }, { data: momentRows }] = await Promise.all([
+    const [{ data: sceneRows }, { data: momentRows }, { data: sectionRows }] = await Promise.all([
       supabase
         .from("scenes")
         .select("id, moment_id, position")
         .eq("presentation_id", presentationId),
       supabase.from("moments").select("id, movement_id").eq("presentation_id", presentationId),
+      supabase
+        .from("sections")
+        .select("id, label, title, position")
+        .eq("presentation_id", presentationId),
     ]);
 
     // The moments are read from the database rather than taken from the
@@ -220,6 +229,26 @@ export async function POST(request: Request) {
             presentationId,
             budgetMs: Math.min(ROOM_BUDGET_MS, remaining),
           });
+      // Rooms of their own, after the show's and with what is left. The
+      // writer names a movement by its label; which movements the deck has,
+      // in what order, is the server's fact, read above with the moments.
+      const rooms = await dressMovementRooms({
+        // Never over a room the author chose.
+        rooms: roomsForMovements(
+          result.data.movementRooms,
+          (sectionRows ?? []).map((row) => ({
+            sectionId: row.id,
+            label: row.label,
+            title: row.title,
+            position: row.position,
+          })),
+        ).filter((room) => !before.rooms[room.sectionId]?.url),
+        presentationId,
+        budgetMs: Math.min(
+          ROOM_BUDGET_MS,
+          maxDuration * 1000 - (Date.now() - started) - ROUTE_RESERVE_MS,
+        ),
+      });
       const current = await readJourney();
       // The drawn room follows the look the first time a deck is given one.
       // A deck that already had a look keeps whatever room its author chose
@@ -240,6 +269,8 @@ export async function POST(request: Request) {
           room && !current.backdrop.url
             ? { ...current.backdrop, ...room, graphic }
             : { ...current.backdrop, graphic },
+        // The author's rooms win over the found ones, as read just now.
+        rooms: { ...rooms, ...current.rooms },
       };
       await supabase
         .from("presentations")
