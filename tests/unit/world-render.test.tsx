@@ -1,9 +1,9 @@
 import { JourneyBackdrop } from "@/lib/schema/presentation";
 import { gradeMatrix, matrixValues } from "@/lib/present/grade";
 import { describe, expect, it, beforeAll, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { FileText } from "lucide-react";
-import { World } from "@/components/stage/world";
+import { ROOM_FADE_MS, World } from "@/components/stage/world";
 import { EmptyState } from "@/components/ui/misc";
 import { getTheme } from "@/lib/schema/theme";
 import { arrange } from "@/lib/present/arrange";
@@ -269,6 +269,115 @@ function controllableFrames() {
     },
   };
 }
+
+describe("a room of a movement's own", () => {
+  const show = {
+    url: "/api/assets/show/content",
+    assetId: "show",
+    alt: "a hall",
+    distance: 0.5,
+    dim: 0.4,
+    grade: "tint" as const,
+    graphic: "none" as const,
+  };
+  const ward = {
+    url: "/api/assets/ward/content",
+    assetId: "ward",
+    alt: "a ward",
+    dim: 0.6,
+    grade: "none" as const,
+  };
+  function inMovements() {
+    return makeScenes(4).map((scene, i) => ({ ...scene, sectionId: i < 2 ? "sec-a" : "sec-b" }));
+  }
+  function props(scenes: Scene[]) {
+    const placements = arrange("reel", scenes, STAGE);
+    return {
+      scenes,
+      placements,
+      theme,
+      aspect: "16:9" as const,
+      step: 0,
+      travel: "cut" as const,
+      pace: JOURNEY_DEFAULTS.pace,
+      depth: JOURNEY_DEFAULTS.depth,
+      backdrop: show,
+      rooms: { "sec-b": ward },
+    };
+  }
+
+  it("stands in the movement's room on its scenes and on its establishing shot, and in the show's elsewhere", () => {
+    const scenes = inMovements();
+    const { container, rerender } = render(
+      <World {...props(scenes)} focus={{ kind: "scene", index: 0 }} activeIndex={0} />,
+    );
+    const layer = () => container.querySelector<HTMLElement>("[data-backdrop-picture]")!;
+    expect(layer().getAttribute("data-room")).toBe("show");
+    expect(layer().querySelector("img")!.getAttribute("src")).toBe(show.url);
+
+    rerender(<World {...props(scenes)} focus={{ kind: "scene", index: 2 }} activeIndex={2} />);
+    expect(layer().getAttribute("data-room")).toBe("sec-b");
+    // The room's own dim, on the veil the loop lifts.
+    expect(layer().querySelector<HTMLElement>("[data-backdrop-veil]")!.style.opacity).toBe("0.6");
+
+    rerender(
+      <World {...props(scenes)} focus={{ kind: "section", sectionId: "sec-b" }} activeIndex={2} />,
+    );
+    expect(layer().getAttribute("data-room")).toBe("sec-b");
+
+    // The overview is the whole argument at once, in the room the argument stands in.
+    rerender(<World {...props(scenes)} focus={{ kind: "world" }} activeIndex={2} />);
+    expect(layer().getAttribute("data-room")).toBe("show");
+  });
+
+  it("comes in over the room before it, and drops that room once the fade is done", () => {
+    vi.useFakeTimers();
+    try {
+      const scenes = inMovements();
+      const { container, rerender } = render(
+        <World {...props(scenes)} focus={{ kind: "scene", index: 0 }} activeIndex={0} />,
+      );
+      const pictures = () =>
+        [...container.querySelectorAll<HTMLImageElement>("[data-backdrop-picture] img")].map(
+          (img) => [img.getAttribute("data-room-key"), img.classList.contains("room-in")],
+        );
+      // The first room is simply there.
+      expect(pictures()).toEqual([["show", false]]);
+
+      rerender(<World {...props(scenes)} focus={{ kind: "scene", index: 3 }} activeIndex={3} />);
+      // The new room over the old, fading in; the old still under it.
+      expect(pictures()).toEqual([
+        ["show", false],
+        ["sec-b", true],
+      ]);
+
+      // Dropped a little after the fade, never at it — see `useRoomLayers`.
+      act(() => {
+        vi.advanceTimersByTime(ROOM_FADE_MS + 100);
+      });
+      expect(pictures()).toEqual([
+        ["show", false],
+        ["sec-b", true],
+      ]);
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(pictures()).toEqual([["sec-b", true]]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stands in the show's room when the movement has none", () => {
+    const scenes = inMovements();
+    const { container } = render(
+      <World {...props(scenes)} rooms={{}} focus={{ kind: "scene", index: 3 }} activeIndex={3} />,
+    );
+    expect(
+      container.querySelector<HTMLElement>("[data-backdrop-picture]")!.getAttribute("data-room"),
+    ).toBe("show");
+  });
+});
 
 describe("a flight in progress", () => {
   it("keeps flying when something else re-renders the tree", () => {

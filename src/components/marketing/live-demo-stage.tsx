@@ -208,6 +208,7 @@ export function LiveDemoStage() {
           pace={journey.pace}
           depth={journey.depth}
           backdrop={journey.backdrop}
+          rooms={journey.rooms}
           lean
           showPath={journey.showPath && wide}
           className="absolute inset-0"

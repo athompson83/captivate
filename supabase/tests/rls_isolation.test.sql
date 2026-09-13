@@ -765,6 +765,19 @@ update public.presentations
      'url', '/api/assets/dddddddd-0000-0000-0000-000000000003/content',
      'assetId', 'dddddddd-0000-0000-0000-000000000003'))
  where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+-- A movement's own room lives under the movement's id in `journey.rooms`,
+-- a key no fixed path can name; 0034 looks at the whole journey for the id.
+insert into public.assets (id, storage_path, kind, mime_type, byte_size) values
+  ('dddddddd-0000-0000-0000-000000000005',
+   '11111111-1111-1111-1111-111111111111/room-a.png', 'image', 'image/png', 1024);
+insert into storage.objects (bucket_id, name, owner) values
+  ('assets', '11111111-1111-1111-1111-111111111111/room-a.png', '11111111-1111-1111-1111-111111111111');
+update public.presentations
+   set journey = journey || jsonb_build_object('rooms', jsonb_build_object(
+     'eeeeeeee-0000-0000-0000-000000000001', jsonb_build_object(
+       'url', '/api/assets/dddddddd-0000-0000-0000-000000000005/content',
+       'assetId', 'dddddddd-0000-0000-0000-000000000005')))
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
 
 reset role;
 
@@ -854,6 +867,16 @@ update public.presentations
      'url', '/api/assets/dddddddd-0000-0000-0000-000000000004/content',
      'assetId', 'dddddddd-0000-0000-0000-000000000004'))
  where id = 'bbbbbbbb-0000-0000-0000-000000000001';
+-- And a movement's room on it, likewise nobody's.
+insert into public.assets (id, storage_path, kind, mime_type, byte_size) values
+  ('dddddddd-0000-0000-0000-000000000006',
+   '22222222-2222-2222-2222-222222222222/room-b.png', 'image', 'image/png', 1024);
+update public.presentations
+   set journey = journey || jsonb_build_object('rooms', jsonb_build_object(
+     'eeeeeeee-0000-0000-0000-000000000002', jsonb_build_object(
+       'url', '/api/assets/dddddddd-0000-0000-0000-000000000006/content',
+       'assetId', 'dddddddd-0000-0000-0000-000000000006')))
+ where id = 'bbbbbbbb-0000-0000-0000-000000000001';
 reset role;
 
 -- Alice's rows survived all of it.
@@ -888,6 +911,20 @@ select 'shared_asset_backdrop_storage_readable' as check,
 select 'shared_asset_backdrop_unshared_dead' as check,
   (not exists (
      select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000004')
+  ))::int as n;
+-- A movement's own room, under the movement's id in the journey, resolves
+-- on the shared deck and on no other.
+select 'shared_asset_movement_room_resolves' as check,
+  (exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000005')
+      where storage_path = '11111111-1111-1111-1111-111111111111/room-a.png'
+  ))::int as n;
+select 'shared_asset_movement_room_storage_readable' as check,
+  (count(*) = 1)::int as n from storage.objects
+  where bucket_id = 'assets' and name = '11111111-1111-1111-1111-111111111111/room-a.png';
+select 'shared_asset_movement_room_unshared_dead' as check,
+  (not exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000006')
   ))::int as n;
 
 -- …and Bob's deck is not shared at all, so his asset resolves nowhere and its

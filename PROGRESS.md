@@ -150,6 +150,49 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### A room per movement
+
+A talk moves, and the corridor of the first movement is not the ward of the
+third — and the show stood in one room from its first scene to its last.
+Now a movement can stand in a room of its own (`MovementRoom`, kept in
+`JourneyConfig.rooms` by the movement's id, so a movement deleted leaves a
+harmless orphan and a deck from before the field parses to no rooms): the
+show stands in it while the camera is in that movement, on its scenes and
+on its establishing shot, and in the show's room elsewhere and from the
+overview, which is the whole argument at once in the room the argument
+stands in. The change is a crossfade, never a cut (`useRoomLayers` in
+`world.tsx`): the new picture is laid over the old on the same plane and
+fades in over nine tenths of a second (`.room-in`, which a viewer who asked
+for less motion gets at once), and the old is dropped once the fade is
+done, so at most two are ever decoded and the plane never flashes the
+canvas between two rooms. The room's identity is its key and address, and
+the layers follow it in render — the way React asks for state that follows
+a prop — rather than a frame late from an effect. A movement's room brings
+only its picture and the dim and grade that picture wants; the plane, its
+distance and the drawn backdrop are the show's, and the veil the loop lifts
+is that room's dim.
+
+Chosen beside the movement's name in the journey panel ("Give it a room",
+the same asset picker as the show's backdrop, with the show's dim and grade
+to start; "Clear" takes it away). The export stands a movement's scenes in
+its room (`planDeck`'s `roomFor`), and the share resolver reaches a
+movement's room as it reaches the show's: `0034_shared_movement_rooms.sql`
+has both resolvers look at the whole journey for the id — the way a scene's
+references are already found, and a uuid cannot collide with anything else
+in it — instead of the backdrop's fixed path, which no per-movement key
+could satisfy. The migration is applied to production at merge.
+
+Tests in `presentation-schema` (no rooms for a deck from before the field;
+a movement's room keeps its picture, dim and grade and carries no distance),
+`world-render` (the movement's room on its scenes and establishing shot,
+the show's elsewhere and from the overview, with the room's own dim on the
+veil; the new room comes in over the old with the fade and the old is
+dropped once it is done; a movement without one stands in the show's),
+`deck-export` (a movement's scenes in its room at its dim, the rest in the
+show's), and three RLS probes (a movement's room resolves for a link-holder
+on the shared deck and its object is readable; one on an unshared deck is
+nobody's).
+
 ### The room on the deck card
 
 Every place the room is seen — the stage, the export, the share card — and

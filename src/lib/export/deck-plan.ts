@@ -5,6 +5,7 @@ import { resolveColor } from "@/lib/schema/theme";
 import type {
   ColorValue,
   JourneyBackdrop,
+  MovementRoom,
   RichText,
   Scene,
   SceneElement,
@@ -331,7 +332,7 @@ export function planDeck(
   presentation: {
     title: string;
     aspectRatio: string;
-    journey?: { backdrop: JourneyBackdrop };
+    journey?: { backdrop: JourneyBackdrop; rooms?: Record<string, MovementRoom> };
   },
   scenes: readonly Scene[],
   theme: PresentationTheme,
@@ -342,7 +343,16 @@ export function planDeck(
 
   const backdrop = presentation.journey?.backdrop ?? null;
   const room = backdrop?.url ? backdrop : null;
-  if (room && room.grade !== "none") {
+  // A movement's own room stands behind its scenes, as it does on the stage.
+  const movementRooms = presentation.journey?.rooms ?? {};
+  const roomFor = (scene: Scene): MovementRoom | null => {
+    const own = scene.sectionId ? movementRooms[scene.sectionId] : undefined;
+    return own?.url ? own : room;
+  };
+  const graded = [room, ...Object.values(movementRooms)].some(
+    (candidate) => candidate?.url && candidate.grade !== "none",
+  );
+  if (graded) {
     lost.bump(
       "room grade",
       "The room behind the show is exported as shot, with its dim laid over it; the slide has no grade.",
@@ -358,7 +368,9 @@ export function planDeck(
   const ordered = slideOrder(scenes);
   const slideNumberOf = new Map(ordered.map((scene, index) => [scene.id, index + 1]));
 
-  const slides = ordered.map((scene) => planSlide(scene, theme, size, slideNumberOf, lost, room));
+  const slides = ordered.map((scene) =>
+    planSlide(scene, theme, size, slideNumberOf, lost, roomFor(scene)),
+  );
 
   return { aspect, size, slides, omissions: lost.list() };
 }
@@ -369,7 +381,7 @@ function planSlide(
   size: { width: number; height: number },
   slideNumberOf: Map<string, number>,
   lost: Counter,
-  room: JourneyBackdrop | null,
+  room: MovementRoom | null,
 ): PlannedSlide {
   const shapes: PlannedShape[] = [];
   const extraNotes: string[] = [];

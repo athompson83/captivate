@@ -43,6 +43,7 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
   // mounts. Opened on request rather than with the panel, so opening the
   // journey view costs no network call and no half-height picker.
   const [choosingBackdrop, setChoosingBackdrop] = useState(false);
+  const [choosingRoomFor, setChoosingRoomFor] = useState<string | null>(null);
 
   const applyArrangement = (preset: ArrangePreset) => {
     const stage = stageSize(presentation.aspectRatio);
@@ -136,27 +137,106 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
             </h3>
             <p className="text-ink-3 text-[11px] leading-relaxed">
               One word for what each part of the argument does. The room sees these, so it always
-              knows where it is.
+              knows where it is. A movement can stand in a room of its own; the show&apos;s backdrop
+              is the rest.
             </p>
             {sections.map((section, index) => {
               const count = scenes.filter((scene) => scene.sectionId === section.id).length;
+              const room = journey.rooms[section.id];
+              const name = section.label || section.title;
               return (
-                <div key={section.id} className="flex items-center gap-2">
-                  <span className="text-ink-3 w-4 shrink-0 text-[10px] tabular-nums">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <input
-                    value={section.label}
-                    onChange={(e) =>
-                      updateSectionLocal(section.id, { label: e.target.value.slice(0, 24) })
-                    }
-                    placeholder={section.title}
-                    aria-label={`Movement label for ${section.title}`}
-                    className="border-line text-ink placeholder:text-ink-3 focus:border-accent min-w-0 flex-1 rounded-[var(--radius-sm)] border bg-[var(--surface-inset)] px-2 py-1 text-[11.5px] font-medium tracking-wider uppercase outline-none"
-                  />
-                  <span className="text-ink-3 w-8 shrink-0 text-right text-[10px] tabular-nums">
-                    {count}
-                  </span>
+                <div key={section.id} className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-ink-3 w-4 shrink-0 text-[10px] tabular-nums">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <input
+                      value={section.label}
+                      onChange={(e) =>
+                        updateSectionLocal(section.id, { label: e.target.value.slice(0, 24) })
+                      }
+                      placeholder={section.title}
+                      aria-label={`Movement label for ${section.title}`}
+                      className="border-line text-ink placeholder:text-ink-3 focus:border-accent min-w-0 flex-1 rounded-[var(--radius-sm)] border bg-[var(--surface-inset)] px-2 py-1 text-[11.5px] font-medium tracking-wider uppercase outline-none"
+                    />
+                    <span className="text-ink-3 w-8 shrink-0 text-right text-[10px] tabular-nums">
+                      {count}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 pl-6" data-movement-room={section.id}>
+                    {room?.url ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element -- a signed private asset */}
+                        <img
+                          src={room.url}
+                          alt={room.alt}
+                          className="border-line-subtle h-7 w-12 shrink-0 rounded-[var(--radius-sm)] border object-cover"
+                        />
+                        <span className="text-ink-3 min-w-0 flex-1 truncate text-[11px]">
+                          Its own room
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            updatePresentationMeta(
+                              {
+                                journey: {
+                                  ...journey,
+                                  rooms: Object.fromEntries(
+                                    Object.entries(journey.rooms).filter(
+                                      ([id]) => id !== section.id,
+                                    ),
+                                  ),
+                                },
+                              },
+                              { label: `Clear the room of ${name}` },
+                            )
+                          }
+                        >
+                          Clear
+                        </Button>
+                      </>
+                    ) : choosingRoomFor === section.id ? (
+                      <div className="min-w-0 flex-1">
+                        <AssetPicker
+                          kind="image"
+                          currentUrl=""
+                          presentationId={presentationId}
+                          prompt={`A wide, quiet room for the movement "${name}" of ${presentation.title}`}
+                          onSelect={(asset) => {
+                            setChoosingRoomFor(null);
+                            updatePresentationMeta(
+                              {
+                                journey: {
+                                  ...journey,
+                                  rooms: {
+                                    ...journey.rooms,
+                                    [section.id]: {
+                                      url: asset.url,
+                                      assetId: asset.id,
+                                      alt: asset.alt,
+                                      dim: journey.backdrop.dim,
+                                      grade: journey.backdrop.grade,
+                                    },
+                                  },
+                                },
+                              },
+                              { label: `Give ${name} a room` },
+                            );
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setChoosingRoomFor(section.id)}
+                      >
+                        Give it a room
+                      </Button>
+                    )}
+                  </div>
                 </div>
               );
             })}

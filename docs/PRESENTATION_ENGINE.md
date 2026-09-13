@@ -343,6 +343,24 @@ the authored background rather than a veil over the page; a scene's own
 picture covers the room, an empty placeholder shows it through; a bare
 region ignores it, because the world already has the room.
 
+**A room per movement.** A talk moves, and the corridor of the first
+movement is not the ward of the third. A movement given a room of its own
+(`JourneyConfig.rooms`, a `MovementRoom` by the movement's id, chosen
+beside the movement's name in the journey panel) stands in it while the
+camera is in that movement — on its scenes and on its establishing shot —
+and the show's room is the rest, and the overview, which is the whole
+argument at once in the room the argument stands in. The change is a
+crossfade, never a cut (`useRoomLayers`): the new picture is laid over the
+old on the same plane and fades in (`.room-in`, which a viewer who asked
+for less motion gets at once), and the old is dropped once the fade is
+done, so at most two are ever decoded and the plane never flashes the
+canvas between two rooms. The plane, its distance and the drawn backdrop
+are the show's; a movement's room brings only its picture and the dim and
+grade that picture wants, and the veil the loop lifts is that room's dim.
+The export stands a movement's scenes in its room (`planDeck`), and the
+share resolver reaches a movement's room as it reaches the show's
+(`0034_shared_movement_rooms.sql`).
+
 ### Presenting without it
 
 `/present/<id>?plain=1` mounts no WebGL context at all — not paused, not

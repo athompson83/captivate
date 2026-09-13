@@ -24,10 +24,13 @@ import { stageSize } from "@/lib/present/stage";
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const stage = stageSize("16:9");
 
+/** Two movements, one scene each, so a flight can also be a change of room. */
+const MOVEMENTS = [uuid(301), uuid(302)];
+
 const scenes: Scene[] = ["Departure", "Arrival"].map((title, i) => ({
   id: uuid(200 + i),
   presentationId: uuid(1),
-  sectionId: null,
+  sectionId: MOVEMENTS[i],
   position: i,
   title,
   content: parseSceneContent({ layout: "statement", elements: [] }).content,
@@ -53,6 +56,12 @@ const PICTURE =
   "data:image/svg+xml," +
   encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="36"><rect width="64" height="36" fill="#c84"/></svg>',
+  );
+/** The second movement's own room, a different colour so a fade is a fade. */
+const WARD =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="36"><rect width="64" height="36" fill="#48c"/></svg>',
   );
 
 function Fixture({ travel, backdrop }: { travel: "fly" | "cut" | "dissolve"; backdrop?: boolean }) {
@@ -89,6 +98,11 @@ function Fixture({ travel, backdrop }: { travel: "fly" | "cut" | "dissolve"; bac
               grade: "tint",
               graphic: "none",
             }
+          : undefined
+      }
+      rooms={
+        backdrop
+          ? { [MOVEMENTS[1]]: { url: WARD, assetId: null, alt: "", dim: 0.4, grade: "none" } }
           : undefined
       }
       className="absolute inset-0"
