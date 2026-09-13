@@ -116,6 +116,7 @@ export function createElement(type: SceneElementType, at?: { x: number; y: numbe
         radius: 1.5,
         scrim: 0,
         edge: "soft",
+        motion: "auto",
         // The deck's light, by default; "As shot" is one click away for a
         // chart or a screenshot whose own colour is the point.
         grade: "tint",

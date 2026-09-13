@@ -160,7 +160,9 @@ shot: a photograph on a performed scene drifts for 26 s
 (`lib/present/drift.ts`) — closing in on its focal point or panning across,
 from the identity so a landing never jumps, and back in 1.4 s when the camera
 leaves. It is the difference between a slide and a shot, and it is invisible
-as motion: a picture is seen to have moved, never seen moving.
+as motion: a picture is seen to have moved, never seen moving. It is for
+photographs; a screenshot or a logo that drifts reads as a mistake, so the
+author can keep any picture still, or name its shot, from the inspector.
 
 `prefers-reduced-motion` is honoured globally in CSS and again in the stage
 renderer.

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { render, waitFor } from "@testing-library/react";
-import { SceneContent } from "@/lib/schema/presentation";
+import { ImageElement, SceneContent } from "@/lib/schema/presentation";
 import { getTheme } from "@/lib/schema/theme";
 import { Stage } from "@/components/stage/stage";
 import { DRIFT_MS, DRIFT_RETURN_MS } from "@/lib/present/drift";
@@ -98,6 +98,30 @@ describe("a picture that lives", () => {
     expect(img.hasAttribute("data-living")).toBe(false);
     expect(img.style.transform).toBe("none");
     expect(img.style.transition).toContain(`${DRIFT_RETURN_MS}ms`);
+  });
+
+  it("is auto for stored rows that predate the author's choice", () => {
+    const parsed = ImageElement.parse({
+      id: "i1",
+      type: "image",
+      frame: { x: 0, y: 0, w: 50, h: 50, rotation: 0 },
+      url: "",
+    });
+    expect(parsed.motion).toBe("auto");
+    expect(ImageElement.parse({ ...parsed, motion: "still" }).motion).toBe("still");
+  });
+
+  it("never moves a picture the author keeps still, even while performed", async () => {
+    const still = SceneContent.parse({
+      elements: [{ ...shot.elements[0], motion: "still" }],
+    });
+    const { container } = render(
+      <Stage content={still} theme={theme} aspect="16:9" fixedScale={1} play step={0} arrived />,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const img = picture(container);
+    expect(img.hasAttribute("data-living")).toBe(false);
+    expect(img.style.transform).toBe("none");
   });
 
   it("stays exactly where it was put in the editor and a thumbnail", async () => {

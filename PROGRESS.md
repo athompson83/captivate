@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #126 — the MVP-052 closeout and the next round, awaiting
+  `main` after PR #127 — the MVP-053 closeout and the next round, awaiting
   CI, merge and production verification
-- `main`: through PR #126 (merged) — `cdb33eb`; migration
+- `main`: through PR #127 (merged) — `421d930`; migration
   `0034_shared_movement_rooms.sql` applied to production; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -53,6 +53,30 @@
   executable by no role at all.
 
 ## Latest Session
+
+### A still picture when the author says so
+
+A picture that lives is right for a photograph and wrong for everything
+else a picture can be: a screenshot that drifts reads as a mistake, a logo
+that closes in reads as a fault, a chart saved as an image loses its axes'
+register. So a picture now carries its own motion (`ImageMotion` on the
+image element: `auto`, `still`, `in`, `pan`), chosen from the inspector's
+Motion control beside Edge and Grade. `auto` — the default, and what every
+stored row that predates the field parses to — leaves the shot to the
+stage as before; `still` keeps the picture exactly where it was put while
+its scene is performed; `in` and `pan` name the shot rather than leave it
+to the element's id. The stage reads it through `pictureShot`, which
+answers nothing for a still picture, and a still picture is never living:
+no transition, no layer of its own, no `data-living`. The element factory
+and the composed layouts carry the default explicitly, because the
+element type requires the field. `docs/FEATURES.md` and `docs/DESIGN.md`
+say so.
+
+Tests: a still picture's shot is nothing and its style the identity even
+while performing; the author's shot wins over the stage's choice and
+`auto` defers to it; a stored row without the field parses to `auto` and
+`still` round-trips; the stage never gives a still picture the drift while
+its scene is performed. Each fails with the field ignored.
 
 ### A picture that lives
 
@@ -98,6 +122,10 @@ request so the browser has computed the style at rest). Pinned in jsdom
 in the browser (the picture-weight fixture can build its pictures on an
 advance and step; the built picture's computed transform is the identity on
 mount and leaves it after). Both fail with the frame at rest removed.
+
+**Landed and verified.** PR #127 squash-merged as `421d930`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 36 of 37 on the first run, the one failure a proxy `net::ERR_TIMED_OUT` on the mobile accessibility check of `/sign-in` while the session's egress proxy stalled, the route answering `curl` in 0.5 s; re-run 37 of 37.
 
 ### The last of the UX pass: notes, assets, templates, recordings, settings, the create flow
 

@@ -278,6 +278,14 @@ export const ListElement = z.object({
 
 export const ImageFit = z.enum(["cover", "contain", "fill"]);
 
+/**
+ * The shot a picture performs while its scene is on — see
+ * `src/lib/present/drift.ts`. `auto` lets the stage choose between closing
+ * in and panning; `still` is for a picture that must not move: a
+ * screenshot, a logo, a chart saved as an image, a diagram.
+ */
+export const ImageMotion = z.enum(["auto", "still", "in", "pan"]);
+
 export const ImageElement = z.object({
   ...elementBase,
   type: z.literal("image"),
@@ -314,6 +322,13 @@ export const ImageElement = z.object({
    * keep what they had; every composed picture is tinted.
    */
   grade: z.enum(["none", "tint", "duotone"]).default("none"),
+  /**
+   * What the picture does while its scene is performed. A photograph
+   * lives — it closes in on its focal point or pans across — and that is
+   * wrong for a screenshot, a logo or a drawing saved as a picture, which
+   * an author keeps still. Stored rows that predate the field are `auto`.
+   */
+  motion: ImageMotion.default("auto"),
 });
 
 export const VideoElement = z.object({

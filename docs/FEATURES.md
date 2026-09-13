@@ -138,8 +138,10 @@ a chart builds in, and the scenes beside the current one recede. A photograph
 lives while its scene is performed: it closes in on the author's focal point
 or pans across, six percent over half a minute, too slow to be seen moving
 and seen to have moved; it stands still in the editor, in a thumbnail and
-under a reduced-motion preference, and comes back over the flight away. A
-full timeline editor is **deferred** — reliable transitions first.
+under a reduced-motion preference, and comes back over the flight away. The
+inspector's Motion control keeps a picture still — a screenshot, a logo, a
+chart saved as an image — or names the shot. A full timeline editor is
+**deferred** — reliable transitions first.
 
 ---
 
