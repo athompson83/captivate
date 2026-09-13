@@ -162,21 +162,25 @@ from the overview, where nothing is written over it and it is the room the
 show stands in, as it was behind a scene's words.
 
 The dim is now the camera's to lift (`backdropVeil` in
-`lib/present/backdrop.ts`): the author's setting is the veil _on a scene_,
-full until the camera is a little wider than one (`VEIL_NEAR`, 1.4 stage
-widths), easing away as it widens and gone by `VEIL_FAR` (3.5) — or by the
-whole world's own framing where that comes sooner, so a deck of two scenes
-still shows its room whole from the overview, and a deck of one, with
-nothing to pull back to, keeps its veil. Written from the camera loop each
-frame beside the transform, on a `data-backdrop-veil` element the loop owns,
-never through React; the first paint is the author's dim, since the first
-frame is a scene's and a picture at full strength under words for one frame
-is a flash. The journey panel's slider now says "Dim on a scene".
+`lib/present/backdrop.ts`, over a `veilBand`): the author's setting is the
+veil _on a scene_, full until the camera is a little wider than the focused
+scene's own framing (`VEIL_NEAR`, a quarter's slack — measured against the
+scene's framing and not the stage, so a scene an author enlarged in the
+journey map is still a scene with words on it), easing away as it widens
+and gone at the framing the camera is pulling back to — a section's, the
+world's, however near that is — or, while the focus is a scene, a few scene
+framings out (`VEIL_FAR`, 3.5) or the whole world's framing where that
+comes sooner; a deck of one scene, with nothing to pull back to, keeps its
+veil. Written from the camera loop each frame beside the transform, on a
+`data-backdrop-veil` element the loop owns, never through React; the first
+paint is the author's dim, since the first frame is a scene's and a picture
+at full strength under words for one frame is a flash. The journey panel's slider now says "Dim on a scene".
 
 Tests in `backdrop-veil` (the author's dim on a scene and nothing from the
-overview; eased between and never rising; nothing when the author asked
-for none; gone by the world's framing where that comes sooner, kept on a
-deck of one), `world-render` (the veil element at the author's dim on the
+overview; against the scene's own framing, so an enlarged scene keeps its
+dim; gone where the camera is going however near that is; eased between
+and never rising; kept on a deck of one; nothing when the author asked for
+none), `world-render` (the veil element at the author's dim on the
 first frame, inside the picture's layer) and, in a real browser,
 `camera-flight.spec.ts` (mounted with a picture behind two scenes: the veil
 at the author's dim on a scene, and after pulling back to the world every

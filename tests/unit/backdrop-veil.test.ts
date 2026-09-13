@@ -1,52 +1,70 @@
 import { describe, expect, it } from "vitest";
-import { VEIL_FAR, VEIL_NEAR, backdropVeil } from "@/lib/present/backdrop";
-import { FRAME_PADDING } from "@/lib/present/camera";
+import { VEIL_FAR, VEIL_NEAR, backdropVeil, veilBand } from "@/lib/present/backdrop";
 
 /**
  * The veil over the picture behind the show: the author's dim on a scene,
- * lifting as the camera pulls back, gone from the overview.
+ * lifting as the camera pulls back, gone where the camera is going.
  */
 
-const STAGE = 1600;
-/** A world of many scenes: its framing is far wider than the veil's far edge. */
-const WIDE = STAGE * 12;
+/** A scene's framing on a 1600-wide stage, and a world of many of them. */
+const SCENE = 1600 * 1.08;
+const WIDE = 1600 * 12;
 
 describe("the veil over the picture", () => {
   it("is the author's dim on a scene, and nothing from the overview", () => {
-    // On a scene the camera is the stage plus the frame's padding.
-    expect(backdropVeil(STAGE * (1 + FRAME_PADDING), STAGE, WIDE, 0.35)).toBe(0.35);
-    expect(backdropVeil(STAGE * VEIL_NEAR, STAGE, WIDE, 0.35)).toBe(0.35);
-    // The whole world of a dozen scenes is many scene widths across.
-    expect(backdropVeil(STAGE * 8, STAGE, WIDE, 0.35)).toBe(0);
-    expect(backdropVeil(STAGE * VEIL_FAR, STAGE, WIDE, 0.35)).toBe(0);
+    const band = veilBand(SCENE, null, WIDE);
+    expect(backdropVeil(SCENE, band, 0.35)).toBe(0.35);
+    expect(backdropVeil(SCENE * VEIL_NEAR, band, 0.35)).toBe(0.35);
+    expect(backdropVeil(SCENE * VEIL_FAR, band, 0.35)).toBe(0);
+    expect(backdropVeil(SCENE * 8, band, 0.35)).toBe(0);
+  });
+
+  it("measures against the scene's own framing, so an enlarged scene keeps its dim", () => {
+    // Codex, reviewing the PR: a scene resized to three times its size in
+    // the journey map is framed three times as wide, and measured against
+    // the stage it had lost its veil while words were still on it.
+    const big = veilBand(SCENE * 3.2, null, WIDE);
+    expect(backdropVeil(SCENE * 3.2, big, 0.4)).toBe(0.4);
+    expect(backdropVeil(SCENE * 3.2 * VEIL_FAR, big, 0.4)).toBe(0);
+  });
+
+  it("is gone where the camera is going when it pulls back, however near that is", () => {
+    // A section of two scenes frames well under a few scene widths; the
+    // promise is that the section view is unveiled when the camera lands.
+    const section = SCENE * 2.1;
+    const band = veilBand(SCENE, section, WIDE);
+    expect(backdropVeil(section, band, 0.4)).toBe(0);
+    expect(backdropVeil(SCENE, band, 0.4)).toBe(0.4);
+    // The world of a two-scene deck, likewise.
+    const two = SCENE * 2.16 * 1.12;
+    expect(backdropVeil(two, veilBand(SCENE, two, two), 0.4)).toBe(0);
   });
 
   it("eases between the two as the camera widens, never rising again", () => {
+    const band = veilBand(SCENE, null, WIDE);
     let previous = Infinity;
     for (let zoom = 1; zoom <= 5; zoom += 0.1) {
-      const veil = backdropVeil(STAGE * zoom, STAGE, WIDE, 0.5);
+      const veil = backdropVeil(SCENE * zoom, band, 0.5);
       expect(veil).toBeLessThanOrEqual(previous);
       expect(veil).toBeGreaterThanOrEqual(0);
       previous = veil;
     }
-    const mid = backdropVeil(STAGE * ((VEIL_NEAR + VEIL_FAR) / 2), STAGE, WIDE, 0.5);
-    expect(mid).toBeCloseTo(0.25, 2);
+    expect(backdropVeil((band.near + band.far) / 2, band, 0.5)).toBeCloseTo(0.25, 2);
+  });
+
+  it("keeps its veil on a deck of one scene, whose world is its scene", () => {
+    const one = SCENE * (1.12 / 1.08);
+    const band = veilBand(SCENE, null, one);
+    expect(band.far).toBeGreaterThan(band.near);
+    expect(backdropVeil(one, band, 0.4)).toBe(0.4);
+    // And when the destination is that world.
+    expect(backdropVeil(one, veilBand(SCENE, one, one), 0.4)).toBe(0.4);
   });
 
   it("is nothing when the author asked for no dim, whatever the camera", () => {
-    expect(backdropVeil(STAGE, STAGE, WIDE, 0)).toBe(0);
-    expect(backdropVeil(STAGE * 10, STAGE, WIDE, 0)).toBe(0);
-    expect(backdropVeil(STAGE, 0, WIDE, 0.4)).toBe(0);
-  });
-
-  it("is gone by the whole world's framing where that comes sooner than a few scene widths", () => {
-    // A deck of two scenes side by side is not three and a half scene
-    // widths across; from its overview the room is still seen whole.
-    const two = STAGE * 2.16 * 1.12;
-    expect(backdropVeil(two, STAGE, two, 0.4)).toBe(0);
-    expect(backdropVeil(STAGE * (1 + FRAME_PADDING), STAGE, two, 0.4)).toBe(0.4);
-    // A deck of one scene has nothing to pull back to, and keeps its veil.
-    const one = STAGE * 1.12;
-    expect(backdropVeil(one, STAGE, one, 0.4)).toBe(0.4);
+    const band = veilBand(SCENE, null, WIDE);
+    expect(backdropVeil(SCENE, band, 0)).toBe(0);
+    expect(backdropVeil(SCENE * 10, band, 0)).toBe(0);
+    expect(backdropVeil(SCENE, veilBand(0, null, WIDE), 0.4)).toBe(0);
   });
 });

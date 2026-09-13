@@ -26,6 +26,7 @@ import {
   worldTransform,
   type Camera,
   type Size,
+  FRAME_PADDING,
 } from "@/lib/present/camera";
 import { smoothPath } from "@/lib/present/path";
 import {
@@ -34,6 +35,7 @@ import {
   backdropTransform,
   backdropVeil,
   drawnBackdropTransform,
+  veilBand,
 } from "@/lib/present/backdrop";
 import { graphicBackdrop } from "@/lib/present/graphic-backdrop";
 import { regionParallax } from "@/lib/present/parallax";
@@ -376,11 +378,17 @@ export const World = memo(function World({
   const backdropDistance = backdrop?.distance ?? 0.5;
   const backdropDim = backdrop?.dim ?? 0;
   const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
-  // The whole world's framing, which is where the veil is gone by — see `backdropVeil`.
-  const worldFraming = useMemo(
-    () => frameRect(worldBounds, aspectRatio, 0.12).width,
-    [worldBounds, aspectRatio],
-  );
+  // The band the veil over the picture eases over — see `veilBand`: full at
+  // the focused scene's own framing, gone at the destination the camera is
+  // pulling back to, or a few scene framings out while the focus is a scene.
+  const veil = useMemo(() => {
+    const active = placements[activeIndex];
+    const sceneFraming = active
+      ? frameScene(active, stage, aspectRatio).width
+      : stage.width * (1 + FRAME_PADDING);
+    const worldFraming = frameRect(worldBounds, aspectRatio, 0.12).width;
+    return veilBand(sceneFraming, focus.kind === "scene" ? null : target.width, worldFraming);
+  }, [placements, activeIndex, stage, aspectRatio, worldBounds, focus.kind, target.width]);
   // The viewport's own aspect, not the inset one: the picture covers the
   // whole screen, rail included.
   const plane = useMemo(
@@ -440,9 +448,7 @@ export const World = memo(function World({
       // The veil over it: full on a scene, gone from the overview. The
       // camera's own width, not the leaned room's — a lean is not a zoom.
       if (veilRef.current) {
-        veilRef.current.style.opacity = String(
-          backdropVeil(camera.width, stage.width, worldFraming, backdropDim),
-        );
+        veilRef.current.style.opacity = String(backdropVeil(camera.width, veil, backdropDim));
       }
 
       // The drawn one moves on its own, translate-only transform.
@@ -607,7 +613,7 @@ export const World = memo(function World({
     plane,
     backdropDistance,
     backdropDim,
-    worldFraming,
+    veil,
     play,
     lean,
     aspectRatio,
