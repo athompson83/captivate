@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import { Copy, MoreHorizontal, Pencil, Play, Printer, Star, Trash2 } from "lucide-react";
 import type { PresentationSummary } from "@/lib/data/presentations";
-import type { SceneContent } from "@/lib/schema/presentation";
+import type { JourneyBackdrop, SceneContent } from "@/lib/schema/presentation";
 import { getTheme } from "@/lib/schema/theme";
 import { StageThumbnail } from "@/components/stage/stage";
 import { Popover, MenuItem } from "@/components/ui/misc";
@@ -107,6 +107,7 @@ export function PresentationCard({
               content={preview}
               themeId={presentation.themeId}
               aspect={presentation.aspectRatio}
+              room={presentation.journey.backdrop}
             />
           </div>
         ) : (
@@ -258,10 +259,13 @@ function StageThumbnailFill({
   content,
   themeId,
   aspect,
+  room,
 }: {
   content: SceneContent;
   themeId: string;
   aspect: PresentationSummary["aspectRatio"];
+  /** The deck's room, so the card shows its first scene standing in it. */
+  room: JourneyBackdrop;
 }) {
   const [width, setWidth] = useState(0);
   const theme = getTheme(themeId);
@@ -277,7 +281,7 @@ function StageThumbnailFill({
   return (
     <div ref={measureRef} className="absolute inset-0">
       {width > 0 && (
-        <StageThumbnail content={content} theme={theme} aspect={aspect} width={width} />
+        <StageThumbnail content={content} theme={theme} aspect={aspect} width={width} room={room} />
       )}
     </div>
   );

@@ -178,6 +178,95 @@ describe("stage rendering", () => {
   });
 });
 
+describe("a card standing in the room", () => {
+  const room = {
+    url: "/api/assets/0f3c2a9e-1b2c-4d5e-8f90-a1b2c3d4e5f6/content",
+    assetId: "0f3c2a9e-1b2c-4d5e-8f90-a1b2c3d4e5f6",
+    alt: "",
+    distance: 0.5,
+    dim: 0.4,
+    grade: "tint" as const,
+    graphic: "aurora" as const,
+  };
+  const content = composeScene("bullets", { heading: "Shock", bullets: ["First hour"] });
+
+  it("paints the deck's room under a card, graded, with the scene's background as the veil", () => {
+    // A thumbnail stood on the theme's canvas as if the deck had no room:
+    // the one picture that says where the talk stands was the one thing the
+    // deck's card did not show.
+    const { container } = render(
+      <Stage content={content} theme={theme} aspect="16:9" fixedScale={1} room={room} />,
+    );
+    const picture = container.querySelector<HTMLImageElement>("img[data-room]");
+    expect(picture).not.toBeNull();
+    expect(picture!.getAttribute("src")).toBe(room.url);
+    expect(picture!.style.filter).toMatch(/^url\("?#room-grade-/);
+    const veil = container.querySelector<HTMLElement>("[data-room-veil]");
+    expect(veil).not.toBeNull();
+    expect(veil!.style.opacity).toBe("0.4");
+    // The words are painted after the room.
+    expect(picture!.compareDocumentPosition(screen.getByText("Shock"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("carries no veil at dim zero and no filter as shot", () => {
+    const { container } = render(
+      <Stage
+        content={content}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        room={{ ...room, dim: 0, grade: "none" }}
+      />,
+    );
+    const picture = container.querySelector<HTMLImageElement>("img[data-room]");
+    expect(picture).not.toBeNull();
+    expect(picture!.style.filter).toBe("");
+    expect(container.querySelector("[data-room-veil]")).toBeNull();
+  });
+
+  it("leaves the room to the world on a bare region, and to a scene's own picture", () => {
+    const bare = render(
+      <Stage
+        content={content}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        surface="bare"
+        room={room}
+      />,
+    );
+    expect(bare.container.querySelector("img[data-room]")).toBeNull();
+    bare.unmount();
+
+    const own = SceneContent.parse({
+      ...content,
+      background: { kind: "image", url: "https://example.com/own.jpg", alt: "" },
+    });
+    const { container } = render(
+      <Stage content={own} theme={theme} aspect="16:9" fixedScale={1} room={room} />,
+    );
+    expect(container.querySelector("img[data-room]")).toBeNull();
+    expect(container.querySelector('img[src="https://example.com/own.jpg"]')).not.toBeNull();
+  });
+
+  it("stands on the canvas as before when the deck has no room", () => {
+    const { container } = render(
+      <Stage
+        content={content}
+        theme={theme}
+        aspect="16:9"
+        fixedScale={1}
+        room={{ ...room, url: "" }}
+      />,
+    );
+    expect(container.querySelector("img[data-room]")).toBeNull();
+    const stage = container.querySelector<HTMLElement>("[data-stage]");
+    expect(stage!.style.background).not.toBe("");
+  });
+});
+
 describe("text auto-fit", () => {
   /** Reads back the font size the stage actually applied to an element. */
   function fontSizeOf(el: Element | null): number {
