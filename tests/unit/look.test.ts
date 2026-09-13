@@ -160,3 +160,54 @@ describe("what the review found", () => {
     expect(generate).toContain("pictureBrief(prompt, look, paletteWords(getTheme(deck.theme_id)))");
   });
 });
+
+describe("a room from stock", () => {
+  const service = readFileSync("src/lib/ai/service.ts", "utf8");
+  const deckRoute = readFileSync("src/app/api/ai/scenes-from-map/route.ts", "utf8");
+  const createRoute = readFileSync("src/app/api/ai/create-from-map/route.ts", "utf8");
+
+  it("asks the writer for the place's search words, defaulted so an older answer still parses", () => {
+    expect(service).toContain("The room: write \\`roomQuery\\`");
+    const parsed = GeneratedScenes.parse({
+      scenes: [{ layout: "title", heading: "A" }],
+      look: "Documentary, dusk.",
+    });
+    expect(parsed.roomQuery).toBe("");
+    expect(
+      GeneratedScenes.parse({
+        scenes: [{ layout: "title", heading: "A" }],
+        roomQuery: "hospital corridor night",
+      }).roomQuery,
+    ).toBe("hospital corridor night");
+  });
+
+  it("finds the room in stock where it cannot be made, from the writer's words and never the title", () => {
+    const room = service.slice(service.indexOf("export async function dressRoom"));
+    // The made room first; the found one only when that is not possible.
+    expect(room).toMatch(/const made = await generateRoom\(/);
+    expect(room).toMatch(
+      /if \(made\) return made;\s*return roomFromStock\(roomQuery, presentationId, alt\);/,
+    );
+    const found = room.slice(
+      room.indexOf("async function roomFromStock"),
+      room.indexOf("export async function buildSingleScene"),
+    );
+    expect(found).toContain("if (!query || !isStockSearchConfigured()) return null;");
+    expect(found).toContain(
+      'fillWithStockPhoto(query, "", presentationId, { slotAspect: 16 / 9 })',
+    );
+    expect(found).not.toContain("title");
+    // A photograph has detail a made room was told not to: dimmed a little more.
+    expect(found).toContain("dim: 0.55");
+    expect(room.slice(0, room.indexOf("async function roomFromStock"))).toContain("dim: 0.5 }");
+  });
+
+  it("is handed the writer's words by both deck routes", () => {
+    expect(createRoute).toContain("roomQuery: built.data.roomQuery");
+    expect(deckRoute).toContain("roomQuery: result.data.roomQuery");
+    expect(service).toContain("const roomQuery = result.data.roomQuery.trim();");
+    expect(service).toMatch(
+      /return \{ ok: true, data: \{ source: "model", scenes, look, roomQuery \} \};/,
+    );
+  });
+});

@@ -11,10 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #113 — the MVP-039 closeout, and the picture behind the
-  show veiled on a scene and unveiled as the camera pulls back, awaiting
-  CI, merge and production verification
-- `main`: through PR #113 (merged) — `b454e65`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #114 — the MVP-040 closeout, and a room found in stock
+  where it cannot be made, awaiting CI, merge and production verification
+- `main`: through PR #114 (merged) — `ddee69e`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -151,6 +150,32 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### A room found in stock
+
+The picture behind the whole show — now veiled on a scene and whole from
+the overview — was only ever there on a deployment with an image key
+(`dressRoom` makes it to the look) or where an author chose one. On this
+deployment, which has a stock key and no image key, every generated deck
+stood in front of a drawn room. Now the room is _found_ where it cannot be
+made: the writer gives a `roomQuery` alongside the look — two to five plain
+search words for one wide photograph of the place the talk stands in, an
+environment and never a subject or a person, with nothing in the middle —
+and the same stock search, choice and re-hosting that fills a scene
+(`fillWithStockPhoto`) fills the room from it, far back and dimmed a little
+more than a made room (0.55 against 0.5) because a photograph has detail a
+made room was told not to. The title is never searched on its own: it
+returns the subject of the talk rather than somewhere for it to stand. A
+deck with neither key, or with nothing found, keeps its drawn room.
+
+`dressRoom` is now the made room first (`generateRoom`, unchanged: the
+budget gate, the deadline that aborts the provider call) and the found room
+only when that is not possible; both deck routes hand the writer's words
+on, and an older answer without them still parses to the drawn room.
+
+Tests in `look` (the brief asks for the words and the schema defaults them;
+the made room first and the found one from the writer's words, never the
+title, at its own dim; both routes hand the words on).
+
 ### The room seen whole
 
 The owner, continuing the brief: consider "an image that is the background
@@ -185,6 +210,19 @@ first frame, inside the picture's layer) and, in a real browser,
 `camera-flight.spec.ts` (mounted with a picture behind two scenes: the veil
 at the author's dim on a scene, and after pulling back to the world every
 frame's value never rising and the last one nothing).
+
+**Landed and verified.** PR #114 squash-merged as `ddee69e`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 37 of 37 on the first run. Codex found one real thing on
+the PR, fixed before merge: the veil measured the camera against the
+unscaled stage, so a scene an author had enlarged in the journey map lost
+its dim while words were still on it, and a section of one or two scenes
+stayed dimmed on a view the change promised to unveil — the band the veil
+eases over is now built from the focus (`veilBand`): full at the focused
+scene's own framing, gone at the framing the camera is pulling back to,
+however near that is, or a few scene framings out while the focus is a
+scene; the regressions cover a scene framed three times wide, a section of
+two, and a deck of one.
 
 ### Lettered by the same hand
 

@@ -162,6 +162,11 @@ export const GeneratedScenes = z.object({
   scenes: z.array(GeneratedScene).min(1).max(24),
   /** The deck's visual direction, one sentence for every picture. */
   look: z.string().max(400).default(""),
+  /**
+   * A few plain search words for one wide photograph of the place the show
+   * stands in, for a deployment that cannot make one — see `dressRoom`.
+   */
+  roomQuery: z.string().max(80).default(""),
 });
 
 /**
