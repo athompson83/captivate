@@ -142,7 +142,8 @@ captivate/
 │  │  ├─ marketing/                The hero's world and flight path; the
 │  │  │                            worked example as a deck the landing
 │  │  │                            page's live demo (and a browser test) walks;
-│  │  │                            the share card a link unfurls as
+│  │  │                            the share card a link unfurls as, and the
+│  │  │                            room fetched for it under a deadline
 │  │  ├─ templates/registry.ts     Six curated templates
 │  │  └─ utils/                    cn, formatting, OKLab/WCAG colour, embed
 │  │                               sandboxing

@@ -247,7 +247,13 @@ own card — the product's name where the presentation's should be. Now the
 viewer route serves the deck's card: its title in its own theme, the shape of
 the thing beneath (scenes and movements), resolved through the same function
 the viewer uses, so a revoked link unfurls as the generic card and a card can
-never show what a link-holder would not see.
+never show what a link-holder would not see. A deck with a room behind the
+whole show unfurls standing in it: the picture whole across the card, veiled
+by the theme's canvas at the author's dim as the stage veils it on a scene,
+and the canvas rising behind the words so they read over any photograph. The
+room is fetched under a short deadline (`roomForCard`) because a chat is
+waiting on the unfurl, and a room that does not arrive in time, or is not a
+picture the rasteriser draws, leaves the card as it was — never an error.
 
 **A mouse is a hand too.** On the shared viewer and the landing page's demo,
 moving the pointer over the world leans what is behind the scene — the

@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #116 — the MVP-042 closeout, and the room in the export,
+  `main` after PR #117 — the MVP-043 closeout, and the room on the card,
   awaiting CI, merge and production verification
-- `main`: through PR #116 (merged) — `934f98a`; PR #94 (`01437d0`) fixed the four defects the owner
+- `main`: through PR #117 (merged) — `9c69f05`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -150,6 +150,36 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### The room on the card
+
+A share link unfurls as the deck's own card — its title in its own theme,
+the shape of the thing beneath — and a deck with a room behind the whole
+show unfurled as a flat card in the theme's colour: the one picture that
+says what the talk stands in was the one thing the card did not carry. Now
+the card stands in the room (`shareCard`, `room`): the picture whole
+across the card, under the theme's canvas at the author's dim — the veil
+the stage draws on a scene, since a card is read up close — with the canvas
+rising behind the words so they read over any photograph. Satori has no
+colour matrix, so the room is as shot under the deck's canvas rather than
+graded to it. The room's layers sit against an unpadded root, because Satori
+lays an absolute child out from its parent's padding edge and the first
+render had the picture starting eighty pixels in, a photograph in a frame.
+
+The picture is fetched by the route, not left to Satori (`roomForCard`,
+`lib/marketing/share-room.ts`): an unfurl is a chat waiting, so the room is
+fetched under a two-and-a-half-second deadline and handed over as bytes,
+and a room that does not arrive in time — or is not a JPEG or PNG, or is
+larger than a card has any use for, or is not an `https` address — is
+simply not on the card. The card without its room is the card every deck
+had until now, never an error.
+
+Tests in `share-card` (the room on the card at the author's dim, painted
+before the words; no room, no picture; the route fetches through
+`roomForCard`) and `share-room` (a picture as a data URI of its own type;
+the wrong type, a missing, empty or oversized picture, a non-`https`
+address and a failed fetch all mean no room; a room that never arrives is
+given up on at the deadline).
+
 ### The room in the export
 
 The room behind the show is now real on every deck — made, found or drawn,
@@ -173,6 +203,17 @@ Tests in `deck-export` (the room behind every slide with the canvas veil at
 the author's dim and the words in front; no veil at dim zero; a scene's own
 picture in front; the as-shot and drawn-room omissions counted once; no
 journey, no change) — the three that assert the room fail without the change.
+
+**Landed and verified.** PR #117 squash-merged as `9c69f05`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 36 of 37 on the first run, the one failure a proxy `net::ERR_TIMED_OUT` on `/update-password` that re-ran green with the route answering in 0.49 s. Codex found two real things before the merge,
+both fixed with regressions that fail without the fix: every planned
+rectangle was written as PowerPoint's `roundRect`, so the veil left the
+room undimmed at each corner (`geometryOf` now names the preset — a
+rectangle with no radius is a true `rect`); and a scene whose background
+was an image with no picture in it yet kept its empty address in front of
+the room, losing the room and keeping the veil (an empty address is no
+picture, as the stage treats it).
 
 ### The room graded to the deck
 
