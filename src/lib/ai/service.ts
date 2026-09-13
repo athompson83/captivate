@@ -773,6 +773,13 @@ async function dressScenes(
 export const ROOM_BUDGET_MS = 75_000;
 /** Below this there is not enough time to make one and keep it. */
 const ROOM_MIN_MS = 20_000;
+/**
+ * The least a found room may be started with: a search of up to twelve
+ * seconds, a download of up to twenty, then storage. Less than that and the
+ * room could outlive what the route has left, and a deck written in full
+ * would be left marked as generating.
+ */
+const ROOM_STOCK_MIN_MS = 45_000;
 
 /**
  * The room a deck stands in: one picture behind the whole show.
@@ -805,9 +812,14 @@ export async function dressRoom({
   budgetMs?: number;
 }): Promise<{ url: string; assetId: string; alt: string; distance: number; dim: number } | null> {
   const alt = `The room behind ${title.trim() || "the presentation"}`;
-  const made = await generateRoom({ title, look, themeId, presentationId, budgetMs, alt });
+  const budget = Math.min(ROOM_BUDGET_MS, budgetMs);
+  const started = Date.now();
+  const made = await generateRoom({ title, look, themeId, presentationId, budgetMs: budget, alt });
   if (made) return made;
-  return roomFromStock(roomQuery, presentationId, alt);
+  // The found room gets what the made one left, never more than the route
+  // had: a search after a slow generation is a search past the deadline.
+  const left = budget - (Date.now() - started);
+  return roomFromStock(roomQuery, presentationId, alt, left);
 }
 
 /** The made room: one generated picture, or null where that is not possible. */
@@ -853,10 +865,15 @@ async function roomFromStock(
   roomQuery: string,
   presentationId: string,
   alt: string,
+  budgetMs: number,
 ): Promise<{ url: string; assetId: string; alt: string; distance: number; dim: number } | null> {
   const query = roomQuery.trim();
   if (!query || !isStockSearchConfigured()) return null;
-  const found = await fillWithStockPhoto(query, "", presentationId, { slotAspect: 16 / 9 });
+  if (budgetMs < ROOM_STOCK_MIN_MS) return null;
+  const found = await fillWithStockPhoto(query, "", presentationId, {
+    slotAspect: 16 / 9,
+    deadline: Date.now() + budgetMs,
+  });
   if (!found) return null;
   return {
     url: found.url,

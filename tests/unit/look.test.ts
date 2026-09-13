@@ -185,17 +185,18 @@ describe("a room from stock", () => {
     const room = service.slice(service.indexOf("export async function dressRoom"));
     // The made room first; the found one only when that is not possible.
     expect(room).toMatch(/const made = await generateRoom\(/);
-    expect(room).toMatch(
-      /if \(made\) return made;\s*return roomFromStock\(roomQuery, presentationId, alt\);/,
-    );
+    expect(room).toMatch(/if \(made\) return made;/);
+    // Codex, reviewing the PR: the found room gets what the made one left,
+    // never more than the route had, and is not started on too little.
+    expect(room).toContain("const left = budget - (Date.now() - started);");
+    expect(room).toContain("return roomFromStock(roomQuery, presentationId, alt, left);");
     const found = room.slice(
       room.indexOf("async function roomFromStock"),
       room.indexOf("export async function buildSingleScene"),
     );
     expect(found).toContain("if (!query || !isStockSearchConfigured()) return null;");
-    expect(found).toContain(
-      'fillWithStockPhoto(query, "", presentationId, { slotAspect: 16 / 9 })',
-    );
+    expect(found).toContain("if (budgetMs < ROOM_STOCK_MIN_MS) return null;");
+    expect(found).toContain("deadline: Date.now() + budgetMs,");
     expect(found).not.toContain("title");
     // A photograph has detail a made room was told not to: dimmed a little more.
     expect(found).toContain("dim: 0.55");

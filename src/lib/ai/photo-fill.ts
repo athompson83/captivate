@@ -45,6 +45,13 @@ export interface StockFillOptions {
    * photograph does not arrive on two scenes. Mutated as pictures are chosen.
    */
   taken?: Set<string>;
+  /**
+   * When the caller stops waiting, as a clock time. The search has its own
+   * twelve-second timeout and the download its twenty; checked between them,
+   * so a deadline that passes during the search stores nothing, and the most
+   * a caller can overrun by is one of the two.
+   */
+  deadline?: number;
 }
 
 /**
@@ -65,9 +72,12 @@ export async function fillWithStockPhoto(
   if (!isStockSearchConfigured()) return null;
   const term = query.trim() || fallbackPrompt.trim();
   if (!term) return null;
+  const late = () => options.deadline !== undefined && Date.now() >= options.deadline;
+  if (late()) return null;
 
   const found = await searchStockPhotos(term);
   if (!found.ok || found.data.length === 0) return null;
+  if (late()) return null;
 
   const photo = chooseStockPhoto(found.data, {
     slotAspect: options.slotAspect,
