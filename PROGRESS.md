@@ -54,6 +54,31 @@
 
 ## Latest Session
 
+### The dashboard in a real browser
+
+The dashboard (`/presentations`) is the first thing a signed-in person
+sees and, being behind sign-in and a Supabase project, had only ever been
+rendered in jsdom. Two stand-ins make it mountable server-free: the
+fixture bundler now aliases `next/navigation` to a shim whose hooks read a
+pathname the fixture sets and record pushes rather than following them,
+and `next/image` to a plain picture (the real one reads `process.env` at
+module load and threw before any fixture code ran); it also inlines the
+site module's Vercel keys and the support address.
+`tests/e2e/fixtures/dashboard-mount.tsx` mounts `AppShell` around
+`PresentationsLibrary` with four decks and their first scenes, and
+`tests/e2e/dashboard.spec.ts` (lifecycle) drives it at a phone and a
+desktop. Read at a phone, a tablet held upright and a desktop:
+
+- **The cards ran past a phone's window.** The library's two grids left
+  their one column implicit below `lg` and `sm`, and an implicit column is
+  sized to its widest content: at 390px the cards' right edges were cut
+  and the folders beside them. Both grids now name the column
+  (`grid-cols-1`, which may shrink).
+- The navigation drawer on a phone, the sidebar and the three-across grid
+  on a desktop, and the tablet's one column all read well.
+
+`docs/DESIGN.md` ("Responsive") says what the library now does.
+
 ### The presenter console in a real browser
 
 The console (`/present/[id]/console`) is the second window — notes,
