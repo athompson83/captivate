@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #116 — the MVP-042 closeout, and the room in the export,
+  `main` after PR #117 — the MVP-043 closeout, and the room on the card,
   awaiting CI, merge and production verification
-- `main`: through PR #116 (merged) — `934f98a`; PR #94 (`01437d0`) fixed the four defects the owner
+- `main`: through PR #117 (merged) — `9c69f05`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -203,6 +203,17 @@ Tests in `deck-export` (the room behind every slide with the canvas veil at
 the author's dim and the words in front; no veil at dim zero; a scene's own
 picture in front; the as-shot and drawn-room omissions counted once; no
 journey, no change) — the three that assert the room fail without the change.
+
+**Landed and verified.** PR #117 squash-merged as `9c69f05`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 36 of 37 on the first run, the one failure a proxy `net::ERR_TIMED_OUT` on `/update-password` that re-ran green with the route answering in 0.49 s. Codex found two real things before the merge,
+both fixed with regressions that fail without the fix: every planned
+rectangle was written as PowerPoint's `roundRect`, so the veil left the
+room undimmed at each corner (`geometryOf` now names the preset — a
+rectangle with no radius is a true `rect`); and a scene whose background
+was an image with no picture in it yet kept its empty address in front of
+the room, losing the room and keeping the veil (an empty address is no
+picture, as the stage treats it).
 
 ### The room graded to the deck
 
