@@ -627,6 +627,15 @@ body {
 /* ------------------------------------------------------------------------- */
 
 @layer base {
+  /* The next-movement signpost lifts clear of the presenter bar by the
+     bar's own measure. In a recording the bar is outside the capture and
+     the signpost inside it, so the lift would be a jump the video could
+     not explain: a declaration on the signpost itself outranks what it
+     inherits from the stage root. */
+  [data-recording] [data-signpost] {
+    --presenter-bar: 0px;
+  }
+
   .marketing {
     /* Midnight, on the brand's hue rather than a violet-leaning purple-black. */
     --sky-ground: oklch(0.145 0.055 265);

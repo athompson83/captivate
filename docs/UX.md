@@ -104,7 +104,10 @@ not exist.
 While it is up it says how much of the bottom it takes (a custom property
 on the stage, written from a `ResizeObserver`), and the next-movement
 signpost, which stands at the bottom centre too, lifts clear of it and
-settles back when it goes. On a phone the bar wraps into two rows inside the
+settles back when it goes — except while a recording runs: the bar is
+outside the capture and the signpost inside it, so the recorder marks the
+stage and the signpost stays put rather than jumping in the video for no
+reason the video shows. On a phone the bar wraps into two rows inside the
 window rather than running off both sides of it: at 390px the one row was
 560px wide, centred, so the counter and the arrows were lost off the left
 and the exit off the right (`tests/e2e/presenter-stage.spec.ts`, which

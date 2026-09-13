@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getCaptureSurface,
+  markRecording,
   restrictCaptureToSurface,
   setCaptureSurface,
 } from "@/lib/record/capture-surface";
@@ -77,6 +78,24 @@ describe("restrictCaptureToSurface", () => {
     expect(await restrictCaptureToSurface(trackStream("browser", restrictTo))).toBe("tab");
     // The undo: a half-applied restriction must not blank the recording.
     expect(calls[calls.length - 1]).toBeNull();
+  });
+
+  it("marks the stage root while a recording runs, and only then", () => {
+    const root = document.createElement("div");
+    root.setAttribute("data-stage-root", "");
+    const el = document.createElement("div");
+    root.appendChild(el);
+    setCaptureSurface(el);
+
+    markRecording(true);
+    expect(root.hasAttribute("data-recording")).toBe(true);
+    markRecording(false);
+    expect(root.hasAttribute("data-recording")).toBe(false);
+
+    // A surface outside any stage root is nobody's to mark.
+    setCaptureSurface(document.createElement("div"));
+    markRecording(true);
+    expect(document.querySelector("[data-recording]")).toBeNull();
   });
 
   it("clears the registry through the same ref callback that fills it", () => {

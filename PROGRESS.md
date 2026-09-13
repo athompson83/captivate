@@ -75,7 +75,12 @@ fails without the fix:
   custom property on the stage root, written from a `ResizeObserver` in a
   ref callback rather than state, because the bar's height is the layout's
   to say and it wraps on a phone — and the signpost lifts clear of it
-  while it is up and settles back when it goes.
+  while it is up and settles back when it goes. Not in a recording (Codex):
+  the bar is outside the Element Capture subtree and the signpost inside
+  it, so the lift was a jump in the video with nothing in frame to explain
+  it; the recorder marks the stage root (`markRecording`,
+  `capture-surface.ts`) and a declaration on the signpost itself
+  (`globals.css`) outranks the lift it would inherit.
 - The tests mount without the WebGL air (`plain`, a real presenter
   option): under the software renderer CI has, the air made every round
   trip to the page a second long and the bar's 2.6 s ran out between two

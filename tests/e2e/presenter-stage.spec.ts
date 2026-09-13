@@ -113,6 +113,33 @@ test.describe("the presenter stage", () => {
       .toBeGreaterThan(s!.y + 30);
   });
 
+  test("a recording keeps the signpost where it is", async ({ page }) => {
+    await open(page, 1440, 900);
+    const signpost = page.locator("[data-signpost=next]");
+    for (let i = 0; i < 8 && (await signpost.count()) === 0; i++) {
+      await page.keyboard.press("ArrowRight");
+      await page.waitForTimeout(700);
+    }
+    await expect(signpost).toHaveCount(1);
+
+    // The mark the recorder puts on the stage while it runs. The bar is
+    // outside the capture and the signpost inside it, so a lift here would
+    // be a jump in the video with nothing in frame to explain it.
+    await page.evaluate(() =>
+      document.querySelector("[data-stage-root]")?.setAttribute("data-recording", ""),
+    );
+    // Read the resting position once the bar the stage mounted with has
+    // gone and the signpost has settled, then summon the bar again.
+    const bar = page.getByRole("toolbar", { name: "Presenter controls" });
+    await expect(bar).toBeHidden({ timeout: 8_000 });
+    await page.waitForTimeout(400);
+    const before = (await signpost.boundingBox())!.y;
+    await showBar(page, 1440, 900);
+    await page.waitForTimeout(600);
+    await expect(bar).toBeVisible();
+    expect(Math.abs((await signpost.boundingBox())!.y - before)).toBeLessThan(1);
+  });
+
   test("the audience window has no bar to lose", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.goto(await fixtureUrl());
