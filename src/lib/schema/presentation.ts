@@ -738,9 +738,10 @@ export type JourneyBackdrop = z.infer<typeof JourneyBackdrop>;
  * corridor of the first movement is not the ward of the third. A movement
  * given a room of its own stands in it while the camera is in that
  * movement — on its scenes and on its establishing shot — and the show's
- * room is the rest. Keyed by the movement's id in `JourneyConfig.rooms`,
- * so a movement deleted leaves a harmless orphan and a deck from before
- * the field parses to no rooms. The plane, its distance and the drawn
+ * room is the rest. Keyed by the movement's id in `JourneyConfig.rooms`;
+ * deleting the movement takes its room with it, the share resolver serves
+ * a room only under a key that is still a movement of the deck, and a deck
+ * from before the field parses to no rooms. The plane, its distance and the drawn
  * backdrop are the show's; a movement's room brings only its picture and
  * the dim and grade that picture wants.
  */

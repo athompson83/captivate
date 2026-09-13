@@ -766,17 +766,24 @@ update public.presentations
      'assetId', 'dddddddd-0000-0000-0000-000000000003'))
  where id = 'aaaaaaaa-0000-0000-0000-000000000001';
 -- A movement's own room lives under the movement's id in `journey.rooms`,
--- a key no fixed path can name; 0034 looks at the whole journey for the id.
+-- a key no fixed path can name; 0034 looks there for every movement the
+-- deck still has. A room under a key that is no movement of the deck — one
+-- whose movement was deleted — is nobody's.
 insert into public.assets (id, storage_path, kind, mime_type, byte_size) values
   ('dddddddd-0000-0000-0000-000000000005',
-   '11111111-1111-1111-1111-111111111111/room-a.png', 'image', 'image/png', 1024);
+   '11111111-1111-1111-1111-111111111111/room-a.png', 'image', 'image/png', 1024),
+  ('dddddddd-0000-0000-0000-000000000007',
+   '11111111-1111-1111-1111-111111111111/room-gone.png', 'image', 'image/png', 1024);
 insert into storage.objects (bucket_id, name, owner) values
   ('assets', '11111111-1111-1111-1111-111111111111/room-a.png', '11111111-1111-1111-1111-111111111111');
 update public.presentations
    set journey = journey || jsonb_build_object('rooms', jsonb_build_object(
-     'eeeeeeee-0000-0000-0000-000000000001', jsonb_build_object(
+     'aaaaaaaa-0000-0000-0000-00000000000a', jsonb_build_object(
        'url', '/api/assets/dddddddd-0000-0000-0000-000000000005/content',
-       'assetId', 'dddddddd-0000-0000-0000-000000000005')))
+       'assetId', 'dddddddd-0000-0000-0000-000000000005'),
+     'eeeeeeee-0000-0000-0000-000000000009', jsonb_build_object(
+       'url', '/api/assets/dddddddd-0000-0000-0000-000000000007/content',
+       'assetId', 'dddddddd-0000-0000-0000-000000000007')))
  where id = 'aaaaaaaa-0000-0000-0000-000000000001';
 
 reset role;
@@ -925,6 +932,12 @@ select 'shared_asset_movement_room_storage_readable' as check,
 select 'shared_asset_movement_room_unshared_dead' as check,
   (not exists (
      select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000006')
+  ))::int as n;
+-- Codex, reviewing the PR: a room whose movement is gone must not go on
+-- resolving for a link-holder who once saw it.
+select 'shared_asset_movement_room_orphan_dead' as check,
+  (not exists (
+     select 1 from public.captivate_shared_asset('dddddddd-0000-0000-0000-000000000007')
   ))::int as n;
 
 -- …and Bob's deck is not shared at all, so his asset resolves nowhere and its

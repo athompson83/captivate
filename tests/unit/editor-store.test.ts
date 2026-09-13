@@ -9,6 +9,7 @@ import {
   removeElements,
   removeScene,
   reorderElement,
+  removeSection,
   updatePresentationMeta,
   updateSceneMeta,
   useEditor,
@@ -130,6 +131,51 @@ describe("mutations mark work dirty", () => {
 
     useEditor.getState().undo();
 
+    expect(useEditor.getState().dirtyPresentation).toBe(true);
+  });
+});
+
+describe("a movement's room", () => {
+  it("goes with the movement when it is deleted, marked dirty, and comes back on undo", () => {
+    // Codex, reviewing the PR: a room left under a deleted movement's id was a
+    // picture nothing could show or remove. Pruned here; the share resolver
+    // would not serve it either.
+    const section = "eeeeeeee-0000-0000-0000-000000000001";
+    const document = makeDocument(2);
+    document.sections = [
+      {
+        id: section,
+        presentationId: document.presentation.id,
+        title: "Roadside",
+        label: "Roadside",
+        purpose: "",
+        position: 0,
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+    ];
+    document.presentation.journey = {
+      ...JOURNEY_DEFAULTS,
+      rooms: {
+        [section]: {
+          url: "/api/assets/dddddddd-0000-0000-0000-000000000005/content",
+          assetId: "dddddddd-0000-0000-0000-000000000005",
+          alt: "",
+          dim: 0.4,
+          grade: "tint",
+        },
+      },
+    };
+    useEditor.getState().init(document);
+
+    removeSection(section);
+    expect(useEditor.getState().document.presentation.journey.rooms).toEqual({});
+    expect(useEditor.getState().dirtyPresentation).toBe(true);
+
+    useEditor.getState().undo();
+    expect(Object.keys(useEditor.getState().document.presentation.journey.rooms)).toEqual([
+      section,
+    ]);
     expect(useEditor.getState().dirtyPresentation).toBe(true);
   });
 });

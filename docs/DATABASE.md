@@ -201,11 +201,11 @@ A shared deck's pictures resolve through `captivate_shared_asset(uuid)` and
 while a currently shared, undeleted presentation refers to it — in a scene's
 content, or in the journey. Migration `0016` looked in scenes, `0030` added
 the journey's backdrop by its exact path, and `0034_shared_movement_rooms.sql`
-looks at the whole journey for the id instead, because a movement's own room
-lives under a key that is the movement's id (`journey.rooms.<section id>`),
-which no fixed path can name. A uuid is specific enough that a substring
-match on the journey cannot collide with anything else in it, which is
-already how a scene's references are found.
+adds a movement's own room, which lives under a key that is the movement's
+id (`journey.rooms.<section id>`): a room resolves only under a key that
+is still a section of that presentation, so a room whose movement was
+deleted is nobody's and a link-holder who once saw it cannot go on fetching
+it by its id. The RLS suite asserts the orphan is dead.
 
 ## Remote sessions
 

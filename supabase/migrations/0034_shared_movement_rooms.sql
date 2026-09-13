@@ -4,12 +4,12 @@
 -- a picture per movement (`journey.rooms.<section id>.assetId`). 0030 taught
 -- the shared-asset resolvers to look at the show's backdrop by its exact
 -- path in the journey; a movement's room lives under a key that is the
--- movement's id, which no fixed path can name. The journey is JSONB, and a
--- uuid is specific enough that a substring match on the whole of it cannot
--- collide with anything else in it — which is already how a scene's
--- references are found — so both resolvers look at the journey the way they
--- look at a scene: for the id, anywhere in it. This covers the show's
--- backdrop too, so the fixed path goes.
+-- movement's id, which no fixed path can name — but which the deck's own
+-- sections do. So both resolvers look at the backdrop as before, and at a
+-- room only under a key that is still a movement of that presentation: a
+-- room whose movement was deleted is nobody's, and a link-holder who once
+-- saw it cannot go on fetching it by its id (Codex, reviewing the PR, on a
+-- first draft that matched the id anywhere in the journey).
 
 create or replace function public.captivate_shared_asset(p_asset_id uuid)
 returns table(storage_path text, mime_type text)
@@ -35,7 +35,15 @@ as $$
         from public.presentations p
         where p.share_token is not null
           and p.deleted_at is null
-          and p.journey::text like '%' || p_asset_id::text || '%'
+          and (
+            p.journey #>> '{backdrop,assetId}' = p_asset_id::text
+            or exists (
+              select 1
+              from public.sections s
+              where s.presentation_id = p.id
+                and p.journey #>> array['rooms', s.id::text, 'assetId'] = p_asset_id::text
+            )
+          )
       )
     );
 $$;
@@ -68,7 +76,15 @@ as $$
           from public.presentations p
           where p.share_token is not null
             and p.deleted_at is null
-            and p.journey::text like '%' || a.id::text || '%'
+            and (
+              p.journey #>> '{backdrop,assetId}' = a.id::text
+              or exists (
+                select 1
+                from public.sections s
+                where s.presentation_id = p.id
+                  and p.journey #>> array['rooms', s.id::text, 'assetId'] = a.id::text
+              )
+            )
         )
       )
   );

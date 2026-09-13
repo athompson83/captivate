@@ -351,14 +351,21 @@ camera is in that movement — on its scenes and on its establishing shot —
 and the show's room is the rest, and the overview, which is the whole
 argument at once in the room the argument stands in. The change is a
 crossfade, never a cut (`useRoomLayers`): the new picture is laid over the
-old on the same plane and fades in (`.room-in`, which a viewer who asked
-for less motion gets at once), and the old is dropped once the fade is
-done, so at most two are ever decoded and the plane never flashes the
-canvas between two rooms. The plane, its distance and the drawn backdrop
-are the show's; a movement's room brings only its picture and the dim and
-grade that picture wants, and the veil the loop lifts is that room's dim.
-The export stands a movement's scenes in its room (`planDeck`), and the
-share resolver reaches a movement's room as it reaches the show's
+old on the same plane — or over the drawn backdrop, which stays built
+under a transition — and fades in (`.room-in`, which a viewer who asked
+for less motion gets at once) once its bitmap has arrived and never
+before, so a slow private-asset request cannot spend the fade on pixels
+that are not there; the old is dropped a little after the fade is done, so
+at most two are ever decoded and the plane never flashes the canvas
+between two rooms; a picture that never arrives leaves the room before it
+standing; and leaving for no room at all fades the picture out
+(`.room-out`) over the drawn backdrop rather than cutting to it. The
+plane, its distance and the drawn backdrop are the show's; a movement's
+room brings only its picture and the dim and grade that picture wants, and
+the veil the loop lifts is that room's dim. Deleting a movement takes its
+room with it. The export stands a movement's scenes in its room
+(`planDeck`), and the share resolver serves a movement's room as it serves
+the show's — only under a key that is still a movement of the deck
 (`0034_shared_movement_rooms.sql`).
 
 ### Presenting without it
