@@ -54,6 +54,30 @@
 
 ## Latest Session
 
+### The presenter console in a real browser
+
+The console (`/present/[id]/console`) is the second window — notes,
+timers, the next scene — and behind sign-in like the stage, so it had only
+ever been rendered in jsdom. `tests/e2e/fixtures/presenter-console-mount.tsx`
+mounts `PresenterConsole` with the worked example, given speaker notes and
+a lecture note so the notes pane has something to show, and
+`tests/e2e/presenter-console.spec.ts` (lifecycle) drives it at a phone and
+a desktop. Read at a phone, a tablet held upright, a laptop and a desktop:
+
+- **The whole console was wider than a phone.** The root grid's one
+  column was implicit (`auto`), so the header's one unwrapping row — title,
+  stage badge, captions, timers, close — set the console's width: 600px in
+  a 390px window, every pane cut at the window's edge, the notes clipped
+  mid-sentence, the timers and the close button off the screen. The
+  column is now explicit and may shrink (`minmax(0,1fr)`), and the header
+  wraps: the timers and the close button stand together at the end of the
+  row, and on a phone on a row of their own, still at the right.
+- The tablet, laptop and desktop read well: the two-column layout above
+  `lg`, one column below it, the filmstrip scrolling sideways by design.
+
+`docs/UX.md` ("The console works alone") says what the console now does
+with the window it is given.
+
 ### The presenter stage in a real browser
 
 The stage (`/present/[id]`) is behind sign-in and a Supabase project, so
