@@ -13,7 +13,9 @@
  * and a departure comes back from wherever the picture had got to, rather
  * than from a keyframe's idea of where it should be. The drift starts from
  * the identity, so a landing never jumps; it is undone in a second and a
- * half, over the flight away.
+ * half, over the flight away. The renderer gives every picture one frame at
+ * rest before applying it, because a transition set as an element's first
+ * style never runs — a picture built on an advance mounts mid-performance.
  */
 
 /** How far a picture closes in, as a scale. */

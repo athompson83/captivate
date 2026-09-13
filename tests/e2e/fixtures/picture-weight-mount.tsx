@@ -64,7 +64,10 @@ async function photograph(seed: number): Promise<string> {
   return URL.createObjectURL(blob);
 }
 
-async function deck(count: number): Promise<{
+async function deck(
+  count: number,
+  onAdvance = false,
+): Promise<{
   scenes: Scene[];
   placements: ReturnType<typeof place>;
 }> {
@@ -87,6 +90,9 @@ async function deck(count: number): Promise<{
             url,
             alt: `Photograph ${i + 1}`,
             fit: "cover",
+            // Built on an advance, for the picture-drift spec: the picture
+            // then mounts while its scene is already being performed.
+            animation: { onAdvance },
           },
         ],
       }).content,
@@ -112,10 +118,12 @@ const place = (count: number) =>
 
 function Fixture({ scenes, placements }: Awaited<ReturnType<typeof deck>>) {
   const [focus, setFocus] = useState<Focus>({ kind: "scene", index: 0 });
+  const [step, setStep] = useState(0);
   const goto = useCallback((index: number) => setFocus({ kind: "scene", index }), []);
 
   useEffect(() => {
     window.goToScene = goto;
+    window.setStep = setStep;
   }, [goto]);
 
   return (
@@ -126,7 +134,7 @@ function Fixture({ scenes, placements }: Awaited<ReturnType<typeof deck>>) {
       aspect="16:9"
       focus={focus}
       activeIndex={focus.kind === "scene" ? focus.index : 0}
-      step={0}
+      step={step}
       play
       travel="cut"
       pace={JOURNEY_DEFAULTS.pace}
@@ -154,11 +162,12 @@ function reading() {
 declare global {
   interface Window {
     pictureWeight: {
-      mount: (count: number) => Promise<void>;
+      mount: (count: number, options?: { onAdvance?: boolean }) => Promise<void>;
       /** Walks the deck, returning the worst reading seen along the way. */
       walk: (count: number) => Promise<ReturnType<typeof reading> & { at: number }>;
     };
     goToScene: (index: number) => void;
+    setStep: (step: number) => void;
   }
 }
 
@@ -170,8 +179,8 @@ const settle = () =>
   });
 
 window.pictureWeight = {
-  async mount(count: number) {
-    const made = await deck(count);
+  async mount(count: number, { onAdvance = false } = {}) {
+    const made = await deck(count, onAdvance);
     const host = document.createElement("div");
     // An iPhone in portrait with the address bar showing: the viewport the
     // reports come from, not a desktop one.

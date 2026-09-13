@@ -88,6 +88,17 @@ scene's stays put, leaving brings the first back and sets the second off,
 and under reduced motion nothing moves. Each shown to fail with the drift
 disabled.
 
+Codex, on the first draft: a picture built on an advance mounts while its
+scene is already being performed, and a transition set as an element's
+first style never runs — it would simply have appeared closed in, never
+having moved. Every picture now renders its first frame at the identity
+and takes the drift on the one after (`LivingPicture`, a double frame
+request so the browser has computed the style at rest). Pinned in jsdom
+(the built picture's first render is the identity, the drift follows) and
+in the browser (the picture-weight fixture can build its pictures on an
+advance and step; the built picture's computed transform is the identity on
+mount and leaves it after). Both fail with the frame at rest removed.
+
 ### The last of the UX pass: notes, assets, templates, recordings, settings, the create flow
 
 With the navigation and image stand-ins in place every signed-in surface

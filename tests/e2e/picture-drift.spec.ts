@@ -66,6 +66,25 @@ test.describe("a picture that lives", () => {
       .toBeGreaterThan(1.001);
   });
 
+  test("a picture built on an advance still drifts from the identity", async ({ page }) => {
+    // It mounts while its scene is already being performed. A transition
+    // set as an element's first style never runs, so without a frame at
+    // rest the picture would simply appear closed in (Codex).
+    await page.goto(await fixtureUrl());
+    await page.evaluate(() => window.pictureWeight.mount(2, { onAdvance: true }));
+    await page.waitForSelector("[data-stage]");
+    expect(await page.locator('img[alt="Photograph 1"]').count()).toBe(0);
+
+    await page.evaluate(() => window.setStep(1));
+    await page.waitForSelector('img[alt="Photograph 1"]');
+    // The first frames are at the identity, not the destination.
+    expect(await scaleOf(page, "Photograph 1")).toBeLessThan(1.005);
+    await expect
+      .poll(() => scaleOf(page, "Photograph 1"), { timeout: 10_000 })
+      .toBeGreaterThan(1.001);
+    expect(await scaleOf(page, "Photograph 1")).toBeLessThan(1.06);
+  });
+
   test("under a reduced-motion preference the picture is simply still", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(await fixtureUrl());
