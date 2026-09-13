@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #118 — the MVP-044 closeout, and the room on the deck
-  card, awaiting CI, merge and production verification
-- `main`: through PR #118 (merged) — `fc24caa`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #119 — the MVP-045 closeout and the next round, awaiting
+  CI, merge and production verification
+- `main`: through PR #119 (merged) — `2c302f6`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -179,6 +179,11 @@ region and a scene's own picture leave it out; no room, the canvas as
 before) and `card-room` (the deck card shows its first scene standing in
 the deck's room; on the canvas when the deck has none). The three that
 assert the room fail without the change.
+
+**Landed and verified.** PR #119 squash-merged as `2c302f6`, all six CI
+jobs green on the head; Codex's two findings fixed before merge as above.
+The proxied smoke suite against `www.axtevi.com` after the deploy:
+37 of 37 on the first run.
 
 ### The room on the card
 
