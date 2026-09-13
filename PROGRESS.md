@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #115 — the MVP-041 closeout, and the room graded to the
-  deck, awaiting CI, merge and production verification
-- `main`: through PR #115 (merged) — `d4b4bda`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #116 — the MVP-042 closeout, and the room in the export,
+  awaiting CI, merge and production verification
+- `main`: through PR #116 (merged) — `934f98a`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -192,6 +192,12 @@ than a filter that does nothing.
 Tests in `world-render` (the room's picture carries a filter whose colour
 matrix is the theme's tint; as shot carries none; a stored backdrop parses
 to tint).
+
+**Landed and verified.** PR #116 squash-merged as `934f98a`, all six CI
+jobs green on the head; Codex's review completed with no findings. The
+proxied smoke suite against `www.axtevi.com` after the deploy: 36 of 37 on
+the first run, the one failure a proxy `net::ERR_TIMED_OUT` on `/sign-in`
+that re-ran green with the route answering in 0.34 s.
 
 ### A room found in stock
 
