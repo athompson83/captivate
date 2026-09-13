@@ -311,9 +311,15 @@ once per document to cover the viewport at the widest framing the camera can
 take (`backdropPlane`), anchored on the world's centre, and moved from the
 same loop as the world (`backdropTransform`, which is `worldTransform` with
 the depth added to the camera's width). It is dimmed toward the theme's canvas
-so the scenes' text stays legible over it. One for the show, not one per
-scene: a scene's own background is a region's atmosphere, and this is the room
-the regions are in.
+so the scenes' text stays legible over it — and the dim is the camera's to
+lift (`backdropVeil`): the author's setting is the veil _on a scene_, full
+until the camera is a little wider than one, easing away as it widens and
+gone by a few scene widths, so from the overview and while a section is
+being established the picture is there whole, the room the show stands in,
+and on a scene it is a quiet wall behind the words. Written from the camera
+loop each frame beside the transform, never through React. One for the
+show, not one per scene: a scene's own background is a region's atmosphere,
+and this is the room the regions are in.
 
 ### Presenting without it
 

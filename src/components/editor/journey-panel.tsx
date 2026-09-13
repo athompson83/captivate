@@ -245,7 +245,7 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
                 />
               </div>
               <Slider
-                label="Dim"
+                label="Dim on a scene"
                 value={journey.backdrop.dim}
                 min={0}
                 max={0.9}

@@ -32,6 +32,7 @@ import {
   backdropLayer,
   backdropPlane,
   backdropTransform,
+  backdropVeil,
   drawnBackdropTransform,
 } from "@/lib/present/backdrop";
 import { graphicBackdrop } from "@/lib/present/graphic-backdrop";
@@ -219,6 +220,8 @@ export const World = memo(function World({
   const worldRef = useRef<HTMLDivElement>(null);
   /** The picture behind the show, moved from the same loop as the world. */
   const backdropRef = useRef<HTMLDivElement>(null);
+  /** The veil over the picture, lifted as the camera pulls back — see `backdropVeil`. */
+  const veilRef = useRef<HTMLDivElement>(null);
   /** The drawn backdrop, which translates rather than scaling — see `drawnBackdropTransform`. */
   const drawnRef = useRef<HTMLDivElement>(null);
   /** The full-viewport wash whose colour tracks where the camera is. */
@@ -371,7 +374,13 @@ export const World = memo(function World({
     [picture, backdrop?.graphic, basePalette],
   );
   const backdropDistance = backdrop?.distance ?? 0.5;
+  const backdropDim = backdrop?.dim ?? 0;
   const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
+  // The whole world's framing, which is where the veil is gone by — see `backdropVeil`.
+  const worldFraming = useMemo(
+    () => frameRect(worldBounds, aspectRatio, 0.12).width,
+    [worldBounds, aspectRatio],
+  );
   // The viewport's own aspect, not the inset one: the picture covers the
   // whole screen, rail included.
   const plane = useMemo(
@@ -425,6 +434,14 @@ export const World = memo(function World({
           plane,
           stage,
           backdropDistance,
+        );
+      }
+
+      // The veil over it: full on a scene, gone from the overview. The
+      // camera's own width, not the leaned room's — a lean is not a zoom.
+      if (veilRef.current) {
+        veilRef.current.style.opacity = String(
+          backdropVeil(camera.width, stage.width, worldFraming, backdropDim),
         );
       }
 
@@ -589,6 +606,8 @@ export const World = memo(function World({
     basePalette,
     plane,
     backdropDistance,
+    backdropDim,
+    worldFraming,
     play,
     lean,
     aspectRatio,
@@ -852,10 +871,15 @@ export const World = memo(function World({
           />
           {backdrop.dim > 0 && (
             <div
+              ref={veilRef}
+              data-backdrop-veil
               style={{
                 position: "absolute",
                 inset: 0,
                 background: theme.tokens.canvas,
+                // On a scene until the loop says otherwise: the first frame
+                // is a scene's, and a picture at full strength under words
+                // for one frame is a flash.
                 opacity: backdrop.dim,
               }}
             />

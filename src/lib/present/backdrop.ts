@@ -92,6 +92,43 @@ export function backdropPlane(
 }
 
 /**
+ * The veil over the picture, by how close the camera is.
+ *
+ * A picture behind the whole show is the room the show stands in, and a room
+ * is seen whole when the camera pulls back: from the overview, or while a
+ * section is being established, the picture should be there at its full
+ * strength. On a scene it is a wall behind words, and words over a
+ * photograph need the photograph quieter — so the author's `dim` is the
+ * veil *on a scene*, and it lifts as the camera widens, gone by the time the
+ * frame holds a few scenes. Between the two it eases, so a flight out of a
+ * scene lets the room come up rather than switching it on.
+ *
+ * Measured against the stage: on a scene the camera is a little wider than
+ * the stage (`FRAME_PADDING`), so the veil is full to `VEIL_NEAR` stage
+ * widths and gone by `VEIL_FAR` — or by the whole world's own framing where
+ * that comes sooner, so a deck of two scenes still shows its room whole from
+ * the overview; a deck of one has nothing to pull back to, and keeps its
+ * veil. Pure, and written from the camera loop each frame like the
+ * transform beside it.
+ */
+export const VEIL_NEAR = 1.4;
+export const VEIL_FAR = 3.5;
+
+export function backdropVeil(
+  cameraWidth: number,
+  sceneWidth: number,
+  worldWidth: number,
+  dim: number,
+): number {
+  if (!(dim > 0) || !(sceneWidth > 0)) return 0;
+  const near = sceneWidth * VEIL_NEAR;
+  const far = Math.max(near * 1.15, Math.min(worldWidth, sceneWidth * VEIL_FAR));
+  const t = Math.min(1, Math.max(0, (cameraWidth - near) / (far - near)));
+  const eased = t * t * (3 - 2 * t);
+  return Math.round(dim * (1 - eased) * 1000) / 1000;
+}
+
+/**
  * How far past each edge of the viewport the drawn backdrop's layer reaches,
  * as a fraction of the viewport.
  *

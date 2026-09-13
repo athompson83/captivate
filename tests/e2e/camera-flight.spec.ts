@@ -94,4 +94,54 @@ test.describe("the camera", () => {
     expect(seen.length, `transforms written:\n${seen.join("\n")}`).toBe(2);
     expect(centreX(seen[1])).toBeCloseTo(arrival, 3);
   });
+
+  test("lifts the veil off the picture behind the show as it pulls back to the world", async ({
+    page,
+  }) => {
+    // The picture is the room the show stands in: quiet behind a scene's
+    // words, whole from the overview. The veil is written from the camera
+    // loop, so only a browser can see it move.
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto(await fixtureUrl());
+    await page.evaluate(() => window.cameraFixture.mount("fly", true));
+    await page.waitForSelector("[data-backdrop-veil]", { state: "attached" });
+    await page.waitForFunction(() =>
+      Boolean((document.querySelector("[data-world]") as HTMLElement)?.style.transform),
+    );
+    const onScene = await page.evaluate(
+      () => (document.querySelector("[data-backdrop-veil]") as HTMLElement).style.opacity,
+    );
+    expect(Number(onScene)).toBeCloseTo(0.4, 5);
+
+    const seen = await page.evaluate(async () => {
+      const veil = document.querySelector("[data-backdrop-veil]") as HTMLElement;
+      const values: number[] = [];
+      const read = () => {
+        const v = Number(veil.style.opacity);
+        if (values[values.length - 1] !== v) values.push(v);
+      };
+      read();
+      window.pullBack();
+      const deadline = performance.now() + 3000;
+      await new Promise<void>((resolve) => {
+        const tick = () => {
+          read();
+          if (performance.now() >= deadline) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+      return values;
+    });
+    const trace = `veil: ${seen.join(", ")}`;
+    expect(seen[0], trace).toBeCloseTo(0.4, 5);
+    expect(seen[seen.length - 1], trace).toBe(0);
+    // Never back up. The easing between the two is the unit test's claim:
+    // a world of two scenes is small enough that the camera's rise can cross
+    // the whole band inside a frame.
+    expect(
+      seen.every((v, i) => i === 0 || v <= seen[i - 1]),
+      trace,
+    ).toBe(true);
+  });
 });

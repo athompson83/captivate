@@ -521,6 +521,26 @@ describe("the backdrop", () => {
     expect(layer!.compareDocumentPosition(world) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("veils the picture at the author's dim on the first frame, from an element the loop can lift", () => {
+    // The veil is written from the camera loop — full on a scene, gone from
+    // the overview — but the first paint is a scene's, and a picture at full
+    // strength under words for one frame is a flash.
+    const { container } = renderWorld(3, {
+      backdrop: {
+        url: "/api/assets/abc/content",
+        assetId: "abc",
+        alt: "a hall",
+        distance: 0.5,
+        dim: 0.4,
+        graphic: "none" as const,
+      },
+    });
+    const veil = container.querySelector<HTMLElement>("[data-backdrop-veil]")!;
+    expect(veil).not.toBeNull();
+    expect(veil.style.opacity).toBe("0.4");
+    expect(container.querySelector("[data-backdrop]")!.contains(veil)).toBe(true);
+  });
+
   it("paints nothing when the picture was removed", () => {
     const { container } = renderWorld(3, {
       backdrop: {
