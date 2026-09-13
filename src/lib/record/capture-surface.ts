@@ -21,6 +21,21 @@ export function getCaptureSurface(): HTMLElement | null {
   return surface;
 }
 
+/**
+ * Marks the stage while a recording runs (`data-recording` on the stage
+ * root the surface sits in), for anything in the captured subtree whose
+ * geometry otherwise follows presenter chrome. The next-movement signpost
+ * lifts clear of the presenter bar; the bar is outside the capture, so in a
+ * recording the signpost jumped for no reason the video showed (Codex,
+ * reviewing the lift). Under this mark it stays put.
+ */
+export function markRecording(recording: boolean): void {
+  const root = surface?.closest<HTMLElement>("[data-stage-root]") ?? null;
+  if (!root) return;
+  if (recording) root.setAttribute("data-recording", "");
+  else root.removeAttribute("data-recording");
+}
+
 /** What ends up in the file. `element` is the stage subtree alone. */
 export type CaptureMode = "element" | "tab" | "screen";
 

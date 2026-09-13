@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #121 — the MVP-047 closeout and the UX pass, awaiting
+  `main` after PR #122 — the MVP-048 closeout and the next round, awaiting
   CI, merge and production verification
-- `main`: through PR #121 (merged) — `ab7b2c0`; migration
+- `main`: through PR #122 (merged) — `3042a69`; migration
   `0034_shared_movement_rooms.sql` applied to production; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -53,6 +53,41 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The presenter stage in a real browser
+
+The stage (`/present/[id]`) is behind sign-in and a Supabase project, so
+the presenter's own surface — the bar, the signpost, the rail, the frames
+the camera lands on — had only ever been rendered in jsdom, where nothing
+has a width. `tests/e2e/fixtures/presenter-mount.tsx` mounts `PresentRoot`
+with the worked example exactly as the route does after `forAudience`, and
+`tests/e2e/presenter-stage.spec.ts` (lifecycle) drives it at a phone, a
+phone held sideways and a desktop. What read wrong, fixed with a test that
+fails without the fix:
+
+- **The bar ran off both sides of a phone.** One row, 560px wide and
+  centred, so at 390px the counter and the arrows were lost off the left
+  and the exit off the right, and the jumper could not be tapped at all.
+  It wraps into two rows inside the window instead (`max-w`, `flex-wrap`),
+  and the counter no longer breaks across "3 /" and "11".
+- **The next-movement signpost stood behind the bar.** Both sit at the
+  bottom centre. The bar now says how much of the bottom it takes — a
+  custom property on the stage root, written from a `ResizeObserver` in a
+  ref callback rather than state, because the bar's height is the layout's
+  to say and it wraps on a phone — and the signpost lifts clear of it
+  while it is up and settles back when it goes. Not in a recording (Codex):
+  the bar is outside the Element Capture subtree and the signpost inside
+  it, so the lift was a jump in the video with nothing in frame to explain
+  it; the recorder marks the stage root (`markRecording`,
+  `capture-surface.ts`) and a declaration on the signpost itself
+  (`globals.css`) outranks the lift it would inherit.
+- The tests mount without the WebGL air (`plain`, a real presenter
+  option): under the software renderer CI has, the air made every round
+  trip to the page a second long and the bar's 2.6 s ran out between two
+  steps of a test. Nothing measured is the air's.
+
+`docs/UX.md` ("The presenter bar hides itself") says what the bar now
+does.
 
 ### The editor in a real browser, at every width
 
@@ -105,6 +140,14 @@ fails without the fix, all in `tests/e2e/editor-narrow.spec.ts`:
 
 `docs/DESIGN.md` (the responsive rules) and `docs/UX.md` (the phone) say
 what the editor now does.
+
+**Landed and verified.** Codex's one finding fixed before merge: keyed to
+the phone breakpoint alone, the AI dock was still a 320px column at
+768–1023px beside a 272px one, so its overlay now keys to the compact
+breakpoint with the navigator, and the tablet test opens it beside the
+inspector's column. PR #122 squash-merged as `3042a69`, all six CI jobs
+green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 37 of 37 on the first run.
 
 ### A deck with a look
 

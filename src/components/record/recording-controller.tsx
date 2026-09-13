@@ -30,6 +30,7 @@ import {
   type RecorderResult,
 } from "@/lib/record/recorder";
 import type { CameraBackground } from "@/lib/media/segmentation";
+import { markRecording } from "@/lib/record/capture-surface";
 import type { CameraFeedSettings } from "@/components/present/presenter-camera";
 import { transcriptSupported } from "@/lib/record/transcript";
 import { CAPTION_POLL_MS, tailOf } from "@/lib/present/captions";
@@ -391,6 +392,13 @@ export function RecordingController({
   };
 
   const recording = phase === "recording" || phase === "paused";
+
+  // The captured composition must not follow presenter chrome while a
+  // recording runs; the stage reads this mark.
+  useEffect(() => {
+    markRecording(recording);
+    return () => markRecording(false);
+  }, [recording]);
 
   if (!support.supported) {
     return (

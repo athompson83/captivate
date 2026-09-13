@@ -207,7 +207,11 @@ export function MovementSignpost({
 
   return (
     <div
-      className="pointer-events-none absolute inset-x-0 bottom-[3.4vh] z-10 text-center"
+      data-signpost={kind}
+      className="pointer-events-none absolute inset-x-0 z-10 text-center transition-[bottom] duration-200"
+      // Clear of the presenter bar while it is up: the bar says how much of
+      // the bottom it takes, and nothing while it is hidden.
+      style={{ bottom: "calc(3.4vh + var(--presenter-bar, 0px))" }}
       aria-hidden
     >
       <p className="text-[10px] font-medium tracking-[0.2em] text-[var(--stage-accent)] uppercase">

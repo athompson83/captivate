@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Camera,
@@ -96,11 +96,30 @@ export function PresenterBar({
   const hasAnnotations =
     session.annotations.strokes.length > 0 || session.annotations.highlights.length > 0;
 
+  // How much of the bottom the bar takes, as a custom property on the stage,
+  // for whatever else stands there: the next-movement signpost sat behind
+  // the bar at the bottom centre. Written from a ResizeObserver rather than
+  // state, because the bar wraps to two rows on a phone and its height is
+  // the layout's to say; cleared when the bar goes.
+  const measure = useCallback((node: HTMLDivElement | null) => {
+    const stage = node?.closest<HTMLElement>("[data-stage-root]") ?? null;
+    if (!node || !stage) return;
+    const write = () => stage.style.setProperty("--presenter-bar", `${node.offsetHeight + 20}px`);
+    write();
+    const observer = new ResizeObserver(write);
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      stage.style.removeProperty("--presenter-bar");
+    };
+  }, []);
+
   return (
     <>
       <AnimatePresence>
         {visible && (
           <motion.div
+            ref={measure}
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
@@ -108,7 +127,11 @@ export function PresenterBar({
             role="toolbar"
             aria-label="Presenter controls"
             onClick={(e) => e.stopPropagation()}
-            className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/12 bg-black/72 px-2 py-1.5 text-white shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-md"
+            // Wraps within the window rather than running off both sides of
+            // it: at 390px the one row was 560px wide, centred, so the
+            // counter and the arrows were lost off the left and the exit off
+            // the right.
+            className="absolute bottom-5 left-1/2 z-30 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-[22px] border border-white/12 bg-black/72 px-2 py-1.5 text-white shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-md"
           >
             <BarButton
               label="Previous"
@@ -121,7 +144,7 @@ export function PresenterBar({
 
             <button
               onClick={() => setJumperOpen(true)}
-              className="rounded-full px-2.5 py-1 text-[12px] text-white/85 tabular-nums transition-colors hover:bg-white/10"
+              className="rounded-full px-2.5 py-1 text-[12px] whitespace-nowrap text-white/85 tabular-nums transition-colors hover:bg-white/10"
               aria-label="Jump to a scene"
             >
               {session.sceneIndex + 1} / {scenes.length}
