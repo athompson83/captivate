@@ -865,8 +865,19 @@ export function removeSection(sectionId: string) {
       for (const scene of draft.scenes) {
         if (scene.sectionId === sectionId) scene.sectionId = null;
       }
+      // A room of the movement's own goes with it: the resolver would not
+      // serve it to a link-holder anyway, and a picture nothing can show or
+      // remove is not worth keeping on the journey.
+      if (sectionId in draft.presentation.journey.rooms) {
+        draft.presentation.journey = {
+          ...draft.presentation.journey,
+          rooms: Object.fromEntries(
+            Object.entries(draft.presentation.journey.rooms).filter(([id]) => id !== sectionId),
+          ),
+        };
+      }
     },
-    { label: "Delete section", dirtyOrder: true },
+    { label: "Delete section", dirtyOrder: true, dirtyPresentation: true },
   );
 }
 

@@ -25,6 +25,8 @@ function fixtureUrl(): Promise<string> {
   return pageUrl;
 }
 
+const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
 /** World coordinates the camera is centred on, read out of a transform. */
 function centreX(transform: string): number {
   // `worldTransform` ends with the negated camera centre.
@@ -93,6 +95,53 @@ test.describe("the camera", () => {
     // camera that simply jittered.
     expect(seen.length, `transforms written:\n${seen.join("\n")}`).toBe(2);
     expect(centreX(seen[1])).toBeCloseTo(arrival, 3);
+  });
+
+  test("changes room with a crossfade on the plane, never a cut", async ({ page }) => {
+    // A movement with a room of its own: the new picture comes in over the
+    // old, fading, and the old is dropped once the fade is done. The fade is
+    // a CSS animation, so only a browser can see it happen.
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto(await fixtureUrl());
+    await page.evaluate(() => window.cameraFixture.mount("cut", true));
+    await page.waitForSelector("[data-backdrop-picture] img", { state: "attached" });
+
+    const frames = await page.evaluate(async () => {
+      const read = () =>
+        [...document.querySelectorAll<HTMLImageElement>("[data-backdrop-picture] img")].map(
+          (img) => ({
+            key: img.getAttribute("data-room-key"),
+            opacity: Number(getComputedStyle(img).opacity),
+          }),
+        );
+      const values: { key: string | null; opacity: number }[][] = [read()];
+      window.flyTo(1);
+      const deadline = performance.now() + 2500;
+      await new Promise<void>((resolve) => {
+        const tick = () => {
+          values.push(read());
+          if (performance.now() >= deadline) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+      return values;
+    });
+    const trace = frames.map((f) => f.map((l) => `${l.key}:${l.opacity.toFixed(2)}`).join("+"));
+    // Before: the show's room alone, opaque.
+    expect(frames[0], trace.join(" | ")).toEqual([{ key: "show", opacity: 1 }]);
+    // During: both rooms on the plane, the new one coming in from nothing.
+    const during = frames.slice(1).filter((f) => f.length === 2);
+    expect(during.length, trace.join(" | ")).toBeGreaterThan(3);
+    expect(during[0][1].key, trace.join(" | ")).toBe(uuid(302));
+    expect(during[0][1].opacity, trace.join(" | ")).toBeLessThan(0.5);
+    expect(
+      during.every((f, i) => i === 0 || f[1].opacity >= during[i - 1][1].opacity - 1e-6),
+      trace.join(" | "),
+    ).toBe(true);
+    // After: the movement's room alone, opaque; the old one dropped.
+    const last = frames[frames.length - 1];
+    expect(last, trace.join(" | ")).toEqual([{ key: uuid(302), opacity: 1 }]);
   });
 
   test("lifts the veil off the picture behind the show as it pulls back to the world", async ({

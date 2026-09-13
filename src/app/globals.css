@@ -376,6 +376,28 @@
   /* The phrase that matters, underlined by hand (see HandMarks): out of
      sight while its scene is held before the camera lands, so the mark is
      not seen complete and then sketched. */
+  /*
+  A room coming in over the one before it, on the world's picture plane.
+  A class rather than an inline animation so a viewer who asked for less
+  motion gets the new room at once instead of a fade.
+*/
+  @keyframes room-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .room-in {
+    animation: room-in 900ms ease both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .room-in {
+      animation: none;
+    }
+  }
+
   [data-held] .hm {
     visibility: hidden;
   }

@@ -435,6 +435,7 @@ export function PresentRoot({
           pace={journey.pace}
           depth={journey.depth}
           backdrop={journey.backdrop}
+          rooms={journey.rooms}
           air={!plain}
           showPath={journey.showPath && wide}
           safeInsetLeft={railShown ? MOVEMENT_RAIL_WIDTH : 0}

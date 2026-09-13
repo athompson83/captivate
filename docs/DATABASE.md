@@ -196,6 +196,17 @@ these tables stays private until someone selects it here deliberately.
 database, including that anon sees zero table rows under production-shaped
 grants.
 
+A shared deck's pictures resolve through `captivate_shared_asset(uuid)` and
+`captivate_asset_object_is_shared(text)`: an asset is a link-holder's only
+while a currently shared, undeleted presentation refers to it — in a scene's
+content, or in the journey. Migration `0016` looked in scenes, `0030` added
+the journey's backdrop by its exact path, and `0034_shared_movement_rooms.sql`
+adds a movement's own room, which lives under a key that is the movement's
+id (`journey.rooms.<section id>`): a room resolves only under a key that
+is still a section of that presentation, so a room whose movement was
+deleted is nobody's and a link-holder who once saw it cannot go on fetching
+it by its id. The RLS suite asserts the orphan is dead.
+
 ## Remote sessions
 
 Migration `0014_remote_sessions.sql` adds `presentation_sessions` and

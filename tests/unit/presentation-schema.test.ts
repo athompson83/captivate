@@ -17,6 +17,29 @@ import {
  * and the model. If it drifts, stored decks stop opening — so these tests are
  * about durability, not coverage.
  */
+describe("the journey's rooms", () => {
+  it("parses a deck from before the field to no rooms, and keeps a movement's own", async () => {
+    const { JourneyConfig } = await import("@/lib/schema/presentation");
+    expect(JourneyConfig.parse({}).rooms).toEqual({});
+    const journey = JourneyConfig.parse({
+      rooms: {
+        "eeeeeeee-0000-0000-0000-000000000001": {
+          url: "/api/assets/dddddddd-0000-0000-0000-000000000005/content",
+          assetId: "dddddddd-0000-0000-0000-000000000005",
+        },
+      },
+    });
+    const room = journey.rooms["eeeeeeee-0000-0000-0000-000000000001"];
+    expect(room.url).toContain("000000000005");
+    // A movement's room brings its picture and the dim and grade the
+    // picture wants; the plane, its distance and the drawn backdrop are the
+    // show's.
+    expect(room.dim).toBe(0.35);
+    expect(room.grade).toBe("tint");
+    expect("distance" in room).toBe(false);
+  });
+});
+
 describe("scene content schema", () => {
   it("fills defaults for a minimal payload", () => {
     const content = SceneContent.parse({ elements: [] });

@@ -1,11 +1,12 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import dynamic from "next/dynamic";
 import { useReducedMotion } from "motion/react";
 import type {
   AspectRatio,
   JourneyBackdrop,
+  MovementRoom,
   Scene,
   ScenePlacement,
 } from "@/lib/schema/presentation";
@@ -136,6 +137,14 @@ export interface WorldProps {
    */
   backdrop?: JourneyBackdrop;
   /**
+   * A room of a movement's own, by the movement's id. While the camera is
+   * in a movement that has one — on its scenes, on its establishing shot —
+   * the show stands in it instead of `backdrop`; the show's room is the
+   * rest, and the overview. The change is a crossfade, never a cut: the
+   * new room comes in over the old on the same plane.
+   */
+  rooms?: Record<string, MovementRoom>;
+  /**
    * The room answers the hand: the backdrop and the air follow a mouse over
    * the world a little, the scene stays exactly where it is. For the audience
    * surfaces a visitor holds a pointer over — the shared viewer, the landing
@@ -184,6 +193,117 @@ export interface WorldProps {
   onArrive?: () => void;
 }
 
+/** The room the camera is in, as the picture layer paints it. */
+interface RoomView {
+  /** The movement's id, or `show` for the room behind the whole show. */
+  key: string;
+  url: string;
+  dim: number;
+  grade: MovementRoom["grade"];
+}
+
+/**
+ * Where a room is in its life on the plane.
+ *
+ * `loading` is a picture asked for and not yet drawn — held invisible, so
+ * the fade cannot spend itself on pixels that have not arrived; `entering`
+ * fades in over what was there; `settled` is simply there; `leaving` fades
+ * out to the drawn backdrop, or nothing; `failed` never arrived, and the
+ * room before it stays rather than giving way to the canvas.
+ */
+type RoomPhase = "settled" | "loading" | "entering" | "leaving" | "failed";
+
+interface RoomLayer extends RoomView {
+  phase: RoomPhase;
+}
+
+/** How long a room takes to come in over the one before it, or to go. */
+export const ROOM_FADE_MS = 900;
+
+/**
+ * The rooms painted on the plane: the one the camera is in and, for the
+ * length of a fade, the one it came from.
+ *
+ * A change of room is a crossfade, never a cut: the new picture is laid
+ * over the old — or over the drawn backdrop, which stays built under a
+ * transition — and fades in (`.room-in`) once its bitmap has arrived, never
+ * before, and the old is dropped a little after the fade is done. Leaving
+ * for no room at all fades the picture out (`.room-out`) over the drawn
+ * backdrop rather than cutting to it. At most two are ever decoded. The
+ * layers follow the room in render, the way React asks for state that
+ * follows a prop, rather than a frame late from an effect; the room's
+ * identity is its key and address, and its dim and grade change what is
+ * painted, not which room this is.
+ */
+function useRoomLayers(room: RoomView | null): {
+  layers: RoomLayer[];
+  arrived: (key: string) => void;
+  failed: (key: string) => void;
+} {
+  const key = room?.key ?? null;
+  const url = room?.url ?? null;
+  const [state, setState] = useState<{
+    key: string | null;
+    url: string | null;
+    layers: RoomLayer[];
+  }>(() => ({ key, url, layers: room ? [{ ...room, phase: "settled" }] : [] }));
+  if (state.key !== key || state.url !== url) {
+    setState((current) => {
+      // What stays under the change: the room that was showing. One that
+      // was still loading, leaving or failed has nothing to fade from.
+      const shown = current.layers
+        .filter((layer) => layer.phase === "settled" || layer.phase === "entering")
+        .slice(-1)
+        .map((layer): RoomLayer => ({ ...layer, phase: "settled" }));
+      if (!room) {
+        return { key, url, layers: shown.map((layer) => ({ ...layer, phase: "leaving" })) };
+      }
+      return { key, url, layers: [...shown, { ...room, phase: "loading" }] };
+    });
+  }
+  // Both leave the state untouched — the same object, so React bails out —
+  // unless a layer is actually waiting: a picture's ref reports it complete
+  // on every commit, and a fresh state for a no-op there is a render loop.
+  const settle = useCallback(
+    (which: string, to: "entering" | "failed") =>
+      setState((current) => {
+        const index = current.layers.findIndex(
+          (layer) => layer.key === which && layer.phase === "loading",
+        );
+        if (index < 0) return current;
+        const layers = current.layers.slice();
+        layers[index] = { ...layers[index], phase: to };
+        return { ...current, layers };
+      }),
+    [],
+  );
+  const arrived = useCallback((which: string) => settle(which, "entering"), [settle]);
+  const failed = useCallback((which: string) => settle(which, "failed"), [settle]);
+  useEffect(() => {
+    const top = state.layers[state.layers.length - 1];
+    if (!top || (top.phase !== "entering" && top.phase !== "leaving")) return;
+    // A little after the fade, never at it: a browser starved of frames can
+    // still be a frame short of opaque when the clock says the fade is done,
+    // and dropping the old room under it then would show the canvas between
+    // the two rooms — the one thing the crossfade exists to prevent.
+    const timer = setTimeout(
+      () =>
+        setState((current) => {
+          const last = current.layers[current.layers.length - 1];
+          if (!last) return current;
+          if (last.phase === "entering") {
+            return { ...current, layers: [{ ...last, phase: "settled" }] };
+          }
+          if (last.phase === "leaving") return { ...current, layers: [] };
+          return current;
+        }),
+      ROOM_FADE_MS + 300,
+    );
+    return () => clearTimeout(timer);
+  }, [state.layers]);
+  return { layers: state.layers, arrived, failed };
+}
+
 export const World = memo(function World({
   scenes,
   placements,
@@ -197,6 +317,7 @@ export const World = memo(function World({
   pace,
   depth,
   backdrop,
+  rooms,
   lean = false,
   showPath = false,
   air = true,
@@ -367,23 +488,44 @@ export const World = memo(function World({
    */
   const onScene = landed && focus.kind === "scene" ? focus.index : -1;
 
+  // The room the camera is in: the active movement's where it has one, the
+  // show's otherwise — and the show's from the overview, which is the whole
+  // argument seen at once and stands in the room the argument stands in.
+  const activeSectionId =
+    focus.kind === "section"
+      ? focus.sectionId
+      : focus.kind === "world"
+        ? null
+        : (scenes[activeIndex]?.sectionId ?? null);
+  const movementRoom = activeSectionId ? rooms?.[activeSectionId] : undefined;
+  const room: RoomView | null = movementRoom?.url
+    ? {
+        key: activeSectionId as string,
+        url: movementRoom.url,
+        dim: movementRoom.dim,
+        grade: movementRoom.grade,
+      }
+    : backdrop?.url
+      ? { key: "show", url: backdrop.url, dim: backdrop.dim, grade: backdrop.grade }
+      : null;
+  const { layers, arrived: roomArrived, failed: roomFailed } = useRoomLayers(room);
   // A picture, a drawn backdrop, or both. The drawn one is the default, so a
   // deck nobody has touched still has a designed room behind it rather than a
-  // flat field; a photograph, where the author set one, covers it.
-  const picture = Boolean(backdrop?.url);
+  // flat field; a photograph, where the author set one, covers it — and while
+  // a picture is coming in or going, the drawn one stays under the fade.
+  const picture = layers.length > 0;
+  const roomInTransition = layers.some((layer) => layer.phase !== "settled");
   // A picture covers the whole plane, so a drawn backdrop under one is paint
   // nobody can see. Only ever one of the two is built.
+  const drawnUnder = room === null || roomInTransition;
   const graphic = useMemo(
-    () => (picture ? null : graphicBackdrop(backdrop?.graphic ?? "aurora", basePalette)),
-    [picture, backdrop?.graphic, basePalette],
+    () => (drawnUnder ? graphicBackdrop(backdrop?.graphic ?? "aurora", basePalette) : null),
+    [drawnUnder, backdrop?.graphic, basePalette],
   );
   const backdropDistance = backdrop?.distance ?? 0.5;
-  const backdropDim = backdrop?.dim ?? 0;
+  const backdropDim = room?.dim ?? 0;
   // The room graded to the deck, by the hand that grades every picture in it.
-  const roomGrade = backdrop?.grade ?? "tint";
   const roomGradeId = `room-grade-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  const roomGraded =
-    picture && gradeMatrix(roomGrade, theme.tokens.canvas, theme.tokens.accent) !== null;
   const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
   // The band the veil over the picture eases over — see `veilBand`: full at
   // the focused scene's own framing, gone at the destination the camera is
@@ -861,36 +1003,69 @@ export const World = memo(function World({
         />
       )}
 
-      {picture && backdrop && (
+      {picture && (
         <div
           ref={backdropRef}
           aria-hidden
           data-backdrop
           data-backdrop-picture
+          data-room={room?.key ?? "none"}
           className="pointer-events-none absolute top-0 left-0 origin-top-left"
           // Laid out at the layer's size, not the plane's: the plane is world
           // units and a world is thousands of them across. See `backdropLayer`.
           style={{ ...backdropLayer(viewport), willChange: "transform" }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element -- a signed private asset in a transformed layer; see element-view */}
-          <img
-            src={backdrop.url}
-            alt=""
-            draggable={false}
-            /* Decoded off the main thread: this one covers the whole layer and
-               is the largest single bitmap in the world. See `stage.tsx`. */
-            decoding="async"
-            data-grade={roomGrade}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block",
-              filter: roomGraded ? `url(#${roomGradeId})` : undefined,
-            }}
-          />
-          {roomGraded && <GradeFilter id={roomGradeId} grade={roomGrade} theme={theme} />}
-          {backdrop.dim > 0 && (
+          {layers.map((layer) => {
+            const id = `${roomGradeId}-${layer.key.replace(/[^a-zA-Z0-9]/g, "")}`;
+            const graded =
+              gradeMatrix(layer.grade, theme.tokens.canvas, theme.tokens.accent) !== null;
+            return (
+              <Fragment key={layer.key}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- a signed private asset in a transformed layer; see element-view */}
+                <img
+                  src={layer.url}
+                  alt=""
+                  draggable={false}
+                  /* Decoded off the main thread: this one covers the whole
+                     layer and is the largest single bitmap in the world. See
+                     `stage.tsx`. */
+                  decoding="async"
+                  data-grade={layer.grade}
+                  data-room-key={layer.key}
+                  data-room-phase={layer.phase}
+                  // The fade starts when the bitmap is there, never before:
+                  // a cached picture is complete the moment it mounts, an
+                  // uncached one says so when it loads. See `useRoomLayers`.
+                  ref={(element) => {
+                    if (element && element.complete && element.naturalWidth > 0) {
+                      roomArrived(layer.key);
+                    }
+                  }}
+                  onLoad={() => roomArrived(layer.key)}
+                  onError={() => roomFailed(layer.key)}
+                  className={
+                    layer.phase === "entering"
+                      ? "room-in"
+                      : layer.phase === "leaving"
+                        ? "room-out"
+                        : undefined
+                  }
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: layer.phase === "failed" ? "none" : "block",
+                    opacity: layer.phase === "loading" ? 0 : undefined,
+                    filter: graded ? `url(#${id})` : undefined,
+                  }}
+                />
+                {graded && <GradeFilter id={id} grade={layer.grade} theme={theme} />}
+              </Fragment>
+            );
+          })}
+          {backdropDim > 0 && (
             <div
               ref={veilRef}
               data-backdrop-veil
@@ -901,7 +1076,7 @@ export const World = memo(function World({
                 // On a scene until the loop says otherwise: the first frame
                 // is a scene's, and a picture at full strength under words
                 // for one frame is a flash.
-                opacity: backdrop.dim,
+                opacity: backdropDim,
               }}
             />
           )}

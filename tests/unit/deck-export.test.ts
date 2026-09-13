@@ -602,6 +602,30 @@ describe("the room behind the show", () => {
     expect(air.omissions.some((o) => o.kind === "room")).toBe(false);
   });
 
+  it("stands a movement's scenes in the movement's own room, and the rest in the show's", () => {
+    const section = "eeeeeeee-0000-0000-0000-000000000001";
+    const own = "https://pictures.example/ward.jpg";
+    const inMovement = scene({ id: id(), elements: [] });
+    inMovement.sectionId = section;
+    const elsewhere = scene({ id: id(), elements: [] });
+    const plan = planDeck(
+      {
+        ...DECK,
+        journey: {
+          backdrop: JourneyBackdrop.parse({ url: ROOM, dim: 0.4 }),
+          rooms: { [section]: { url: own, assetId: null, alt: "", dim: 0.6, grade: "none" } },
+        },
+      },
+      [inMovement, elsewhere],
+      THEME,
+    );
+    expect(plan.slides[0].background.image).toBe(own);
+    const veil = plan.slides[0].shapes[0];
+    if (veil.kind !== "shape") throw new Error("expected the veil");
+    expect(veil.opacity).toBeCloseTo(0.6, 5);
+    expect(plan.slides[1].background.image).toBe(ROOM);
+  });
+
   it("changes nothing for a deck that carries no journey", () => {
     const plain = scene({ id: id(), elements: [] });
     const slide = planDeck(DECK, [plain], THEME).slides[0];

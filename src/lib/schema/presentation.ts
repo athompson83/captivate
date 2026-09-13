@@ -731,6 +731,29 @@ export const JourneyBackdrop = z.object({
 });
 export type JourneyBackdrop = z.infer<typeof JourneyBackdrop>;
 
+/**
+ * A room of a movement's own.
+ *
+ * The show stands in one room (`JourneyBackdrop`), and a talk moves: the
+ * corridor of the first movement is not the ward of the third. A movement
+ * given a room of its own stands in it while the camera is in that
+ * movement — on its scenes and on its establishing shot — and the show's
+ * room is the rest. Keyed by the movement's id in `JourneyConfig.rooms`;
+ * deleting the movement takes its room with it, the share resolver serves
+ * a room only under a key that is still a movement of the deck, and a deck
+ * from before the field parses to no rooms. The plane, its distance and the drawn
+ * backdrop are the show's; a movement's room brings only its picture and
+ * the dim and grade that picture wants.
+ */
+export const MovementRoom = JourneyBackdrop.pick({
+  url: true,
+  assetId: true,
+  alt: true,
+  dim: true,
+  grade: true,
+});
+export type MovementRoom = z.infer<typeof MovementRoom>;
+
 export const JourneyConfig = z.object({
   /**
    * `flow` rather than `reel` by default.
@@ -775,6 +798,8 @@ export const JourneyConfig = z.object({
   depth: z.number().min(0).max(1).default(0.55),
   /** A picture behind the whole show. See `JourneyBackdrop`. */
   backdrop: JourneyBackdrop.prefault({}),
+  /** A room of a movement's own, by the movement's id. See `MovementRoom`. */
+  rooms: z.record(z.string(), MovementRoom).default({}),
   /**
    * The deck's visual direction, in one sentence: medium, light, a motif,
    * what to avoid. Set by the scene writer for the whole talk and kept here

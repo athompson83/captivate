@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #118 — the MVP-044 closeout, and the room on the deck
-  card, awaiting CI, merge and production verification
-- `main`: through PR #118 (merged) — `fc24caa`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #119 — the MVP-045 closeout and the next round, awaiting
+  CI, merge and production verification
+- `main`: through PR #119 (merged) — `2c302f6`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -150,6 +150,63 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### A room per movement
+
+A talk moves, and the corridor of the first movement is not the ward of the
+third — and the show stood in one room from its first scene to its last.
+Now a movement can stand in a room of its own (`MovementRoom`, kept in
+`JourneyConfig.rooms` by the movement's id; deleting the movement takes
+its room with it, and a deck from before the field parses to no rooms): the
+show stands in it while the camera is in that movement, on its scenes and
+on its establishing shot, and in the show's room elsewhere and from the
+overview, which is the whole argument at once in the room the argument
+stands in. The change is a crossfade, never a cut (`useRoomLayers` in
+`world.tsx`): the new picture is laid over the old on the same plane — or
+over the drawn backdrop, which stays built under a transition — and fades
+in over nine tenths of a second (`.room-in`, which a viewer who asked for
+less motion gets at once) once its bitmap has arrived, never before; the
+old is dropped a little after the fade is done, so at most two are ever
+decoded and the plane never flashes the canvas between two rooms; a
+picture that never arrives leaves the room before it standing; and leaving
+for no room fades the picture out over the drawn backdrop. The room's
+identity is its key and address, and the layers follow it in render — the
+way React asks for state that follows a prop — rather than a frame late
+from an effect. A movement's room brings only its picture and the dim and
+grade that picture wants; the plane, its distance and the drawn backdrop
+are the show's, and the veil the loop lifts is that room's dim.
+
+Codex found three real things on the first draft, all fixed before merge
+with regressions: the resolver matched an asset id anywhere in the journey,
+so a room whose movement had been deleted went on resolving for a
+link-holder who once saw it — now a room resolves only under a key that is
+still a movement of the deck, deleting a movement prunes its room, and the
+RLS suite asserts the orphan is dead; a deck with only a drawn backdrop cut
+to a movement's picture and back rather than crossfading; and the fade
+started the moment the picture was asked for rather than when it arrived.
+
+Chosen beside the movement's name in the journey panel ("Give it a room",
+the same asset picker as the show's backdrop, with the show's dim and grade
+to start; "Clear" takes it away). The export stands a movement's scenes in
+its room (`planDeck`'s `roomFor`), and the share resolver reaches a
+movement's room as it reaches the show's: `0034_shared_movement_rooms.sql`
+has both resolvers serve a room under any key that is still a section of
+the deck, beside the backdrop's fixed path. The migration is applied to
+production at merge.
+
+Tests in `presentation-schema` (no rooms for a deck from before the field;
+a movement's room keeps its picture, dim and grade and carries no distance),
+`world-render` (the movement's room on its scenes and establishing shot,
+the show's elsewhere and from the overview, with the room's own dim on the
+veil; the new room comes in over the old with the fade and the old is
+dropped once it is done, and not before the picture has loaded; a picture
+that never arrives leaves the old room standing; a deck with only a drawn
+backdrop crossfades with it both ways; a movement without one stands in
+the show's),
+`deck-export` (a movement's scenes in its room at its dim, the rest in the
+show's), and four RLS probes (a movement's room resolves for a link-holder
+on the shared deck and its object is readable; one on an unshared deck is
+nobody's; one whose movement is gone is nobody's).
+
 ### The room on the deck card
 
 Every place the room is seen — the stage, the export, the share card — and
@@ -179,6 +236,11 @@ region and a scene's own picture leave it out; no room, the canvas as
 before) and `card-room` (the deck card shows its first scene standing in
 the deck's room; on the canvas when the deck has none). The three that
 assert the room fail without the change.
+
+**Landed and verified.** PR #119 squash-merged as `2c302f6`, all six CI
+jobs green on the head; Codex's two findings fixed before merge as above.
+The proxied smoke suite against `www.axtevi.com` after the deploy:
+37 of 37 on the first run.
 
 ### The room on the card
 

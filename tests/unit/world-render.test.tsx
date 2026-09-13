@@ -1,9 +1,9 @@
 import { JourneyBackdrop } from "@/lib/schema/presentation";
 import { gradeMatrix, matrixValues } from "@/lib/present/grade";
 import { describe, expect, it, beforeAll, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { FileText } from "lucide-react";
-import { World } from "@/components/stage/world";
+import { ROOM_FADE_MS, World } from "@/components/stage/world";
 import { EmptyState } from "@/components/ui/misc";
 import { getTheme } from "@/lib/schema/theme";
 import { arrange } from "@/lib/present/arrange";
@@ -269,6 +269,193 @@ function controllableFrames() {
     },
   };
 }
+
+describe("a room of a movement's own", () => {
+  const show = {
+    url: "/api/assets/show/content",
+    assetId: "show",
+    alt: "a hall",
+    distance: 0.5,
+    dim: 0.4,
+    grade: "tint" as const,
+    graphic: "none" as const,
+  };
+  const ward = {
+    url: "/api/assets/ward/content",
+    assetId: "ward",
+    alt: "a ward",
+    dim: 0.6,
+    grade: "none" as const,
+  };
+  function inMovements() {
+    return makeScenes(4).map((scene, i) => ({ ...scene, sectionId: i < 2 ? "sec-a" : "sec-b" }));
+  }
+  function props(scenes: Scene[]) {
+    const placements = arrange("reel", scenes, STAGE);
+    return {
+      scenes,
+      placements,
+      theme,
+      aspect: "16:9" as const,
+      step: 0,
+      travel: "cut" as const,
+      pace: JOURNEY_DEFAULTS.pace,
+      depth: JOURNEY_DEFAULTS.depth,
+      backdrop: show,
+      rooms: { "sec-b": ward },
+    };
+  }
+
+  it("stands in the movement's room on its scenes and on its establishing shot, and in the show's elsewhere", () => {
+    const scenes = inMovements();
+    const { container, rerender } = render(
+      <World {...props(scenes)} focus={{ kind: "scene", index: 0 }} activeIndex={0} />,
+    );
+    const layer = () => container.querySelector<HTMLElement>("[data-backdrop-picture]")!;
+    expect(layer().getAttribute("data-room")).toBe("show");
+    expect(layer().querySelector("img")!.getAttribute("src")).toBe(show.url);
+
+    rerender(<World {...props(scenes)} focus={{ kind: "scene", index: 2 }} activeIndex={2} />);
+    expect(layer().getAttribute("data-room")).toBe("sec-b");
+    // The room's own dim, on the veil the loop lifts.
+    expect(layer().querySelector<HTMLElement>("[data-backdrop-veil]")!.style.opacity).toBe("0.6");
+
+    rerender(
+      <World {...props(scenes)} focus={{ kind: "section", sectionId: "sec-b" }} activeIndex={2} />,
+    );
+    expect(layer().getAttribute("data-room")).toBe("sec-b");
+
+    // The overview is the whole argument at once, in the room the argument stands in.
+    rerender(<World {...props(scenes)} focus={{ kind: "world" }} activeIndex={2} />);
+    expect(layer().getAttribute("data-room")).toBe("show");
+  });
+
+  it("comes in over the room before it once its picture has arrived, and drops that room after the fade", () => {
+    vi.useFakeTimers();
+    try {
+      const scenes = inMovements();
+      const { container, rerender } = render(
+        <World {...props(scenes)} focus={{ kind: "scene", index: 0 }} activeIndex={0} />,
+      );
+      const pictures = () =>
+        [...container.querySelectorAll<HTMLImageElement>("[data-backdrop-picture] img")].map(
+          (img) => [img.getAttribute("data-room-key"), img.getAttribute("data-room-phase")],
+        );
+      // The first room is simply there.
+      expect(pictures()).toEqual([["show", "settled"]]);
+
+      rerender(<World {...props(scenes)} focus={{ kind: "scene", index: 3 }} activeIndex={3} />);
+      // Codex, reviewing the PR: the fade must not start before the bitmap
+      // is there. The new room is held invisible over the old until it loads.
+      expect(pictures()).toEqual([
+        ["show", "settled"],
+        ["sec-b", "loading"],
+      ]);
+      const incoming = container.querySelector<HTMLImageElement>('img[data-room-key="sec-b"]')!;
+      expect(incoming.style.opacity).toBe("0");
+      expect(incoming.classList.contains("room-in")).toBe(false);
+      act(() => {
+        fireEvent.load(incoming);
+      });
+      expect(pictures()).toEqual([
+        ["show", "settled"],
+        ["sec-b", "entering"],
+      ]);
+      expect(incoming.classList.contains("room-in")).toBe(true);
+      // Dropped a little after the fade, never at it — see `useRoomLayers`.
+      act(() => {
+        vi.advanceTimersByTime(ROOM_FADE_MS + 100);
+      });
+      expect(pictures()).toEqual([
+        ["show", "settled"],
+        ["sec-b", "entering"],
+      ]);
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(pictures()).toEqual([["sec-b", "settled"]]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the room before it when the new picture never arrives", () => {
+    const scenes = inMovements();
+    const { container, rerender } = render(
+      <World {...props(scenes)} focus={{ kind: "scene", index: 0 }} activeIndex={0} />,
+    );
+    rerender(<World {...props(scenes)} focus={{ kind: "scene", index: 3 }} activeIndex={3} />);
+    const incoming = container.querySelector<HTMLImageElement>('img[data-room-key="sec-b"]')!;
+    act(() => {
+      fireEvent.error(incoming);
+    });
+    const phases = [
+      ...container.querySelectorAll<HTMLImageElement>("[data-backdrop-picture] img"),
+    ].map((img) => [img.getAttribute("data-room-key"), img.getAttribute("data-room-phase")]);
+    expect(phases).toEqual([
+      ["show", "settled"],
+      ["sec-b", "failed"],
+    ]);
+    expect(incoming.style.display).toBe("none");
+  });
+
+  it("crossfades with the drawn backdrop when the show has no picture of its own", () => {
+    // Codex, reviewing the PR: a deck with only a drawn backdrop cut to the
+    // movement's picture and back. The drawn room stays built under the
+    // fade in, and the picture fades out over it on the way back.
+    vi.useFakeTimers();
+    try {
+      const scenes = inMovements();
+      const drawn = { ...show, url: "", assetId: null, graphic: "aurora" as const };
+      const base = { ...props(scenes), backdrop: drawn };
+      const { container, rerender } = render(
+        <World {...base} focus={{ kind: "scene", index: 0 }} activeIndex={0} />,
+      );
+      expect(container.querySelector("[data-backdrop-graphic]")).not.toBeNull();
+      expect(container.querySelector("[data-backdrop-picture]")).toBeNull();
+
+      rerender(<World {...base} focus={{ kind: "scene", index: 3 }} activeIndex={3} />);
+      const incoming = container.querySelector<HTMLImageElement>('img[data-room-key="sec-b"]')!;
+      expect(incoming).not.toBeNull();
+      // The drawn backdrop is still under the picture coming in.
+      expect(container.querySelector("[data-backdrop-graphic]")).not.toBeNull();
+      act(() => {
+        fireEvent.load(incoming);
+      });
+      expect(incoming.classList.contains("room-in")).toBe(true);
+      act(() => {
+        vi.advanceTimersByTime(ROOM_FADE_MS + 400);
+      });
+      // Settled: the picture covers the plane, so the drawn backdrop goes.
+      expect(container.querySelector("[data-backdrop-graphic]")).toBeNull();
+      expect(incoming.getAttribute("data-room-phase")).toBe("settled");
+
+      rerender(<World {...base} focus={{ kind: "scene", index: 0 }} activeIndex={0} />);
+      // Leaving: the picture fades out over the drawn backdrop, built again.
+      const leaving = container.querySelector<HTMLImageElement>('img[data-room-key="sec-b"]')!;
+      expect(leaving.getAttribute("data-room-phase")).toBe("leaving");
+      expect(leaving.classList.contains("room-out")).toBe(true);
+      expect(container.querySelector("[data-backdrop-graphic]")).not.toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(ROOM_FADE_MS + 400);
+      });
+      expect(container.querySelector("[data-backdrop-picture]")).toBeNull();
+      expect(container.querySelector("[data-backdrop-graphic]")).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stands in the show's room when the movement has none", () => {
+    const scenes = inMovements();
+    const { container } = render(
+      <World {...props(scenes)} rooms={{}} focus={{ kind: "scene", index: 3 }} activeIndex={3} />,
+    );
+    expect(
+      container.querySelector<HTMLElement>("[data-backdrop-picture]")!.getAttribute("data-room"),
+    ).toBe("show");
+  });
+});
 
 describe("a flight in progress", () => {
   it("keeps flying when something else re-renders the tree", () => {
