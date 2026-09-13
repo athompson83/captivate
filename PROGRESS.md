@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #122 — the MVP-048 closeout and the next round, awaiting
+  `main` after PR #123 — the MVP-049 closeout and the next round, awaiting
   CI, merge and production verification
-- `main`: through PR #122 (merged) — `3042a69`; migration
+- `main`: through PR #123 (merged) — `d6fd2f3`; migration
   `0034_shared_movement_rooms.sql` applied to production; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -88,6 +88,11 @@ fails without the fix:
 
 `docs/UX.md` ("The presenter bar hides itself") says what the bar now
 does.
+
+**Landed and verified.** Codex's one finding fixed before merge (the
+recording mark above). PR #123 squash-merged as `d6fd2f3`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 37 of 37 on the first run.
 
 ### The editor in a real browser, at every width
 
