@@ -208,7 +208,68 @@ describe("a room from stock", () => {
     expect(deckRoute).toContain("roomQuery: result.data.roomQuery");
     expect(service).toContain("const roomQuery = result.data.roomQuery.trim();");
     expect(service).toMatch(
-      /return \{ ok: true, data: \{ source: "model", scenes, look, roomQuery \} \};/,
+      /return \{ ok: true, data: \{ source: "model", scenes, look, roomQuery, movementRooms \} \};/,
     );
+  });
+});
+
+describe("rooms of their own", () => {
+  const service = readFileSync("src/lib/ai/service.ts", "utf8");
+  const deckRoute = readFileSync("src/app/api/ai/scenes-from-map/route.ts", "utf8");
+  const createRoute = readFileSync("src/app/api/ai/create-from-map/route.ts", "utf8");
+
+  it("asks the writer for the movements that stand somewhere else, defaulted to none", () => {
+    expect(service).toContain(
+      "Rooms of their own: where a movement takes the audience somewhere else",
+    );
+    expect(service).toContain(
+      "naming that movement by its label exactly as the list above shows it",
+    );
+    const parsed = GeneratedScenes.parse({ scenes: [{ layout: "title", heading: "A" }] });
+    expect(parsed.movementRooms).toEqual([]);
+    expect(
+      GeneratedScenes.parse({
+        scenes: [{ layout: "title", heading: "A" }],
+        movementRooms: [{ movement: "Roadside", roomQuery: "highway shoulder dusk" }],
+      }).movementRooms,
+    ).toEqual([{ movement: "Roadside", roomQuery: "highway shoulder dusk" }]);
+    // Trimmed, and an entry with nothing to search for is dropped.
+    expect(service).toContain(".filter((room) => room.movement && room.roomQuery);");
+    expect(service).toMatch(
+      /return \{ ok: true, data: \{ source: "model", scenes, look, roomQuery, movementRooms \} \};/,
+    );
+  });
+
+  it("finds each movement's room in stock, never makes one, and gives each what is left", () => {
+    const rooms = service.slice(
+      service.indexOf("export async function dressMovementRooms"),
+      service.indexOf("/** The made room:"),
+    );
+    expect(rooms).not.toContain("generateRoom(");
+    expect(rooms).not.toContain("generateImage(");
+    expect(rooms).toContain("if (!rooms.length || !isStockSearchConfigured()) return found;");
+    expect(rooms).toContain("const left = budgetMs - (Date.now() - started);");
+    expect(rooms).toContain("if (left < ROOM_STOCK_MIN_MS) break;");
+    expect(rooms).toContain("await roomFromStock(room.roomQuery, presentationId, alt, left);");
+    // A room that could not be found leaves the movement in the show's.
+    expect(rooms).toContain("if (!picture) continue;");
+    expect(rooms).toContain('grade: "tint"');
+  });
+
+  it("is dressed by both deck routes after the show's room, by the movement's label, never over the author's", () => {
+    for (const route of [createRoute, deckRoute]) {
+      expect(route).toContain("dressMovementRooms({");
+      expect(route.indexOf("dressMovementRooms({")).toBeGreaterThan(
+        route.indexOf("await dressRoom({"),
+      );
+      expect(route).toContain("maxDuration * 1000 - (Date.now() - started) - ROUTE_RESERVE_MS");
+    }
+    // A new deck: the label the writer named is the label the movement was saved under.
+    expect(createRoute).toContain("draft.movements.map((m) => [m.label.trim(), m])");
+    expect(createRoute).toContain("rooms: { ...rooms, ...journey.rooms },");
+    // An existing deck: the brief's label and the moment's movement, the server's fact.
+    expect(deckRoute).toContain("const movementId = momentMovement.get(brief.momentId);");
+    expect(deckRoute).toContain("!before.rooms[sectionId]?.url");
+    expect(deckRoute).toContain("rooms: { ...rooms, ...current.rooms },");
   });
 });

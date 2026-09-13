@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
-import { ROOM_BUDGET_MS, buildScenesFromMap, dressRoom } from "@/lib/ai/service";
+import {
+  ROOM_BUDGET_MS,
+  buildScenesFromMap,
+  dressMovementRooms,
+  dressRoom,
+} from "@/lib/ai/service";
 import { roomFor } from "@/lib/ai/look";
 import { ProposedMap } from "@/lib/ai/schemas";
 import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
@@ -261,6 +266,23 @@ export async function POST(request: Request) {
         presentationId,
         budgetMs: Math.min(ROOM_BUDGET_MS, remaining),
       });
+      // Rooms of their own, after the show's and with what is left: a
+      // movement the writer sent somewhere else, by the label the brief gave
+      // it, which is the label the movement was saved under.
+      const sectionByLabel = new Map(draft.movements.map((m) => [m.label.trim(), m]));
+      const rooms = await dressMovementRooms({
+        rooms: built.data.movementRooms.flatMap((entry) => {
+          const movement = sectionByLabel.get(entry.movement);
+          return movement
+            ? [{ sectionId: movement.id, name: movement.title, roomQuery: entry.roomQuery }]
+            : [];
+        }),
+        presentationId,
+        budgetMs: Math.min(
+          ROOM_BUDGET_MS,
+          maxDuration * 1000 - (Date.now() - started) - ROUTE_RESERVE_MS,
+        ),
+      });
       const { data: current } = await supabase
         .from("presentations")
         .select("journey")
@@ -280,6 +302,7 @@ export async function POST(request: Request) {
             backdrop: room
               ? { ...journey.backdrop, ...room, graphic }
               : { ...journey.backdrop, graphic },
+            rooms: { ...rooms, ...journey.rooms },
           } as never,
         })
         .eq("id", presentationId);

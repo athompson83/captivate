@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { keepAlive } from "@/lib/ai/keep-alive";
 import { z } from "zod";
-import { ROOM_BUDGET_MS, buildScenesFromMap, dressRoom } from "@/lib/ai/service";
+import {
+  ROOM_BUDGET_MS,
+  buildScenesFromMap,
+  dressMovementRooms,
+  dressRoom,
+} from "@/lib/ai/service";
 import { roomFor } from "@/lib/ai/look";
 import { JourneyConfig } from "@/lib/schema/presentation";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -220,6 +225,33 @@ export async function POST(request: Request) {
             presentationId,
             budgetMs: Math.min(ROOM_BUDGET_MS, remaining),
           });
+      // Rooms of their own, after the show's and with what is left. A brief
+      // names its movement by label and its moment is the server's fact about
+      // which movement that is, so the two together name the section.
+      const momentMovement = new Map(
+        (momentRows ?? []).map((row) => [row.id, row.movement_id] as const),
+      );
+      const sectionByLabel = new Map<string, string>();
+      for (const brief of briefs) {
+        const movementId = momentMovement.get(brief.momentId);
+        if (movementId && brief.movementLabel.trim()) {
+          sectionByLabel.set(brief.movementLabel.trim(), movementId);
+        }
+      }
+      const rooms = await dressMovementRooms({
+        rooms: result.data.movementRooms.flatMap((entry) => {
+          const sectionId = sectionByLabel.get(entry.movement);
+          // Never over a room the author chose.
+          return sectionId && !before.rooms[sectionId]?.url
+            ? [{ sectionId, name: entry.movement, roomQuery: entry.roomQuery }]
+            : [];
+        }),
+        presentationId,
+        budgetMs: Math.min(
+          ROOM_BUDGET_MS,
+          maxDuration * 1000 - (Date.now() - started) - ROUTE_RESERVE_MS,
+        ),
+      });
       const current = await readJourney();
       // The drawn room follows the look the first time a deck is given one.
       // A deck that already had a look keeps whatever room its author chose
@@ -240,6 +272,8 @@ export async function POST(request: Request) {
           room && !current.backdrop.url
             ? { ...current.backdrop, ...room, graphic }
             : { ...current.backdrop, graphic },
+        // The author's rooms win over the found ones, as read just now.
+        rooms: { ...rooms, ...current.rooms },
       };
       await supabase
         .from("presentations")

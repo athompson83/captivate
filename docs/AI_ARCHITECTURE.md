@@ -154,6 +154,21 @@ first time the deck is given one (`roomFor`: a printed medium in front of
 `strata`, a lit one in front of `halo`, otherwise `aurora`), and the
 author's from then on.
 
+**Rooms of their own.** The writer also names the movements that take the
+audience somewhere else — a different place, not a different topic — in
+`movementRooms`: the movement by its label as the brief lists it, and two
+to five search words for that place. After the show's room, and with what
+the route has left, `dressMovementRooms` finds each in stock in the deck's
+order — found, never made, because a made room is a generation the deck
+waits a minute for and a deck of six movements cannot wait six of them —
+and each gets what is left, so a slow search costs the movements after it
+their room and never the route its ceiling. Both routes map the label to
+the movement's section (a new deck's movements were saved under those
+labels; an existing deck's briefs carry the label and the moment's
+movement is the server's fact) and merge the found rooms into
+`journey.rooms` under the author's, never over one they chose. Most talks
+stand in one room throughout, and then the list is empty.
+
 **The phrase that matters.** Alongside `headingAccent`, a scene may carry a
 `bodyAccent`: three to eight words copied verbatim from its body — the turn
 of the sentence, the number, the word that changes the picture — which the
