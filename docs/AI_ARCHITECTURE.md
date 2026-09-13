@@ -138,12 +138,21 @@ same look, empty at the centre and out of focus, written onto the journey's
 backdrop far back and dimmed, only where the deck had no picture there, and
 given only what the route has left of its ceiling and aborted at that
 deadline, so a slow provider never holds the route and nothing is paid for
-and left unattached. The journey is read again before the look and the room
-are written, and only those fields are merged, so an author's edits
-during the minutes a generation takes are never written over. A deck
-without a room keeps a drawn one — chosen by the look the first time the
-deck is given one (`roomFor`: a printed medium in front of `strata`, a lit
-one in front of `halo`, otherwise `aurora`), and the author's from then on.
+and left unattached. Where the deployment cannot make one — no image key,
+a refusal, too slow — the room is _found_ instead: the writer also gives a
+`roomQuery`, two to five plain search words for one wide photograph of the
+place the talk stands in (an environment, never a subject or a person), and
+the same stock search and re-hosting that fills a scene fills the room
+from it, dimmed a little more than a made room because a photograph has
+detail a made room was told not to. So every deck a model writes has a real
+picture behind the whole show, on a deployment with a stock key alone. The
+journey is read again before the look and the room are written, and only
+those fields are merged, so an author's edits during the minutes a
+generation takes are never written over. A deck without a room — no key of
+either kind, or nothing found — keeps a drawn one, chosen by the look the
+first time the deck is given one (`roomFor`: a printed medium in front of
+`strata`, a lit one in front of `halo`, otherwise `aurora`), and the
+author's from then on.
 
 **The phrase that matters.** Alongside `headingAccent`, a scene may carry a
 `bodyAccent`: three to eight words copied verbatim from its body — the turn

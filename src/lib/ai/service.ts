@@ -364,6 +364,8 @@ export async function buildScenesFromMap(
         scenes: ({ momentId: string } & MaterialisedScene)[];
         /** The deck's visual direction, for the journey; empty from a fallback. */
         look: string;
+        /** Search words for the place the show stands in; empty from a fallback. */
+        roomQuery: string;
         source: "model" | "fallback";
         notice?: string;
       };
@@ -397,6 +399,7 @@ export async function buildScenesFromMap(
           ),
         })),
         look: "",
+        roomQuery: "",
         source: "fallback",
         notice:
           "No language model is configured, so these scenes are structural placeholders. The argument behind them is real.",
@@ -492,6 +495,8 @@ Each layout draws a fixed set of fields and shows nothing else, so write into th
 
 The look: write \`look\`, once for the whole deck — one sentence of visual direction every generated picture will follow: the medium (documentary photography, cut paper, ink and wash, a museum diorama, an architectural model ...), the light, a recurring motif drawn from this subject, and one thing to avoid. Choose it for this talk and this audience the way an art director would, so a talk on trauma care and a talk on brand strategy do not share a look. It is the deck's, not a scene's: no scene subject in it.
 
+The room: write \`roomQuery\`, two to five plain search words for one wide photograph of the place this talk stands in — an environment, never a subject and never a person: a hospital corridor at night, a coastline at dusk, a workshop bench, a lecture theatre empty — with nothing in the middle and quiet enough to sit dimmed behind every scene. It is found in stock and stands behind the whole show.
+
 Drawings: some pictures should be drawn, not photographed — a mechanism, a pathway, a comparison of amounts, a before-and-after, the parts of a thing and how they relate. For a split-left, split-right or explainer scene whose picture is one of those, write a drawingBrief: one sentence naming the parts, what each is called, and how they relate ("The heart, the vessel and the tissue in a row; blood flows heart to tissue; the vessel narrows in stage two and the flow arrow turns red"). Leave drawingBrief empty where a photograph is the right picture — a face, a place, a moment. A scene with a drawingBrief still carries its imagePrompt, for the deployment that cannot draw.
 
 Pictures: every cover, split-left, split-right, explainer and media-full scene MUST carry an imagePrompt — the picture is half the scene, and an empty half is a broken scene. The imagePrompt describes the one image that would teach or land the moment — a mechanism, a scene, a before-and-after — concretely enough to photograph or sketch. Also give those scenes a photoQuery: two to five plain search words for a stock photo of the same subject. The cover is composed differently, and the difference is *composition* rather than abstraction. Name the one image that is this talk's hero — the subject itself is allowed and often right — but describe it as a photographer would frame it for a title: a clear focal subject somewhere off-centre, real depth behind it, and a quiet region of sky, wall, shadow or ground where a display line can sit without fighting anything. What a cover must not be is the generic establishing shot that could open any talk on the subject, or a busy frame with readable detail across all of it. An atmospheric place-and-light image is one good answer to that and not the only one; a single arresting subject with air around it is usually better.
@@ -548,6 +553,7 @@ ${referenceBlock(context.reference ?? null)}`,
           ),
         })),
         look: "",
+        roomQuery: "",
         source: "fallback",
         notice: `${result.error} Captivate built structural scenes from your map instead.`,
       },
@@ -584,9 +590,10 @@ ${referenceBlock(context.reference ?? null)}`,
   });
 
   const look = fixedLook.trim() || result.data.look.trim();
+  const roomQuery = result.data.roomQuery.trim();
   await dressScenes(scenes, presentationId, totalSeconds, { mayGenerate: true, look, themeId });
 
-  return { ok: true, data: { source: "model", scenes, look } };
+  return { ok: true, data: { source: "model", scenes, look, roomQuery } };
 }
 
 /**
@@ -766,36 +773,75 @@ async function dressScenes(
 export const ROOM_BUDGET_MS = 75_000;
 /** Below this there is not enough time to make one and keep it. */
 const ROOM_MIN_MS = 20_000;
+/**
+ * The least a found room may be started with: a search of up to twelve
+ * seconds, a download of up to twenty, then storage. Less than that and the
+ * room could outlive what the route has left, and a deck written in full
+ * would be left marked as generating.
+ */
+const ROOM_STOCK_MIN_MS = 45_000;
 
 /**
- * The room a deck stands in: one generated picture behind the whole show.
+ * The room a deck stands in: one picture behind the whole show.
  *
  * Made to the deck's look and the theme's palette, empty at the centre and
  * out of focus (`roomBrief`), and returned as the backdrop fields the route
  * writes onto the journey — far back and dimmed, so it is a place rather
- * than a picture. Null where generation is not configured, refused, or too
- * slow: a deck without a room keeps the drawn one it had, and nothing waits
- * for a picture that is not coming.
+ * than a picture. Where the deployment cannot make one — no image key, a
+ * refusal, too slow — the room is found instead: a stock photograph of the
+ * place from the writer's own few words (`roomQuery`), dimmed a little more
+ * because a photograph has detail a made room was told not to. Null only
+ * when neither is possible: a deck without a room keeps the drawn one it
+ * had, and nothing waits for a picture that is not coming.
  */
 export async function dressRoom({
   title,
   look,
+  roomQuery = "",
   themeId,
   presentationId,
   budgetMs = ROOM_BUDGET_MS,
 }: {
   title: string;
   look: string;
+  /** The writer's search words for the place, for a room found in stock. */
+  roomQuery?: string;
   themeId: string | null;
   presentationId: string;
   /** What the route has left for this, at most `ROOM_BUDGET_MS`. */
   budgetMs?: number;
 }): Promise<{ url: string; assetId: string; alt: string; distance: number; dim: number } | null> {
+  const alt = `The room behind ${title.trim() || "the presentation"}`;
+  const budget = Math.min(ROOM_BUDGET_MS, budgetMs);
+  const started = Date.now();
+  const made = await generateRoom({ title, look, themeId, presentationId, budgetMs: budget, alt });
+  if (made) return made;
+  // The found room gets what the made one left, never more than the route
+  // had: a search after a slow generation is a search past the deadline.
+  const left = budget - (Date.now() - started);
+  return roomFromStock(roomQuery, presentationId, alt, left);
+}
+
+/** The made room: one generated picture, or null where that is not possible. */
+async function generateRoom({
+  title,
+  look,
+  themeId,
+  presentationId,
+  budgetMs,
+  alt,
+}: {
+  title: string;
+  look: string;
+  themeId: string | null;
+  presentationId: string;
+  budgetMs: number;
+  alt: string;
+}): Promise<{ url: string; assetId: string; alt: string; distance: number; dim: number } | null> {
   if (!isImageGenerationConfigured()) return null;
   const budget = Math.min(ROOM_BUDGET_MS, budgetMs);
   if (budget < ROOM_MIN_MS) return null;
   const prompt = roomBrief(title, look, paletteWords(getTheme(themeId)));
-  const alt = `The room behind ${title.trim() || "the presentation"}`;
   // The deadline aborts the provider call rather than racing past it: a
   // generation the route has stopped waiting for is settled as failed and
   // never stored, so nothing is paid for and left unattached.
@@ -808,6 +854,34 @@ export async function dressRoom({
   const saved = await storeGeneratedImage(generated.data, { altText: alt, presentationId });
   if (!saved.ok) return null;
   return { url: saved.data.url, assetId: saved.data.id, alt, distance: 0.85, dim: 0.5 };
+}
+
+/**
+ * The found room: a wide stock photograph of the place, from the writer's
+ * words alone — never the title, which searched on its own returns the
+ * subject of the talk rather than somewhere for it to stand.
+ */
+async function roomFromStock(
+  roomQuery: string,
+  presentationId: string,
+  alt: string,
+  budgetMs: number,
+): Promise<{ url: string; assetId: string; alt: string; distance: number; dim: number } | null> {
+  const query = roomQuery.trim();
+  if (!query || !isStockSearchConfigured()) return null;
+  if (budgetMs < ROOM_STOCK_MIN_MS) return null;
+  const found = await fillWithStockPhoto(query, "", presentationId, {
+    slotAspect: 16 / 9,
+    deadline: Date.now() + budgetMs,
+  });
+  if (!found) return null;
+  return {
+    url: found.url,
+    assetId: found.assetId,
+    alt: found.alt || alt,
+    distance: 0.85,
+    dim: 0.55,
+  };
 }
 
 export async function buildSingleScene(

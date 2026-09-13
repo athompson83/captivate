@@ -215,6 +215,7 @@ export async function POST(request: Request) {
         : await dressRoom({
             title: deck.title,
             look: result.data.look,
+            roomQuery: result.data.roomQuery,
             themeId: deck.themeId,
             presentationId,
             budgetMs: Math.min(ROOM_BUDGET_MS, remaining),

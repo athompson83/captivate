@@ -256,6 +256,7 @@ export async function POST(request: Request) {
       const room = await dressRoom({
         title: map.title,
         look: built.data.look,
+        roomQuery: built.data.roomQuery,
         themeId: theme ?? null,
         presentationId,
         budgetMs: Math.min(ROOM_BUDGET_MS, remaining),
