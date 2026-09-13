@@ -87,6 +87,23 @@ export function bulletRuns(
 }
 
 /**
+ * The preset geometry a planned shape is written as.
+ *
+ * A rectangle with no radius is a true `rect`, not a `roundRect` left at
+ * PowerPoint's default rounding: the room's veil covers a whole slide, and
+ * Codex caught that a rounded one left the picture undimmed at every
+ * corner. Exported because the claim is testable without a live slide.
+ */
+export function geometryOf(
+  shape: Pick<Extract<PlannedShape, { kind: "shape" }>, "shape" | "radius">,
+): "ellipse" | "triangle" | "line" | "rect" | "roundRect" {
+  if (shape.shape === "ellipse" || shape.shape === "triangle" || shape.shape === "line") {
+    return shape.shape;
+  }
+  return shape.radius > 0 ? "roundRect" : "rect";
+}
+
+/**
  * An SVG drawing as a PNG data URI.
  *
  * PowerPoint's SVG support is version-dependent and silently absent in
@@ -174,15 +191,7 @@ function addShape(slide: PptxGenJS.Slide, pptx: PptxGenJS, shape: PlannedShape):
       break;
     }
     case "shape": {
-      const type =
-        shape.shape === "ellipse"
-          ? pptx.ShapeType.ellipse
-          : shape.shape === "triangle"
-            ? pptx.ShapeType.triangle
-            : shape.shape === "line"
-              ? pptx.ShapeType.line
-              : pptx.ShapeType.roundRect;
-      slide.addShape(type, {
+      slide.addShape(pptx.ShapeType[geometryOf(shape)], {
         ...common,
         fill: shape.fill ? { color: hex(shape.fill) } : { type: "none" },
         line: shape.stroke

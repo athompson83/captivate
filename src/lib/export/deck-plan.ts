@@ -385,7 +385,9 @@ function planSlide(
       : background.kind === "gradient"
         ? colorOf(background.from, theme, theme.tokens.canvas)
         : theme.tokens.canvas;
-  const ownPicture = background.kind === "image" ? background.url : null;
+  // An image background with no picture in it yet is no picture, as the
+  // stage treats it, so the room stands behind the slide.
+  const ownPicture = background.kind === "image" && background.url ? background.url : null;
   const backgroundImage = ownPicture ?? room?.url ?? null;
 
   // The room's veil: the theme's canvas at the author's dim, as the stage

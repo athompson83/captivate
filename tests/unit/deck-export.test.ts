@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { frameOf } from "@/lib/drawing/frame";
 import { getTheme } from "@/lib/schema/theme";
 import { JourneyBackdrop, SceneElement, type Scene } from "@/lib/schema/presentation";
-import { bulletRuns } from "@/lib/export/pptx";
+import { bulletRuns, geometryOf } from "@/lib/export/pptx";
 import {
   SLIDE_SIZES,
   boxOf,
@@ -542,6 +542,31 @@ describe("the room behind the show", () => {
     const slide = planDeck(withRoom({ dim: 0 }), [plain], THEME).slides[0];
     expect(slide.background.image).toBe(ROOM);
     expect(slide.shapes).toHaveLength(0);
+  });
+
+  it("is written as a true rectangle, not one rounded at the corners", () => {
+    // Codex, reviewing the PR: every planned rectangle was written as a
+    // roundRect, so the veil left the room undimmed at each corner.
+    const plain = scene({ id: id(), elements: [] });
+    const veil = planDeck(withRoom({ dim: 0.4 }), [plain], THEME).slides[0].shapes[0];
+    if (veil.kind !== "shape") throw new Error("expected the veil");
+    expect(geometryOf(veil)).toBe("rect");
+    expect(geometryOf({ shape: "rectangle", radius: 12 })).toBe("roundRect");
+    expect(geometryOf({ shape: "ellipse", radius: 0 })).toBe("ellipse");
+  });
+
+  it("stands behind an image background that has no picture in it yet", () => {
+    // Codex, reviewing the PR: an empty image placeholder kept its empty
+    // address in front of the room, so the slide lost the room and kept
+    // the veil.
+    const empty = scene({ id: id(), elements: [] });
+    empty.content = {
+      ...empty.content,
+      background: { kind: "image", url: "" },
+    } as Scene["content"];
+    const slide = planDeck(withRoom({ dim: 0.4 }), [empty], THEME).slides[0];
+    expect(slide.background.image).toBe(ROOM);
+    expect(slide.shapes[0].kind).toBe("shape");
   });
 
   it("gives way to a scene's own picture", () => {
