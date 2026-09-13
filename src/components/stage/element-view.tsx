@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, memo, useEffect, useId, useMemo, useRef } from "react";
+import { createElement, memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import * as Icons from "lucide-react";
 import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentation";
@@ -8,6 +8,7 @@ import { DrawnPicture, handWobble } from "./drawn-picture";
 import { blobPath } from "@/lib/drawing/diagram";
 import { chartDrawing } from "@/lib/drawing/chart";
 import { coversStage, gradeMatrix } from "@/lib/present/grade";
+import { pictureDrift } from "@/lib/present/drift";
 import { GradeFilter } from "./grade-filter";
 import { embedSandbox } from "@/lib/utils/embed";
 import { resolveColor, type PresentationTheme } from "@/lib/schema/theme";
@@ -609,6 +610,7 @@ export const ElementView = memo(function ElementView({
   // One grade filter per picture, named so two pictures on a scene keep
   // their own and a thumbnail never borrows the stage's.
   const gradeId = `grade-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const reduced = useReducedMotion();
 
   // The element's box in stage pixels, used to shrink over-long text so it
   // never spills onto whatever sits below it.
@@ -831,6 +833,10 @@ export const ElementView = memo(function ElementView({
       const matrix = gradeMatrix(element.grade, theme.tokens.canvas, theme.tokens.accent);
       const feather =
         "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent), linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent)";
+      // The picture lives while its scene is performed — see `pictureDrift`.
+      // Only there: in the editor and a thumbnail a picture is being looked
+      // at, and under a reduced-motion preference it is simply still.
+      const living = perform && !reduced;
       return (
         <div
           style={{
@@ -846,26 +852,10 @@ export const ElementView = memo(function ElementView({
           }}
         >
           {element.url ? (
-            /* Stage images are user uploads at arbitrary sizes rendered inside
-               a CSS-transformed stage; next/image's layout system fights the
-               transform, and the source is a signed private redirect that the
-               optimiser cannot fetch. */
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={element.url}
-              alt={element.alt}
-              loading="lazy"
-              decoding="async"
-              draggable={false}
-              data-grade={element.grade}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: element.fit,
-                objectPosition: `${element.focalX * 100}% ${element.focalY * 100}%`,
-                display: "block",
-                filter: matrix ? `url(#${gradeId})` : undefined,
-              }}
+            <LivingPicture
+              element={element}
+              living={living}
+              filter={matrix ? `url(#${gradeId})` : undefined}
             />
           ) : (
             <ImagePlaceholder
@@ -1306,6 +1296,70 @@ export const ElementView = memo(function ElementView({
       return null;
   }
 });
+
+/**
+ * A photograph on the stage, and the drift it performs — see `pictureDrift`.
+ *
+ * The drift is a transition, and a transition needs a frame at rest before
+ * it has anything to run from: a picture that mounts while its scene is
+ * already being performed — one built on an advance — would otherwise get
+ * the destination as its first style and stand there already closed in,
+ * never having moved (Codex, on the first draft). So every picture renders
+ * its first frame at the identity and takes the drift on the one after.
+ */
+function LivingPicture({
+  element,
+  living,
+  filter,
+}: {
+  element: Extract<SceneElement, { type: "image" }>;
+  living: boolean;
+  filter: string | undefined;
+}) {
+  const [rested, setRested] = useState(false);
+  useEffect(() => {
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setRested(true));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, []);
+  const drifting = living && rested;
+  const drift = pictureDrift(element, drifting);
+  return (
+    /* Stage images are user uploads at arbitrary sizes rendered inside a
+       CSS-transformed stage; next/image's layout system fights the
+       transform, and the source is a signed private redirect that the
+       optimiser cannot fetch. */
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={element.url}
+      alt={element.alt}
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+      data-grade={element.grade}
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: element.fit,
+        objectPosition: `${element.focalX * 100}% ${element.focalY * 100}%`,
+        display: "block",
+        filter,
+        transform: drift.transform,
+        transformOrigin: drift.transformOrigin,
+        transition: drift.transition,
+        // On its own layer while it moves, so the grade is painted once and
+        // the compositor carries the drift.
+        willChange: drifting ? "transform" : undefined,
+      }}
+      data-living={drifting ? "" : undefined}
+    />
+  );
+}
 
 function ImagePlaceholder({
   theme,

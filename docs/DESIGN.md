@@ -155,6 +155,13 @@ Two rules. Motion never delays a basic action: a button responds in 90ms whether
 or not anything animates. And presentation motion may be more expressive than
 interface motion, because on stage it is doing narrative work.
 
+One duration sits outside the table because it is not a transition but a
+shot: a photograph on a performed scene drifts for 26 s
+(`lib/present/drift.ts`) — closing in on its focal point or panning across,
+from the identity so a landing never jumps, and back in 1.4 s when the camera
+leaves. It is the difference between a slide and a shot, and it is invisible
+as motion: a picture is seen to have moved, never seen moving.
+
 `prefers-reduced-motion` is honoured globally in CSS and again in the stage
 renderer.
 
