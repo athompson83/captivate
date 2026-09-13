@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #120 — the MVP-046 closeout and the writer's rooms,
-  awaiting CI, merge and production verification
-- `main`: through PR #120 (merged) — `c486660`; migration
+  `main` after PR #121 — the MVP-047 closeout and the UX pass, awaiting
+  CI, merge and production verification
+- `main`: through PR #121 (merged) — `ab7b2c0`; migration
   `0034_shared_movement_rooms.sql` applied to production; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -53,6 +53,58 @@
   executable by no role at all.
 
 ## Latest Session
+
+### The editor in a real browser, at every width
+
+The owner asked for the UI and UX to be driven in Playwright and made the
+best it can be. The public pages and the shared viewer had been driven in
+the rounds before; this round mounts the editor itself in a real browser
+(the `lifecycle` project, `tests/e2e/fixtures/editor-mount.tsx`) at a
+phone, a tablet held upright and a desktop, opens every panel, menu and
+sheet, and reads the screenshots. What read wrong, fixed with a test that
+fails without the fix, all in `tests/e2e/editor-narrow.spec.ts`:
+
+- **The journey settings did not exist below 1024px** — the panel was
+  `hidden lg:flex`, so a deck's arrangement, room and pace could be set on
+  a desktop and only looked at on a phone. On a narrow screen it is now a
+  half-height sheet under the map, opened from a "Journey settings" button
+  in the map's legend and closed from its own header, like the inspector;
+  beside the map as a column everywhere else (`JourneyPanel` `sheet`,
+  `JourneyMap` `onSettings`).
+- **The map's own buttons were dead.** The map captured the pointer on
+  every press, its legend's buttons' included, so the release went to the
+  map and a click whose press and release land on different elements is
+  delivered to neither: "Fit all" had done nothing since it was added, and
+  the new button could not open anything. A press on a button is now the
+  button's. The legend's mouse guidance ("drag the corner to resize") is
+  hidden on a phone, where it covered the scenes.
+- **The overflow menu stayed open behind what it opened**: the notes came
+  up under a menu still covering the canvas, and the share dialog opened
+  over one. A control that opens something now closes the menu with it.
+- **The AI assistant crushed the canvas on a phone**: a 320px column beside
+  a 390px canvas left 70px of scene and the notes under it forty characters
+  wide, and on an 820px tablet, beside the inspector's or the journey's
+  column, 228px (Codex). Wherever the navigator overlays it slides in over
+  the row instead, dismissed by a tap on what is left of the canvas
+  (`AiDock` `overlay`).
+- **A tablet held upright** (820px) had the title field squeezed to one
+  letter and the scene 240px wide between the navigator and the inspector.
+  The navigator now collapses below `lg` rather than `md` (`useIsCompact`),
+  reopening over the canvas; the theme's name and the word "Undo" fold into
+  their icons below `lg`; the title keeps a floor of 6.5rem.
+- **Two sheets left no canvas.** The inspector's half height and the
+  notes' 280px together put the scene being edited off the screen. One
+  sheet at a time: on a narrow screen the notes, opened on purpose, stand
+  in for the inspector until they are closed; the selection and its
+  toolbar stay.
+- **A phone held upright** frames a 16:9 scene with its neighbours above
+  and below at full size, so the scene the camera was on did not read as
+  the one. While the camera is on a scene the others now step almost away
+  in a tall frame (a fifth of their strength, against six tenths on a wide
+  screen); `world-render` measures it under both frames.
+
+`docs/DESIGN.md` (the responsive rules) and `docs/UX.md` (the phone) say
+what the editor now does.
 
 ### A deck with a look
 
@@ -165,16 +217,27 @@ order — found, never made: a made room is a generation the deck waits a
 minute for, and a deck of six movements cannot wait six of them — and each
 gets what is left, so a slow search costs the movements after it their
 room and never the route its ceiling; a search that finds nothing leaves
-the movement in the show's room. Both deck routes map the label to the
-movement's section (a new deck's movements were saved under those labels;
-an existing deck's briefs carry the label and the moment's movement is the
-server's fact) and merge the found rooms into `journey.rooms` under the
-author's, never over one they chose.
+the movement in the show's room. Both deck routes resolve the labels
+through `roomsForMovements` (`lib/ai/look.ts`, pure) against the deck's
+own movements — a new deck's as just saved, an existing deck's sections
+as the server has them — which puts the list in the deck's order whatever
+order the writer wrote it in, gives a movement one room, and names nothing
+by a label two movements share or by one none carries; the found rooms
+merge into `journey.rooms` under the author's, never over one they chose.
 
 Tests in `look` ("rooms of their own": the brief asks and the schema
 defaults; found in stock, never made, each with what is left, stopping
-under the minimum; both routes dress them after the show's room, by label,
-never over the author's).
+under the minimum; both routes dress them after the show's room through
+the one resolver, never over the author's; the resolver's order, its one
+room per movement, and the labels it refuses).
+
+**Landed and verified.** Codex's two findings fixed before merge: the
+rooms were keyed by label in a `Map`, so a label two movements share put
+a room on the wrong one, and the budget was spent in the model's array
+order rather than the deck's — both answered by the resolver above, with
+tests that fail without each rule. PR #121 squash-merged as `ab7b2c0`,
+all six CI jobs green on the head. The proxied smoke suite against
+`www.axtevi.com` after the deploy: 36 of 37 on the first run, the one failure a proxy `net::ERR_TIMED_OUT` on `/` that re-ran green with the route answering in 0.3 s.
 
 ### A room per movement
 

@@ -474,6 +474,9 @@ export const World = memo(function World({
   );
   const aspectRatio =
     viewport.height > 0 ? effective.width / viewport.height : stage.width / stage.height;
+  // A viewport taller than the scene's own shape by a clear margin: what a
+  // phone held upright is, and what a laptop never is.
+  const tallFrame = aspectRatio < (stage.width / stage.height) * 0.8;
 
   const target = useMemo(
     () => cameraFor(focus, scenes, placements, stage, aspectRatio),
@@ -1193,7 +1196,18 @@ export const World = memo(function World({
                 // transition runs as a flight begins, so leaving a scene dims
                 // it and arriving lifts the next: the light moves with the
                 // camera.
-                opacity: play && detailed && !isActive && focus.kind === "scene" ? 0.6 : 1,
+                // The scenes the camera is not on step back while it is on
+                // one. On a wide screen they are mostly out of frame and a
+                // light touch keeps them as context; on a tall screen — a
+                // phone held upright — the frame around a 16:9 scene holds
+                // its neighbours above and below at full size, and the one
+                // the camera is on has to read as the one.
+                opacity:
+                  play && detailed && !isActive && focus.kind === "scene"
+                    ? tallFrame
+                      ? 0.22
+                      : 0.6
+                    : 1,
                 transition: "opacity 600ms ease",
               }}
             >

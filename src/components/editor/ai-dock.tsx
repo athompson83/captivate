@@ -39,9 +39,20 @@ import { cn } from "@/lib/utils/cn";
 export function AiDock({
   presentationId,
   onClose,
+  overlay = false,
 }: {
   presentationId: string;
   onClose: () => void;
+  /**
+   * Over the canvas rather than beside it. A 320px column beside a 390px
+   * canvas left 70px of scene, and the notes under it forty characters
+   * wide; on an 820px tablet, beside the inspector's or the journey's 272px
+   * column, it left 228px. Wherever the navigator overlays, so does this:
+   * the dock slides in over the row and a tap on what is left of the
+   * canvas dismisses it (Codex, reviewing the PR that keyed it to the
+   * phone breakpoint alone).
+   */
+  overlay?: boolean;
 }) {
   const selected = useSelectedElements();
   const scene = useCurrentScene();
@@ -58,16 +69,21 @@ export function AiDock({
       e.type === "heading" || e.type === "text" || e.type === "quote" || e.type === "list",
   );
 
-  return (
+  const panel = (
     <motion.aside
       aria-label="AI assistant"
-      initial={{ width: 0, opacity: 0 }}
-      animate={{ width: 320, opacity: 1 }}
-      exit={{ width: 0, opacity: 0 }}
+      initial={overlay ? { x: "100%" } : { width: 0, opacity: 0 }}
+      animate={overlay ? { x: 0 } : { width: 320, opacity: 1 }}
+      exit={overlay ? { x: "100%" } : { width: 0, opacity: 0 }}
       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-      className="border-line-subtle bg-base shrink-0 overflow-hidden border-l"
+      className={cn(
+        "border-line-subtle bg-base overflow-hidden border-l",
+        overlay
+          ? "absolute inset-y-0 right-0 z-40 w-[min(320px,100%)] shadow-[var(--shadow-xl)]"
+          : "shrink-0",
+      )}
     >
-      <div className="flex h-full w-[320px] flex-col">
+      <div className={cn("flex h-full flex-col", overlay ? "w-full" : "w-[320px]")}>
         <div className="border-line-subtle flex shrink-0 items-center justify-between border-b px-3.5 py-2.5">
           <span className="text-ink flex items-center gap-2 text-[13px] font-medium">
             <Sparkles className="text-ai size-3.5" aria-hidden />
@@ -111,6 +127,19 @@ export function AiDock({
         </div>
       </div>
     </motion.aside>
+  );
+
+  if (!overlay) return panel;
+
+  return (
+    <>
+      <div
+        aria-hidden
+        onClick={onClose}
+        className="absolute inset-0 z-30 bg-black/30 backdrop-blur-[1px]"
+      />
+      {panel}
+    </>
   );
 }
 

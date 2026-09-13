@@ -270,6 +270,50 @@ function controllableFrames() {
   };
 }
 
+describe("the scenes the camera is not on", () => {
+  function withViewport(width: number, height: number, run: () => void) {
+    const original = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function () {
+      return {
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: width,
+        bottom: height,
+        width,
+        height,
+        toJSON: () => ({}),
+      } as DOMRect;
+    };
+    try {
+      run();
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+    }
+  }
+  const opacityOf = (container: HTMLElement, index: number) =>
+    container.querySelector<HTMLElement>(`[data-scene-index="${index}"]`)!.style.opacity;
+
+  it("step back lightly on a wide screen, and almost away on a phone held upright", () => {
+    // Driven in a browser at 390 by 844: the frame around a 16:9 scene held
+    // its neighbours above and below at full size, and nothing said which
+    // one the camera was on.
+    withViewport(1600, 900, () => {
+      const { container, unmount } = renderWorld(3, { play: true });
+      expect(opacityOf(container, 0)).toBe("1");
+      expect(opacityOf(container, 1)).toBe("0.6");
+      unmount();
+    });
+    withViewport(390, 844, () => {
+      const { container, unmount } = renderWorld(3, { play: true });
+      expect(opacityOf(container, 0)).toBe("1");
+      expect(opacityOf(container, 1)).toBe("0.22");
+      unmount();
+    });
+  });
+});
+
 describe("a room of a movement's own", () => {
   const show = {
     url: "/api/assets/show/content",

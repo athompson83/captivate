@@ -54,7 +54,14 @@ type Drag =
       grabDistance: number;
     };
 
-export function JourneyMap({ className }: { className?: string }) {
+export function JourneyMap({
+  className,
+  onSettings,
+}: {
+  className?: string;
+  /** Opens the journey settings where they are a sheet rather than a column. */
+  onSettings?: () => void;
+}) {
   const scenes = useEditor((s) => s.document.scenes);
   const presentation = useEditor((s) => s.document.presentation);
   const selectedSceneId = useEditor((s) => s.selection.sceneId);
@@ -186,6 +193,10 @@ export function JourneyMap({ className }: { className?: string }) {
     if (!live || e.button !== 0) return;
 
     const target = e.target as HTMLElement;
+    // A press on the legend's buttons is theirs. Capturing it here sent the
+    // release to the map, and a click whose press and release land on
+    // different elements is delivered to neither — "Fit all" did nothing.
+    if (target.closest("button")) return;
     const sceneEl = target.closest<HTMLElement>("[data-map-scene]");
     const handle = target.closest<HTMLElement>("[data-map-handle]");
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -397,7 +408,7 @@ export function JourneyMap({ className }: { className?: string }) {
         })}
       </div>
 
-      <MapLegend onFit={() => setUserView(null)} />
+      <MapLegend onFit={() => setUserView(null)} onSettings={onSettings} />
     </div>
   );
 }
@@ -418,19 +429,25 @@ function commitPlacement(sceneId: string, placement: ScenePlacement) {
   );
 }
 
-function MapLegend({ onFit }: { onFit: () => void }) {
+function MapLegend({ onFit, onSettings }: { onFit: () => void; onSettings?: () => void }) {
+  const button =
+    "border-line text-ink-2 hover:border-line-strong hover:text-ink pointer-events-auto rounded-[var(--radius-md)] border bg-[var(--surface)] px-2.5 py-1.5 text-[12px] whitespace-nowrap transition-colors";
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between p-3">
-      <p className="text-ink-3 max-w-[46ch] text-[11.5px] leading-relaxed">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-3">
+      <p className="text-ink-3 hidden max-w-[46ch] min-w-0 text-[11.5px] leading-relaxed sm:block">
         Drag to move a scene, drag the corner to resize it. A scene placed inside another becomes a
         detail of it, and the camera dives in.
       </p>
-      <button
-        onClick={onFit}
-        className="border-line text-ink-2 hover:border-line-strong hover:text-ink pointer-events-auto rounded-[var(--radius-md)] border bg-[var(--surface)] px-2.5 py-1.5 text-[12px] transition-colors"
-      >
-        Fit all
-      </button>
+      <div className="flex shrink-0 gap-2">
+        {onSettings && (
+          <button onClick={onSettings} className={button}>
+            Journey settings
+          </button>
+        )}
+        <button onClick={onFit} className={button}>
+          Fit all
+        </button>
+      </div>
     </div>
   );
 }

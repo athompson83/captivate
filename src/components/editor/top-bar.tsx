@@ -122,7 +122,7 @@ export function EditorTopBar({
           className="text-ink-2 hover:text-ink flex h-8 items-center gap-1.5 rounded-l-[var(--radius-md)] px-2 text-[12.5px] transition-colors hover:bg-[var(--surface-inset)] disabled:pointer-events-none disabled:opacity-45"
         >
           <Undo2 className="size-4" aria-hidden />
-          {!narrow && <span>Undo</span>}
+          <span className="hidden lg:inline">Undo</span>
         </button>
       </Tooltip>
       <span aria-hidden className="bg-line h-5 w-px" />
@@ -139,11 +139,19 @@ export function EditorTopBar({
     </div>
   );
 
+  // Inside the overflow menu a control that opens something closes the menu
+  // with it: the notes came up under a menu still covering the canvas, and
+  // the share dialog opened over one. In the header the same controls stand
+  // on their own and there is nothing to close.
+  const folded = (action: () => void) => () => {
+    action();
+    if (narrow) setOverflowOpen(false);
+  };
   const panelToggles = (
     <>
       <Tooltip label="Notes" shortcut="N" side="bottom">
         <button
-          onClick={onToggleNotes}
+          onClick={folded(onToggleNotes)}
           aria-label="Toggle notes"
           aria-pressed={notesOpen}
           className={cn(
@@ -157,7 +165,7 @@ export function EditorTopBar({
 
       <Tooltip label="AI assistant" shortcut="I" side="bottom">
         <button
-          onClick={onToggleAi}
+          onClick={folded(onToggleAi)}
           aria-label="Toggle AI assistant"
           aria-pressed={aiOpen}
           className={cn(
@@ -171,7 +179,7 @@ export function EditorTopBar({
 
       <Tooltip label="Keyboard shortcuts" side="bottom">
         <button
-          onClick={() => onHelpChange(true)}
+          onClick={folded(() => onHelpChange(true))}
           aria-label="Keyboard shortcuts"
           className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors"
         >
@@ -181,7 +189,7 @@ export function EditorTopBar({
 
       <Tooltip label="Share" side="bottom">
         <button
-          onClick={() => setShareOpen(true)}
+          onClick={folded(() => setShareOpen(true))}
           aria-label="Share"
           className="text-ink-3 hover:text-ink flex size-8 items-center justify-center rounded-[var(--radius-md)] transition-colors"
         >
@@ -273,6 +281,7 @@ export function EditorTopBar({
               <button
                 onClick={() => setThemeOpen((v) => !v)}
                 aria-expanded={themeOpen}
+                aria-label={`Theme: ${THEMES.find((t) => t.id === themeId)?.name ?? "Theme"}`}
                 className="border-line text-ink-2 hover:border-line-strong hover:text-ink flex items-center gap-2 rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[12.5px] transition-colors"
               >
                 <span
@@ -280,7 +289,9 @@ export function EditorTopBar({
                   className="border-line-subtle size-3 rounded-full border"
                   style={{ background: THEMES.find((t) => t.id === themeId)?.tokens.accent }}
                 />
-                {THEMES.find((t) => t.id === themeId)?.name ?? "Theme"}
+                <span className="hidden lg:inline">
+                  {THEMES.find((t) => t.id === themeId)?.name ?? "Theme"}
+                </span>
               </button>
 
               <Popover
@@ -433,7 +444,10 @@ function TitleField({ title }: { title: string }) {
       onBlur={() => setEditing(false)}
       aria-label="Presentation title"
       placeholder="Untitled presentation"
-      className="text-ink hover:border-line-subtle focus:border-line max-w-[280px] min-w-0 flex-shrink rounded-[var(--radius-sm)] border border-transparent bg-transparent px-2 py-1 text-[13.5px] font-medium transition-colors focus:bg-[var(--surface-inset)]"
+      // A floor as well as a ceiling: on an 820px tablet the row's other
+      // controls squeezed the title to a single letter. Not on a phone,
+      // where the floor pushed Present off a 320px row.
+      className="text-ink hover:border-line-subtle focus:border-line max-w-[280px] min-w-0 flex-shrink rounded-[var(--radius-sm)] border border-transparent bg-transparent px-2 py-1 text-[13.5px] font-medium transition-colors focus:bg-[var(--surface-inset)] md:min-w-[6.5rem]"
     />
   );
 }

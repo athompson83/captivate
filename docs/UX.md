@@ -239,7 +239,7 @@ refresh. The stage takes the same gesture from a presenter on a tablet. Full
 screen is a button in the corner as well as the F key, because a hand has no
 F; it appears only where the browser can do it (an iPhone cannot), asks by the
 prefixed name Safari on iPad still uses, and says so when refused rather than
-doing nothing.
+doing nothing. And a phone held upright frames a 16:9 scene with its neighbours above and below at full size, so while the camera is on a scene the others step almost away (a fifth of their strength, against six tenths on a wide screen) and the one it is on reads as the one.
 
 **A share link looks like something before it is opened.** A link pasted into
 a chat is unfurled by the chat, and every deck used to unfurl as the site's

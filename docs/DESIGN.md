@@ -210,13 +210,23 @@ editing.
 
 - **Dashboard, notes, assets, recordings, settings** adapt down to phone width.
 - **The editor** is desktop-first, but every control it renders can be reached.
-  Below `md` the navigator collapses and reopens over the canvas rather than
-  beside it, closing again once a scene is chosen; the inspector becomes a
-  half-height sheet under the canvas, so the scene refits into what is left
-  instead of being squeezed to a thumbnail; the header splits into two rows,
+  Below `lg` the navigator collapses and reopens over the canvas rather than
+  beside it, closing again once a scene is chosen, and the header keeps its
+  one row by folding the theme's name and the word "Undo" into their icons
+  (an iPad held upright had the title down to one letter and the scene to
+  240px between two panels). Below `md` the inspector becomes a half-height
+  sheet under the canvas, so the scene refits into what is left instead of
+  being squeezed to a thumbnail — one sheet at a time: the notes, opened on
+  purpose, stand in for it until they are closed, because the two together
+  left no canvas at all; the header splits into two rows,
   giving the view switcher its own full-width one and folding the secondary
-  controls into a single menu; and the floating selection toolbar wraps rather
-  than hanging off the side. It is not a phone experience and does not pretend
-  to be — but nothing on the page is out of reach.
+  controls into a single menu, which closes behind whatever it opens; the AI
+  assistant slides in over the row rather than beside it wherever the
+  navigator does (below `lg`), dismissed by a tap on what is left of the
+  canvas; the journey settings are a half-height sheet
+  under the map, opened from it, where on a wide screen they are a column
+  beside it; and the floating selection toolbar wraps rather than hanging off
+  the side. It is not a phone experience and does not pretend to be — but
+  nothing on the page is out of reach.
 - **The stage** works at any size, which matters — the audience display is often
   an unusual aspect ratio.
