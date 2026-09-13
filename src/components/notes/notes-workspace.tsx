@@ -180,50 +180,60 @@ export function NotesWorkspace({
               }}
               aria-label="Note title"
               placeholder="Untitled note"
-              className="text-ink hover:border-line-subtle focus:border-line min-w-0 flex-1 rounded-[var(--radius-sm)] border border-transparent bg-transparent px-2 py-1 text-[17px] font-semibold tracking-tight transition-colors focus:bg-[var(--surface-inset)]"
+              // A floor under the title: the row wraps, but the title shrank
+              // before anything wrapped, and on a phone it read as three
+              // letters beside the controls. Below the floor the controls
+              // take a row of their own instead.
+              className="text-ink hover:border-line-subtle focus:border-line min-w-[12rem] flex-1 rounded-[var(--radius-sm)] border border-transparent bg-transparent px-2 py-1 text-[17px] font-semibold tracking-tight transition-colors focus:bg-[var(--surface-inset)]"
             />
 
-            <div className="relative">
-              <select
-                value={active.presentationId ?? ""}
-                onChange={(e) => {
-                  const presentationId = e.target.value || null;
-                  patchLocal(active.id, { presentationId });
-                  persist(active.id, { presentationId });
-                }}
-                aria-label="Attach to a presentation"
-                className="border-line text-ink-2 focus:border-accent appearance-none rounded-[var(--radius-md)] border bg-[var(--surface-inset)] py-1.5 pr-7 pl-2.5 text-[12px] outline-none"
+            {/* Wrapping among themselves too, and the picker capped: a deck
+                with a long title is the native select's minimum width, and
+                a group that could not wrap ran past a phone's header with
+                it (Codex, on the first draft of the grouping). */}
+            <div className="ml-auto flex max-w-full min-w-0 flex-wrap items-center justify-end gap-2">
+              <div className="relative max-w-full min-w-0">
+                <select
+                  value={active.presentationId ?? ""}
+                  onChange={(e) => {
+                    const presentationId = e.target.value || null;
+                    patchLocal(active.id, { presentationId });
+                    persist(active.id, { presentationId });
+                  }}
+                  aria-label="Attach to a presentation"
+                  className="border-line text-ink-2 focus:border-accent max-w-[12rem] appearance-none truncate rounded-[var(--radius-md)] border bg-[var(--surface-inset)] py-1.5 pr-7 pl-2.5 text-[12px] outline-none"
+                >
+                  <option value="">Standalone note</option>
+                  {presentations.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="text-ink-3 pointer-events-none absolute top-1/2 right-2 size-3 -translate-y-1/2"
+                  aria-hidden
+                />
+              </div>
+
+              {active.presentationId && (
+                <Link
+                  href={`/edit/${active.presentationId}`}
+                  className="border-line text-ink-2 hover:border-line-strong hover:text-ink flex items-center gap-1 rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[12px] transition-colors"
+                >
+                  Open deck
+                  <ExternalLink className="size-3" aria-hidden />
+                </Link>
+              )}
+
+              <button
+                onClick={() => setDeleteTarget(active)}
+                aria-label="Delete note"
+                className="text-ink-3 hover:text-danger rounded p-1.5 transition-colors"
               >
-                <option value="">Standalone note</option>
-                {presentations.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                className="text-ink-3 pointer-events-none absolute top-1/2 right-2 size-3 -translate-y-1/2"
-                aria-hidden
-              />
+                <Trash2 className="size-4" aria-hidden />
+              </button>
             </div>
-
-            {active.presentationId && (
-              <Link
-                href={`/edit/${active.presentationId}`}
-                className="border-line text-ink-2 hover:border-line-strong hover:text-ink flex items-center gap-1 rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[12px] transition-colors"
-              >
-                Open deck
-                <ExternalLink className="size-3" aria-hidden />
-              </Link>
-            )}
-
-            <button
-              onClick={() => setDeleteTarget(active)}
-              aria-label="Delete note"
-              className="text-ink-3 hover:text-danger rounded p-1.5 transition-colors"
-            >
-              <Trash2 className="size-4" aria-hidden />
-            </button>
           </div>
 
           <textarea

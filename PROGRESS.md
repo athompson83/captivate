@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #124 — the MVP-050 closeout and the next round, awaiting
+  `main` after PR #125 — the MVP-051 closeout and the next round, awaiting
   CI, merge and production verification
-- `main`: through PR #124 (merged) — `95948e1`; migration
+- `main`: through PR #125 (merged) — `5156a5e`; migration
   `0034_shared_movement_rooms.sql` applied to production; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -54,6 +54,23 @@
 
 ## Latest Session
 
+### The last of the UX pass: notes, assets, templates, recordings, settings, the create flow
+
+With the navigation and image stand-ins in place every signed-in surface
+can be mounted, so the rest were read at a phone and a desktop: the notes
+workspace, the asset library and its detail dialog, the template gallery,
+the recordings library, settings, and the create flow in both modes.
+All but one read well, with nothing past the window's edge. The one: a
+note's title shrank before the header row wrapped, so on a phone it read
+as three letters beside the presentation picker, the deck link and the
+delete button. The title now keeps a floor of 12rem and the controls,
+grouped at the row's end, take a row of their own below it — and wrap
+among themselves, with the deck picker capped at 12rem, since a deck's
+long title would otherwise be the native select's width and the group's
+with it (Codex, on the first draft of the grouping)
+(`notes-workspace.tsx`); `tests/e2e/fixtures/notes-mount.tsx` and
+`tests/e2e/notes.spec.ts` (lifecycle) pin it, and `docs/DESIGN.md` says so.
+
 ### The dashboard in a real browser
 
 The dashboard (`/presentations`) is the first thing a signed-in person
@@ -78,6 +95,10 @@ desktop. Read at a phone, a tablet held upright and a desktop:
   on a desktop, and the tablet's one column all read well.
 
 `docs/DESIGN.md` ("Responsive") says what the library now does.
+
+**Landed and verified.** PR #125 squash-merged as `5156a5e`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 37 of 37 on the first run.
 
 ### The presenter console in a real browser
 

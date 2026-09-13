@@ -213,7 +213,12 @@ editing.
   explicitly (`grid-cols-1`, which may shrink): left implicit, a column is
   sized to its widest content, and on a phone the cards ran past the window
   with their right edges cut. `tests/e2e/dashboard.spec.ts` mounts the shell
-  and the library in a real browser and measures it.
+  and the library in a real browser and measures it. A note's title keeps a
+  floor of 12rem, so on a phone the controls beside it take a row of their
+  own rather than the title shrinking to three letters; the deck picker is
+  capped at 12rem and the controls wrap among themselves, since a deck's
+  long title would otherwise be the picker's width
+  (`tests/e2e/notes.spec.ts`).
 - **The editor** is desktop-first, but every control it renders can be reached.
   Below `lg` the navigator collapses and reopens over the canvas rather than
   beside it, closing again once a scene is chosen, and the header keeps its
