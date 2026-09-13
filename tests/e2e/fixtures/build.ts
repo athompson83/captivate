@@ -103,6 +103,12 @@ export async function bundleFixture(entry: string): Promise<string> {
         "@": resolve(process.cwd(), "src"),
         // No Next runtime exists in a file:// fixture; links render as links.
         "next/link": resolve(process.cwd(), "tests/e2e/fixtures/next-link-shim.tsx"),
+        // Nor an app router: the hooks read a pathname a fixture sets and
+        // record pushes rather than following them.
+        "next/navigation": resolve(process.cwd(), "tests/e2e/fixtures/next-navigation-shim.tsx"),
+        // Nor an image optimiser: `next/image` reads `process.env` at module
+        // load and threw before any fixture code ran; pictures are pictures.
+        "next/image": resolve(process.cwd(), "tests/e2e/fixtures/next-image-shim.tsx"),
       },
     },
     define: {
@@ -126,6 +132,12 @@ export async function bundleFixture(entry: string): Promise<string> {
        */
       "process.env.NEXT_PUBLIC_SUPABASE_URL": '""',
       "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY": '""',
+      // The site module reads these; the dashboard fixture threw
+      // `process is not defined` at load until it was inlined too.
+      "process.env.NEXT_PUBLIC_SUPPORT_EMAIL": '"support@fixture.captivate.test"',
+      // `lib/site.ts` reads Vercel's own two at module load, as unset.
+      "process.env.VERCEL_PROJECT_PRODUCTION_URL": "undefined",
+      "process.env.VERCEL_ENV": "undefined",
     },
     build: {
       outDir,

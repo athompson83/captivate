@@ -209,6 +209,11 @@ Desktop is the authoring environment and is not compromised to claim mobile
 editing.
 
 - **Dashboard, notes, assets, recordings, settings** adapt down to phone width.
+  The library's two grids name their one column below `lg` and `sm`
+  explicitly (`grid-cols-1`, which may shrink): left implicit, a column is
+  sized to its widest content, and on a phone the cards ran past the window
+  with their right edges cut. `tests/e2e/dashboard.spec.ts` mounts the shell
+  and the library in a real browser and measures it.
 - **The editor** is desktop-first, but every control it renders can be reached.
   Below `lg` the navigator collapses and reopens over the canvas rather than
   beside it, closing again once a scene is chosen, and the header keeps its

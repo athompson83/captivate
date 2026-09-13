@@ -153,7 +153,9 @@ export function PresentationsLibrary({
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[176px_minmax(0,1fr)]">
+      {/* One explicit column below `lg`: left implicit, the column sized to
+          its widest content and on a phone the cards ran past the window. */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[176px_minmax(0,1fr)]">
         <aside className="space-y-6">
           <nav aria-label="Folders">
             <div className="mb-2 flex items-center justify-between">
@@ -276,7 +278,7 @@ export function PresentationsLibrary({
           ) : inTrash ? (
             <TrashList items={items} onChanged={() => router.refresh()} />
           ) : (
-            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 [@media(width>=110rem)]:grid-cols-4">
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 [@media(width>=110rem)]:grid-cols-4">
               {items.map((p) => (
                 <li key={p.id}>
                   <PresentationCard presentation={p} preview={previews[p.id] ?? null} />
