@@ -2,7 +2,13 @@ import type { PresentationTheme } from "@/lib/schema/theme";
 import { frameOf, labelSize } from "@/lib/drawing/frame";
 import { isAccentRun } from "@/lib/present/hand-mark";
 import { resolveColor } from "@/lib/schema/theme";
-import type { ColorValue, RichText, Scene, SceneElement } from "@/lib/schema/presentation";
+import type {
+  ColorValue,
+  JourneyBackdrop,
+  RichText,
+  Scene,
+  SceneElement,
+} from "@/lib/schema/presentation";
 
 /**
  * A Captivate presentation, flattened into slides.
@@ -306,8 +312,27 @@ export function slideOrder(scenes: readonly Scene[]): Scene[] {
   return ordered;
 }
 
+/**
+ * The room behind the show, as a slide can carry it.
+ *
+ * The picture the author put behind the whole show is behind every slide
+ * too: as the slide's background where the scene has no picture of its own,
+ * with the author's dim laid over it as a rectangle of the theme's canvas —
+ * the veil the stage draws on a scene, since a slide is a scene seen up
+ * close and never the overview that lifts it. The room fills the slide
+ * rather than showing the crop the camera saw through the parallax, and it
+ * is exported as shot: the grade is the stage's filter, and a slide has none,
+ * which is said in the omissions as it is for a scene's pictures. A room that
+ * is drawn rather than photographed is CSS the stage composes and a slide
+ * cannot, so a deck with one is told so rather than handed a canvas colour
+ * and left to wonder where the room went.
+ */
 export function planDeck(
-  presentation: { title: string; aspectRatio: string },
+  presentation: {
+    title: string;
+    aspectRatio: string;
+    journey?: { backdrop: JourneyBackdrop };
+  },
   scenes: readonly Scene[],
   theme: PresentationTheme,
 ): DeckPlan {
@@ -315,10 +340,25 @@ export function planDeck(
   const size = SLIDE_SIZES[aspect];
   const lost = counter();
 
+  const backdrop = presentation.journey?.backdrop ?? null;
+  const room = backdrop?.url ? backdrop : null;
+  if (room && room.grade !== "none") {
+    lost.bump(
+      "room grade",
+      "The room behind the show is exported as shot, with its dim laid over it; the slide has no grade.",
+    );
+  }
+  if (backdrop && !room && backdrop.graphic !== "none") {
+    lost.bump(
+      "room",
+      "The drawn room behind the show is composed by the stage and has no slide equivalent; the slides stand on the theme's canvas.",
+    );
+  }
+
   const ordered = slideOrder(scenes);
   const slideNumberOf = new Map(ordered.map((scene, index) => [scene.id, index + 1]));
 
-  const slides = ordered.map((scene) => planSlide(scene, theme, size, slideNumberOf, lost));
+  const slides = ordered.map((scene) => planSlide(scene, theme, size, slideNumberOf, lost, room));
 
   return { aspect, size, slides, omissions: lost.list() };
 }
@@ -329,6 +369,7 @@ function planSlide(
   size: { width: number; height: number },
   slideNumberOf: Map<string, number>,
   lost: Counter,
+  room: JourneyBackdrop | null,
 ): PlannedSlide {
   const shapes: PlannedShape[] = [];
   const extraNotes: string[] = [];
@@ -344,7 +385,25 @@ function planSlide(
       : background.kind === "gradient"
         ? colorOf(background.from, theme, theme.tokens.canvas)
         : theme.tokens.canvas;
-  const backgroundImage = background.kind === "image" ? background.url : null;
+  // An image background with no picture in it yet is no picture, as the
+  // stage treats it, so the room stands behind the slide.
+  const ownPicture = background.kind === "image" && background.url ? background.url : null;
+  const backgroundImage = ownPicture ?? room?.url ?? null;
+
+  // The room's veil: the theme's canvas at the author's dim, as the stage
+  // lays it on a scene, under everything the scene draws.
+  if (!ownPicture && room && room.dim > 0) {
+    shapes.push({
+      kind: "shape",
+      box: { x: 0, y: 0, w: size.width, h: size.height, rotation: 0 },
+      shape: "rectangle",
+      fill: theme.tokens.canvas,
+      stroke: null,
+      strokeWidth: 0,
+      radius: 0,
+      opacity: room.dim,
+    });
+  }
 
   let buildSteps = 0;
 

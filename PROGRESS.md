@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #115 — the MVP-041 closeout, and the room graded to the
-  deck, awaiting CI, merge and production verification
-- `main`: through PR #115 (merged) — `d4b4bda`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #116 — the MVP-042 closeout, and the room in the export,
+  awaiting CI, merge and production verification
+- `main`: through PR #116 (merged) — `934f98a`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -150,6 +150,30 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### The room in the export
+
+The room behind the show is now real on every deck — made, found or drawn,
+veiled on a scene and graded to the deck — and a slide export still painted
+the theme's canvas behind every slide. `planDeck` now reads the journey's
+backdrop: where the scene has no picture of its own, the room's picture is
+the slide's background, with the author's dim laid over it as a rectangle of
+the theme's canvas placed first in the slide's shapes — the veil the stage
+draws on a scene, since a slide is a scene seen up close and never the
+overview that lifts it — and the words in front of it. The picture is
+exported as shot, because the grade is the stage's filter and a slide has
+none, and that is said once among the export's omissions as it is for a
+scene's pictures; a drawn room is CSS the stage composes, so a deck standing
+in one is told so rather than handed the canvas colour and left to wonder
+where the room went. A scene's own picture keeps its place in front of the
+room, and a deck without a journey exports exactly as before. Nothing in
+the writer (`pptx.ts`) changed: the picture goes through the slide
+background it already sets, the veil through the rectangle it already draws.
+
+Tests in `deck-export` (the room behind every slide with the canvas veil at
+the author's dim and the words in front; no veil at dim zero; a scene's own
+picture in front; the as-shot and drawn-room omissions counted once; no
+journey, no change) — the three that assert the room fail without the change.
+
 ### The room graded to the deck
 
 A room found in stock arrives in its own colour world — a warm corridor
@@ -168,6 +192,12 @@ than a filter that does nothing.
 Tests in `world-render` (the room's picture carries a filter whose colour
 matrix is the theme's tint; as shot carries none; a stored backdrop parses
 to tint).
+
+**Landed and verified.** PR #116 squash-merged as `934f98a`, all six CI
+jobs green on the head; Codex's review completed with no findings. The
+proxied smoke suite against `www.axtevi.com` after the deploy: 36 of 37 on
+the first run, the one failure a proxy `net::ERR_TIMED_OUT` on `/sign-in`
+that re-ran green with the route answering in 0.34 s.
 
 ### A room found in stock
 

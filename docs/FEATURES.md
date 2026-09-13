@@ -267,7 +267,11 @@ plainly rather than quietly deleting:
 - **Speaker-view on a phone** — `/present/[id]/remote`, joined to a live
   session over a gated Realtime channel.
 - **PowerPoint export** — a `.pptx` Keynote also opens, written in the browser.
-  Export only; there is no importer.
+  Export only; there is no importer. The room behind the show is behind every
+  slide too: the backdrop picture as the slide's background where the scene has
+  no picture of its own, veiled by the theme's canvas at the author's dim, and
+  exported as shot (the grade is the stage's, and is counted among the
+  omissions); a drawn room has no slide equivalent and is said so.
 
 ## Deliberately not built
 

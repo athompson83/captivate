@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { frameOf } from "@/lib/drawing/frame";
 import { getTheme } from "@/lib/schema/theme";
-import { SceneElement, type Scene } from "@/lib/schema/presentation";
-import { bulletRuns } from "@/lib/export/pptx";
+import { JourneyBackdrop, SceneElement, type Scene } from "@/lib/schema/presentation";
+import { bulletRuns, geometryOf } from "@/lib/export/pptx";
 import {
   SLIDE_SIZES,
   boxOf,
@@ -505,6 +505,108 @@ describe("colour", () => {
   it("paints the slide with a solid scene background, and the theme's canvas otherwise", () => {
     const plain = scene({ id: id(), elements: [] });
     expect(planDeck(DECK, [plain], THEME).slides[0].background.color).toBe(THEME.tokens.canvas);
+  });
+});
+
+describe("the room behind the show", () => {
+  const ROOM = "https://pictures.example/corridor.jpg";
+  const withRoom = (over: Record<string, unknown>) => ({
+    ...DECK,
+    journey: { backdrop: JourneyBackdrop.parse({ url: ROOM, ...over }) },
+  });
+
+  it("stands behind every slide, veiled by the theme's canvas at the author's dim", () => {
+    // A room the author put behind the whole show was behind no slide at all:
+    // the export painted the theme's canvas where the stage had a photograph.
+    const plain = scene({ id: id(), elements: [heading("Shock")] });
+    const slide = planDeck(withRoom({ dim: 0.4 }), [plain], THEME).slides[0];
+    expect(slide.background.image).toBe(ROOM);
+    const veil = slide.shapes[0];
+    if (veil.kind !== "shape") throw new Error("expected the veil first");
+    expect(veil.shape).toBe("rectangle");
+    expect(veil.fill).toBe(THEME.tokens.canvas);
+    expect(veil.opacity).toBeCloseTo(0.4, 5);
+    expect(veil.box).toEqual({
+      x: 0,
+      y: 0,
+      w: SLIDE_SIZES["16:9"].width,
+      h: SLIDE_SIZES["16:9"].height,
+      rotation: 0,
+    });
+    // The words stay in front of the veil.
+    expect(slide.shapes[1].kind).toBe("text");
+  });
+
+  it("carries no veil when the author lifted the dim entirely", () => {
+    const plain = scene({ id: id(), elements: [] });
+    const slide = planDeck(withRoom({ dim: 0 }), [plain], THEME).slides[0];
+    expect(slide.background.image).toBe(ROOM);
+    expect(slide.shapes).toHaveLength(0);
+  });
+
+  it("is written as a true rectangle, not one rounded at the corners", () => {
+    // Codex, reviewing the PR: every planned rectangle was written as a
+    // roundRect, so the veil left the room undimmed at each corner.
+    const plain = scene({ id: id(), elements: [] });
+    const veil = planDeck(withRoom({ dim: 0.4 }), [plain], THEME).slides[0].shapes[0];
+    if (veil.kind !== "shape") throw new Error("expected the veil");
+    expect(geometryOf(veil)).toBe("rect");
+    expect(geometryOf({ shape: "rectangle", radius: 12 })).toBe("roundRect");
+    expect(geometryOf({ shape: "ellipse", radius: 0 })).toBe("ellipse");
+  });
+
+  it("stands behind an image background that has no picture in it yet", () => {
+    // Codex, reviewing the PR: an empty image placeholder kept its empty
+    // address in front of the room, so the slide lost the room and kept
+    // the veil.
+    const empty = scene({ id: id(), elements: [] });
+    empty.content = {
+      ...empty.content,
+      background: { kind: "image", url: "" },
+    } as Scene["content"];
+    const slide = planDeck(withRoom({ dim: 0.4 }), [empty], THEME).slides[0];
+    expect(slide.background.image).toBe(ROOM);
+    expect(slide.shapes[0].kind).toBe("shape");
+  });
+
+  it("gives way to a scene's own picture", () => {
+    const own = scene({ id: id(), elements: [] });
+    own.content = {
+      ...own.content,
+      background: { kind: "image", url: "https://pictures.example/own.jpg" },
+    } as Scene["content"];
+    const slide = planDeck(withRoom({ dim: 0.4 }), [own], THEME).slides[0];
+    expect(slide.background.image).toBe("https://pictures.example/own.jpg");
+    expect(slide.shapes).toHaveLength(0);
+  });
+
+  it("says once that the room is exported as shot, and that a drawn room is not carried", () => {
+    const scenes = [scene({ id: id(), elements: [] }), scene({ id: id(), elements: [] })];
+    const graded = planDeck(withRoom({ grade: "tint" }), scenes, THEME).omissions;
+    expect(graded.filter((o) => o.kind === "room grade").map((o) => o.count)).toEqual([1]);
+    const shot = planDeck(withRoom({ grade: "none" }), scenes, THEME).omissions;
+    expect(shot.some((o) => o.kind === "room grade")).toBe(false);
+
+    const drawn = planDeck(
+      { ...DECK, journey: { backdrop: JourneyBackdrop.parse({ graphic: "aurora" }) } },
+      scenes,
+      THEME,
+    );
+    expect(drawn.slides[0].background.image).toBeNull();
+    expect(drawn.omissions.filter((o) => o.kind === "room").map((o) => o.count)).toEqual([1]);
+    const air = planDeck(
+      { ...DECK, journey: { backdrop: JourneyBackdrop.parse({ graphic: "none" }) } },
+      scenes,
+      THEME,
+    );
+    expect(air.omissions.some((o) => o.kind === "room")).toBe(false);
+  });
+
+  it("changes nothing for a deck that carries no journey", () => {
+    const plain = scene({ id: id(), elements: [] });
+    const slide = planDeck(DECK, [plain], THEME).slides[0];
+    expect(slide.background.image).toBeNull();
+    expect(slide.shapes).toHaveLength(0);
   });
 });
 
