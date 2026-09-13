@@ -8,7 +8,7 @@ import {
   dressMovementRooms,
   dressRoom,
 } from "@/lib/ai/service";
-import { roomFor } from "@/lib/ai/look";
+import { roomFor, roomsForMovements } from "@/lib/ai/look";
 import { ProposedMap } from "@/lib/ai/schemas";
 import { AudienceInput, ReferenceInput, guard } from "@/lib/ai/route-helpers";
 import { briefsFor, draftFromProposal } from "@/lib/narrative/generate";
@@ -269,14 +269,16 @@ export async function POST(request: Request) {
       // Rooms of their own, after the show's and with what is left: a
       // movement the writer sent somewhere else, by the label the brief gave
       // it, which is the label the movement was saved under.
-      const sectionByLabel = new Map(draft.movements.map((m) => [m.label.trim(), m]));
       const rooms = await dressMovementRooms({
-        rooms: built.data.movementRooms.flatMap((entry) => {
-          const movement = sectionByLabel.get(entry.movement);
-          return movement
-            ? [{ sectionId: movement.id, name: movement.title, roomQuery: entry.roomQuery }]
-            : [];
-        }),
+        rooms: roomsForMovements(
+          built.data.movementRooms,
+          draft.movements.map((m) => ({
+            sectionId: m.id,
+            label: m.label,
+            title: m.title,
+            position: m.position,
+          })),
+        ),
         presentationId,
         budgetMs: Math.min(
           ROOM_BUDGET_MS,

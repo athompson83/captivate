@@ -111,3 +111,40 @@ export function roomFor(look: string): BackdropGraphic {
   if (lit.test(words)) return "halo";
   return "aurora";
 }
+
+/**
+ * The writer's rooms, resolved to the deck's movements.
+ *
+ * The writer names a movement by its label, and a label is the author's
+ * word: two movements may carry the same one. A label two movements share
+ * names neither, since a room for the wrong movement is worse than none, and
+ * a label no movement carries names nothing. The result is in the deck's
+ * order whatever order the writer listed them in, because the search that
+ * follows spends one budget down the list and the first movements are the
+ * first served; and one room per movement, the writer's first word on it.
+ */
+export function roomsForMovements(
+  entries: readonly { movement: string; roomQuery: string }[],
+  movements: readonly { sectionId: string; label: string; title: string; position: number }[],
+): { sectionId: string; name: string; roomQuery: string }[] {
+  const byLabel = new Map<string, string | null>();
+  for (const movement of movements) {
+    const label = movement.label.trim();
+    if (!label) continue;
+    byLabel.set(label, byLabel.has(label) ? null : movement.sectionId);
+  }
+  const queries = new Map<string, string>();
+  for (const entry of entries) {
+    const sectionId = byLabel.get(entry.movement.trim());
+    if (!sectionId || queries.has(sectionId)) continue;
+    queries.set(sectionId, entry.roomQuery);
+  }
+  return [...movements]
+    .sort((a, b) => a.position - b.position)
+    .flatMap((movement) => {
+      const roomQuery = queries.get(movement.sectionId);
+      return roomQuery
+        ? [{ sectionId: movement.sectionId, name: movement.title || movement.label, roomQuery }]
+        : [];
+    });
+}

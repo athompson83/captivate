@@ -7,6 +7,7 @@ import {
   paletteWords,
   pictureBrief,
   roomBrief,
+  roomsForMovements,
 } from "@/lib/ai/look";
 import { pickGenerated, shapeFor } from "@/lib/ai/picture-plan";
 import { GeneratedScenes } from "@/lib/ai/schemas";
@@ -264,12 +265,72 @@ describe("rooms of their own", () => {
       );
       expect(route).toContain("maxDuration * 1000 - (Date.now() - started) - ROUTE_RESERVE_MS");
     }
-    // A new deck: the label the writer named is the label the movement was saved under.
-    expect(createRoute).toContain("draft.movements.map((m) => [m.label.trim(), m])");
+    // Both through the one resolver: a new deck by the movements it just
+    // saved, an existing one by the sections the server has, in their order.
+    expect(createRoute).toContain("rooms: roomsForMovements(");
     expect(createRoute).toContain("rooms: { ...rooms, ...journey.rooms },");
-    // An existing deck: the brief's label and the moment's movement, the server's fact.
-    expect(deckRoute).toContain("const movementId = momentMovement.get(brief.momentId);");
-    expect(deckRoute).toContain("!before.rooms[sectionId]?.url");
+    expect(deckRoute).toContain("rooms: roomsForMovements(");
+    expect(deckRoute).toContain('.select("id, label, title, position")');
+    expect(deckRoute).toContain(".filter((room) => !before.rooms[room.sectionId]?.url)");
     expect(deckRoute).toContain("rooms: { ...rooms, ...current.rooms },");
+  });
+
+  const movements = [
+    { sectionId: "s1", label: "Roadside", title: "The call", position: 0 },
+    { sectionId: "s2", label: "Ward", title: "The handover", position: 1 },
+    { sectionId: "s3", label: "Home", title: "Discharge", position: 2 },
+  ];
+
+  it("resolves the writer's labels to movements, in the deck's order whatever the writer's", () => {
+    // The budget is spent down the list, so the order it is spent in is the
+    // deck's, not the order the model happened to write the entries in.
+    expect(
+      roomsForMovements(
+        [
+          { movement: "Home", roomQuery: "front door morning" },
+          { movement: "Roadside", roomQuery: "highway shoulder dusk" },
+        ],
+        movements,
+      ),
+    ).toEqual([
+      { sectionId: "s1", name: "The call", roomQuery: "highway shoulder dusk" },
+      { sectionId: "s3", name: "Discharge", roomQuery: "front door morning" },
+    ]);
+  });
+
+  it("names nothing by a label two movements share, or by one none carries", () => {
+    // A room on the wrong movement is worse than none: a label the author
+    // gave twice (labels are free text, and a deck may well have two
+    // "Case" movements) names neither.
+    const twice = [...movements, { sectionId: "s4", label: "Ward", title: "Return", position: 3 }];
+    expect(
+      roomsForMovements(
+        [
+          { movement: "Ward", roomQuery: "hospital ward night" },
+          { movement: "Lobby", roomQuery: "hotel lobby" },
+          { movement: " Home ", roomQuery: "front door morning" },
+        ],
+        twice,
+      ),
+    ).toEqual([{ sectionId: "s3", name: "Discharge", roomQuery: "front door morning" }]);
+  });
+
+  it("gives a movement one room, the writer's first word on it, by its title", () => {
+    expect(
+      roomsForMovements(
+        [
+          { movement: "Ward", roomQuery: "hospital ward night" },
+          { movement: "Ward", roomQuery: "corridor" },
+        ],
+        movements,
+      ),
+    ).toEqual([{ sectionId: "s2", name: "The handover", roomQuery: "hospital ward night" }]);
+    // A movement with no title of its own is named by its label.
+    expect(
+      roomsForMovements(
+        [{ movement: "Ward", roomQuery: "hospital ward night" }],
+        [{ sectionId: "s2", label: "Ward", title: "", position: 0 }],
+      ),
+    ).toEqual([{ sectionId: "s2", name: "Ward", roomQuery: "hospital ward night" }]);
   });
 });

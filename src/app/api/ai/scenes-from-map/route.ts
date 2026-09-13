@@ -7,7 +7,7 @@ import {
   dressMovementRooms,
   dressRoom,
 } from "@/lib/ai/service";
-import { roomFor } from "@/lib/ai/look";
+import { roomFor, roomsForMovements } from "@/lib/ai/look";
 import { JourneyConfig } from "@/lib/schema/presentation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { planSceneWrites } from "@/lib/narrative/scene-writes";
@@ -148,12 +148,16 @@ export async function POST(request: Request) {
     if (!presentationId) return NextResponse.json(result.data);
 
     const supabase = await supabaseServer();
-    const [{ data: sceneRows }, { data: momentRows }] = await Promise.all([
+    const [{ data: sceneRows }, { data: momentRows }, { data: sectionRows }] = await Promise.all([
       supabase
         .from("scenes")
         .select("id, moment_id, position")
         .eq("presentation_id", presentationId),
       supabase.from("moments").select("id, movement_id").eq("presentation_id", presentationId),
+      supabase
+        .from("sections")
+        .select("id, label, title, position")
+        .eq("presentation_id", presentationId),
     ]);
 
     // The moments are read from the database rather than taken from the
@@ -225,27 +229,20 @@ export async function POST(request: Request) {
             presentationId,
             budgetMs: Math.min(ROOM_BUDGET_MS, remaining),
           });
-      // Rooms of their own, after the show's and with what is left. A brief
-      // names its movement by label and its moment is the server's fact about
-      // which movement that is, so the two together name the section.
-      const momentMovement = new Map(
-        (momentRows ?? []).map((row) => [row.id, row.movement_id] as const),
-      );
-      const sectionByLabel = new Map<string, string>();
-      for (const brief of briefs) {
-        const movementId = momentMovement.get(brief.momentId);
-        if (movementId && brief.movementLabel.trim()) {
-          sectionByLabel.set(brief.movementLabel.trim(), movementId);
-        }
-      }
+      // Rooms of their own, after the show's and with what is left. The
+      // writer names a movement by its label; which movements the deck has,
+      // in what order, is the server's fact, read above with the moments.
       const rooms = await dressMovementRooms({
-        rooms: result.data.movementRooms.flatMap((entry) => {
-          const sectionId = sectionByLabel.get(entry.movement);
-          // Never over a room the author chose.
-          return sectionId && !before.rooms[sectionId]?.url
-            ? [{ sectionId, name: entry.movement, roomQuery: entry.roomQuery }]
-            : [];
-        }),
+        // Never over a room the author chose.
+        rooms: roomsForMovements(
+          result.data.movementRooms,
+          (sectionRows ?? []).map((row) => ({
+            sectionId: row.id,
+            label: row.label,
+            title: row.title,
+            position: row.position,
+          })),
+        ).filter((room) => !before.rooms[room.sectionId]?.url),
         presentationId,
         budgetMs: Math.min(
           ROOM_BUDGET_MS,

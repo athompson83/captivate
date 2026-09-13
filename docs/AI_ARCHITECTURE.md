@@ -162,12 +162,16 @@ the route has left, `dressMovementRooms` finds each in stock in the deck's
 order — found, never made, because a made room is a generation the deck
 waits a minute for and a deck of six movements cannot wait six of them —
 and each gets what is left, so a slow search costs the movements after it
-their room and never the route its ceiling. Both routes map the label to
-the movement's section (a new deck's movements were saved under those
-labels; an existing deck's briefs carry the label and the moment's
-movement is the server's fact) and merge the found rooms into
-`journey.rooms` under the author's, never over one they chose. Most talks
-stand in one room throughout, and then the list is empty.
+their room and never the route its ceiling. Both routes resolve the labels
+through `roomsForMovements` (`lib/ai/look.ts`) against the deck's own
+movements — a new deck's as just saved, an existing deck's as the server
+has them — which puts the list in the deck's order whatever order the
+writer wrote it in, gives a movement one room, and names nothing by a
+label two movements share (labels are the author's free text; a room on
+the wrong movement is worse than none) or by one no movement carries. The
+found rooms merge into `journey.rooms` under the author's, never over one
+they chose. Most talks stand in one room throughout, and then the list is
+empty.
 
 **The phrase that matters.** Alongside `headingAccent`, a scene may carry a
 `bodyAccent`: three to eight words copied verbatim from its body — the turn
