@@ -169,16 +169,33 @@ The picture is fetched by the route, not left to Satori (`roomForCard`,
 `lib/marketing/share-room.ts`): an unfurl is a chat waiting, so the room is
 fetched under a two-and-a-half-second deadline and handed over as bytes,
 and a room that does not arrive in time — or is not a JPEG or PNG, or is
-larger than a card has any use for, or is not an `https` address — is
-simply not on the card. The card without its room is the card every deck
-had until now, never an error.
+larger than a card has any use for — is simply not on the card. The card
+without its room is the card every deck had until now, never an error.
+
+Only a room the deck holds is carried. Codex caught both halves of the
+first draft: it refused the app's own addresses — every room Captivate
+makes, finds or uploads is an asset addressed as `/api/assets/<id>/content`,
+so the room reached the card only when linked by hand — and it fetched
+everyone else's, an `https` address an author typed being a request from
+the server to a host of the author's choosing. Now the address is resolved
+the way the viewer's images are (`signSharedAsset` in `lib/data/shared.ts`:
+`captivate_shared_asset`, which answers only while the deck is shared right
+now, then a signed address on the deck's own storage that lasts a minute),
+the bytes are streamed under the cap and abandoned the moment they run
+past it (Codex's third finding: the first draft buffered the whole body
+before measuring it), and the bytes say what they are (`sniffImage`). A
+room linked from elsewhere by hand is the viewer's to load in the browser,
+as it always was; the card goes without it.
 
 Tests in `share-card` (the room on the card at the author's dim, painted
-before the words; no room, no picture; the route fetches through
-`roomForCard`) and `share-room` (a picture as a data URI of its own type;
-the wrong type, a missing, empty or oversized picture, a non-`https`
-address and a failed fetch all mean no room; a room that never arrives is
-given up on at the deadline).
+before the words; no room, no picture; the route resolves through
+`signSharedAsset`) and `share-room` (an app-owned address names its asset
+and nothing else does; a room the deck holds is read from its storage as
+its real type; an address an author typed is never fetched and never asked
+about; a room the link-holder may not see, a WebP, bytes that are not the
+picture they claim and a missing file all mean no room; a picture past the
+cap is refused whether declared or streamed, and the stream is cancelled; a
+room that never arrives is given up on at the deadline).
 
 ### The room in the export
 

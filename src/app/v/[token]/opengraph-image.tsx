@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { getSharedDeck } from "@/lib/data/shared";
+import { getSharedDeck, signSharedAsset } from "@/lib/data/shared";
 import { SHARE_CARD_SIZE, shareCard } from "@/lib/marketing/share-card";
 import { roomForCard } from "@/lib/marketing/share-room";
 
@@ -20,8 +20,10 @@ export default async function Image({ params }: { params: Promise<{ token: strin
   const { token } = await params;
   const deck = isSupabaseConfigured ? await getSharedDeck(token).catch(() => null) : null;
   // The room behind the show, under a deadline: a chat is waiting on this.
+  // Only a room the deck holds as an asset; an address typed by hand is the
+  // viewer's to load.
   const backdrop = deck?.journey.backdrop;
-  const room = backdrop?.url ? await roomForCard(backdrop.url) : null;
+  const room = backdrop?.url ? await roomForCard(backdrop.url, signSharedAsset) : null;
   return new ImageResponse(
     shareCard(
       deck

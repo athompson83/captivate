@@ -91,8 +91,9 @@ describe("the share card", () => {
     const source = readFileSync("src/app/v/[token]/opengraph-image.tsx", "utf8");
     expect(source).toContain("getSharedDeck(token)");
     expect(source).toContain("shareCard(");
-    // The room is fetched under the card's deadline, never left to Satori.
-    expect(source).toContain("roomForCard(");
+    // The room is fetched under the card's deadline, never left to Satori,
+    // and only from the deck's own storage through the share resolver.
+    expect(source).toContain("roomForCard(backdrop.url, signSharedAsset)");
     expect(source).toMatch(/export const size = SHARE_CARD_SIZE/);
     expect(source).toMatch(/export const contentType = "image\/png"/);
     expect(source).not.toContain("speakerNotes");
