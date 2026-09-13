@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #124 — the MVP-050 closeout and the next round, awaiting
+  `main` after PR #125 — the MVP-051 closeout and the next round, awaiting
   CI, merge and production verification
-- `main`: through PR #124 (merged) — `95948e1`; migration
+- `main`: through PR #125 (merged) — `5156a5e`; migration
   `0034_shared_movement_rooms.sql` applied to production; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -78,6 +78,10 @@ desktop. Read at a phone, a tablet held upright and a desktop:
   on a desktop, and the tablet's one column all read well.
 
 `docs/DESIGN.md` ("Responsive") says what the library now does.
+
+**Landed and verified.** PR #125 squash-merged as `5156a5e`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 37 of 37 on the first run.
 
 ### The presenter console in a real browser
 
