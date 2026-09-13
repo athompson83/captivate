@@ -8,7 +8,7 @@ import { DrawnPicture, handWobble } from "./drawn-picture";
 import { blobPath } from "@/lib/drawing/diagram";
 import { chartDrawing } from "@/lib/drawing/chart";
 import { coversStage, gradeMatrix } from "@/lib/present/grade";
-import { pictureDrift } from "@/lib/present/drift";
+import { pictureDrift, pictureShot } from "@/lib/present/drift";
 import { GradeFilter } from "./grade-filter";
 import { embedSandbox } from "@/lib/utils/embed";
 import { resolveColor, type PresentationTheme } from "@/lib/schema/theme";
@@ -1327,7 +1327,9 @@ function LivingPicture({
       cancelAnimationFrame(inner);
     };
   }, []);
-  const drifting = living && rested;
+  // Never a picture the author keeps still: a screenshot, a logo, a drawing
+  // saved as a picture.
+  const drifting = living && rested && pictureShot(element) !== null;
   const drift = pictureDrift(element, drifting);
   return (
     /* Stage images are user uploads at arbitrary sizes rendered inside a

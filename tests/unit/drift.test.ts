@@ -6,6 +6,7 @@ import {
   PAN_FRACTION,
   driftKind,
   pictureDrift,
+  pictureShot,
 } from "@/lib/present/drift";
 
 /**
@@ -44,6 +45,24 @@ describe("a picture that lives", () => {
     expect(ids.map(driftKind)).toEqual(kinds);
     expect(kinds).toContain("in");
     expect(kinds).toContain("pan");
+  });
+
+  it("stays still, performing or not, when the author says so", () => {
+    const still = { id: "in", focalX: 0.5, focalY: 0.5, motion: "still" as const };
+    expect(pictureShot(still)).toBeNull();
+    expect(pictureDrift(still, true).transform).toBe("none");
+  });
+
+  it("takes the author's shot over the stage's choice", () => {
+    const pan = ["a", "b", "c", "d", "e"].find((id) => driftKind(id) === "pan")!;
+    const closeIn = ["a", "b", "c", "d", "e"].find((id) => driftKind(id) === "in")!;
+    expect(pictureShot({ id: pan, motion: "in" })).toBe("in");
+    expect(pictureShot({ id: closeIn, motion: "pan" })).toBe("pan");
+    expect(pictureShot({ id: pan, motion: "auto" })).toBe("pan");
+    expect(pictureShot({ id: pan })).toBe("pan");
+    expect(pictureDrift({ id: pan, focalX: 0.5, focalY: 0.5, motion: "in" }, true).transform).toBe(
+      `scale(${DRIFT_SCALE})`,
+    );
   });
 
   it("is slower than any scene is held, and comes back faster than a flight", () => {

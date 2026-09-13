@@ -29,6 +29,9 @@ export const PAN_FRACTION = 0.012;
 
 export type DriftKind = "in" | "pan";
 
+/** What the author asked of the picture; `auto` leaves the shot to the stage. */
+export type PictureMotion = "auto" | "still" | DriftKind;
+
 export interface DriftStyle {
   transform: string;
   transformOrigin: string;
@@ -46,6 +49,17 @@ export function driftKind(id: string): DriftKind {
 }
 
 /**
+ * The shot a picture performs, or nothing for one the author keeps still —
+ * a screenshot, a logo, a chart saved as a picture. `auto` is the stage's
+ * choice by the element's id; `in` and `pan` are the author's.
+ */
+export function pictureShot(picture: { id: string; motion?: PictureMotion }): DriftKind | null {
+  const motion = picture.motion ?? "auto";
+  if (motion === "still") return null;
+  return motion === "auto" ? driftKind(picture.id) : motion;
+}
+
+/**
  * The style for a picture, performing or not.
  *
  * The origin is the author's focal point, so closing in is closing in on the
@@ -54,18 +68,18 @@ export function driftKind(id: string): DriftKind {
  * and a pan the other way would show the picture's edge.
  */
 export function pictureDrift(
-  picture: { id: string; focalX: number; focalY: number },
+  picture: { id: string; focalX: number; focalY: number; motion?: PictureMotion },
   performing: boolean,
 ): DriftStyle {
   const origin = `${(picture.focalX * 100).toFixed(1)}% ${(picture.focalY * 100).toFixed(1)}%`;
-  if (!performing) {
+  const kind = pictureShot(picture);
+  if (!performing || kind === null) {
     return {
       transform: "none",
       transformOrigin: origin,
       transition: `transform ${DRIFT_RETURN_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`,
     };
   }
-  const kind = driftKind(picture.id);
   const pan =
     kind === "pan"
       ? ` translateX(${(picture.focalX >= 0.5 ? PAN_FRACTION : -PAN_FRACTION) * 100}%)`

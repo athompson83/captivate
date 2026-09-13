@@ -397,6 +397,22 @@ function StyleControls({
               ]}
             />
           </Field>
+          <Field label="Motion">
+            <Segmented
+              label="Picture motion"
+              size="sm"
+              value={element.motion}
+              onChange={(v) =>
+                patch((el: typeof element) => ({ ...el, motion: v }), "Change picture motion")
+              }
+              options={[
+                { value: "auto", label: "Auto" },
+                { value: "in", label: "Close in" },
+                { value: "pan", label: "Pan" },
+                { value: "still", label: "Still" },
+              ]}
+            />
+          </Field>
           <Field label="Fit">
             <Segmented
               label="Image fit"
