@@ -404,6 +404,7 @@ export function PresentRoot({
   return (
     <div
       ref={containerRef}
+      data-stage-root
       className="stage-safe relative h-screen w-screen touch-pinch-zoom overflow-hidden overscroll-none bg-black"
       // The stage tokens are defined here, not only inside the world, because
       // the movement rail and the signpost are presented *over* the world and

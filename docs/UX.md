@@ -101,6 +101,15 @@ timer; never in audience-only mode.
 The audience should be looking at content. In audience-only mode the bar does
 not exist.
 
+While it is up it says how much of the bottom it takes (a custom property
+on the stage, written from a `ResizeObserver`), and the next-movement
+signpost, which stands at the bottom centre too, lifts clear of it and
+settles back when it goes. On a phone the bar wraps into two rows inside the
+window rather than running off both sides of it: at 390px the one row was
+560px wide, centred, so the counter and the arrows were lost off the left
+and the exit off the right (`tests/e2e/presenter-stage.spec.ts`, which
+mounts the stage itself in a real browser).
+
 ---
 
 ## The console works alone

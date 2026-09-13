@@ -54,6 +54,36 @@
 
 ## Latest Session
 
+### The presenter stage in a real browser
+
+The stage (`/present/[id]`) is behind sign-in and a Supabase project, so
+the presenter's own surface — the bar, the signpost, the rail, the frames
+the camera lands on — had only ever been rendered in jsdom, where nothing
+has a width. `tests/e2e/fixtures/presenter-mount.tsx` mounts `PresentRoot`
+with the worked example exactly as the route does after `forAudience`, and
+`tests/e2e/presenter-stage.spec.ts` (lifecycle) drives it at a phone, a
+phone held sideways and a desktop. What read wrong, fixed with a test that
+fails without the fix:
+
+- **The bar ran off both sides of a phone.** One row, 560px wide and
+  centred, so at 390px the counter and the arrows were lost off the left
+  and the exit off the right, and the jumper could not be tapped at all.
+  It wraps into two rows inside the window instead (`max-w`, `flex-wrap`),
+  and the counter no longer breaks across "3 /" and "11".
+- **The next-movement signpost stood behind the bar.** Both sit at the
+  bottom centre. The bar now says how much of the bottom it takes — a
+  custom property on the stage root, written from a `ResizeObserver` in a
+  ref callback rather than state, because the bar's height is the layout's
+  to say and it wraps on a phone — and the signpost lifts clear of it
+  while it is up and settles back when it goes.
+- The tests mount without the WebGL air (`plain`, a real presenter
+  option): under the software renderer CI has, the air made every round
+  trip to the page a second long and the bar's 2.6 s ran out between two
+  steps of a test. Nothing measured is the air's.
+
+`docs/UX.md` ("The presenter bar hides itself") says what the bar now
+does.
+
 ### The editor in a real browser, at every width
 
 The owner asked for the UI and UX to be driven in Playwright and made the
