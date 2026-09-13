@@ -177,6 +177,79 @@ test.describe("the editor on a narrow screen", () => {
     await expect(inspector).toBeHidden();
   });
 
+  test("the journey settings are a sheet under the map, not a column that is gone", async ({
+    page,
+  }) => {
+    await open(page, 390, 780);
+    await page.getByRole("radio", { name: "Journey" }).click();
+
+    // Below 1024px the panel was `hidden`: a deck's arrangement, room and
+    // pace could be set on a desktop and only looked at on a phone. Not
+    // simply shown, either — a 272px column beside the map is most of a
+    // phone. So it is asked for, from the map, and comes up under it.
+    const settings = page.getByRole("complementary", { name: "Journey settings" });
+    await expect(settings).toBeHidden();
+    // A real click, not a dispatched event: the map captured the pointer on
+    // every press, its own buttons' included, so the release went to the map
+    // and no click was delivered to anything. "Fit all" had been dead the
+    // same way, with nothing to notice.
+    await page.getByRole("button", { name: "Journey settings" }).click();
+    await expect(settings).toBeVisible();
+
+    const box = await settings.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThan(360);
+    await expect(settings.getByRole("heading", { name: "Arrangement" })).toBeVisible();
+    expect(await offscreen(page), "with the journey sheet open").toEqual([]);
+
+    await page.getByRole("button", { name: "Close journey settings" }).click();
+    await expect(settings).toBeHidden();
+  });
+
+  test("the journey settings stand beside the map on a wide screen", async ({ page }) => {
+    await open(page, 1440, 900);
+    await page.getByRole("radio", { name: "Journey" }).click();
+
+    const settings = page.getByRole("complementary", { name: "Journey settings" });
+    await expect(settings).toBeVisible();
+    expect((await settings.boundingBox())!.width).toBeCloseTo(272, 0);
+    // Nothing to open: the column is there with the view.
+    await expect(page.getByRole("button", { name: "Journey settings" })).toHaveCount(0);
+  });
+
+  test("the AI assistant covers the canvas rather than crushing it", async ({ page }) => {
+    await open(page, 390, 780);
+    const before = await sceneWidth(page);
+
+    await page.getByRole("button", { name: "More editor controls" }).click();
+    await page.getByRole("button", { name: "Toggle AI assistant" }).click();
+
+    // The menu closes behind what it opened. It stayed up, over the canvas,
+    // with the notes it had just opened under it and the share dialog over it.
+    await expect(page.getByRole("group", { name: "More editor controls" })).toBeHidden();
+
+    // The dock was a 320px column beside the canvas: 70px of scene at 390,
+    // and the notes under it forty characters wide. Over the row instead,
+    // like the navigator, so the scene keeps its size behind it.
+    const dock = page.getByRole("complementary", { name: "AI assistant" });
+    await expect(dock).toBeVisible();
+    const box = await dock.boundingBox();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(391);
+    expect(await sceneWidth(page)).toBeCloseTo(before, 0);
+    expect(await offscreen(page), "with the AI assistant open").toEqual([]);
+
+    await page.getByRole("button", { name: "Close AI panel" }).click();
+    await expect(dock).toBeHidden();
+  });
+
+  test("the overflow menu closes behind the notes it opens", async ({ page }) => {
+    await open(page, 390, 780);
+    await page.getByRole("button", { name: "More editor controls" }).click();
+    await page.getByRole("button", { name: "Toggle notes" }).click();
+    await expect(page.getByRole("group", { name: "More editor controls" })).toBeHidden();
+    await expect(page.getByRole("textbox", { name: "Speaker notes" })).toBeVisible();
+  });
+
   test("a scene row says which scene it is", async ({ page }) => {
     await open(page, 1440, 900);
 
@@ -402,6 +475,34 @@ test.describe("the editor on a narrow screen", () => {
       ),
     ).toBeCloseTo(scaleBefore, 0);
     expect(await drift()).toBeLessThan(8);
+  });
+
+  test("a tablet held upright keeps its title and gives the scene the navigator's room", async ({
+    page,
+  }) => {
+    // An iPad in portrait: wider than a phone, so the inspector is still a
+    // column and the header one row — and narrower than the layout assumed,
+    // so the navigator beside the inspector left the scene 240px wide and
+    // the title field a single letter.
+    await open(page, 820, 1180);
+
+    const nav = page.getByRole("complementary", { name: "Scenes" });
+    await expect(nav).toBeHidden();
+    await selectTheHeading(page);
+    expect(await sceneWidth(page)).toBeGreaterThan(400);
+    // The column, not the phone's sheet.
+    const inspector = page.getByRole("complementary", { name: "Element inspector" });
+    expect((await inspector.boundingBox())!.width).toBeCloseTo(272, 0);
+
+    const title = page.getByRole("textbox", { name: "Presentation title" });
+    expect((await title.boundingBox())!.width).toBeGreaterThanOrEqual(100);
+    expect(await offscreen(page)).toEqual([]);
+
+    // Opened, the navigator stands over the canvas rather than beside it.
+    const before = await sceneWidth(page);
+    await page.getByRole("button", { name: "Show scene navigator" }).click();
+    await expect(nav).toBeVisible();
+    expect(await sceneWidth(page)).toBeCloseTo(before, 0);
   });
 
   test("the wide layout is untouched", async ({ page }) => {

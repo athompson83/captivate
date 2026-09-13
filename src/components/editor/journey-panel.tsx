@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Route, RotateCcw } from "lucide-react";
+import { Check, Route, RotateCcw, X } from "lucide-react";
 import type { ArrangePreset, BackdropGraphic } from "@/lib/schema/presentation";
 import type { ImageGrade } from "@/lib/present/grade";
 import { BACKDROP_GRAPHIC_META } from "@/lib/schema/presentation";
@@ -31,7 +31,24 @@ import { cn } from "@/lib/utils/cn";
  * no per-scene transition control, because choosing a different wipe for slide
  * seven is the habit this tool exists to replace.
  */
-export function JourneyPanel({ presentationId }: { presentationId: string }) {
+export function JourneyPanel({
+  presentationId,
+  sheet = false,
+  onClose,
+}: {
+  presentationId: string;
+  /**
+   * A panel under the map rather than a column beside it.
+   *
+   * The column is 272px, which on a phone is most of the window, and the
+   * panel simply did not exist below 1024px: a deck's arrangement, room and
+   * pace could be set on a desktop and only looked at on a phone. On a narrow
+   * screen it takes height at the bottom, like the inspector, and is opened
+   * from the map on request rather than with the view.
+   */
+  sheet?: boolean;
+  onClose?: () => void;
+}) {
   const { toast } = useToast();
   const scenes = useEditor((s) => s.document.scenes);
   const sections = useEditor((s) => s.document.sections);
@@ -79,10 +96,29 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
   };
 
   return (
-    <aside className="border-line-subtle bg-base hidden w-[272px] shrink-0 flex-col border-l lg:flex">
+    <aside
+      aria-label="Journey settings"
+      className={cn(
+        "border-line-subtle bg-base flex shrink-0 flex-col",
+        sheet
+          ? "h-[50vh] rounded-t-[var(--radius-xl)] border-t shadow-[var(--shadow-lg)]"
+          : "w-[272px] border-l",
+      )}
+    >
       <div className="border-line-subtle flex h-11 shrink-0 items-center gap-2 border-b px-3.5">
         <Route className="text-ink-3 size-3.5" aria-hidden />
         <h2 className="text-ink text-[12.5px] font-semibold tracking-tight">Journey</h2>
+        {/* A sheet needs a way out that is not "guess that the map behind it
+            closes it"; the column is closed by leaving the journey view. */}
+        {sheet && onClose && (
+          <button
+            onClick={onClose}
+            aria-label="Close journey settings"
+            className="text-ink-3 hover:text-ink ml-auto flex size-7 items-center justify-center rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-inset)]"
+          >
+            <X className="size-4" aria-hidden />
+          </button>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-3.5">

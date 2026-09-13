@@ -6,7 +6,7 @@ import { getTheme } from "@/lib/schema/theme";
 import { useEditor } from "@/lib/editor/store";
 import { useAutosave } from "@/lib/editor/autosave";
 import { useEditorShortcuts } from "@/lib/editor/shortcuts";
-import { useIsNarrow } from "@/lib/utils/use-viewport";
+import { useIsCompact, useIsNarrow } from "@/lib/utils/use-viewport";
 import { EditorTopBar } from "./top-bar";
 import { SceneNavigator } from "./scene-navigator";
 import { Canvas } from "./canvas";
@@ -46,10 +46,14 @@ export function EditorRoot({
   const [aiOpen, setAiOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [view, setView] = useState<EditorView>("scene");
+  // The journey settings on a narrow screen: a sheet under the map, opened
+  // from it. Beside the map on a wide one, and this is never read.
+  const [journeyOpen, setJourneyOpen] = useState(false);
   const [evidenceOptions, setEvidenceOptions] = useState<EvidenceRef[]>([]);
 
   const narrow = useIsNarrow();
-  const navVisible = navOpen ?? !narrow;
+  const compact = useIsCompact();
+  const navVisible = navOpen ?? !compact;
   const { generate, generating, plan } = useSceneGeneration(
     presentationId,
     initial.presentation.title,
@@ -127,7 +131,7 @@ export function EditorRoot({
       <div className="relative flex min-h-0 flex-1">
         <SceneNavigator
           open={navVisible}
-          overlay={narrow}
+          overlay={compact}
           onClose={() => setNavOpen(false)}
           presentationId={presentationId}
           theme={theme}
@@ -146,7 +150,10 @@ export function EditorRoot({
             />
           ) : (
             <>
-              <JourneyMap className="min-h-0 flex-1" />
+              <JourneyMap
+                className="min-h-0 flex-1"
+                onSettings={narrow ? () => setJourneyOpen(true) : undefined}
+              />
               <PacingStrip />
             </>
           )}
@@ -154,17 +161,30 @@ export function EditorRoot({
               column left the scene 96px wide, and a sheet floating over the
               canvas hid the element being styled. */}
           {narrow && view === "scene" && <Inspector theme={theme} sheet />}
+          {narrow && view === "journey" && journeyOpen && (
+            <JourneyPanel
+              presentationId={presentationId}
+              sheet
+              onClose={() => setJourneyOpen(false)}
+            />
+          )}
           {notesOpen && (
             <NotesDock presentationId={presentationId} onClose={() => setNotesOpen(false)} />
           )}
         </div>
 
-        {!narrow && view === "scene" ? (
+        {narrow ? null : view === "scene" ? (
           <Inspector theme={theme} />
         ) : view === "journey" ? (
           <JourneyPanel presentationId={presentationId} />
         ) : null}
-        {aiOpen && <AiDock presentationId={presentationId} onClose={() => setAiOpen(false)} />}
+        {aiOpen && (
+          <AiDock
+            presentationId={presentationId}
+            overlay={narrow}
+            onClose={() => setAiOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

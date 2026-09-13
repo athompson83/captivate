@@ -10,14 +10,30 @@ import { useSyncExternalStore } from "react";
  */
 const NARROW = "(max-width: 767.98px)";
 
-function subscribe(onChange: () => void): () => void {
-  const mq = window.matchMedia(NARROW);
-  mq.addEventListener("change", onChange);
-  return () => mq.removeEventListener("change", onChange);
+/**
+ * Tailwind's `lg`. Below it the navigator stops taking width too: an iPad
+ * held upright is 820px, and the navigator's 212px beside the inspector's
+ * 272px left the scene 240px wide on a screen that could show it at 500.
+ */
+const COMPACT = "(max-width: 1023.98px)";
+
+function subscribeTo(query: string) {
+  return (onChange: () => void): (() => void) => {
+    const mq = window.matchMedia(query);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  };
 }
+
+const subscribe = subscribeTo(NARROW);
+const subscribeCompact = subscribeTo(COMPACT);
 
 function snapshot(): boolean {
   return window.matchMedia(NARROW).matches;
+}
+
+function snapshotCompact(): boolean {
+  return window.matchMedia(COMPACT).matches;
 }
 
 /**
@@ -44,4 +60,14 @@ function serverSnapshot(): boolean {
  */
 export function useIsNarrow(): boolean {
   return useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+}
+
+/**
+ * Whether the viewport is too narrow for the navigator to stand open beside
+ * the canvas by default. Wider than `useIsNarrow`: a tablet keeps the
+ * inspector as a column and the header as one row, and gives up only the
+ * navigator, which reopens over the canvas as it does on a phone.
+ */
+export function useIsCompact(): boolean {
+  return useSyncExternalStore(subscribeCompact, snapshotCompact, serverSnapshot);
 }
