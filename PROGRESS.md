@@ -161,9 +161,13 @@ the scene, graded as the world grades it (`GradeFilter`), with the scene's
 own background laid over it at the author's dim — the veil the world draws
 on a scene, in the scene's own colour rather than the canvas, so a solid
 scene keeps its tint — and the words in front. A scene with a picture of
-its own covers it, as it would on the world; a bare region ignores it,
-because the world already has the room; a deck with no room paints the
-canvas exactly as before. `StageThumbnail` carries it through, and the
+its own covers it, as it would on the world, and an empty placeholder
+shows it through; the scene's own background stays under the picture, so a
+room still loading, or one whose address has expired, leaves the authored
+canvas rather than a veil over whatever the card sits on (Codex caught
+both); a bare region ignores it, because the world already has the room;
+a deck with no room paints the canvas exactly as before. `StageThumbnail`
+carries it through, and the
 deck card hands it the deck's backdrop from the row it already has. The
 scene navigator and the presenter's next-scene preview are untouched: a
 list of scenes is not a card of the deck.

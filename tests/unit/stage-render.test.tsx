@@ -204,6 +204,11 @@ describe("a card standing in the room", () => {
     const veil = container.querySelector<HTMLElement>("[data-room-veil]");
     expect(veil).not.toBeNull();
     expect(veil!.style.opacity).toBe("0.4");
+    // Codex, reviewing the PR: the canvas stays under the room, so a room
+    // still loading, or one whose address has expired, leaves the authored
+    // background rather than a veil over whatever the card sits on.
+    const stage = container.querySelector<HTMLElement>("[data-stage]");
+    expect(stage!.style.background).not.toBe("");
     // The words are painted after the room.
     expect(picture!.compareDocumentPosition(screen.getByText("Shock"))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
@@ -249,6 +254,19 @@ describe("a card standing in the room", () => {
     );
     expect(container.querySelector("img[data-room]")).toBeNull();
     expect(container.querySelector('img[src="https://example.com/own.jpg"]')).not.toBeNull();
+  });
+
+  it("shows through an image background that has no picture in it yet", () => {
+    // Codex, reviewing the PR: an empty placeholder counted as the scene's
+    // own picture and hid the room, and the placeholder drew nothing either.
+    const empty = SceneContent.parse({
+      ...content,
+      background: { kind: "image", url: "", alt: "" },
+    });
+    const { container } = render(
+      <Stage content={empty} theme={theme} aspect="16:9" fixedScale={1} room={room} />,
+    );
+    expect(container.querySelector("img[data-room]")).not.toBeNull();
   });
 
   it("stands on the canvas as before when the deck has no room", () => {

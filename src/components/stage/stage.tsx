@@ -156,8 +156,14 @@ export const Stage = memo(function Stage({
   );
 
   const bare = surface === "bare";
-  const roomBehind = !bare && room?.url && content.background.kind !== "image" ? room : null;
-  const background = bare || roomBehind ? {} : resolveSceneBackground(content, theme);
+  // An image background with no picture in it yet is no picture, so the
+  // room shows through it as the export shows it.
+  const ownPicture = content.background.kind === "image" && Boolean(content.background.url);
+  const roomBehind = !bare && room?.url && !ownPicture ? room : null;
+  // The scene's background stays under the room: a room still loading, or
+  // one whose address has expired, leaves the authored canvas rather than a
+  // veil over whatever the card sits on. Codex caught the flash.
+  const background = bare ? {} : resolveSceneBackground(content, theme);
   const roomGradeId = `room-grade-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const roomGraded =
     roomBehind !== null &&

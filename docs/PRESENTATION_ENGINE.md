@@ -338,7 +338,10 @@ dashboard's deck card stands in it (`Stage`'s `room`, on a `card` surface
 only): the first scene over the room, graded as the world grades it, with
 the scene's own background laid over at the author's dim — a scene taken
 out of the world and looked at on its own still shows where the talk
-stands. A bare region ignores it, because the world already has the room.
+stands. The canvas stays under the picture, so a room still loading leaves
+the authored background rather than a veil over the page; a scene's own
+picture covers the room, an empty placeholder shows it through; a bare
+region ignores it, because the world already has the room.
 
 ### Presenting without it
 
