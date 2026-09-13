@@ -160,7 +160,11 @@ export function EditorRoot({
           {/* Under the canvas, not beside it: on a narrow screen a 272px
               column left the scene 96px wide, and a sheet floating over the
               canvas hid the element being styled. */}
-          {narrow && view === "scene" && <Inspector theme={theme} sheet />}
+          {/* One sheet at a time: the inspector's half height and the notes'
+              280px together left no canvas at all on a 780px phone. The
+              notes, opened on purpose, stand in for the inspector until they
+              are closed; the selection stays, and so does its toolbar. */}
+          {narrow && view === "scene" && !notesOpen && <Inspector theme={theme} sheet />}
           {narrow && view === "journey" && journeyOpen && (
             <JourneyPanel
               presentationId={presentationId}

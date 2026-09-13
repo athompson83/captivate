@@ -90,6 +90,11 @@ fails without the fix, all in `tests/e2e/editor-narrow.spec.ts`:
   The navigator now collapses below `lg` rather than `md` (`useIsCompact`),
   reopening over the canvas; the theme's name and the word "Undo" fold into
   their icons below `lg`; the title keeps a floor of 6.5rem.
+- **Two sheets left no canvas.** The inspector's half height and the
+  notes' 280px together put the scene being edited off the screen. One
+  sheet at a time: on a narrow screen the notes, opened on purpose, stand
+  in for the inspector until they are closed; the selection and its
+  toolbar stay.
 - **A phone held upright** frames a 16:9 scene with its neighbours above
   and below at full size, so the scene the camera was on did not read as
   the one. While the camera is on a scene the others now step almost away

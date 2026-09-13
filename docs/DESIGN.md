@@ -216,7 +216,9 @@ editing.
   (an iPad held upright had the title down to one letter and the scene to
   240px between two panels). Below `md` the inspector becomes a half-height
   sheet under the canvas, so the scene refits into what is left instead of
-  being squeezed to a thumbnail; the header splits into two rows,
+  being squeezed to a thumbnail — one sheet at a time: the notes, opened on
+  purpose, stand in for it until they are closed, because the two together
+  left no canvas at all; the header splits into two rows,
   giving the view switcher its own full-width one and folding the secondary
   controls into a single menu, which closes behind whatever it opens; the AI
   assistant slides in over the row rather than beside it, dismissed by a tap

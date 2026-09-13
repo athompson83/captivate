@@ -250,6 +250,25 @@ test.describe("the editor on a narrow screen", () => {
     await expect(page.getByRole("textbox", { name: "Speaker notes" })).toBeVisible();
   });
 
+  test("the notes stand in for the inspector rather than stacking under it", async ({ page }) => {
+    await open(page, 390, 780);
+    await selectTheHeading(page);
+    const inspector = page.getByRole("complementary", { name: "Element inspector" });
+
+    // The inspector's half height and the notes' 280px together left a
+    // canvas of zero height: the scene being edited was not on the screen.
+    await page.getByRole("button", { name: "More editor controls" }).click();
+    await page.getByRole("button", { name: "Toggle notes" }).click();
+    const notes = page.getByRole("region", { name: "Notes" });
+    await expect(notes).toBeVisible();
+    await expect(inspector).toBeHidden();
+    expect(await sceneWidth(page)).toBeGreaterThan(240);
+
+    // The selection is still there, and the inspector comes back with it.
+    await page.getByRole("button", { name: "Close notes" }).click();
+    await expect(inspector).toBeVisible();
+  });
+
   test("a scene row says which scene it is", async ({ page }) => {
     await open(page, 1440, 900);
 
