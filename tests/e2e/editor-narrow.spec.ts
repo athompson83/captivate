@@ -522,6 +522,30 @@ test.describe("the editor on a narrow screen", () => {
     await page.getByRole("button", { name: "Show scene navigator" }).click();
     await expect(nav).toBeVisible();
     expect(await sceneWidth(page)).toBeCloseTo(before, 0);
+    await page.getByRole("button", { name: "Scene 1: First" }).click();
+    await expect(nav).toBeHidden();
+
+    // And so does the AI assistant: keyed to the phone breakpoint alone it
+    // was a 320px column beside the inspector's 272px here, and the scene
+    // between them 228px (Codex, on the first draft of this change).
+    // Choosing the scene cleared the selection, so select again: the claim
+    // is about the dock beside the inspector's column.
+    await selectTheHeading(page);
+    // The column animates in over 200ms; measure once it has arrived.
+    await expect.poll(async () => (await inspector.boundingBox())!.width).toBeGreaterThan(271);
+    const beside = await sceneWidth(page);
+    await page.getByRole("button", { name: "Toggle AI assistant" }).click();
+    const dock = page.getByRole("complementary", { name: "AI assistant" });
+    await expect(dock).toBeVisible();
+    // Within a few pixels of a refit, not the 320px a column would take.
+    await expect.poll(async () => Math.abs((await sceneWidth(page)) - beside)).toBeLessThan(4);
+    // Polled, because the dock slides in and its box is mid-flight at first.
+    await expect
+      .poll(async () => {
+        const box = (await dock.boundingBox())!;
+        return box.x + box.width;
+      })
+      .toBeLessThanOrEqual(821);
   });
 
   test("the wide layout is untouched", async ({ page }) => {

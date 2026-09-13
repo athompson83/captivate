@@ -445,8 +445,9 @@ function TitleField({ title }: { title: string }) {
       aria-label="Presentation title"
       placeholder="Untitled presentation"
       // A floor as well as a ceiling: on an 820px tablet the row's other
-      // controls squeezed the title to a single letter.
-      className="text-ink hover:border-line-subtle focus:border-line max-w-[280px] min-w-[6.5rem] flex-shrink rounded-[var(--radius-sm)] border border-transparent bg-transparent px-2 py-1 text-[13.5px] font-medium transition-colors focus:bg-[var(--surface-inset)]"
+      // controls squeezed the title to a single letter. Not on a phone,
+      // where the floor pushed Present off a 320px row.
+      className="text-ink hover:border-line-subtle focus:border-line max-w-[280px] min-w-0 flex-shrink rounded-[var(--radius-sm)] border border-transparent bg-transparent px-2 py-1 text-[13.5px] font-medium transition-colors focus:bg-[var(--surface-inset)] md:min-w-[6.5rem]"
     />
   );
 }

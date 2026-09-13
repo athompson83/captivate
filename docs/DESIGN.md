@@ -221,8 +221,9 @@ editing.
   left no canvas at all; the header splits into two rows,
   giving the view switcher its own full-width one and folding the secondary
   controls into a single menu, which closes behind whatever it opens; the AI
-  assistant slides in over the row rather than beside it, dismissed by a tap
-  on what is left of the canvas; the journey settings are a half-height sheet
+  assistant slides in over the row rather than beside it wherever the
+  navigator does (below `lg`), dismissed by a tap on what is left of the
+  canvas; the journey settings are a half-height sheet
   under the map, opened from it, where on a wide screen they are a column
   beside it; and the floating selection toolbar wraps rather than hanging off
   the side. It is not a phone experience and does not pretend to be — but

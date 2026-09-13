@@ -185,7 +185,7 @@ export function EditorRoot({
         {aiOpen && (
           <AiDock
             presentationId={presentationId}
-            overlay={narrow}
+            overlay={compact}
             onClose={() => setAiOpen(false)}
           />
         )}

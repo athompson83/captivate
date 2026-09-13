@@ -83,8 +83,10 @@ fails without the fix, all in `tests/e2e/editor-narrow.spec.ts`:
   over one. A control that opens something now closes the menu with it.
 - **The AI assistant crushed the canvas on a phone**: a 320px column beside
   a 390px canvas left 70px of scene and the notes under it forty characters
-  wide. It slides in over the row instead, as the navigator does, dismissed
-  by a tap on what is left of the canvas (`AiDock` `overlay`).
+  wide, and on an 820px tablet, beside the inspector's or the journey's
+  column, 228px (Codex). Wherever the navigator overlays it slides in over
+  the row instead, dismissed by a tap on what is left of the canvas
+  (`AiDock` `overlay`).
 - **A tablet held upright** (820px) had the title field squeezed to one
   letter and the scene 240px wide between the navigator and the inspector.
   The navigator now collapses below `lg` rather than `md` (`useIsCompact`),

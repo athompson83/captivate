@@ -46,8 +46,11 @@ export function AiDock({
   /**
    * Over the canvas rather than beside it. A 320px column beside a 390px
    * canvas left 70px of scene, and the notes under it forty characters
-   * wide; on a narrow screen the dock slides in over the row, as the
-   * navigator does, and a tap on what is left of the canvas dismisses it.
+   * wide; on an 820px tablet, beside the inspector's or the journey's 272px
+   * column, it left 228px. Wherever the navigator overlays, so does this:
+   * the dock slides in over the row and a tap on what is left of the
+   * canvas dismisses it (Codex, reviewing the PR that keyed it to the
+   * phone breakpoint alone).
    */
   overlay?: boolean;
 }) {
