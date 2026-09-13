@@ -187,8 +187,12 @@ export function NotesWorkspace({
               className="text-ink hover:border-line-subtle focus:border-line min-w-[12rem] flex-1 rounded-[var(--radius-sm)] border border-transparent bg-transparent px-2 py-1 text-[17px] font-semibold tracking-tight transition-colors focus:bg-[var(--surface-inset)]"
             />
 
-            <div className="ml-auto flex items-center gap-2">
-              <div className="relative">
+            {/* Wrapping among themselves too, and the picker capped: a deck
+                with a long title is the native select's minimum width, and
+                a group that could not wrap ran past a phone's header with
+                it (Codex, on the first draft of the grouping). */}
+            <div className="ml-auto flex max-w-full min-w-0 flex-wrap items-center justify-end gap-2">
+              <div className="relative max-w-full min-w-0">
                 <select
                   value={active.presentationId ?? ""}
                   onChange={(e) => {
@@ -197,7 +201,7 @@ export function NotesWorkspace({
                     persist(active.id, { presentationId });
                   }}
                   aria-label="Attach to a presentation"
-                  className="border-line text-ink-2 focus:border-accent appearance-none rounded-[var(--radius-md)] border bg-[var(--surface-inset)] py-1.5 pr-7 pl-2.5 text-[12px] outline-none"
+                  className="border-line text-ink-2 focus:border-accent max-w-[12rem] appearance-none truncate rounded-[var(--radius-md)] border bg-[var(--surface-inset)] py-1.5 pr-7 pl-2.5 text-[12px] outline-none"
                 >
                   <option value="">Standalone note</option>
                   {presentations.map((p) => (

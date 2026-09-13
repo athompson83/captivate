@@ -18,6 +18,9 @@ declare global {
   }
 }
 const P = "00000000-0000-4000-8000-000000000001";
+/** A deck with a long title: the picker shows it, and must not be as wide as it. */
+const LONG =
+  "Sepsis in the first hour: a walk through the guideline for second-year paramedic students";
 const note = (n: number, title: string, body: string): LectureNote => ({
   id: `00000000-0000-4000-8000-00000000c00${n}`,
   presentationId: P,
@@ -52,7 +55,7 @@ window.notesFixture = {
               "Tachycardia, narrowed pulse pressure, delayed capillary refill, anxiety. The blood pressure is the last thing to go.",
             ),
           ]}
-          presentations={[{ id: P, title: "Hold the room" }]}
+          presentations={[{ id: P, title: LONG }]}
           filterPresentationId={null}
           initialNoteId={null}
         />

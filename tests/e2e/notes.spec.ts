@@ -46,6 +46,14 @@ test.describe("the notes workspace", () => {
     expect(t.width).toBeGreaterThanOrEqual(180);
     expect(d.y).toBeGreaterThan(t.y + t.height - 1);
     expect(d.x + d.width).toBeLessThanOrEqual(391);
+
+    // The attached deck's title is long, and the native select would be as
+    // wide as it: capped, the picker stays inside the window, and the
+    // controls wrap among themselves if they must.
+    const picker = (await page
+      .getByRole("combobox", { name: "Attach to a presentation" })
+      .boundingBox())!;
+    expect(picker.x + picker.width).toBeLessThanOrEqual(391);
     expect(problems).toEqual([]);
   });
 

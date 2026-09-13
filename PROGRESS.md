@@ -64,7 +64,10 @@ All but one read well, with nothing past the window's edge. The one: a
 note's title shrank before the header row wrapped, so on a phone it read
 as three letters beside the presentation picker, the deck link and the
 delete button. The title now keeps a floor of 12rem and the controls,
-grouped at the row's end, take a row of their own below it
+grouped at the row's end, take a row of their own below it — and wrap
+among themselves, with the deck picker capped at 12rem, since a deck's
+long title would otherwise be the native select's width and the group's
+with it (Codex, on the first draft of the grouping)
 (`notes-workspace.tsx`); `tests/e2e/fixtures/notes-mount.tsx` and
 `tests/e2e/notes.spec.ts` (lifecycle) pin it, and `docs/DESIGN.md` says so.
 
