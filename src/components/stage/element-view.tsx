@@ -7,7 +7,8 @@ import type { RichText, SceneElement, TextStyle } from "@/lib/schema/presentatio
 import { DrawnPicture, handWobble } from "./drawn-picture";
 import { blobPath } from "@/lib/drawing/diagram";
 import { chartDrawing } from "@/lib/drawing/chart";
-import { GRAIN, coversStage, gradeMatrix, matrixValues } from "@/lib/present/grade";
+import { coversStage, gradeMatrix } from "@/lib/present/grade";
+import { GradeFilter } from "./grade-filter";
 import { embedSandbox } from "@/lib/utils/embed";
 import { resolveColor, type PresentationTheme } from "@/lib/schema/theme";
 import { stageRem } from "@/lib/present/stage";
@@ -874,32 +875,9 @@ export const ElementView = memo(function ElementView({
               radiusPx={radiusPx}
             />
           )}
-          {/* The grade: the deck's own colour laid into the photograph's
-              pixels — its own alpha, so a contained picture's gutters and a
-              PNG's transparent parts stay untouched — and grain composited
-              inside the same alpha. One filter, defined beside the picture
-              it colours. */}
+          {/* The grade, defined beside the picture it colours — see `GradeFilter`. */}
           {element.url && matrix && (
-            <svg width={0} height={0} aria-hidden style={{ position: "absolute" }}>
-              <filter id={gradeId} colorInterpolationFilters="sRGB">
-                <feColorMatrix type="matrix" values={matrixValues(matrix)} result="graded" />
-                <feTurbulence
-                  type="fractalNoise"
-                  baseFrequency={0.9}
-                  numOctaves={2}
-                  stitchTiles="stitch"
-                  result="noise"
-                />
-                <feColorMatrix
-                  in="noise"
-                  type="matrix"
-                  values={`0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 ${GRAIN[element.grade]} 0`}
-                  result="grain"
-                />
-                <feComposite in="grain" in2="SourceGraphic" operator="in" result="grainIn" />
-                <feBlend in="grainIn" in2="graded" mode="overlay" />
-              </filter>
-            </svg>
+            <GradeFilter id={gradeId} grade={element.grade} theme={theme} />
           )}
           {/* A scrim darkens a photograph so a caption over it stays legible.
               With no photograph it is a dark rectangle over nothing — which on

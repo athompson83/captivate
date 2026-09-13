@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, Route, RotateCcw } from "lucide-react";
 import type { ArrangePreset, BackdropGraphic } from "@/lib/schema/presentation";
+import type { ImageGrade } from "@/lib/present/grade";
 import { BACKDROP_GRAPHIC_META } from "@/lib/schema/presentation";
 import { ARRANGEMENTS, arrange } from "@/lib/present/arrange";
 import { stageSize } from "@/lib/present/stage";
@@ -258,6 +259,24 @@ export function JourneyPanel({ presentationId }: { presentationId: string }) {
                   )
                 }
               />
+              <Field label="Grade">
+                <Segmented<ImageGrade>
+                  label="Backdrop grade"
+                  size="sm"
+                  value={journey.backdrop.grade}
+                  onChange={(v) =>
+                    updatePresentationMeta(
+                      { journey: { ...journey, backdrop: { ...journey.backdrop, grade: v } } },
+                      { label: "Change backdrop grade" },
+                    )
+                  }
+                  options={[
+                    { value: "tint", label: "Tint" },
+                    { value: "duotone", label: "Duotone" },
+                    { value: "none", label: "As shot" },
+                  ]}
+                />
+              </Field>
               <Button
                 variant="ghost"
                 size="sm"

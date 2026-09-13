@@ -80,7 +80,15 @@ function Fixture({ travel, backdrop }: { travel: "fly" | "cut" | "dissolve"; bac
       depth={JOURNEY_DEFAULTS.depth}
       backdrop={
         backdrop
-          ? { url: PICTURE, assetId: null, alt: "", distance: 0.5, dim: 0.4, graphic: "none" }
+          ? {
+              url: PICTURE,
+              assetId: null,
+              alt: "",
+              distance: 0.5,
+              dim: 0.4,
+              grade: "tint",
+              graphic: "none",
+            }
           : undefined
       }
       className="absolute inset-0"

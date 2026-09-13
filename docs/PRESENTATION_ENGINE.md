@@ -320,9 +320,14 @@ pulling back to — a section's, the world's — or, while the focus is a
 scene, a few scene framings out, so from the overview and while a section
 is being established the picture is there whole, the room the show stands
 in, and on a scene it is a quiet wall behind the words. Written from the
-camera loop each frame beside the transform, never through React. One for
-the show, not one per scene: a scene's own background is a region's
-atmosphere, and this is the room the regions are in.
+camera loop each frame beside the transform, never through React. And it
+is graded to the deck (`JourneyBackdrop.grade`, a tint unless the author
+says otherwise) by the same hand that grades every picture in a scene
+(`GradeFilter`): a room found in stock arrives in its own colour world,
+and the deck's light laid into its pixels is what makes it the room the
+show stands in rather than a poster behind it. One for the show, not one
+per scene: a scene's own background is a region's atmosphere, and this is
+the room the regions are in.
 
 ### Presenting without it
 

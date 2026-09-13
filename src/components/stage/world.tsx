@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import dynamic from "next/dynamic";
 import { useReducedMotion } from "motion/react";
 import type {
@@ -38,6 +38,8 @@ import {
   veilBand,
 } from "@/lib/present/backdrop";
 import { graphicBackdrop } from "@/lib/present/graphic-backdrop";
+import { gradeMatrix } from "@/lib/present/grade";
+import { GradeFilter } from "./grade-filter";
 import { regionParallax } from "@/lib/present/parallax";
 import {
   LEVEL,
@@ -377,6 +379,11 @@ export const World = memo(function World({
   );
   const backdropDistance = backdrop?.distance ?? 0.5;
   const backdropDim = backdrop?.dim ?? 0;
+  // The room graded to the deck, by the hand that grades every picture in it.
+  const roomGrade = backdrop?.grade ?? "tint";
+  const roomGradeId = `room-grade-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const roomGraded =
+    picture && gradeMatrix(roomGrade, theme.tokens.canvas, theme.tokens.accent) !== null;
   const worldBounds = useMemo(() => boundsOf(placements, stage), [placements, stage]);
   // The band the veil over the picture eases over — see `veilBand`: full at
   // the focused scene's own framing, gone at the destination the camera is
@@ -873,8 +880,16 @@ export const World = memo(function World({
             /* Decoded off the main thread: this one covers the whole layer and
                is the largest single bitmap in the world. See `stage.tsx`. */
             decoding="async"
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            data-grade={roomGrade}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+              filter: roomGraded ? `url(#${roomGradeId})` : undefined,
+            }}
           />
+          {roomGraded && <GradeFilter id={roomGradeId} grade={roomGrade} theme={theme} />}
           {backdrop.dim > 0 && (
             <div
               ref={veilRef}
