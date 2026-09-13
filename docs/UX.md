@@ -124,6 +124,13 @@ actually looks like.
 It yields to the stage the moment one appears, so the two can never disagree
 about what the audience is seeing.
 
+It fits the window it is given. On a phone the header wraps its timers and
+close button onto a row of their own rather than setting the console's width
+(one unwrapping row had made the whole console 600px wide at 390px, every
+pane cut at the window's edge and the close button off it), and the panes
+stack in one column; `tests/e2e/presenter-console.spec.ts` mounts the console
+itself in a real browser and measures it.
+
 ---
 
 ## Annotations never touch the document

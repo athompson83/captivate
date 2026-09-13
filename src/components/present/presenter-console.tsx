@@ -198,8 +198,15 @@ export function PresenterConsole({
   const overPlan = planned !== null && session.totalElapsedMs / 1000 > planned;
 
   return (
-    <div className="bg-sunken grid h-screen grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
-      <header className="border-line-subtle bg-base flex items-center gap-3 border-b px-4 py-2.5">
+    // One explicit column that may shrink: with the column left implicit
+    // (`auto`), the header's one unwrapping row set the whole console's
+    // width — 600px on a 390px phone, every pane cut at the window's edge
+    // and the timers and the close button off it.
+    <div
+      data-console-root
+      className="bg-sunken grid h-screen grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
+    >
+      <header className="border-line-subtle bg-base flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-2.5">
         <MonitorPlay className="text-accent size-4 shrink-0" aria-hidden />
         <span className="text-ink truncate text-[13px] font-medium">{presentation.title}</span>
 
@@ -234,27 +241,29 @@ export function PresenterConsole({
           </span>
         )}
 
-        <div className="flex-1" />
+        {/* Together at the end of the row, and a row of their own on a
+            phone, still at the right. */}
+        <div className="ml-auto flex items-center gap-3">
+          <Timers
+            totalMs={session.totalElapsedMs}
+            sceneMs={session.sceneElapsedMs}
+            planned={planned}
+            sceneTarget={sceneTarget}
+            overTarget={overTarget}
+            overPlan={overPlan}
+            paused={session.paused}
+            onTogglePause={session.togglePause}
+            onReset={session.resetTimer}
+          />
 
-        <Timers
-          totalMs={session.totalElapsedMs}
-          sceneMs={session.sceneElapsedMs}
-          planned={planned}
-          sceneTarget={sceneTarget}
-          overTarget={overTarget}
-          overPlan={overPlan}
-          paused={session.paused}
-          onTogglePause={session.togglePause}
-          onReset={session.resetTimer}
-        />
-
-        <Link
-          href={`/edit/${presentation.id}`}
-          aria-label="Close presenter console"
-          className="text-ink-3 hover:text-ink rounded p-1.5 transition-colors hover:bg-[var(--surface-inset)]"
-        >
-          <X className="size-4" aria-hidden />
-        </Link>
+          <Link
+            href={`/edit/${presentation.id}`}
+            aria-label="Close presenter console"
+            className="text-ink-3 hover:text-ink rounded p-1.5 transition-colors hover:bg-[var(--surface-inset)]"
+          >
+            <X className="size-4" aria-hidden />
+          </Link>
+        </div>
       </header>
 
       <div className="grid min-h-0 grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
