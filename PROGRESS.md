@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #125 — the MVP-051 closeout and the next round, awaiting
+  `main` after PR #126 — the MVP-052 closeout and the next round, awaiting
   CI, merge and production verification
-- `main`: through PR #125 (merged) — `5156a5e`; migration
+- `main`: through PR #126 (merged) — `cdb33eb`; migration
   `0034_shared_movement_rooms.sql` applied to production; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -54,6 +54,40 @@
 
 ## Latest Session
 
+### A picture that lives
+
+A photograph on a scene arrived and then stood there, and a still picture
+on a screen is read once and looked past. The owner's standing ask is the
+most captivating audience experience possible, and the one thing every
+documentary cut knows that a slide does not is that a photograph is a shot:
+it moves, slowly, and the eye stays on it. Now a photograph lives while its
+scene is performed (`lib/present/drift.ts`): it closes in on the author's
+focal point, or pans across, six percent over 26 s — too slow to be seen
+moving and seen to have moved. Half the pictures close in and half pan, by
+the element's id rather than at random, so a recording and a rehearsal show
+the same shot; a pan goes toward the side the scale has made room on, since
+scaling about a point near the left edge opens no margin there and a pan the
+other way would show the picture's edge. The drift starts from the identity
+so a landing never jumps, and is undone in 1.4 s over the flight away.
+
+Written as a CSS transition on the picture rather than a keyframe, so the
+compositor carries the motion and a departure comes back from wherever the
+picture had got to; on its own layer while it moves, so the grade is painted
+once. Only while presenting — in the editor and a thumbnail a picture is
+being looked at and stays exactly where it was put — and under a
+reduced-motion preference it is simply still. `docs/FEATURES.md` and
+`docs/DESIGN.md` say so.
+
+Tests: the shot is the identity until performed, closes in on the focal
+point over the drift's length, pans toward the side with room, is the same
+for the same picture every time; the stage gives a landed picture the drift
+and takes it back when the camera leaves, and never in the editor; and in a
+real browser on real photographs (the picture-weight fixture) the landed
+picture's computed transform leaves the identity and keeps going, the next
+scene's stays put, leaving brings the first back and sets the second off,
+and under reduced motion nothing moves. Each shown to fail with the drift
+disabled.
+
 ### The last of the UX pass: notes, assets, templates, recordings, settings, the create flow
 
 With the navigation and image stand-ins in place every signed-in surface
@@ -70,6 +104,13 @@ long title would otherwise be the native select's width and the group's
 with it (Codex, on the first draft of the grouping)
 (`notes-workspace.tsx`); `tests/e2e/fixtures/notes-mount.tsx` and
 `tests/e2e/notes.spec.ts` (lifecycle) pin it, and `docs/DESIGN.md` says so.
+
+**Landed and verified.** PR #126 squash-merged as `cdb33eb`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 37 of 37 on the first run. With it the UX pass the owner asked for is
+complete across every surface the product has: the public pages, the
+shared viewer, the editor at every width, the presenter stage and
+console, the phone remote, the dashboard and each of its pages.
 
 ### The dashboard in a real browser
 

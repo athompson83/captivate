@@ -8,6 +8,7 @@ import { DrawnPicture, handWobble } from "./drawn-picture";
 import { blobPath } from "@/lib/drawing/diagram";
 import { chartDrawing } from "@/lib/drawing/chart";
 import { coversStage, gradeMatrix } from "@/lib/present/grade";
+import { pictureDrift } from "@/lib/present/drift";
 import { GradeFilter } from "./grade-filter";
 import { embedSandbox } from "@/lib/utils/embed";
 import { resolveColor, type PresentationTheme } from "@/lib/schema/theme";
@@ -609,6 +610,7 @@ export const ElementView = memo(function ElementView({
   // One grade filter per picture, named so two pictures on a scene keep
   // their own and a thumbnail never borrows the stage's.
   const gradeId = `grade-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const reduced = useReducedMotion();
 
   // The element's box in stage pixels, used to shrink over-long text so it
   // never spills onto whatever sits below it.
@@ -831,6 +833,11 @@ export const ElementView = memo(function ElementView({
       const matrix = gradeMatrix(element.grade, theme.tokens.canvas, theme.tokens.accent);
       const feather =
         "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent), linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent)";
+      // The picture lives while its scene is performed — see `pictureDrift`.
+      // Only there: in the editor and a thumbnail a picture is being looked
+      // at, and under a reduced-motion preference it is simply still.
+      const living = perform && !reduced;
+      const drift = pictureDrift(element, living);
       return (
         <div
           style={{
@@ -865,7 +872,14 @@ export const ElementView = memo(function ElementView({
                 objectPosition: `${element.focalX * 100}% ${element.focalY * 100}%`,
                 display: "block",
                 filter: matrix ? `url(#${gradeId})` : undefined,
+                transform: drift.transform,
+                transformOrigin: drift.transformOrigin,
+                transition: drift.transition,
+                // On its own layer while it moves, so the grade is painted
+                // once and the compositor carries the drift.
+                willChange: living ? "transform" : undefined,
               }}
+              data-living={living ? "" : undefined}
             />
           ) : (
             <ImagePlaceholder

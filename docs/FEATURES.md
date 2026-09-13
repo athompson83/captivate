@@ -134,8 +134,12 @@ Nine entrance presets, four emphasis options, per-element
 delay and duration, build-on-advance, and staggered lists. All respect
 `prefers-reduced-motion`. A scene performs when the camera lands on it, not
 when the flight begins; on arrival a one-number scene counts its figure up and
-a chart builds in, and the scenes beside the current one recede. A full
-timeline editor is **deferred** — reliable transitions first.
+a chart builds in, and the scenes beside the current one recede. A photograph
+lives while its scene is performed: it closes in on the author's focal point
+or pans across, six percent over half a minute, too slow to be seen moving
+and seen to have moved; it stands still in the editor, in a thumbnail and
+under a reduced-motion preference, and comes back over the flight away. A
+full timeline editor is **deferred** — reliable transitions first.
 
 ---
 
