@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #121 — the MVP-047 closeout and the UX pass, awaiting
+  `main` after PR #122 — the MVP-048 closeout and the next round, awaiting
   CI, merge and production verification
-- `main`: through PR #121 (merged) — `ab7b2c0`; migration
+- `main`: through PR #122 (merged) — `3042a69`; migration
   `0034_shared_movement_rooms.sql` applied to production; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -105,6 +105,14 @@ fails without the fix, all in `tests/e2e/editor-narrow.spec.ts`:
 
 `docs/DESIGN.md` (the responsive rules) and `docs/UX.md` (the phone) say
 what the editor now does.
+
+**Landed and verified.** Codex's one finding fixed before merge: keyed to
+the phone breakpoint alone, the AI dock was still a 320px column at
+768–1023px beside a 272px one, so its overlay now keys to the compact
+breakpoint with the navigator, and the tablet test opens it beside the
+inspector's column. PR #122 squash-merged as `3042a69`, all six CI jobs
+green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 37 of 37 on the first run.
 
 ### A deck with a look
 
