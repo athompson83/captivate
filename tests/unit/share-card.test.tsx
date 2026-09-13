@@ -27,6 +27,40 @@ describe("the share card", () => {
     expect(html).toContain(getTheme("midnight").tokens.accent);
   });
 
+  it("stands in the deck's room when it has one, veiled at the author's dim", () => {
+    // A deck with a room behind the whole show unfurled as a flat card in
+    // the theme's colour: the one picture that says what the talk stands in
+    // was the one thing the card did not carry.
+    const src = "data:image/jpeg;base64,/9j/4AAQ";
+    const html = renderToStaticMarkup(
+      shareCard({
+        title: "Hold the room",
+        description: "",
+        themeId: "midnight",
+        scenes: 3,
+        movements: 1,
+        room: { src, dim: 0.4 },
+      }),
+    );
+    expect(html).toContain(`src="${src}"`);
+    expect(html).toContain("object-fit:cover");
+    expect(html).toMatch(/data-room-veil[^>]*opacity:0\.4/);
+    // The words are painted after the room, so they sit on top of it.
+    expect(html.indexOf(src)).toBeLessThan(html.indexOf("Hold the room"));
+
+    const bare = renderToStaticMarkup(
+      shareCard({
+        title: "Hold the room",
+        description: "",
+        themeId: "midnight",
+        scenes: 3,
+        movements: 1,
+      }),
+    );
+    expect(bare).not.toContain("<img");
+    expect(bare).not.toContain("data-room-veil");
+  });
+
   it("falls back to a generic card for a link that resolves to nothing", () => {
     const html = renderToStaticMarkup(shareCard(null));
     expect(html).toContain("A shared presentation");
@@ -57,6 +91,8 @@ describe("the share card", () => {
     const source = readFileSync("src/app/v/[token]/opengraph-image.tsx", "utf8");
     expect(source).toContain("getSharedDeck(token)");
     expect(source).toContain("shareCard(");
+    // The room is fetched under the card's deadline, never left to Satori.
+    expect(source).toContain("roomForCard(");
     expect(source).toMatch(/export const size = SHARE_CARD_SIZE/);
     expect(source).toMatch(/export const contentType = "image\/png"/);
     expect(source).not.toContain("speakerNotes");

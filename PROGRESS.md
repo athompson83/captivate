@@ -150,6 +150,36 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### The room on the card
+
+A share link unfurls as the deck's own card — its title in its own theme,
+the shape of the thing beneath — and a deck with a room behind the whole
+show unfurled as a flat card in the theme's colour: the one picture that
+says what the talk stands in was the one thing the card did not carry. Now
+the card stands in the room (`shareCard`, `room`): the picture whole
+across the card, under the theme's canvas at the author's dim — the veil
+the stage draws on a scene, since a card is read up close — with the canvas
+rising behind the words so they read over any photograph. Satori has no
+colour matrix, so the room is as shot under the deck's canvas rather than
+graded to it. The room's layers sit against an unpadded root, because Satori
+lays an absolute child out from its parent's padding edge and the first
+render had the picture starting eighty pixels in, a photograph in a frame.
+
+The picture is fetched by the route, not left to Satori (`roomForCard`,
+`lib/marketing/share-room.ts`): an unfurl is a chat waiting, so the room is
+fetched under a two-and-a-half-second deadline and handed over as bytes,
+and a room that does not arrive in time — or is not a JPEG or PNG, or is
+larger than a card has any use for, or is not an `https` address — is
+simply not on the card. The card without its room is the card every deck
+had until now, never an error.
+
+Tests in `share-card` (the room on the card at the author's dim, painted
+before the words; no room, no picture; the route fetches through
+`roomForCard`) and `share-room` (a picture as a data URI of its own type;
+the wrong type, a missing, empty or oversized picture, a non-`https`
+address and a failed fetch all mean no room; a room that never arrives is
+given up on at the deadline).
+
 ### The room in the export
 
 The room behind the show is now real on every deck — made, found or drawn,
