@@ -54,6 +54,20 @@
 
 ## Latest Session
 
+### The last of the UX pass: notes, assets, templates, recordings, settings, the create flow
+
+With the navigation and image stand-ins in place every signed-in surface
+can be mounted, so the rest were read at a phone and a desktop: the notes
+workspace, the asset library and its detail dialog, the template gallery,
+the recordings library, settings, and the create flow in both modes.
+All but one read well, with nothing past the window's edge. The one: a
+note's title shrank before the header row wrapped, so on a phone it read
+as three letters beside the presentation picker, the deck link and the
+delete button. The title now keeps a floor of 12rem and the controls,
+grouped at the row's end, take a row of their own below it
+(`notes-workspace.tsx`); `tests/e2e/fixtures/notes-mount.tsx` and
+`tests/e2e/notes.spec.ts` (lifecycle) pin it, and `docs/DESIGN.md` says so.
+
 ### The dashboard in a real browser
 
 The dashboard (`/presentations`) is the first thing a signed-in person
