@@ -327,7 +327,13 @@ says otherwise) by the same hand that grades every picture in a scene
 and the deck's light laid into its pixels is what makes it the room the
 show stands in rather than a poster behind it. One for the show, not one
 per scene: a scene's own background is a region's atmosphere, and this is
-the room the regions are in.
+the room the regions are in. The slide export carries it (`planDeck`): the
+picture is the slide's background where the scene has no picture of its
+own, with the author's dim laid over it as a rectangle of the canvas — the
+veil on a scene, since a slide is a scene seen up close — and as shot,
+the room filling the slide rather than the crop the parallax showed; a
+drawn room is CSS the stage composes, and a deck with one is told so among
+the export's omissions rather than handed the canvas colour.
 
 ### Presenting without it
 
