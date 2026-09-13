@@ -11,9 +11,10 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #112 — the MVP-038 closeout, and the drawings lettered by
-  the same hand, awaiting CI, merge and production verification
-- `main`: through PR #112 (merged) — `569b9b2`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #113 — the MVP-039 closeout, and the picture behind the
+  show veiled on a scene and unveiled as the camera pulls back, awaiting
+  CI, merge and production verification
+- `main`: through PR #113 (merged) — `b454e65`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -150,6 +151,41 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### The room seen whole
+
+The owner, continuing the brief: consider "an image that is the background
+for the entire presentation but translucent when zoomed into a slide". The
+picture behind the whole show already existed (`JourneyConfig.backdrop`,
+on its plane at its distance, dimmed toward the canvas so words stay
+legible over it) — but the dim was a constant, so the picture was as quiet
+from the overview, where nothing is written over it and it is the room the
+show stands in, as it was behind a scene's words.
+
+The dim is now the camera's to lift (`backdropVeil` in
+`lib/present/backdrop.ts`, over a `veilBand`): the author's setting is the
+veil _on a scene_, full until the camera is a little wider than the focused
+scene's own framing (`VEIL_NEAR`, a quarter's slack — measured against the
+scene's framing and not the stage, so a scene an author enlarged in the
+journey map is still a scene with words on it), easing away as it widens
+and gone at the framing the camera is pulling back to — a section's, the
+world's, however near that is — or, while the focus is a scene, a few scene
+framings out (`VEIL_FAR`, 3.5) or the whole world's framing where that
+comes sooner; a deck of one scene, with nothing to pull back to, keeps its
+veil. Written from the camera loop each frame beside the transform, on a
+`data-backdrop-veil` element the loop owns, never through React; the first
+paint is the author's dim, since the first frame is a scene's and a picture
+at full strength under words for one frame is a flash. The journey panel's slider now says "Dim on a scene".
+
+Tests in `backdrop-veil` (the author's dim on a scene and nothing from the
+overview; against the scene's own framing, so an enlarged scene keeps its
+dim; gone where the camera is going however near that is; eased between
+and never rising; kept on a deck of one; nothing when the author asked for
+none), `world-render` (the veil element at the author's dim on the
+first frame, inside the picture's layer) and, in a real browser,
+`camera-flight.spec.ts` (mounted with a picture behind two scenes: the veil
+at the author's dim on a scene, and after pulling back to the world every
+frame's value never rising and the last one nothing).
+
 ### Lettered by the same hand
 
 The eighth round under "graphics and drawings — go next level". With the
@@ -175,6 +211,13 @@ Tests in `hand-lettering` (every theme letters in the same hand and
 publishes it; a stored theme without one parses to it) and `stage-render`
 (a diagram's and a chart's labels take the theme's hand at weight 400, not
 its sans).
+
+**Landed and verified.** PR #113 squash-merged as `b454e65`, all six CI
+jobs green on the head, and Codex reviewed it with no findings. The proxied
+smoke suite against `www.axtevi.com` after the deploy: 36 of 37 on the
+first run, the one failure a proxy timeout reaching `/pricing`
+(`net::ERR_TIMED_OUT`, no response at all), and 1 of 1 when re-run, the
+route answering 200 in 0.39 s.
 
 ### The phrase that matters, underlined by hand
 

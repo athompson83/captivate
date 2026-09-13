@@ -92,6 +92,66 @@ export function backdropPlane(
 }
 
 /**
+ * The veil over the picture, by how close the camera is.
+ *
+ * A picture behind the whole show is the room the show stands in, and a room
+ * is seen whole when the camera pulls back: from the overview, or while a
+ * section is being established, the picture should be there at its full
+ * strength. On a scene it is a wall behind words, and words over a
+ * photograph need the photograph quieter — so the author's `dim` is the
+ * veil *on a scene*, and it lifts as the camera widens. Between the two it
+ * eases, so a flight out of a scene lets the room come up rather than
+ * switching it on.
+ *
+ * Measured against the focused scene's own framing, not the stage: a scene
+ * an author enlarged in the journey map is framed wider and is still a scene
+ * with words on it. The band's far edge is wherever the camera is going when
+ * it pulls back — a section's framing, the world's — so a section of two
+ * scenes is unveiled when the camera lands on it; and while the focus is a
+ * scene, a few scene framings out, or the whole world's framing where that
+ * comes sooner, so a flight between two scenes lets the room up a little on
+ * the way. Pure, and written from the camera loop each frame like the
+ * transform beside it.
+ */
+
+/** Slack over the scene's own framing before the veil begins to lift. */
+export const VEIL_NEAR = 1.25;
+/** Scene framings out at which the veil is gone, with no nearer destination. */
+export const VEIL_FAR = 3.5;
+
+export interface VeilBand {
+  /** The camera width at and below which the veil is full. */
+  near: number;
+  /** The camera width at and past which the veil is gone. */
+  far: number;
+}
+
+/**
+ * The band the veil eases over.
+ *
+ * `destination` is the framing the camera is pulling back to when the focus
+ * is not a scene, and null while it is one. Never narrower than a little
+ * past `near`, so a deck of one scene — whose world is its scene — keeps its
+ * veil rather than dividing by nothing.
+ */
+export function veilBand(
+  sceneFraming: number,
+  destination: number | null,
+  worldFraming: number,
+): VeilBand {
+  const near = sceneFraming * VEIL_NEAR;
+  const far = destination === null ? Math.min(worldFraming, sceneFraming * VEIL_FAR) : destination;
+  return { near, far: Math.max(near * 1.15, far) };
+}
+
+export function backdropVeil(cameraWidth: number, band: VeilBand, dim: number): number {
+  if (!(dim > 0) || !(band.near > 0)) return 0;
+  const t = Math.min(1, Math.max(0, (cameraWidth - band.near) / (band.far - band.near)));
+  const eased = t * t * (3 - 2 * t);
+  return Math.round(dim * (1 - eased) * 1000) / 1000;
+}
+
+/**
  * How far past each edge of the viewport the drawn backdrop's layer reaches,
  * as a fraction of the viewport.
  *

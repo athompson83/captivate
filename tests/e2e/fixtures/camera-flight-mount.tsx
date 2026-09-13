@@ -48,7 +48,14 @@ const placements = scenes.map((_, i) => ({
   rotation: 0,
 }));
 
-function Fixture({ travel }: { travel: "fly" | "cut" | "dissolve" }) {
+/** A picture behind the whole show: any bitmap will do for the veil over it. */
+const PICTURE =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="36"><rect width="64" height="36" fill="#c84"/></svg>',
+  );
+
+function Fixture({ travel, backdrop }: { travel: "fly" | "cut" | "dissolve"; backdrop?: boolean }) {
   const [focus, setFocus] = useState<Focus>({ kind: "scene", index: 0 });
 
   // In an effect, not during render: `setFocus` is stable, so publishing the
@@ -56,6 +63,7 @@ function Fixture({ travel }: { travel: "fly" | "cut" | "dissolve" }) {
   // thing the compiler's rules exist to stop.
   useEffect(() => {
     window.flyTo = (index: number) => setFocus({ kind: "scene", index });
+    window.pullBack = () => setFocus({ kind: "world" });
   }, []);
 
   return (
@@ -70,6 +78,11 @@ function Fixture({ travel }: { travel: "fly" | "cut" | "dissolve" }) {
       travel={travel}
       pace={JOURNEY_DEFAULTS.pace}
       depth={JOURNEY_DEFAULTS.depth}
+      backdrop={
+        backdrop
+          ? { url: PICTURE, assetId: null, alt: "", distance: 0.5, dim: 0.4, graphic: "none" }
+          : undefined
+      }
       className="absolute inset-0"
     />
   );
@@ -80,18 +93,19 @@ declare global {
     cameraFixture: {
       /** World x the camera is centred on once it has arrived at scene two. */
       arrival: number;
-      mount: (travel?: "fly" | "cut" | "dissolve") => void;
+      mount: (travel?: "fly" | "cut" | "dissolve", backdrop?: boolean) => void;
       /** Every distinct transform written while flying to `index`, per frame. */
       samples: (index: number, ms: number) => Promise<string[]>;
     };
     flyTo: (index: number) => void;
+    pullBack: () => void;
   }
 }
 
 window.cameraFixture = {
   arrival: placements[1].x,
 
-  mount(travel = "fly") {
+  mount(travel = "fly", backdrop = false) {
     const host = document.createElement("div");
     // A fixed viewport: the camera's transform is a function of it, and a
     // container that is still settling writes transforms that have nothing to
@@ -102,7 +116,7 @@ window.cameraFixture = {
     // interrupted by a re-render" case the world's refs exist to survive, and
     // it is covered elsewhere. What is under test here is the shape of one
     // uninterrupted flight.
-    createRoot(host).render(<Fixture travel={travel} />);
+    createRoot(host).render(<Fixture travel={travel} backdrop={backdrop} />);
   },
 
   async samples(index: number, ms: number) {
