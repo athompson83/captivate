@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #123 — the MVP-049 closeout and the next round, awaiting
+  `main` after PR #124 — the MVP-050 closeout and the next round, awaiting
   CI, merge and production verification
-- `main`: through PR #123 (merged) — `d6fd2f3`; migration
+- `main`: through PR #124 (merged) — `95948e1`; migration
   `0034_shared_movement_rooms.sql` applied to production; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
@@ -77,6 +77,10 @@ a desktop. Read at a phone, a tablet held upright, a laptop and a desktop:
 
 `docs/UX.md` ("The console works alone") says what the console now does
 with the window it is given.
+
+**Landed and verified.** PR #124 squash-merged as `95948e1`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 36 of 37 on the first run, the one failure a proxy `net::ERR_TIMED_OUT` on the mobile accessibility check of `/sign-in` while the session's egress proxy restarted, re-run green with the route answering in 0.5 s.
 
 ### The presenter stage in a real browser
 
