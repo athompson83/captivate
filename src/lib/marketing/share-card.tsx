@@ -25,6 +25,13 @@ export interface ShareCardDeck {
   scenes: number;
   /** Movements: the deck's sections. */
   movements: number;
+  /**
+   * The room behind the show, when the deck has one and it arrived in time
+   * (`roomForCard`): the picture, and the author's dim to lay the canvas
+   * over it — the veil the stage draws on a scene, since a card is read up
+   * close.
+   */
+  room?: { src: string; dim: number } | null;
 }
 
 /** The generic card, for a link that resolves to nothing a stranger may see. */
@@ -63,59 +70,117 @@ export function shareCard(deck: ShareCardDeck | null) {
   const description = card.description.trim().slice(0, 160);
   const shape = shapeLine(card);
   const long = title.length > 48;
+  const room = card.room ?? null;
 
+  // The room's layers are placed against an unpadded root: Satori lays an
+  // absolute child out from its parent's padding edge, and a room placed
+  // inside the padding started eighty pixels in, a picture in a frame.
   return (
     <div
       style={{
+        position: "relative",
         width: "100%",
         height: "100%",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        padding: "72px 80px",
         background: `radial-gradient(circle at 85% 15%, ${accent}33 0%, ${canvas} 55%)`,
         backgroundColor: canvas,
         color: ink,
         fontFamily: "sans-serif",
       }}
     >
-      <div
-        style={{ display: "flex", alignItems: "center", gap: 14, color: inkMuted, fontSize: 26 }}
-      >
-        <div style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: accent }} />
-        <span>Captivate</span>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <div
-          style={{
-            fontSize: long ? 64 : 84,
-            fontWeight: 700,
-            lineHeight: 1.05,
-            letterSpacing: "-0.02em",
-            color: ink,
-          }}
-        >
-          {title}
-        </div>
-        {description && (
-          <div style={{ fontSize: 30, lineHeight: 1.35, color: inkMuted }}>{description}</div>
-        )}
-      </div>
-
+      {room && (
+        <>
+          {/* The room, whole, with the veil the stage lays on a scene and
+              the canvas rising behind the words so they read over any
+              photograph. Satori has no colour matrix, so the room is as
+              shot under the deck's canvas rather than graded to it. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- Satori markup, not a page: it draws the element it is given */}
+          <img
+            src={room.src}
+            alt=""
+            width={SHARE_CARD_SIZE.width}
+            height={SHARE_CARD_SIZE.height}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: SHARE_CARD_SIZE.width,
+              height: SHARE_CARD_SIZE.height,
+              objectFit: "cover",
+            }}
+          />
+          <div
+            data-room-veil
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: SHARE_CARD_SIZE.width,
+              height: SHARE_CARD_SIZE.height,
+              backgroundColor: canvas,
+              opacity: Math.min(1, Math.max(0, room.dim)),
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: SHARE_CARD_SIZE.width,
+              height: SHARE_CARD_SIZE.height,
+              background: `linear-gradient(to bottom, ${canvas}00 25%, ${canvas}e6 100%)`,
+            }}
+          />
+        </>
+      )}
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          flexDirection: "column",
           justifyContent: "space-between",
-          paddingTop: 28,
-          borderTop: `2px solid ${line}`,
-          fontSize: 26,
-          color: inkMuted,
+          width: "100%",
+          height: "100%",
+          padding: "72px 80px",
         }}
       >
-        <span>{shape}</span>
-        <span>Open to walk through it</span>
+        <div
+          style={{ display: "flex", alignItems: "center", gap: 14, color: inkMuted, fontSize: 26 }}
+        >
+          <div style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: accent }} />
+          <span>Captivate</span>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div
+            style={{
+              fontSize: long ? 64 : 84,
+              fontWeight: 700,
+              lineHeight: 1.05,
+              letterSpacing: "-0.02em",
+              color: ink,
+            }}
+          >
+            {title}
+          </div>
+          {description && (
+            <div style={{ fontSize: 30, lineHeight: 1.35, color: inkMuted }}>{description}</div>
+          )}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingTop: 28,
+            borderTop: `2px solid ${line}`,
+            fontSize: 26,
+            color: inkMuted,
+          }}
+        >
+          <span>{shape}</span>
+          <span>Open to walk through it</span>
+        </div>
       </div>
     </div>
   );
