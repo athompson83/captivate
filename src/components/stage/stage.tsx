@@ -1,8 +1,13 @@
 "use client";
 
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useId, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import type { AspectRatio, SceneContent, SceneElement } from "@/lib/schema/presentation";
+import type {
+  AspectRatio,
+  JourneyBackdrop,
+  SceneContent,
+  SceneElement,
+} from "@/lib/schema/presentation";
 import {
   resolveColor,
   stageBackgroundCss,
@@ -15,6 +20,8 @@ import { elementDepth } from "@/lib/present/parallax";
 import { DrawnPicture } from "./drawn-picture";
 import { chartDrawing } from "@/lib/drawing/chart";
 import { ElementView } from "./element-view";
+import { GradeFilter } from "./grade-filter";
+import { gradeMatrix } from "@/lib/present/grade";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -81,6 +88,21 @@ export interface StageProps {
    * is right everywhere a stage is simply shown.
    */
   arrived?: boolean;
+  /**
+   * The room behind the whole show, for a card that stands in it.
+   *
+   * On the world the room is the world's, behind every region. A thumbnail
+   * or a dashboard preview is a scene taken out of the world and looked at
+   * on its own, and until now it stood on the theme's canvas as if the deck
+   * had no room: the one picture that says where the talk stands was the
+   * one thing the deck's card did not show. Given here, on a `card` surface
+   * only, the room is painted under the scene — graded to the deck as the
+   * world grades it, with the scene's own background laid over it at the
+   * author's dim, the veil the world draws on a scene — unless the scene
+   * has a picture of its own, which covers it as it would on the world.
+   * A bare region ignores it: the world already has the room.
+   */
+  room?: JourneyBackdrop | null;
 }
 
 export const Stage = memo(function Stage({
@@ -98,6 +120,7 @@ export const Stage = memo(function Stage({
   onHotspot,
   hotspotName,
   arrived = true,
+  room = null,
 }: StageProps) {
   const size = stageSize(aspect);
   const reduced = useReducedMotion();
@@ -133,7 +156,18 @@ export const Stage = memo(function Stage({
   );
 
   const bare = surface === "bare";
+  // An image background with no picture in it yet is no picture, so the
+  // room shows through it as the export shows it.
+  const ownPicture = content.background.kind === "image" && Boolean(content.background.url);
+  const roomBehind = !bare && room?.url && !ownPicture ? room : null;
+  // The scene's background stays under the room: a room still loading, or
+  // one whose address has expired, leaves the authored canvas rather than a
+  // veil over whatever the card sits on. Codex caught the flash.
   const background = bare ? {} : resolveSceneBackground(content, theme);
+  const roomGradeId = `room-grade-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const roomGraded =
+    roomBehind !== null &&
+    gradeMatrix(roomBehind.grade, theme.tokens.canvas, theme.tokens.accent) !== null;
 
   return (
     <div
@@ -168,6 +202,40 @@ export const Stage = memo(function Stage({
           ...background,
         }}
       >
+        {roomBehind && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- a signed private asset; see element-view */}
+            <img
+              src={roomBehind.url}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+              data-room
+              data-grade={roomBehind.grade}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                filter: roomGraded ? `url(#${roomGradeId})` : undefined,
+              }}
+            />
+            {roomGraded && <GradeFilter id={roomGradeId} grade={roomBehind.grade} theme={theme} />}
+            {roomBehind.dim > 0 && (
+              <div
+                data-room-veil
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  ...resolveSceneBackground(content, theme),
+                  opacity: roomBehind.dim,
+                }}
+              />
+            )}
+          </>
+        )}
         {content.background.kind === "image" && content.background.url && (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element -- see element-view */}
@@ -534,12 +602,15 @@ export const StageThumbnail = memo(function StageThumbnail({
   aspect,
   width,
   className,
+  room = null,
 }: {
   content: SceneContent;
   theme: PresentationTheme;
   aspect: AspectRatio;
   width: number;
   className?: string;
+  /** The room behind the show, for a card that stands in it. See `Stage`. */
+  room?: JourneyBackdrop | null;
 }) {
   const size = stageSize(aspect);
   const scale = width / STAGE_BASE_WIDTH;
@@ -570,6 +641,7 @@ export const StageThumbnail = memo(function StageThumbnail({
           aspect={aspect}
           fixedScale={1}
           className="size-full"
+          room={room}
         />
       </div>
     </div>

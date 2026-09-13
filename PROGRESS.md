@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #117 — the MVP-043 closeout, and the room on the card,
-  awaiting CI, merge and production verification
-- `main`: through PR #117 (merged) — `9c69f05`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #118 — the MVP-044 closeout, and the room on the deck
+  card, awaiting CI, merge and production verification
+- `main`: through PR #118 (merged) — `fc24caa`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -150,6 +150,36 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### The room on the deck card
+
+Every place the room is seen — the stage, the export, the share card — and
+the dashboard's deck card still stood on the theme's canvas as if the deck
+had no room: the one picture that says where the talk stands was the one
+thing the deck's own card did not show. `Stage` now takes the room
+(`room`, a `JourneyBackdrop`) on a `card` surface only: the picture under
+the scene, graded as the world grades it (`GradeFilter`), with the scene's
+own background laid over it at the author's dim — the veil the world draws
+on a scene, in the scene's own colour rather than the canvas, so a solid
+scene keeps its tint — and the words in front. A scene with a picture of
+its own covers it, as it would on the world, and an empty placeholder
+shows it through; the scene's own background stays under the picture, so a
+room still loading, or one whose address has expired, leaves the authored
+canvas rather than a veil over whatever the card sits on (Codex caught
+both); a bare region ignores it, because the world already has the room;
+a deck with no room paints the canvas exactly as before. `StageThumbnail`
+carries it through, and the
+deck card hands it the deck's backdrop from the row it already has. The
+scene navigator and the presenter's next-scene preview are untouched: a
+list of scenes is not a card of the deck.
+
+Tests in `stage-render` ("a card standing in the room": the room under a
+card, graded, with the scene's background as the veil at the author's dim
+and the words in front; no veil at dim zero and no filter as shot; a bare
+region and a scene's own picture leave it out; no room, the canvas as
+before) and `card-room` (the deck card shows its first scene standing in
+the deck's room; on the canvas when the deck has none). The three that
+assert the room fail without the change.
+
 ### The room on the card
 
 A share link unfurls as the deck's own card — its title in its own theme,
@@ -196,6 +226,11 @@ about; a room the link-holder may not see, a WebP, bytes that are not the
 picture they claim and a missing file all mean no room; a picture past the
 cap is refused whether declared or streamed, and the stream is cancelled; a
 room that never arrives is given up on at the deadline).
+
+**Landed and verified.** PR #118 squash-merged as `fc24caa`, all six CI
+jobs green on the head; Codex's three findings fixed before merge as
+above. The proxied smoke suite against `www.axtevi.com` after the deploy:
+37 of 37 on the first run.
 
 ### The room in the export
 

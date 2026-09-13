@@ -24,16 +24,16 @@ Sign-in errors are deliberately generic: distinguishing "no such user" from
 
 ## Presentations
 
-| Feature                       | Status      | Notes                                                  |
-| ----------------------------- | ----------- | ------------------------------------------------------ |
-| Create, rename, duplicate     | Implemented | Duplicate copies sections and scenes with remapped ids |
-| Delete and restore            | Implemented | Soft delete; "Recently deleted" with permanent purge   |
-| Autosave with visible state   | Implemented | Saving / Saved / Couldn't save, with last-saved time   |
-| Open, reopen, survive restart | Implemented | Covered by an end-to-end test                          |
-| Live thumbnails               | Implemented | Rendered by the real stage engine, so never stale      |
-| Search                        | Implemented | Titles, descriptions and note bodies                   |
-| Folders, tags, favourites     | Implemented | Filters live in the URL, so a view is shareable        |
-| Sort                          | Implemented | Last edited, last opened, created, title               |
+| Feature                       | Status      | Notes                                                                                                            |
+| ----------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| Create, rename, duplicate     | Implemented | Duplicate copies sections and scenes with remapped ids                                                           |
+| Delete and restore            | Implemented | Soft delete; "Recently deleted" with permanent purge                                                             |
+| Autosave with visible state   | Implemented | Saving / Saved / Couldn't save, with last-saved time                                                             |
+| Open, reopen, survive restart | Implemented | Covered by an end-to-end test                                                                                    |
+| Live thumbnails               | Implemented | Rendered by the real stage engine, so never stale; a deck card shows its first scene standing in the deck's room |
+| Search                        | Implemented | Titles, descriptions and note bodies                                                                             |
+| Folders, tags, favourites     | Implemented | Filters live in the URL, so a view is shareable                                                                  |
+| Sort                          | Implemented | Last edited, last opened, created, title                                                                         |
 
 ---
 
