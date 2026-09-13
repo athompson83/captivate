@@ -711,6 +711,13 @@ export const JourneyBackdrop = z.object({
   /** How much of the theme's canvas colour is laid over the picture. */
   dim: z.number().min(0).max(1).default(0.35),
   /**
+   * The deck's colour laid into the picture, as every picture in a scene
+   * has — a tint unless the author says otherwise. A room found in stock
+   * arrives in its own colour world, and the deck's light over it is what
+   * makes it the room the show stands in rather than a poster behind it.
+   */
+  grade: z.enum(["none", "tint", "duotone"]).default("tint"),
+  /**
    * A drawn backdrop, behind the picture and shown on its own when there is
    * no picture.
    *

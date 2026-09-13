@@ -1,3 +1,5 @@
+import { JourneyBackdrop } from "@/lib/schema/presentation";
+import { gradeMatrix, matrixValues } from "@/lib/present/grade";
 import { describe, expect, it, beforeAll, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { FileText } from "lucide-react";
@@ -444,7 +446,15 @@ describe("the backdrop", () => {
 
   it("is absent when there is neither a picture nor a drawn backdrop", () => {
     const { container } = renderWorld(3, {
-      backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35, graphic: "none" },
+      backdrop: {
+        url: "",
+        assetId: null,
+        alt: "",
+        distance: 0.5,
+        dim: 0.35,
+        grade: "tint" as const,
+        graphic: "none",
+      },
     });
     expect(container.querySelector("[data-backdrop]")).toBeNull();
   });
@@ -454,7 +464,15 @@ describe("the backdrop", () => {
     // the air blended from the regions in front of it.
     for (const graphic of ["aurora", "strata", "halo"] as const) {
       const { container, unmount } = renderWorld(3, {
-        backdrop: { url: "", assetId: null, alt: "", distance: 0.5, dim: 0.35, graphic },
+        backdrop: {
+          url: "",
+          assetId: null,
+          alt: "",
+          distance: 0.5,
+          dim: 0.35,
+          grade: "tint",
+          graphic,
+        },
       });
       const layer = container.querySelector<HTMLElement>("[data-backdrop]")!;
       const paint = layer.style.backgroundImage + layer.style.backgroundColor;
@@ -474,6 +492,7 @@ describe("the backdrop", () => {
         alt: "a hall",
         distance: 0.5,
         dim: 0.4,
+        grade: "tint",
         graphic: "aurora",
       },
     });
@@ -507,6 +526,7 @@ describe("the backdrop", () => {
         alt: "a hall",
         distance: 0.5,
         dim: 0.4,
+        grade: "tint",
         graphic: "none" as const,
       },
     });
@@ -532,6 +552,7 @@ describe("the backdrop", () => {
         alt: "a hall",
         distance: 0.5,
         dim: 0.4,
+        grade: "tint",
         graphic: "none" as const,
       },
     });
@@ -539,6 +560,47 @@ describe("the backdrop", () => {
     expect(veil).not.toBeNull();
     expect(veil.style.opacity).toBe("0.4");
     expect(container.querySelector("[data-backdrop]")!.contains(veil)).toBe(true);
+  });
+
+  it("grades the picture to the deck by the hand that grades every picture in it", () => {
+    const { container } = renderWorld(3, {
+      backdrop: {
+        url: "/api/assets/abc/content",
+        assetId: "abc",
+        alt: "a hall",
+        distance: 0.5,
+        dim: 0.4,
+        grade: "tint",
+        graphic: "none" as const,
+      },
+    });
+    const layer = container.querySelector("[data-backdrop]")!;
+    const img = layer.querySelector<HTMLImageElement>("img")!;
+    expect(img.getAttribute("data-grade")).toBe("tint");
+    // jsdom normalises the reference to url("#id").
+    const id = img.style.filter.match(/^url\("?#([^")]+)"?\)$/)![1];
+    const filter = layer.querySelector(`filter[id="${id}"]`)!;
+    expect(filter).not.toBeNull();
+    const matrix = gradeMatrix("tint", theme.tokens.canvas, theme.tokens.accent)!;
+    expect(filter.querySelector("feColorMatrix")!.getAttribute("values")).toBe(
+      matrixValues(matrix),
+    );
+    // As shot: no filter at all, not a filter that does nothing.
+    const plain = renderWorld(3, {
+      backdrop: {
+        url: "/api/assets/abc/content",
+        assetId: "abc",
+        alt: "a hall",
+        distance: 0.5,
+        dim: 0.4,
+        grade: "none",
+        graphic: "none" as const,
+      },
+    }).container.querySelector<HTMLImageElement>("[data-backdrop] img")!;
+    expect(plain.style.filter).toBe("");
+    expect(plain.getAttribute("data-grade")).toBe("none");
+    // A stored backdrop from before the grade existed is tinted.
+    expect(JourneyBackdrop.parse({}).grade).toBe("tint");
   });
 
   it("paints nothing when the picture was removed", () => {
@@ -549,6 +611,7 @@ describe("the backdrop", () => {
         alt: "",
         distance: 0.5,
         dim: 0.35,
+        grade: "tint",
         graphic: "none" as const,
       },
     });
@@ -791,6 +854,7 @@ describe("the room answers the hand", () => {
     alt: "a hall",
     distance: 0.5,
     dim: 0.4,
+    grade: "tint" as const,
     graphic: "none" as const,
   };
   const translateX = (transform: string) => {

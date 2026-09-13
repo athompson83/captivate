@@ -11,9 +11,9 @@
 - Current milestone: Close verified release gaps and prove the canonical hosted
   runtime
 - Branch: `claude/presentation-experience-redesign-r10l4q`, restarted from
-  `main` after PR #114 — the MVP-040 closeout, and a room found in stock
-  where it cannot be made, awaiting CI, merge and production verification
-- `main`: through PR #114 (merged) — `ddee69e`; PR #94 (`01437d0`) fixed the four defects the owner
+  `main` after PR #115 — the MVP-041 closeout, and the room graded to the
+  deck, awaiting CI, merge and production verification
+- `main`: through PR #115 (merged) — `d4b4bda`; PR #94 (`01437d0`) fixed the four defects the owner
   reported after using the shipped build: pictures that never arrive, drawings
   that had gone, no designed background, and a browser that crashes while
   presenting; every migration through `0030_shared_backdrop_asset.sql` applied
@@ -150,6 +150,25 @@ ever been generated there. If the key is absent, this round changes nothing
 in production until it is set; if present, the next generated deck is the
 evidence.
 
+### The room graded to the deck
+
+A room found in stock arrives in its own colour world — a warm corridor
+behind a cold theme — where a made room was made to the palette. Every
+picture in a scene already takes the deck's light (`gradeMatrix`: a tint
+that trades a little of the picture's saturation for the accent laid into
+its highlights, or a duotone, with grain composited inside the picture's
+own alpha), and the room now takes it by the same hand: the filter markup
+is one shared component (`GradeFilter`, used by `element-view.tsx` and
+`world.tsx`), and `JourneyBackdrop.grade` names the room's grade — a tint
+unless the author says otherwise, chosen beside the dim in the journey
+panel (Tint, Duotone, As shot), and a stored backdrop from before the
+field existed parses to the tint. As shot carries no filter at all rather
+than a filter that does nothing.
+
+Tests in `world-render` (the room's picture carries a filter whose colour
+matrix is the theme's tint; as shot carries none; a stored backdrop parses
+to tint).
+
 ### A room found in stock
 
 The picture behind the whole show — now veiled on a scene and whole from
@@ -175,6 +194,19 @@ on, and an older answer without them still parses to the drawn room.
 Tests in `look` (the brief asks for the words and the schema defaults them;
 the made room first and the found one from the writer's words, never the
 title, at its own dim; both routes hand the words on).
+
+**Landed and verified.** PR #115 squash-merged as `d4b4bda`, all six CI
+jobs green on the head. The proxied smoke suite against `www.axtevi.com`
+after the deploy: 37 of 37 on the first run. Codex found one real thing on
+the PR, fixed before merge: the stock fallback ignored the room's remaining
+budget — on a stock-only deployment it could start with no time left, and
+after a slow generation it started only once the whole allowance was
+spent, a search of up to twelve seconds and a download of up to twenty
+past the route's ceiling, leaving a written deck marked as generating. The
+found room now gets what the made one left, refuses to start on under
+forty-five seconds, and carries a deadline through the fill that is
+checked before the search and again before the save, so nothing is stored
+past it; a mocked behavioural test (`photo-fill-deadline`) pins each case.
 
 ### The room seen whole
 
